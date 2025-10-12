@@ -25,6 +25,7 @@
                 </x-wire-button>
             </div>
         </form>
+        @livewire('admin.products.subproduct-rules', ['product' => $product])
 
         {{-- FORM DESACTIVAR (ANTES: eliminar) - Fuera del form principal --}}
         <form id="product-deactivate-form" method="POST" action="{{ route('admin.products.destroy', $product) }}" class="mt-4">

@@ -10,4 +10,4 @@ Route::resource('categories', CategoryController::class)->except(['show']);
 Route::resource('products', \App\Http\Controllers\Admin\ProductController::class)->except(['show']);
 
 Route::post('products/{product}/despiece', [\App\Http\Controllers\Admin\ProductController::class, 'despiece'])
-    ->name('admin.products.despiece');
+    ->name('products.despiece');
