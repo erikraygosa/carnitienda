@@ -21,6 +21,12 @@ $links = [
     'href'   => route('admin.products.index'),
     'active' => request()->routeIs('admin.products.*'),
   ],
+  [ 
+    'name'   => 'Clientes',
+    'icon'   => 'fa-solid fa-users',
+    'href'   => route('admin.clients.index'),
+    'active' => request()->routeIs('admin.clients.*'),
+  ],
 //   [
 //     'name'   => 'Admin',
 //     'icon'   => 'fa-solid fa-user-gear',

@@ -2,34 +2,31 @@
 
 namespace App\Services;
 
-use App\Models\Client;
-use App\Models\Product;
+use Illuminate\Support\Facades\DB;
 
 class PricingService
 {
-    /**
-     * Determina el mejor precio para un cliente y producto:
-     * override de cliente > lista del cliente > lista general (pasada en $fallbackListId) > precio_base del producto.
-     */
-    public function resolvePrice(?Client $client, Product $product, ?int $fallbackListId = null): float
+    public static function priceFor(int $productId, int $clientId, ?int $priceListId, ?string &$source = null): float
     {
         // 1) Override por cliente
-        if ($client) {
-            $ov = $client->priceOverrides()->where('product_id', $product->id)->first();
-            if ($ov) return (float)$ov->precio;
-            // 2) Lista del cliente
-            if ($client->priceList) {
-                $pli = $client->priceList->items()->where('product_id', $product->id)->first();
-                if ($pli) return (float)$pli->precio;
-            }
+        $override = DB::table('client_price_overrides')
+            ->where('client_id', $clientId)
+            ->where('product_id', $productId)
+            ->value('precio');
+        if ($override !== null) { $source = 'override'; return (float) $override; }
+
+        // 2) Lista del cliente
+        if ($priceListId) {
+            $listPrice = DB::table('price_list_items')
+                ->where('price_list_id', $priceListId)
+                ->where('product_id', $productId)
+                ->value('precio');
+            if ($listPrice !== null) { $source = 'price_list'; return (float) $listPrice; }
         }
-        // 3) Lista general de fallback
-        if ($fallbackListId) {
-            $pli = \App\Models\PriceListItem::where('price_list_id', $fallbackListId)
-                    ->where('product_id', $product->id)->first();
-            if ($pli) return (float)$pli->precio;
-        }
-        // 4) Precio base
-        return (float)$product->precio_base;
+
+        // 3) Precio base del producto
+        $base = DB::table('products')->where('id', $productId)->value('precio_base') ?? 0;
+        $source = 'base';
+        return (float) $base;
     }
 }

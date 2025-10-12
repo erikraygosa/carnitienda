@@ -13,11 +13,11 @@ class Client extends Model
         'credito_limite','credito_dias'
     ];
 
-    protected $casts = [
-        'activo' => 'boolean',
-        'credito_limite' => 'decimal:2',
-        'credito_dias' => 'integer',
-    ];
+   protected $casts = [
+    'activo' => 'boolean',
+    'credito_limite' => 'decimal:2',
+    'credito_dias' => 'integer',
+];
 
     public function shippingRoute() { return $this->belongsTo(ShippingRoute::class); }
     public function paymentType()  { return $this->belongsTo(PaymentType::class); }

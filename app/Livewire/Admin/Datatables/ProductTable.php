@@ -17,7 +17,7 @@ class ProductTable extends DataTableComponent
     public function configure(): void
     {
         $this->setPrimaryKey('id')
-            ->setDefaultSort('nombre', 'asc')
+            ->setDefaultSort('id', 'desc')
             ->setSearchPlaceholder('Buscar SKU / Nombre...')
             ->setColumnSelectStatus(false);
     }

@@ -11,3 +11,6 @@ Route::resource('products', \App\Http\Controllers\Admin\ProductController::class
 
 Route::post('products/{product}/despiece', [\App\Http\Controllers\Admin\ProductController::class, 'despiece'])
     ->name('products.despiece');
+
+Route::resource('clients', \App\Http\Controllers\Admin\ClientController::class)
+    ->names('clients');
