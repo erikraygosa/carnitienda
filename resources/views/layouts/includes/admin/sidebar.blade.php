@@ -9,6 +9,12 @@ $links = [
     'active' => request()->routeIs('admin.dashboard'),
   ],
   ['header' => 'Administrar'],
+  [
+    'name'   => 'Categorias',
+    'icon'   => 'fa-solid fa-list',
+    'href'   => route('admin.categories.index'),
+    'active' => request()->routeIs('admin.categories.'),
+  ],
 //   [
 //     'name'   => 'Admin',
 //     'icon'   => 'fa-solid fa-user-gear',

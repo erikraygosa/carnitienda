@@ -1,33 +1,22 @@
-@if (count($breadcrumbs))
+@props(['breadcrumbs' => []])
 
-    <nav class="mb-4">
+@if (!empty($breadcrumbs) && count($breadcrumbs))
+<nav class="mb-0" aria-label="Breadcrumb">
+    <ol class="flex flex-wrap items-center text-sm text-slate-700 dark:text-slate-300">
+        @foreach ($breadcrumbs as $i => $bc)
+            @php
+                $text = $bc['name'] ?? $bc['label'] ?? '';
+                $href = $bc['url']  ?? $bc['href'] ?? null;
+            @endphp
 
-        <ol class="flex flex-wrap">
-            @foreach ($breadcrumbs as $item)
-            
-                <li class="text-sm leading-normal text-slate-700 {{ !$loop->first ? "pl-2 before:float-left before:pr-2 before:content-['/']" : '' }}">
-                    
-                    @isset($item['href'])
-                        <a href="{{$item['href']}}" class="opacity-50">
-                            {{ $item['name'] }}
-                        </a>
-                    @else
-                        {{ $item['name'] }}
-                    @endisset
-
-                </li>
-
-            @endforeach
-
-        </ol>
-
-        @if (count($breadcrumbs) > 1)
-            
-            <h6 class="font-bold">
-                {{ end($breadcrumbs)['name'] }}
-            </h6>
-
-        @endif
-    </nav>
-
+            <li class="flex items-center {{ $i ? "pl-2 before:content-['/'] before:pr-2 before:text-slate-400" : '' }}">
+                @if ($href)
+                    <a href="{{ $href }}" class="opacity-60 hover:opacity-100">{{ $text }}</a>
+                @else
+                    <span class="font-medium">{{ $text }}</span>
+                @endif
+            </li>
+        @endforeach
+    </ol>
+</nav>
 @endif
