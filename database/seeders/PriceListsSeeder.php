@@ -11,11 +11,15 @@ class PriceListsSeeder extends Seeder
     {
         $now = now();
         $rows = [
-            ['nombre'=>'General','moneda'=>'MXN','activo'=>1],
-            ['nombre'=>'Mayorista','moneda'=>'MXN','activo'=>1],
+            ['nombre' => 'General',   'moneda' => 'MXN', 'activo' => 1],
+            ['nombre' => 'Mayorista', 'moneda' => 'MXN', 'activo' => 1],
         ];
+
         foreach ($rows as $r) {
-            DB::table('price_lists')->insert(array_merge($r, ['created_at'=>$now,'updated_at'=>$now]));
+            DB::table('price_lists')->updateOrInsert(
+                ['nombre' => $r['nombre']],
+                array_merge($r, ['updated_at' => $now, 'created_at' => $now])
+            );
         }
     }
 }

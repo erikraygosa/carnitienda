@@ -1,24 +1,52 @@
-<?php
+    <?php
 
-namespace Database\Seeders;
+    namespace Database\Seeders;
 
-use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
+    use Illuminate\Database\Seeder;
+    use Illuminate\Support\Facades\Hash;
+    use App\Models\User;
 
-class DatabaseSeeder extends Seeder
-{
-    /**
-     * Seed the application's database.
-     */
-    public function run(): void
+    class DatabaseSeeder extends Seeder
     {
-        // User::factory(10)->create();
+        public function run(): void
+        {
+            // --- Catálogos base ---
+            $this->call([
+                WarehousesSeeder::class,
+                PaymentTypesSeeder::class,
+                ShippingRoutesSeeder::class,
+                PriceListsSeeder::class,
+                CategorySeeder::class,
+                ClientsSeeder::class,
+                DriversSeeder::class,
+                PosRegistersSeeder::class,
+            ]);
 
-        User::factory()->create([
-            'name' => 'Admin',
-            'email' => 'admin@admin.com',
-            'password' => bcrypt('adminadmin'),
-        ]);
+            // --- Productos y reglas (deben ir ANTES de PriceListItemsSeeder) ---
+            $this->call([
+                ProductsSeeder::class,
+                ProductBomsSeeder::class,
+                ProductSubproductRulesSeeder::class,
+            ]);
+
+            // --- Ítems de listas de precios (ya existen productos) ---
+            $this->call([
+                PriceListItemsSeeder::class,
+            ]);
+
+            // --- Documentos / transacciones demo ---
+            $this->call([
+                SalesSeeder::class,
+                SaleItemsSeeder::class,
+                QuotesSeeder::class,
+                QuoteItemsSeeder::class,
+                ClientPriceOverridesSeeder::class,
+            ]);
+
+            // --- Usuario Admin ---
+            User::updateOrCreate(
+                ['email' => 'admin@admin.com'],
+                ['name' => 'Admin', 'password' => Hash::make('adminadmin')]
+            );
+        }
     }
-}
