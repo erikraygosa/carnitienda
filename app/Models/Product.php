@@ -37,4 +37,8 @@ class Product extends Model
     {
         return $this->hasMany(ProductSubproductRule::class, 'main_product_id');
     }
+    public function category()
+    {
+        return $this->belongsTo(\App\Models\Category::class);
+    }
 }
