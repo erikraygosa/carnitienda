@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\StockAdjustmentController;
 use App\Http\Controllers\Admin\StockTransferController;
 use App\Http\Controllers\Admin\QuoteController;
 use App\Http\Controllers\Admin\SalesOrderController;
+use App\Http\Controllers\Admin\SaleController;
 
 Route::view('/', 'admin.dashboard')->name('dashboard');
 
@@ -91,3 +92,27 @@ Route::resource('sales-orders', \App\Http\Controllers\Admin\SalesOrderController
     Route::post('sales-orders/{order}/process',    [SalesOrderController::class,'process'])->name('sales-orders.process');
     Route::post('sales-orders/{order}/dispatch',   [SalesOrderController::class,'dispatch'])->name('sales-orders.dispatch');
     Route::post('sales-orders/{order}/deliver',    [SalesOrderController::class,'deliver'])->name('sales-orders.deliver');
+
+    //Ventas
+
+  // CRUD estándar (index, create, store, edit, update, destroy)
+    Route::resource('sales', SaleController::class)
+        ->except(['show']); // <- array
+
+    // PDF
+    Route::get('sales/{sale}/pdf', [SaleController::class, 'pdf'])
+        ->name('sales.pdf');
+    Route::get('sales/{sale}/pdf/download', [SaleController::class, 'pdfDownload'])
+        ->name('sales.pdf.download');
+
+    // Envío (form + acción)
+    Route::get('sales/{sale}/send', [SaleController::class, 'sendForm'])
+        ->name('sales.send.form');
+    Route::post('sales/{sale}/send', [SaleController::class, 'send'])
+        ->name('sales.send');
+
+    // Acciones de estado
+    Route::post('sales/{sale}/close', [SaleController::class, 'close'])
+        ->name('sales.close');
+    Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel'])
+        ->name('sales.cancel');
