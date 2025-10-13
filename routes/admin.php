@@ -14,3 +14,7 @@ Route::post('products/{product}/despiece', [\App\Http\Controllers\Admin\ProductC
 
 Route::resource('clients', \App\Http\Controllers\Admin\ClientController::class)
     ->names('clients');
+
+Route::resource('providers', \App\Http\Controllers\Admin\ProviderController::class)
+    ->names('providers');
+

@@ -27,24 +27,14 @@ $links = [
     'href'   => route('admin.clients.index'),
     'active' => request()->routeIs('admin.clients.*'),
   ],
-//   [
-//     'name'   => 'Admin',
-//     'icon'   => 'fa-solid fa-user-gear',
-//     'href'   => '#', // no se usa cuando hay submenu
-//     'active' => request()->routeIs('admin.*'), // padre activo si cualquier admin.* lo está
-//     'submenu'=> [
-//       [
-//         'name'   => 'Users',
-//         'href'   => route('admin.users.index'),      // crea esta ruta
-//         'active' => request()->routeIs('admin.users.*'),
-//       ],
-//       [
-//         'name'   => 'Roles',
-//         'href'   => route('admin.roles.index'),      // crea esta ruta
-//         'active' => request()->routeIs('admin.roles.*'),
-//       ],
-//     ],
-//   ],
+   [ 
+    'name'   => 'Proveedores',
+    'icon'   => 'fa-solid fa-truck',
+    'href'   => route('admin.providers.index'),
+    'active' => request()->routeIs('admin.providers.*'),
+  ],
+  
+
 ];
 
 // Precalcula "hay hijo activo" para cada item con submenu
