@@ -18,3 +18,5 @@ Route::resource('clients', \App\Http\Controllers\Admin\ClientController::class)
 Route::resource('providers', \App\Http\Controllers\Admin\ProviderController::class)
     ->names('providers');
 
+Route::resource('warehouses', \App\Http\Controllers\Admin\WarehouseController::class)
+    ->names('warehouses');

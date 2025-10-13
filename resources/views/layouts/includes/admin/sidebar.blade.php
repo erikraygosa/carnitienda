@@ -33,7 +33,12 @@ $links = [
     'href'   => route('admin.providers.index'),
     'active' => request()->routeIs('admin.providers.*'),
   ],
-  
+   [ 
+    'name'   => 'Almacenes',
+    'icon'   => 'fa-solid fa-warehouse',
+    'href'   => route('admin.warehouses.index'),
+    'active' => request()->routeIs('admin.warehouses.*'),
+  ],
 
 ];
 
