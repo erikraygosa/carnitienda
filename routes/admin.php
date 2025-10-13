@@ -9,6 +9,9 @@ use App\Http\Controllers\Admin\ProviderController;
 use App\Http\Controllers\Admin\WarehouseController;
 use App\Http\Controllers\Admin\PurchaseOrderController;
 use App\Http\Controllers\Admin\PurchaseController;
+use App\Http\Controllers\Admin\StockController;
+use App\Http\Controllers\Admin\StockAdjustmentController;
+use App\Http\Controllers\Admin\StockTransferController;
 
 Route::view('/', 'admin.dashboard')->name('dashboard');
 
@@ -44,3 +47,12 @@ Route::post('purchases/{purchase}/receive', [PurchaseController::class, 'receive
 
 Route::post('purchases/{purchase}/cancel', [PurchaseController::class, 'cancel'])
     ->name('purchases.cancel');    
+
+Route::get('stock', [StockController::class, 'index'])->name('stock.index');
+Route::get('stock/costs', [StockController::class, 'costs'])->name('stock.costs');
+
+Route::get('stock/adjustments/create', [StockAdjustmentController::class, 'create'])->name('stock.adjustments.create');
+Route::post('stock/adjustments', [StockAdjustmentController::class, 'store'])->name('stock.adjustments.store');
+
+Route::get('stock/transfers/create', [StockTransferController::class, 'create'])->name('stock.transfers.create');
+Route::post('stock/transfers', [StockTransferController::class, 'store'])->name('stock.transfers.store');

@@ -51,6 +51,13 @@ $links = [
     'href'   => route('admin.purchases.index'),
     'active' => request()->routeIs('admin.purchases.*'),
   ],
+  [ 
+    'name'   => 'Stock',
+    'icon'   => 'fa-solid fa-layer-group',    
+    'href'   => route('admin.stock.index'),
+    'active' => request()->routeIs('admin.stock.*'),
+  ],
+
 
 ];
 
