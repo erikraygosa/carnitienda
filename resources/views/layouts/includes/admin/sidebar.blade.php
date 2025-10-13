@@ -39,6 +39,18 @@ $links = [
     'href'   => route('admin.warehouses.index'),
     'active' => request()->routeIs('admin.warehouses.*'),
   ],
+   [ 
+    'name'   => 'Ordenes de compra',
+    'icon'   => 'fa-solid fa-cart-plus',
+    'href'   => route('admin.purchase-orders.index'),
+    'active' => request()->routeIs('admin.purchase-orders.*'),
+  ],
+    [ 
+    'name'   => 'Compras',
+    'icon'   => 'fa-solid fa-cart-shopping',
+    'href'   => route('admin.purchases.index'),
+    'active' => request()->routeIs('admin.purchases.*'),
+  ],
 
 ];
 

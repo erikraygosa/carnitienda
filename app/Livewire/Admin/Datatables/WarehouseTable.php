@@ -30,7 +30,7 @@ class WarehouseTable extends DataTableComponent
                 ->sortable()
                 ->collapseOnMobile(),
             Column::make('Acciones')
-                ->label(fn($row) => view('admin.warehouses.partials.actions', ['warehouse' => $row]))
+                ->label(fn($row) => view('admin.warehouses.partials.actions', ['warehouse' => $row])->render())
                 ->html(),
         ];
     }

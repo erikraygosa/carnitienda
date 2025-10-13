@@ -4,7 +4,8 @@
     </x-wire-button>
 
     <form action="{{ route('admin.warehouses.destroy', $warehouse) }}" method="POST" class="delete-form">
-        @csrf @method('DELETE')
+        @csrf
+        @method('DELETE')
         <x-wire-button type="submit" red xs>
             Eliminar
         </x-wire-button>
