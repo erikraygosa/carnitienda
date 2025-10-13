@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\PurchaseController;
 use App\Http\Controllers\Admin\StockController;
 use App\Http\Controllers\Admin\StockAdjustmentController;
 use App\Http\Controllers\Admin\StockTransferController;
+use App\Http\Controllers\Admin\QuoteController;
 
 Route::view('/', 'admin.dashboard')->name('dashboard');
 
@@ -56,3 +57,16 @@ Route::post('stock/adjustments', [StockAdjustmentController::class, 'store'])->n
 
 Route::get('stock/transfers/create', [StockTransferController::class, 'create'])->name('stock.transfers.create');
 Route::post('stock/transfers', [StockTransferController::class, 'store'])->name('stock.transfers.store');
+
+Route::resource('quotes', App\Http\Controllers\Admin\QuoteController::class)
+    ->except('show')
+    ->names('quotes');
+
+ Route::post('quotes/{quote}/send',     [\App\Http\Controllers\Admin\QuoteController::class, 'send'])->name('quotes.send');
+Route::post('quotes/{quote}/approve',  [\App\Http\Controllers\Admin\QuoteController::class, 'approve'])->name('quotes.approve');
+Route::post('quotes/{quote}/reject',   [\App\Http\Controllers\Admin\QuoteController::class, 'reject'])->name('quotes.reject');
+Route::post('quotes/{quote}/cancel',   [\App\Http\Controllers\Admin\QuoteController::class, 'cancel'])->name('quotes.cancel');
+Route::get('quotes/{quote}/send', [QuoteController::class, 'sendForm'])->name('quotes.send.form');
+    Route::post('quotes/{quote}/send', [QuoteController::class, 'send'])->name('quotes.send');   
+    Route::get('quotes/{quote}/pdf', [QuoteController::class, 'pdf'])->name('quotes.pdf');            // ver en navegador
+    Route::get('quotes/{quote}/pdf/download', [QuoteController::class, 'pdfDownload'])->name('quotes.pdf.download'); // descarga

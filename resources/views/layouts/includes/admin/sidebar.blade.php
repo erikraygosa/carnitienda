@@ -57,6 +57,12 @@ $links = [
     'href'   => route('admin.stock.index'),
     'active' => request()->routeIs('admin.stock.*'),
   ],
+   [ 
+    'name'   => 'Cotizaciones',
+    'icon'   => 'fa-solid fa-file-invoice-dollar',
+    'href'   => route('admin.quotes.index'),
+    'active' => request()->routeIs('admin.quotes.*'),
+  ],
 
 
 ];
