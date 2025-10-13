@@ -1,0 +1,351 @@
+<x-admin-layout
+    title="Editar pedido"
+    :breadcrumbs="[
+        ['name'=>'Dashboard','url'=>route('admin.dashboard')],
+        ['name'=>'Pedidos','url'=>route('admin.sales-orders.index')],
+        ['name'=>'Editar'],
+    ]"
+>
+    <x-slot name="action">
+        <a href="{{ route('admin.sales-orders.index') }}" class="inline-flex px-3 py-1.5 text-sm rounded-md border">Regresar</a>
+        @if($order->status === 'BORRADOR')
+            <button form="so-edit-form" type="submit" class="ml-2 inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white">Actualizar</button>
+        @endif
+    </x-slot>
+
+    @php
+        $isLocked     = $order->status !== 'BORRADOR';
+        $selClient    = (string) old('client_id', $order->client_id);
+        $selWarehouse = (string) old('warehouse_id', $order->warehouse_id);
+        $selRoute     = (string) old('shipping_route_id', $order->shipping_route_id);
+        $selDriver    = (string) old('driver_id', $order->driver_id);
+
+        $valueFecha   = old('fecha', optional($order->fecha)->format('Y-m-d\TH:i'));
+        $valueProg    = old('programado_para', optional($order->programado_para)->toDateString());
+        $valueMoneda  = old('moneda', $order->moneda);
+
+        $deliveryType = old('delivery_type', $order->delivery_type);
+        $paymentMethod= old('payment_method', $order->payment_method);
+        $creditDays   = old('credit_days', $order->credit_days);
+
+        $statusClasses = [
+            'BORRADOR'   => 'bg-gray-100 text-gray-700',
+            'APROBADO'   => 'bg-blue-100 text-blue-700',
+            'PROCESADO'  => 'bg-amber-100 text-amber-700',
+            'DESPACHADO' => 'bg-violet-100 text-violet-700',
+            'ENTREGADO'  => 'bg-emerald-100 text-emerald-700',
+            'CANCELADO'  => 'bg-rose-100 text-rose-700',
+        ];
+        $statusClass = $statusClasses[$order->status] ?? 'bg-slate-100 text-slate-700';
+
+        $itemsSeed = $order->items->map(function($i){
+            return [
+                'product_id'  => $i->product_id,
+                'descripcion' => $i->descripcion,
+                'cantidad'    => (float)$i->cantidad,
+                'precio'      => (float)$i->precio,
+                'descuento'   => (float)$i->descuento,
+                'iva_pct'     => 0,
+                'impuesto'    => (float)$i->impuesto,
+                'total'       => (float)$i->total,
+            ];
+        })->values()->toArray();
+    @endphp
+
+    <x-wire-card>
+        <form id="so-edit-form"
+              method="POST"
+              action="{{ route('admin.sales-orders.update',$order) }}"
+              class="space-y-6"
+              x-data="soFormEdit()"
+              x-init="init()"
+        >
+            @csrf @method('PUT')
+
+            {{-- ====== Encabezado ====== --}}
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {{-- Cliente --}}
+                <div class="md:col-span-2 space-y-2 w-full">
+                    <label for="client_id" class="block text-sm font-medium text-gray-700">Cliente</label>
+                    <select name="client_id" id="client_id"
+                        class="w-full rounded-md border-gray-300"
+                        {{ $isLocked ? 'disabled' : '' }}>
+                        <option value="">-- seleccionar --</option>
+                        @foreach($clients as $c)
+                            <option value="{{ $c->id }}" {{ $selClient===(string)$c->id ? 'selected' : '' }}>
+                                {{ $c->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                {{-- Almacén --}}
+                <div class="space-y-2 w-full">
+                    <label for="warehouse_id" class="block text-sm font-medium text-gray-700">Almacén</label>
+                    <select name="warehouse_id" id="warehouse_id"
+                        class="w-full rounded-md border-gray-300"
+                        {{ $isLocked ? 'disabled' : '' }} required>
+                        <option value="">-- seleccionar --</option>
+                        @foreach($warehouses as $w)
+                            <option value="{{ $w->id }}" {{ $selWarehouse===(string)$w->id ? 'selected' : '' }}>
+                                {{ $w->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                {{-- Lista de precios (info) --}}
+                <div class="space-y-2 w-full">
+                    <label class="block text-sm font-medium text-gray-700">Lista de precios</label>
+                    <input type="text" class="w-full rounded-md border-gray-200 bg-gray-50" value="{{ $order->priceList?->nombre ?? 'Personalizada del cliente' }}" disabled>
+                </div>
+
+                {{-- Fecha / Programado / Moneda --}}
+                <div>
+                    <x-wire-input label="Fecha" name="fecha" type="datetime-local" value="{{ $valueFecha }}" :disabled="$isLocked" required/>
+                </div>
+                <div>
+                    <x-wire-input label="Programado para" name="programado_para" type="date" value="{{ $valueProg }}" :disabled="$isLocked"/>
+                </div>
+                <div>
+                    <x-wire-input label="Moneda" name="moneda" value="{{ $valueMoneda }}" :disabled="$isLocked" required/>
+                </div>
+
+                {{-- Entrega --}}
+                <div class="space-y-2 w-full">
+                    <label for="delivery_type" class="block text-sm font-medium text-gray-700">Tipo de entrega</label>
+                    <select name="delivery_type" id="delivery_type" class="w-full rounded-md border-gray-300" {{ $isLocked ? 'disabled' : '' }}>
+                        <option value="ENVIO" {{ $deliveryType==='ENVIO' ? 'selected' : '' }}>Envío a domicilio</option>
+                        <option value="RECOGER" {{ $deliveryType==='RECOGER' ? 'selected' : '' }}>Recoger en almacén</option>
+                    </select>
+                </div>
+
+                {{-- Ruta / Chofer --}}
+                <div class="space-y-2 w-full">
+                    <label for="shipping_route_id" class="block text-sm font-medium text-gray-700">Ruta</label>
+                    <select name="shipping_route_id" id="shipping_route_id" class="w-full rounded-md border-gray-300" {{ $isLocked ? 'disabled' : '' }}>
+                        <option value="">-- sin ruta --</option>
+                        @foreach($routes as $r)
+                            <option value="{{ $r->id }}" {{ $selRoute===(string)$r->id ? 'selected' : '' }}>
+                                {{ $r->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="space-y-2 w-full">
+                    <label for="driver_id" class="block text-sm font-medium text-gray-700">Chofer</label>
+                    <select name="driver_id" id="driver_id" class="w-full rounded-md border-gray-300" {{ $isLocked ? 'disabled' : '' }}>
+                        <option value="">-- sin chofer --</option>
+                        @foreach($drivers as $d)
+                            <option value="{{ $d->id }}" {{ $selDriver===(string)$d->id ? 'selected' : '' }}>
+                                {{ $d->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                {{-- Pago --}}
+                <div class="space-y-2 w-full">
+                    <label for="payment_method" class="block text-sm font-medium text-gray-700">Método de pago</label>
+                    <select name="payment_method" id="payment_method" class="w-full rounded-md border-gray-300" {{ $isLocked ? 'disabled' : '' }}>
+                        <option value="EFECTIVO" {{ $paymentMethod==='EFECTIVO' ? 'selected' : '' }}>Efectivo</option>
+                        <option value="TRANSFERENCIA" {{ $paymentMethod==='TRANSFERENCIA' ? 'selected' : '' }}>Transferencia</option>
+                        <option value="CONTRAENTREGA" {{ $paymentMethod==='CONTRAENTREGA' ? 'selected' : '' }}>Contraentrega</option>
+                        <option value="CREDITO" {{ $paymentMethod==='CREDITO' ? 'selected' : '' }}>Crédito</option>
+                    </select>
+                </div>
+                <div class="space-y-2 w-full" @class(['hidden' => $paymentMethod!=='CREDITO'])>
+                    <x-wire-input label="Días de crédito" name="credit_days" type="number" min="0" value="{{ $creditDays ?? 0 }}" :disabled="$isLocked" />
+                </div>
+            </div>
+
+            {{-- Dirección de entrega (solo si ENVIO) --}}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4" @class(['hidden' => $deliveryType!=='ENVIO'])>
+                <div><x-wire-input label="Nombre quien recibe" name="entrega_nombre" value="{{ old('entrega_nombre', $order->entrega_nombre) }}" :disabled="$isLocked" /></div>
+                <div><x-wire-input label="Teléfono" name="entrega_telefono" value="{{ old('entrega_telefono', $order->entrega_telefono) }}" :disabled="$isLocked" /></div>
+                <div><x-wire-input label="Calle" name="entrega_calle" value="{{ old('entrega_calle', $order->entrega_calle) }}" :disabled="$isLocked" /></div>
+                <div><x-wire-input label="Número" name="entrega_numero" value="{{ old('entrega_numero', $order->entrega_numero) }}" :disabled="$isLocked" /></div>
+                <div><x-wire-input label="Colonia" name="entrega_colonia" value="{{ old('entrega_colonia', $order->entrega_colonia) }}" :disabled="$isLocked" /></div>
+                <div><x-wire-input label="Ciudad" name="entrega_ciudad" value="{{ old('entrega_ciudad', $order->entrega_ciudad) }}" :disabled="$isLocked" /></div>
+                <div><x-wire-input label="Estado" name="entrega_estado" value="{{ old('entrega_estado', $order->entrega_estado) }}" :disabled="$isLocked" /></div>
+                <div><x-wire-input label="CP" name="entrega_cp" value="{{ old('entrega_cp', $order->entrega_cp) }}" :disabled="$isLocked" /></div>
+            </div>
+
+            {{-- Partidas --}}
+            <div class="overflow-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="border-b">
+                        <tr>
+                            <th class="p-2 text-left">Producto</th>
+                            <th class="p-2 text-left">Descripción</th>
+                            <th class="p-2 text-right">Cantidad</th>
+                            <th class="p-2 text-right">Precio</th>
+                            <th class="p-2 text-right">Desc.</th>
+                            <th class="p-2 text-right">% IVA</th>
+                            <th class="p-2 text-right">Total</th>
+                            <th class="p-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="(it, i) in items" :key="i">
+                            <tr class="border-b">
+                                <td class="p-2">
+                                    <select class="w-48 border rounded p-1"
+                                        x-bind:name="'items['+i+'][product_id]'"
+                                        x-model="it.product_id"
+                                        @change="syncDescFromProduct(i)"
+                                        :disabled="locked">
+                                        <option value="">—</option>
+                                        @foreach($products as $p)
+                                            <option value="{{ $p->id }}" data-nombre="{{ $p->nombre }}" data-precio="{{ $p->precio_base }}">
+                                                {{ $p->nombre }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </td>
+                                <td class="p-2">
+                                    <input type="text" class="w-64 border rounded p-1"
+                                        x-bind:name="'items['+i+'][descripcion]'"
+                                        x-model="it.descripcion" :disabled="locked" required>
+                                </td>
+                                <td class="p-2 text-right">
+                                    <input type="number" min="0.001" step="0.001" class="w-24 border rounded p-1 text-right"
+                                        x-bind:name="'items['+i+'][cantidad]'"
+                                        x-model.number="it.cantidad" @input="recalc(i)" :disabled="locked" required>
+                                </td>
+                                <td class="p-2 text-right">
+                                    <input type="number" min="0" step="0.0001" class="w-28 border rounded p-1 text-right"
+                                        x-bind:name="'items['+i+'][precio]'"
+                                        x-model.number="it.precio" @input="recalc(i)" :disabled="locked" required>
+                                </td>
+                                <td class="p-2 text-right">
+                                    <input type="number" min="0" step="0.01" class="w-24 border rounded p-1 text-right"
+                                        x-model.number="it.descuento" @input="recalc(i)" :disabled="locked">
+                                    <input type="hidden" x-bind:name="'items['+i+'][descuento]'" x-model="it.descuento">
+                                </td>
+                                <td class="p-2 text-right">
+                                    <input type="number" min="0" step="0.01" class="w-20 border rounded p-1 text-right"
+                                        x-model.number="it.iva_pct" @input="recalc(i)" :disabled="locked">
+                                    <input type="hidden" x-bind:name="'items['+i+'][impuesto]'" x-model="it.impuesto">
+                                </td>
+                                <td class="p-2 text-right" x-text="fmt(it.total)"></td>
+                                <td class="p-2" x-show="!locked">
+                                    <button type="button" class="text-red-600" @click="remove(i)">Eliminar</button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+                <div class="mt-2" x-show="!locked">
+                    <x-wire-button type="button" gray @click="add()">Agregar partida</x-wire-button>
+                </div>
+            </div>
+
+            {{-- Totales --}}
+            <div class="text-right space-y-1">
+                <div>Subtotal: <span x-text="fmt(subtotal)"></span></div>
+                <div>Descuento: <span x-text="fmt(desc_total)"></span></div>
+                <div>Impuestos: <span x-text="fmt(tax_total)"></span></div>
+                <div class="font-semibold text-lg">Total: <span x-text="fmt(grand)"></span></div>
+            </div>
+        </form>
+    </x-wire-card>
+
+    {{-- ====== Acciones (con PDF/Enviar al estilo de cotizaciones) ====== --}}
+    <x-wire-card class="mt-4">
+        <div class="flex items-center space-x-2">
+            {{-- Editar --}}
+            <x-wire-button href="{{ route('admin.sales-orders.edit',$order) }}" blue xs>Editar</x-wire-button>
+
+            {{-- PDF --}}
+            <x-wire-button href="{{ route('admin.sales-orders.pdf',$order) }}" gray outline xs target="_blank">Ver PDF</x-wire-button>
+            <x-wire-button href="{{ route('admin.sales-orders.pdf.download',$order) }}" gray xs>Descargar PDF</x-wire-button>
+
+            {{-- Envío (formulario de envío) --}}
+            <x-wire-button href="{{ route('admin.sales-orders.send.form',$order) }}" violet xs>Enviar</x-wire-button>
+
+            {{-- Badge estado --}}
+            <span class="ml-2 px-2 py-1 text-xs rounded-full {{ $statusClass }}">
+                Estatus: {{ $order->status_label }}
+            </span>
+
+            {{-- Acciones por estado (derecha) --}}
+            <div class="ml-auto flex items-center space-x-2">
+                @if($order->status === 'BORRADOR')
+                    <form action="{{ route('admin.sales-orders.approve',$order) }}" method="POST">@csrf
+                        <x-wire-button type="submit" green xs>Aprobar</x-wire-button>
+                    </form>
+                    <form action="{{ route('admin.sales-orders.cancel',$order) }}" method="POST">@csrf
+                        <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
+                    </form>
+                @elseif($order->status === 'APROBADO')
+                    <form action="{{ route('admin.sales-orders.process',$order) }}" method="POST">@csrf
+                        <x-wire-button type="submit" amber xs>Procesar</x-wire-button>
+                    </form>
+                @elseif($order->status === 'PROCESADO')
+                    <form action="{{ route('admin.sales-orders.dispatch',$order) }}" method="POST">@csrf
+                        <x-wire-button type="submit" violet xs>Despachar</x-wire-button>
+                    </form>
+                @elseif($order->status === 'DESPACHADO')
+                    <form action="{{ route('admin.sales-orders.deliver',$order) }}" method="POST">@csrf
+                        <x-wire-button type="submit" emerald xs>Entregar</x-wire-button>
+                    </form>
+                @endif
+            </div>
+        </div>
+    </x-wire-card>
+
+    <script>
+    function soFormEdit(){
+        const seed   = @json($itemsSeed);
+        const locked = @json($isLocked);
+
+        return {
+            items: (seed && seed.length) ? seed : [{product_id:'', descripcion:'', cantidad:1, precio:0, descuento:0, iva_pct:0, impuesto:0, total:0}],
+            locked,
+            subtotal:0, desc_total:0, tax_total:0, grand:0,
+
+            init(){ this.sum(); },
+
+            add(){ if(this.locked) return; this.items.push({product_id:'', descripcion:'', cantidad:1, precio:0, descuento:0, iva_pct:0, impuesto:0, total:0}); },
+            remove(i){ if(this.locked) return; this.items.splice(i,1); this.sum(); },
+
+            syncDescFromProduct(i){
+                if(this.locked) return;
+                const select = event.target;
+                const nombre = select.options[select.selectedIndex]?.dataset?.nombre || '';
+                const precio = parseFloat(select.options[select.selectedIndex]?.dataset?.precio || '0') || 0;
+                if(!this.items[i].descripcion){ this.items[i].descripcion = nombre; }
+                if(this.items[i].precio === 0){ this.items[i].precio = precio; }
+                this.recalc(i);
+            },
+
+            recalc(i){
+                const it=this.items[i];
+                const line=(+it.cantidad||0)*(+it.precio||0);
+                const disc=+it.descuento||0;
+                const base=Math.max(line-disc,0);
+                const tax=((+it.iva_pct||0)*0.01)*base;
+                it.impuesto=tax; it.total=base+tax;
+                this.sum();
+            },
+
+            sum(){
+                let s=0,d=0,t=0,g=0;
+                this.items.forEach(it=>{
+                    const line=(+it.cantidad||0)*(+it.precio||0);
+                    const disc=+it.descuento||0;
+                    const base=Math.max(line-disc,0);
+                    const tax=((+it.iva_pct||0)*0.01)*base;
+                    const tot=base+tax;
+                    s+=line; d+=disc; t+=tax; g+=tot;
+                    it.impuesto=tax; it.total=tot;
+                });
+                this.subtotal=s; this.desc_total=d; this.tax_total=t; this.grand=g;
+            },
+
+            fmt(n){ return Number(n||0).toFixed(2); }
+        }
+    }
+    </script>
+</x-admin-layout>

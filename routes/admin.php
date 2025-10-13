@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\StockController;
 use App\Http\Controllers\Admin\StockAdjustmentController;
 use App\Http\Controllers\Admin\StockTransferController;
 use App\Http\Controllers\Admin\QuoteController;
+use App\Http\Controllers\Admin\SalesOrderController;
 
 Route::view('/', 'admin.dashboard')->name('dashboard');
 
@@ -70,3 +71,23 @@ Route::get('quotes/{quote}/send', [QuoteController::class, 'sendForm'])->name('q
     Route::post('quotes/{quote}/send', [QuoteController::class, 'send'])->name('quotes.send');   
     Route::get('quotes/{quote}/pdf', [QuoteController::class, 'pdf'])->name('quotes.pdf');            // ver en navegador
     Route::get('quotes/{quote}/pdf/download', [QuoteController::class, 'pdfDownload'])->name('quotes.pdf.download'); // descarga
+
+// Rutas para pedidos de venta
+Route::resource('sales-orders', \App\Http\Controllers\Admin\SalesOrderController::class);
+
+    // Acciones de estado
+    Route::post('sales-orders/{order}/approve',  [SalesOrderController::class,'approve'])->name('sales-orders.approve');
+    Route::post('sales-orders/{order}/process',  [SalesOrderController::class,'process'])->name('sales-orders.process');
+    Route::post('sales-orders/{order}/dispatch', [SalesOrderController::class,'dispatch'])->name('sales-orders.dispatch');
+    Route::post('sales-orders/{order}/deliver',  [SalesOrderController::class,'deliver'])->name('sales-orders.deliver');
+    Route::post('sales-orders/{order}/cancel',   [SalesOrderController::class,'cancel'])->name('sales-orders.cancel');    
+    Route::get ('sales-orders/{order}/send',       [SalesOrderController::class,'sendForm'])->name('sales-orders.send.form');
+    Route::post('sales-orders/{order}/send',       [SalesOrderController::class,'send'])->name('sales-orders.send');
+
+    Route::get ('sales-orders/{order}/pdf',        [SalesOrderController::class,'pdf'])->name('sales-orders.pdf');
+    Route::get ('sales-orders/{order}/pdf/download',[SalesOrderController::class,'pdfDownload'])->name('sales-orders.pdf.download');
+
+    // Estados
+    Route::post('sales-orders/{order}/process',    [SalesOrderController::class,'process'])->name('sales-orders.process');
+    Route::post('sales-orders/{order}/dispatch',   [SalesOrderController::class,'dispatch'])->name('sales-orders.dispatch');
+    Route::post('sales-orders/{order}/deliver',    [SalesOrderController::class,'deliver'])->name('sales-orders.deliver');

@@ -63,6 +63,12 @@ $links = [
     'href'   => route('admin.quotes.index'),
     'active' => request()->routeIs('admin.quotes.*'),
   ],
+  [ 
+    'name'   => 'Pedidos',  
+    'icon'   => 'fa-solid fa-file-invoice',
+    'href'   => route('admin.sales-orders.index'),
+    'active' => request()->routeIs('admin.sales-orders.*'),
+  ],
 
 
 ];
