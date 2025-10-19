@@ -72,47 +72,48 @@ Route::get('quotes/{quote}/send', [QuoteController::class, 'sendForm'])->name('q
     Route::post('quotes/{quote}/send', [QuoteController::class, 'send'])->name('quotes.send');   
     Route::get('quotes/{quote}/pdf', [QuoteController::class, 'pdf'])->name('quotes.pdf');            // ver en navegador
     Route::get('quotes/{quote}/pdf/download', [QuoteController::class, 'pdfDownload'])->name('quotes.pdf.download'); // descarga
-
-// Rutas para pedidos de venta
-Route::resource('sales-orders', \App\Http\Controllers\Admin\SalesOrderController::class);
-
-    // Acciones de estado
-    Route::post('sales-orders/{order}/approve',  [SalesOrderController::class,'approve'])->name('sales-orders.approve');
-    Route::post('sales-orders/{order}/process',  [SalesOrderController::class,'process'])->name('sales-orders.process');
-    Route::post('sales-orders/{order}/dispatch', [SalesOrderController::class,'dispatch'])->name('sales-orders.dispatch');
-    Route::post('sales-orders/{order}/deliver',  [SalesOrderController::class,'deliver'])->name('sales-orders.deliver');
-    Route::post('sales-orders/{order}/cancel',   [SalesOrderController::class,'cancel'])->name('sales-orders.cancel');    
-    Route::get ('sales-orders/{order}/send',       [SalesOrderController::class,'sendForm'])->name('sales-orders.send.form');
-    Route::post('sales-orders/{order}/send',       [SalesOrderController::class,'send'])->name('sales-orders.send');
-
-    Route::get ('sales-orders/{order}/pdf',        [SalesOrderController::class,'pdf'])->name('sales-orders.pdf');
-    Route::get ('sales-orders/{order}/pdf/download',[SalesOrderController::class,'pdfDownload'])->name('sales-orders.pdf.download');
-
-    // Estados
-    Route::post('sales-orders/{order}/process',    [SalesOrderController::class,'process'])->name('sales-orders.process');
-    Route::post('sales-orders/{order}/dispatch',   [SalesOrderController::class,'dispatch'])->name('sales-orders.dispatch');
-    Route::post('sales-orders/{order}/deliver',    [SalesOrderController::class,'deliver'])->name('sales-orders.deliver');
-
-    //Ventas
-
-  // CRUD estándar (index, create, store, edit, update, destroy)
-    Route::resource('sales', SaleController::class)
-        ->except(['show']); // <- array
+ Route::resource('sales-orders', SalesOrderController::class);
 
     // PDF
-    Route::get('sales/{sale}/pdf', [SaleController::class, 'pdf'])
-        ->name('sales.pdf');
-    Route::get('sales/{sale}/pdf/download', [SaleController::class, 'pdfDownload'])
-        ->name('sales.pdf.download');
+    Route::get ('sales-orders/{order}/pdf',           [SalesOrderController::class,'pdf'])->name('sales-orders.pdf');
+    Route::get ('sales-orders/{order}/pdf/download',  [SalesOrderController::class,'pdfDownload'])->name('sales-orders.pdf.download');
 
     // Envío (form + acción)
-    Route::get('sales/{sale}/send', [SaleController::class, 'sendForm'])
-        ->name('sales.send.form');
-    Route::post('sales/{sale}/send', [SaleController::class, 'send'])
-        ->name('sales.send');
+    Route::get ('sales-orders/{order}/send',          [SalesOrderController::class,'sendForm'])->name('sales-orders.send.form');
+    Route::post('sales-orders/{order}/send',          [SalesOrderController::class,'send'])->name('sales-orders.send');
 
-    // Acciones de estado
-    Route::post('sales/{sale}/close', [SaleController::class, 'close'])
-        ->name('sales.close');
-    Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel'])
-        ->name('sales.cancel');
+    // Acciones de estado (flujo logístico)
+    Route::post('sales-orders/{order}/approve',       [SalesOrderController::class,'approve'])->name('sales-orders.approve');
+    Route::post('sales-orders/{order}/preparar',      [SalesOrderController::class,'startPreparing'])->name('sales-orders.prepare');
+    Route::post('sales-orders/{order}/procesar',      [SalesOrderController::class,'process'])->name('sales-orders.process');
+    Route::post('sales-orders/{order}/en-ruta',       [SalesOrderController::class,'dispatchToRoute'])->name('sales-orders.en-ruta');
+    Route::post('sales-orders/{order}/entregar',      [SalesOrderController::class,'deliver'])->name('sales-orders.deliver');
+    Route::post('sales-orders/{order}/no-entregado',  [SalesOrderController::class,'notDelivered'])->name('sales-orders.not-delivered');
+    Route::post('sales-orders/{order}/cobrar',        [SalesOrderController::class,'recordCash'])->name('sales-orders.cobrar');
+    Route::post('sales-orders/{order}/liquidar',      [SalesOrderController::class,'settleDriver'])->name('sales-orders.liquidar');
+    Route::post('sales-orders/{order}/cancelar',      [SalesOrderController::class,'cancel'])->name('sales-orders.cancel');
+
+
+    // =========================
+    // Sales (Notas de venta)
+    // =========================
+    Route::resource('sales', SaleController::class)->except(['show']);
+
+    // PDF
+    Route::get ('sales/{sale}/pdf',                   [SaleController::class,'pdf'])->name('sales.pdf');
+    Route::get ('sales/{sale}/pdf/download',          [SaleController::class,'pdfDownload'])->name('sales.pdf.download');
+
+    // Envío (form + acción)
+    Route::get ('sales/{sale}/send',                  [SaleController::class,'sendForm'])->name('sales.send.form');
+    Route::post('sales/{sale}/send',                  [SaleController::class,'send'])->name('sales.send');
+
+    // Acciones de estado (flujo logístico)
+    Route::post('sales/{sale}/approve',               [SaleController::class,'approve'])->name('sales.approve');
+    Route::post('sales/{sale}/preparar',              [SaleController::class,'startPreparing'])->name('sales.prepare');
+    Route::post('sales/{sale}/procesar',              [SaleController::class,'process'])->name('sales.process');
+    Route::post('sales/{sale}/en-ruta',               [SaleController::class,'dispatchToRoute'])->name('sales.en-ruta');
+    Route::post('sales/{sale}/entregar',              [SaleController::class,'deliver'])->name('sales.deliver');
+    Route::post('sales/{sale}/no-entregado',          [SaleController::class,'notDelivered'])->name('sales.not-delivered');
+    Route::post('sales/{sale}/cobrar',                [SaleController::class,'recordCash'])->name('sales.cobrar');
+    Route::post('sales/{sale}/liquidar',              [SaleController::class,'settleDriver'])->name('sales.liquidar');
+    Route::post('sales/{sale}/cancelar',              [SaleController::class,'cancel'])->name('sales.cancel');

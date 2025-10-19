@@ -11,16 +11,16 @@ use App\Models\Product;
 use App\Models\Warehouse;
 use App\Models\Driver;
 use App\Models\ShippingRoute;
-use App\Models\Sale;                 // si ya tienes estos modelos
-use App\Models\SaleItem;             // "
-use App\Models\AccountsReceivable;   // "
+use App\Models\Sale;
+use App\Models\SaleItem;
+use App\Models\AccountsReceivable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\SalesOrderDeliveryNoteMailable;
-use App\Services\WhatsappSender;
+use App\Models\StockMovement;
 
 class SalesOrderController extends Controller
 {
@@ -38,7 +38,7 @@ class SalesOrderController extends Controller
         $drivers     = Driver::orderBy('nombre')->get(['id','nombre']);
         $routes      = ShippingRoute::orderBy('nombre')->get(['id','nombre']);
 
-        // Mapas de precios (personalizado por cliente y listas)
+        // Overrides por cliente
         $overrides = DB::table('client_price_overrides')
             ->select('client_id','product_id','precio')
             ->whereIn('client_id', $clients->pluck('id'))
@@ -47,6 +47,7 @@ class SalesOrderController extends Controller
             ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v)=>(float)$v)->toArray())
             ->toArray();
 
+        // Items de listas
         $listItems = DB::table('price_list_items')
             ->select('price_list_id','product_id','precio')
             ->whereIn('price_list_id', $priceLists->pluck('id'))
@@ -147,6 +148,9 @@ class SalesOrderController extends Controller
                 'status'         => 'BORRADOR',
                 'created_by'     => auth()->id(),
                 'owner_id'       => auth()->id(),
+
+                // Contraentrega: se espera cobrar "total" salvo que manejes redondeos/comisiones
+                'contraentrega_total' => $data['payment_method'] === 'CONTRAENTREGA' ? $total : 0,
             ]);
 
             foreach ($data['items'] as $it) {
@@ -194,118 +198,237 @@ class SalesOrderController extends Controller
             return back()->with('swal',['icon'=>'error','title'=>'Error','text'=>'Solo borrador puede editarse.']);
         }
 
-        // (Copia la misma validación de store)
-        // ... valida $data
+        $data = $request->validate([
+            'fecha'           => ['required','date'],
+            'client_id'       => ['nullable','exists:clients,id'],
+            'warehouse_id'    => ['required','exists:warehouses,id'],
+            'price_list_id'   => ['nullable','exists:price_lists,id'],
+            'programado_para' => ['nullable','date'],
 
-        // (Recalcula totales y actualiza como en store)
-        // ...
+            'delivery_type'    => ['required','in:RECOGER,ENVIO'],
+            'entrega_nombre'   => ['nullable','string','max:255'],
+            'entrega_telefono' => ['nullable','string','max:50'],
+            'entrega_calle'    => ['nullable','string','max:255'],
+            'entrega_numero'   => ['nullable','string','max:50'],
+            'entrega_colonia'  => ['nullable','string','max:255'],
+            'entrega_ciudad'   => ['nullable','string','max:255'],
+            'entrega_estado'   => ['nullable','string','max:255'],
+            'entrega_cp'       => ['nullable','string','max:10'],
+
+            'shipping_route_id'=> ['nullable','exists:shipping_routes,id'],
+            'driver_id'        => ['nullable','exists:drivers,id'],
+
+            'payment_method'  => ['required','in:CREDITO,TRANSFERENCIA,CONTRAENTREGA,EFECTIVO'],
+            'credit_days'     => ['nullable','integer','min:0'],
+
+            'moneda'          => ['required','string','max:10'],
+
+            'items'                => ['required','array','min:1'],
+            'items.*.product_id'   => ['nullable','exists:products,id'],
+            'items.*.descripcion'  => ['required','string','max:255'],
+            'items.*.cantidad'     => ['required','numeric','gt:0'],
+            'items.*.precio'       => ['required','numeric','gte:0'],
+            'items.*.descuento'    => ['nullable','numeric','gte:0'],
+            'items.*.impuesto'     => ['nullable','numeric','gte:0'],
+        ]);
+
+        DB::transaction(function () use ($sales_order, $data) {
+            $subtotal=0; $descuento=0; $impuestos=0; $total=0;
+
+            // borra items previos y recalcula
+            $sales_order->items()->delete();
+
+            foreach ($data['items'] as $it) {
+                $line_sub = (float)$it['cantidad'] * (float)$it['precio'];
+                $line_desc= (float)($it['descuento'] ?? 0);
+                $line_tax = (float)($it['impuesto']  ?? 0);
+                $line_tot = max($line_sub - $line_desc, 0) + $line_tax;
+
+                $subtotal += $line_sub; $descuento += $line_desc; $impuestos += $line_tax; $total += $line_tot;
+
+                SalesOrderItem::create([
+                    'sales_order_id'=> $sales_order->id,
+                    'product_id'    => $it['product_id'] ?? null,
+                    'descripcion'   => $it['descripcion'],
+                    'cantidad'      => $it['cantidad'],
+                    'precio'        => $it['precio'],
+                    'descuento'     => $line_desc,
+                    'impuesto'      => $line_tax,
+                    'total'         => $line_tot,
+                ]);
+            }
+
+            $sales_order->update([
+                'client_id'       => $data['client_id'] ?? null,
+                'warehouse_id'    => $data['warehouse_id'],
+                'price_list_id'   => $data['price_list_id'] ?? null,
+                'fecha'           => $data['fecha'],
+                'programado_para' => $data['programado_para'] ?? null,
+
+                'delivery_type'    => $data['delivery_type'],
+                'entrega_nombre'   => $data['entrega_nombre'] ?? null,
+                'entrega_telefono' => $data['entrega_telefono'] ?? null,
+                'entrega_calle'    => $data['entrega_calle'] ?? null,
+                'entrega_numero'   => $data['entrega_numero'] ?? null,
+                'entrega_colonia'  => $data['entrega_colonia'] ?? null,
+                'entrega_ciudad'   => $data['entrega_ciudad'] ?? null,
+                'entrega_estado'   => $data['entrega_estado'] ?? null,
+                'entrega_cp'       => $data['entrega_cp'] ?? null,
+
+                'shipping_route_id'=> $data['shipping_route_id'] ?? null,
+                'driver_id'        => $data['driver_id'] ?? null,
+
+                'payment_method'   => $data['payment_method'],
+                'credit_days'      => $data['payment_method']==='CREDITO' ? ($data['credit_days'] ?? 0) : null,
+
+                'moneda'           => $data['moneda'],
+                'subtotal'         => $subtotal,
+                'impuestos'        => $impuestos,
+                'descuento'        => $descuento,
+                'total'            => $total,
+
+                'contraentrega_total' => $data['payment_method'] === 'CONTRAENTREGA' ? $total : 0,
+            ]);
+        });
 
         return back()->with('swal',['icon'=>'success','title'=>'Actualizado','text'=>'Pedido actualizado']);
     }
 
-    // === Acciones de estado ===
+    // ======== Transiciones de estado ========
+
     public function approve(SalesOrder $order)
     {
-        if ($order->status!=='BORRADOR') return back();
+        if ($order->status!=='BORRADOR') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR se puede aprobar.']);
+        }
         $order->update(['status'=>'APROBADO']);
         return back()->with('swal',['icon'=>'success','title'=>'Aprobado','text'=>'Pedido aprobado']);
     }
 
+    public function startPreparing(SalesOrder $order)
+    {
+        if ($order->status!=='APROBADO') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo APROBADO pasa a PREPARANDO.']);
+        }
+        $order->update(['status'=>'PREPARANDO','preparado_at'=>now()]);
+        return back()->with('swal',['icon'=>'success','title'=>'Preparando','text'=>'Pedido en preparación.']);
+    }
+
     public function process(SalesOrder $order)
     {
-        if ($order->status !== 'APROBADO') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo pedidos aprobados se pueden procesar.']);
+        if (!in_array($order->status, ['APROBADO','PREPARANDO'])) {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Debe estar APROBADO o PREPARANDO.']);
         }
 
         DB::transaction(function() use ($order){
             foreach ($order->items as $it) {
-                \App\Models\StockMovement::create([
-                    'warehouse_id'    => $order->warehouse_id,
-                    'product_id'      => $it->product_id,
-                    'tipo'            => 'OUT',
-                    'cantidad'        => $it->cantidad,
-                    'motivo'          => 'Pedido procesado #'.$order->id,
-                    'referencia_type' => SalesOrder::class,
-                    'referencia_id'   => $order->id,
-                    'user_id'         => auth()->id(),
-                ]);
+                if ($it->product_id) {
+                    StockMovement::create([
+                        'warehouse_id'    => $order->warehouse_id,
+                        'product_id'      => $it->product_id,
+                        'tipo'            => 'OUT',
+                        'cantidad'        => $it->cantidad,
+                        'motivo'          => 'Pedido procesado #'.$order->id,
+                        'referencia_type' => SalesOrder::class,
+                        'referencia_id'   => $order->id,
+                        'user_id'         => auth()->id(),
+                    ]);
+                }
             }
-            $order->update(['status' => 'PROCESADO']);
+            $order->update(['status' => 'PROCESADO','despachado_at'=>now()]);
         });
 
-        return back()->with('swal',['icon'=>'success','title'=>'Procesado','text'=>'Se descontó el stock del pedido.']);
+        return back()->with('swal',['icon'=>'success','title'=>'Procesado','text'=>'Stock descontado y pedido PROCESADO.']);
     }
 
-    // DESPACHADO: una ÚNICA versión (elimina el duplicado)
-    public function dispatch(SalesOrder $order)
+    public function dispatchToRoute(SalesOrder $order)
     {
         if ($order->status !== 'PROCESADO') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo pedidos procesados se pueden despachar.']);
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo PROCESADO puede salir a ruta.']);
         }
-
-        // Aquí podrías generar la venta/notas si así lo decides.
-        $order->update(['status' => 'DESPACHADO']);
-
-        return back()->with('swal',[
-            'icon'=>'success',
-            'title'=>'Despachado',
-            'text'=>'Pedido despachado. Ya puedes generar/enviar la remisión.'
-        ]);
+        if (!$order->driver_id) {
+            return back()->with('swal',['icon'=>'warning','title'=>'Sin chofer','text'=>'Asigna un chofer antes de salir a ruta.']);
+        }
+        $order->update(['status'=>'EN_RUTA','en_ruta_at'=>now()]);
+        return back()->with('swal',['icon'=>'success','title'=>'En ruta','text'=>'El pedido salió a ruta.']);
     }
 
     public function deliver(SalesOrder $order)
     {
-        if ($order->status !== 'DESPACHADO') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo pedidos despachados se pueden marcar como entregados.']);
+        if ($order->status !== 'EN_RUTA') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como entregado.']);
         }
 
         DB::transaction(function() use ($order){
-            // Si tu lógica exige facturar aquí:
-            if (method_exists($order, 'shouldInvoice') ? $order->shouldInvoice() : false) {
-                $sale = Sale::create([
-                    'client_id'  => $order->client_id,
-                    'fecha'      => now(),
-                    'subtotal'   => $order->subtotal,
-                    'impuestos'  => $order->impuestos,
-                    'descuento'  => $order->descuento,
-                    'total'      => $order->total,
-                    'moneda'     => $order->moneda,
-                ]);
-                foreach ($order->items as $it) {
-                    SaleItem::create([
-                        'sale_id'     => $sale->id,
-                        'product_id'  => $it->product_id,
-                        'descripcion' => $it->descripcion,
-                        'cantidad'    => $it->cantidad,
-                        'precio'      => $it->precio,
-                        'descuento'   => $it->descuento,
-                        'impuesto'    => $it->impuesto,
-                        'total'       => $it->total,
-                    ]);
-                }
-                if ($order->payment_method === 'CREDITO') {
-                    AccountsReceivable::create([
-                        'client_id'   => $order->client_id,
-                        'sale_id'     => $sale->id,
-                        'fecha'       => now(),
-                        'vencimiento' => now()->addDays($order->credit_days ?? 0),
-                        'moneda'      => $order->moneda,
-                        'monto'       => $sale->total,
-                        'saldo'       => $sale->total,
-                        'status'      => 'ABIERTO',
-                    ]);
-                }
-            }
+            // (Opcional) Generar la venta aquí si así lo manejas
+            // ...
 
-            $order->update(['status' => 'ENTREGADO']);
+            $order->update(['status' => 'ENTREGADO', 'entregado_at'=>now()]);
         });
 
         return back()->with('swal',['icon'=>'success','title'=>'Entregado','text'=>'Pedido entregado correctamente.']);
     }
 
+    public function notDelivered(Request $request, SalesOrder $order)
+    {
+        if ($order->status !== 'EN_RUTA') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como No entregado.']);
+        }
+
+        $request->validate(['nota'=>'nullable|string|max:500']);
+        $nota = $request->input('nota');
+
+        $data = ['status'=>'NO_ENTREGADO','no_entregado_at'=>now()];
+        if ($nota) {
+            $data['delivery_notes'] = trim(($order->delivery_notes ?? '')."\n".$nota);
+        }
+
+        DB::transaction(function() use ($order, $data) {
+            $order->update($data);
+            $order->increment('delivery_attempts');
+        });
+
+        return back()->with('swal',['icon'=>'success','title'=>'No entregado','text'=>'Se marcó el pedido como no entregado.']);
+    }
+
+    // ======== Cobro y liquidación del chofer ========
+
+    public function recordCash(Request $request, SalesOrder $order)
+    {
+        $request->validate(['monto'=>'required|numeric|min:0']);
+        $monto = (float)$request->monto;
+
+        DB::transaction(function () use ($order, $monto) {
+            $order->update([
+                'cobrado_efectivo'       => round(($order->cobrado_efectivo ?? 0) + $monto, 2),
+                'cobrado_confirmado_at'  => now(),
+                'cobrado_confirmado_por' => auth()->id(),
+            ]);
+        });
+
+        return back()->with('swal',['icon'=>'success','title'=>'Cobro registrado','text'=>'Se actualizó el cobro en efectivo.']);
+    }
+
+    public function settleDriver(Request $request, SalesOrder $order)
+    {
+        // Si usas POS register para la liquidación del día:
+        $posRegisterId = $request->input('pos_register_id');
+
+        DB::transaction(function () use ($order, $posRegisterId) {
+            $data = [
+                'driver_settlement_status' => 'LIQUIDADO',
+                'driver_settlement_at'     => now(),
+            ];
+            if ($posRegisterId) $data['pos_register_id'] = $posRegisterId;
+            $order->update($data);
+        });
+
+        return back()->with('swal',['icon'=>'success','title'=>'Liquidado','text'=>'Liquidación del chofer completada.']);
+    }
+
     public function cancel(SalesOrder $order)
     {
-        if (in_array($order->status,['DESPACHADO','ENTREGADO'])) {
+        if (in_array($order->status,['EN_RUTA','ENTREGADO'])) {
             return back()->with('swal',['icon'=>'error','title'=>'Error','text'=>'No se puede cancelar en este estado.']);
         }
         $order->update(['status'=>'CANCELADO']);
@@ -338,7 +461,7 @@ class SalesOrderController extends Controller
         ]);
     }
 
-    public function send(Request $request, SalesOrder $order, WhatsappSender $whatsapp)
+    public function send(Request $request, SalesOrder $order, \App\Services\WhatsappSender $whatsapp)
     {
         $request->validate([
             'channels'    => ['required','array','min:1'],
@@ -381,8 +504,8 @@ class SalesOrderController extends Controller
             } else {
                 try {
                     $resp = $whatsapp->sendPdf($phone, $msg, $fname, $pdfRaw);
-                    if (!$resp['ok']) {
-                        $errors[] = 'WhatsApp API respondió '.$resp['status'].': '.json_encode($resp['body']);
+                    if (!($resp['ok'] ?? false)) {
+                        $errors[] = 'WhatsApp API respondió '.($resp['status'] ?? '500').': '.json_encode($resp['body'] ?? []);
                     } else {
                         $sentWhatsapp = true;
                     }
@@ -392,10 +515,7 @@ class SalesOrderController extends Controller
             }
         }
 
-        if (($sentEmail || $sentWhatsapp) && $order->status === 'PROCESADO') {
-            $order->update(['status' => 'DESPACHADO']);
-        }
-
+        // Ya no movemos a DESPACHADO automáticamente; la salida a ruta se hace con dispatchToRoute()
         if ($errors) {
             return back()->with('swal', [
                 'icon'  => 'error',

@@ -13,6 +13,7 @@ use App\Models\Driver;
 use App\Models\ShippingRoute;
 use App\Models\PosRegister;
 use App\Models\PaymentType;
+use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -37,18 +38,18 @@ class SaleController extends Controller
         $drivers      = Driver::orderBy('nombre')->get(['id','nombre']);
         $routes       = ShippingRoute::orderBy('nombre')->get(['id','nombre']);
         $posRegisters = PosRegister::orderBy('id')->get(['id','nombre']);
-       $payTypes = PaymentType::query()
-    ->select('id','clave','descripcion')
-    ->orderBy('clave')
-    ->get()
-    // opcional: normalizamos una etiqueta amigable para la vista
-    ->map(fn($p) => (object)[
-        'id'    => $p->id,
-        'clave' => $p->clave,                        // EFECTIVO, TRANSFERENCIA, etc.
-        'label' => $p->descripcion ?: $p->clave,     // “Pago en efectivo”, etc.
-    ]);
 
-        // Mapas de precios (personalizado por cliente y listas), igual que en quotes
+        $payTypes = PaymentType::query()
+            ->select('id','clave','descripcion')
+            ->orderBy('clave')
+            ->get()
+            ->map(fn($p) => (object)[
+                'id'    => $p->id,
+                'clave' => $p->clave,                 // EFECTIVO, TRANSFERENCIA, etc.
+                'label' => $p->descripcion ?: $p->clave,
+            ]);
+
+        // Precios por cliente / lista
         $overrides = DB::table('client_price_overrides')
             ->select('client_id','product_id','precio')
             ->whereIn('client_id', $clients->pluck('id'))
@@ -72,7 +73,7 @@ class SaleController extends Controller
 
     public function store(Request $request)
     {
-        // Normaliza "client" -> null
+        // Normaliza "client" -> null en lista de precios
         if ($request->input('price_list_id') === 'client') {
             $request->merge(['price_list_id' => null]);
         }
@@ -86,9 +87,11 @@ class SaleController extends Controller
             'price_list_id'     => ['nullable','exists:price_lists,id'],
             'moneda'            => ['required','string','max:10'],
 
+            // Tipo de venta (alineado con contraentrega)
             'tipo_venta'        => ['required','in:CONTADO,CREDITO,CONTRAENTREGA'],
             'credit_days'       => ['nullable','integer','min:0'],
 
+            // Entrega
             'delivery_type'     => ['required','in:ENVIO,RECOGER'],
             'entrega_nombre'    => ['nullable','string','max:255'],
             'entrega_telefono'  => ['nullable','string','max:50'],
@@ -101,6 +104,7 @@ class SaleController extends Controller
             'shipping_route_id' => ['nullable','exists:shipping_routes,id'],
             'driver_id'         => ['nullable','exists:drivers,id'],
 
+            // Items
             'items'                 => ['required','array','min:1'],
             'items.*.product_id'    => ['required','exists:products,id'],
             'items.*.descripcion'   => ['required','string','max:255'],
@@ -155,8 +159,13 @@ class SaleController extends Controller
                 'impuestos'       => $impuestos,
                 'descuento'       => $descuento,
                 'total'           => $total,
-                'status'          => 'ABIERTA',
+
+                // Estados alineados a flujo logístico
+                'status'          => 'BORRADOR',
                 'user_id'         => auth()->id(),
+
+                // Contraentrega: esperado a cobrar
+                'contraentrega_total' => $data['tipo_venta'] === 'CONTRAENTREGA' ? $total : 0,
             ]);
 
             foreach ($data['items'] as $it) {
@@ -193,16 +202,16 @@ class SaleController extends Controller
         $drivers      = Driver::orderBy('nombre')->get(['id','nombre']);
         $routes       = ShippingRoute::orderBy('nombre')->get(['id','nombre']);
         $posRegisters = PosRegister::orderBy('id')->get(['id','nombre']);
+
         $payTypes = PaymentType::query()
-    ->select('id','clave','descripcion')
-    ->orderBy('clave')
-    ->get()
-    // opcional: normalizamos una etiqueta amigable para la vista
-    ->map(fn($p) => (object)[
-        'id'    => $p->id,
-        'clave' => $p->clave,                        // EFECTIVO, TRANSFERENCIA, etc.
-        'label' => $p->descripcion ?: $p->clave,     // “Pago en efectivo”, etc.
-    ]);
+            ->select('id','clave','descripcion')
+            ->orderBy('clave')
+            ->get()
+            ->map(fn($p) => (object)[
+                'id'    => $p->id,
+                'clave' => $p->clave,
+                'label' => $p->descripcion ?: $p->clave,
+            ]);
 
         return view('admin.sales.edit', compact(
             'sale','clients','priceLists','products','warehouses','drivers','routes','posRegisters','payTypes'
@@ -211,8 +220,8 @@ class SaleController extends Controller
 
     public function update(Request $request, Sale $sale)
     {
-        if ($sale->status !== 'ABIERTA') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo ABIERTO puede editarse.']);
+        if ($sale->status !== 'BORRADOR') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR puede editarse.']);
         }
 
         if ($request->input('price_list_id') === 'client') {
@@ -254,12 +263,28 @@ class SaleController extends Controller
 
         DB::transaction(function () use ($sale, $data) {
             $subtotal=0; $descuento=0; $impuestos=0; $total=0;
+
+            // Reemplaza items
+            $sale->items()->delete();
+
             foreach ($data['items'] as $it) {
                 $line_sub = (float)$it['cantidad'] * (float)$it['precio'];
                 $line_desc= (float)($it['descuento'] ?? 0);
                 $line_tax = (float)($it['impuesto']  ?? 0);
                 $line_tot = max($line_sub - $line_desc, 0) + $line_tax;
+
                 $subtotal += $line_sub; $descuento += $line_desc; $impuestos += $line_tax; $total += $line_tot;
+
+                SaleItem::create([
+                    'sale_id'     => $sale->id,
+                    'product_id'  => $it['product_id'],
+                    'descripcion' => $it['descripcion'],
+                    'cantidad'    => $it['cantidad'],
+                    'precio'      => $it['precio'],
+                    'descuento'   => $line_desc,
+                    'impuesto'    => $line_tax,
+                    'total'       => $line_tot,
+                ]);
             }
 
             $sale->update([
@@ -291,51 +316,57 @@ class SaleController extends Controller
                 'impuestos'       => $impuestos,
                 'descuento'       => $descuento,
                 'total'           => $total,
+
+                // Actualiza esperado a cobrar si es contraentrega
+                'contraentrega_total' => $data['tipo_venta'] === 'CONTRAENTREGA' ? $total : 0,
             ]);
-
-            $sale->items()->delete();
-            foreach ($data['items'] as $it) {
-                $line_sub = (float)$it['cantidad'] * (float)$it['precio'];
-                $line_desc= (float)($it['descuento'] ?? 0);
-                $line_tax = (float)($it['impuesto']  ?? 0);
-                $line_tot = max($line_sub - $line_desc, 0) + $line_tax;
-
-                SaleItem::create([
-                    'sale_id'     => $sale->id,
-                    'product_id'  => $it['product_id'],
-                    'descripcion' => $it['descripcion'],
-                    'cantidad'    => $it['cantidad'],
-                    'precio'      => $it['precio'],
-                    'descuento'   => $line_desc,
-                    'impuesto'    => $line_tax,
-                    'total'       => $line_tot,
-                ]);
-            }
         });
 
-        return redirect()->route('admin.sales.edit', $sale)
-            ->with('swal',['icon'=>'success','title'=>'Actualizada','text'=>'Nota de venta actualizada.']);
+        return back()->with('swal',['icon'=>'success','title'=>'Actualizada','text'=>'Nota de venta actualizada.']);
     }
 
     public function destroy(Sale $sale)
     {
-        if ($sale->status !== 'ABIERTA') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo notas ABiertas se pueden eliminar.']);
+        if (!in_array($sale->status, ['BORRADOR','APROBADO','PREPARANDO'])) {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo estados iniciales pueden eliminarse.']);
         }
+        $sale->items()->delete();
         $sale->delete();
+
         return redirect()->route('admin.sales.index')
             ->with('swal',['icon'=>'success','title'=>'Eliminada','text'=>'Nota de venta eliminada.']);
     }
 
-    // ====== Acciones ======
-    public function close(Sale $sale)
+    // ====== Flujo de estados ======
+
+    public function approve(Sale $sale)
     {
-        if ($sale->status !== 'ABIERTA') return back();
+        if ($sale->status !== 'BORRADOR') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR puede aprobarse.']);
+        }
+        $sale->update(['status'=>'APROBADO']);
+        return back()->with('swal',['icon'=>'success','title'=>'Aprobada','text'=>'Nota aprobada.']);
+    }
+
+    public function startPreparing(Sale $sale)
+    {
+        if ($sale->status !== 'APROBADO') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Debe estar APROBADA.']);
+        }
+        $sale->update(['status'=>'PREPARANDO','preparado_at'=>now()]);
+        return back()->with('swal',['icon'=>'success','title'=>'Preparando','text'=>'Nota en preparación.']);
+    }
+
+    public function process(Sale $sale)
+    {
+        if (!in_array($sale->status, ['APROBADO','PREPARANDO'])) {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Debe estar APROBADA o PREPARANDO.']);
+        }
 
         DB::transaction(function () use ($sale) {
             // Baja de inventario
             foreach ($sale->items as $it) {
-                \App\Models\StockMovement::create([
+                StockMovement::create([
                     'warehouse_id'    => $sale->warehouse_id,
                     'product_id'      => $it->product_id,
                     'tipo'            => 'OUT',
@@ -346,34 +377,94 @@ class SaleController extends Controller
                     'user_id'         => auth()->id(),
                 ]);
             }
-
-            // CxC si crédito
-            if ($sale->tipo_venta === 'CREDITO') {
-                \App\Models\AccountsReceivable::create([
-                    'client_id'   => $sale->client_id,
-                    'sale_id'     => $sale->id,
-                    'fecha'       => now(),
-                    'vencimiento' => now()->addDays($sale->credit_days ?? 0),
-                    'moneda'      => $sale->moneda,
-                    'monto'       => $sale->total,
-                    'saldo'       => $sale->total,
-                    'status'      => 'ABIERTO',
-                ]);
-            }
-
-            $sale->update(['status' => 'CERRADA']);
+            $sale->update(['status'=>'PROCESADO','despachado_at'=>now()]);
         });
 
-        return back()->with('swal',['icon'=>'success','title'=>'Cerrada','text'=>'Nota cerrada y stock actualizado.']);
+        return back()->with('swal',['icon'=>'success','title'=>'Procesada','text'=>'Stock descontado y nota PROCESADA.']);
+    }
+
+    public function dispatchToRoute(Sale $sale)
+    {
+        if ($sale->status !== 'PROCESADO') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo PROCESADA puede salir a ruta.']);
+        }
+        if (!$sale->driver_id) {
+            return back()->with('swal',['icon'=>'warning','title'=>'Sin chofer','text'=>'Asigna un chofer antes de enviar a ruta.']);
+        }
+        $sale->update(['status'=>'EN_RUTA','en_ruta_at'=>now()]);
+        return back()->with('swal',['icon'=>'success','title'=>'En ruta','text'=>'La nota salió a ruta.']);
+    }
+
+    public function deliver(Sale $sale)
+    {
+        if ($sale->status !== 'EN_RUTA') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como ENTREGADA.']);
+        }
+        $sale->update(['status'=>'ENTREGADO','entregado_at'=>now()]);
+        return back()->with('swal',['icon'=>'success','title'=>'Entregada','text'=>'Nota entregada.']);
+    }
+
+    public function notDelivered(Request $request, Sale $sale)
+    {
+        if ($sale->status !== 'EN_RUTA') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como NO_ENTREGADO.']);
+        }
+
+        $request->validate(['nota'=>'nullable|string|max:500']);
+        $nota = $request->input('nota');
+
+        DB::transaction(function () use ($sale, $nota) {
+            $data = ['status'=>'NO_ENTREGADO','no_entregado_at'=>now()];
+            if ($nota) $data['delivery_notes'] = trim(($sale->delivery_notes ?? '')."\n".$nota);
+            $sale->update($data);
+            $sale->increment('delivery_attempts');
+        });
+
+        return back()->with('swal',['icon'=>'success','title'=>'No entregada','text'=>'Se marcó como no entregada.']);
     }
 
     public function cancel(Sale $sale)
     {
-        if ($sale->status === 'CERRADA') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'No puedes cancelar una nota cerrada.']);
+        if (in_array($sale->status, ['EN_RUTA','ENTREGADO'])) {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'No se puede cancelar en este estado.']);
         }
-        $sale->update(['status' => 'CANCELADA']);
+        $sale->update(['status'=>'CANCELADO']);
         return back()->with('swal',['icon'=>'success','title'=>'Cancelada','text'=>'Nota cancelada.']);
+    }
+
+    // ====== Cobro y liquidación de chofer ======
+
+    public function recordCash(Request $request, Sale $sale)
+    {
+        $request->validate(['monto'=>'required|numeric|min:0']);
+        $monto = (float)$request->monto;
+
+        DB::transaction(function () use ($sale, $monto) {
+            $sale->update([
+                'cobrado_efectivo'       => round(($sale->cobrado_efectivo ?? 0) + $monto, 2),
+                'cobrado_confirmado_at'  => now(),
+                'cobrado_confirmado_por' => auth()->id(),
+            ]);
+        });
+
+        return back()->with('swal',['icon'=>'success','title'=>'Cobro registrado','text'=>'Se registró el cobro en efectivo.']);
+    }
+
+    public function settleDriver(Request $request, Sale $sale)
+    {
+        $request->validate(['pos_register_id'=>'nullable|exists:pos_registers,id']);
+        $posRegisterId = $request->input('pos_register_id');
+
+        DB::transaction(function () use ($sale, $posRegisterId) {
+            $data = [
+                'driver_settlement_status' => 'LIQUIDADO',
+                'driver_settlement_at'     => now(),
+            ];
+            if ($posRegisterId) $data['pos_register_id'] = $posRegisterId;
+            $sale->update($data);
+        });
+
+        return back()->with('swal',['icon'=>'success','title'=>'Liquidada','text'=>'Liquidación de chofer completada.']);
     }
 
     // ====== PDF ======
@@ -442,8 +533,8 @@ class SaleController extends Controller
             } else {
                 try {
                     $resp = $whatsapp->sendPdf($phone, $msg, $fname, $raw);
-                    if (!$resp['ok']) {
-                        $errors[] = 'WhatsApp API '.$resp['status'].': '.json_encode($resp['body']);
+                    if (!($resp['ok'] ?? false)) {
+                        $errors[] = 'WhatsApp API '.($resp['status'] ?? '500').': '.json_encode($resp['body'] ?? []);
                     } else {
                         $sentWhatsapp = true;
                     }

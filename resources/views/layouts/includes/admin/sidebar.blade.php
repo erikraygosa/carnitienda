@@ -133,7 +133,7 @@ foreach ($links as $i => $item) {
                     {{ $isActiveParent ? 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white'
                                        : 'text-gray-900 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700' }}"
               aria-controls="{{ $collapseId }}"
-              data-collapse-toggle="{{ $collapseId }}"
+              data-sidebar-toggle="{{ $collapseId }}"
               aria-expanded="{{ $isOpen ? 'true' : 'false' }}">
               <span class="inline-flex justify-center items-center w-6 h-6 rounded-lg
                     {{ $isActiveParent ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
@@ -183,17 +183,24 @@ foreach ($links as $i => $item) {
 
 <script>
 document.addEventListener('click', function(e) {
-  const btn = e.target.closest('[data-collapse-toggle]');
+  const btn = e.target.closest('[data-sidebar-toggle]');
   if (!btn) return;
-  const id = btn.getAttribute('data-collapse-toggle');
+
+  const id = btn.getAttribute('data-sidebar-toggle');
   const target = document.getElementById(id);
   if (!target) return;
 
-  const isHidden = target.classList.contains('hidden');
-  document.querySelectorAll('[id^="submenu-"]').forEach(el => { if (el !== target) el.classList.add('hidden'); });
-  target.classList.toggle('hidden');
+  // Cierra los demás submenús
+  document.querySelectorAll('[id^="submenu-"]').forEach(el => {
+    if (el !== target) el.classList.add('hidden');
+  });
 
-  const expanded = target.classList.contains('hidden') ? 'false' : 'true';
+  // Toggle del submenú actual
+  const wasHidden = target.classList.contains('hidden');
+  target.classList.toggle('hidden', !wasHidden);
+
+  // Actualiza aria-expanded y la flecha
+  const expanded = wasHidden ? 'true' : 'false';
   btn.setAttribute('aria-expanded', expanded);
 
   const svg = btn.querySelector('svg.w-3.h-3');
