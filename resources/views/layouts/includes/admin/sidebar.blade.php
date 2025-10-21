@@ -61,6 +61,7 @@ $links = [
       ['name'=>'Cotizaciones','icon'=>'fa-solid fa-file-invoice-dollar','href'=>route('admin.quotes.index'),'active'=>request()->routeIs('admin.quotes.*')],
       ['name'=>'Pedidos','icon'=>'fa-solid fa-file-invoice','href'=>route('admin.sales-orders.index'),'active'=>request()->routeIs('admin.sales-orders.*')],
       ['name'=>'Notas de venta','icon'=>'fa-solid fa-receipt','href'=>route('admin.sales.index'),'active'=>request()->routeIs('admin.sales.*')],
+      ['name'=>'Facturas','icon'=>'fa-solid fa-file-invoice','href'=>route('admin.invoices.index'),'active'=>request()->routeIs('admin.invoices.*')]
     ],
   ],
 

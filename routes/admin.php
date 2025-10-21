@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\StockTransferController;
 use App\Http\Controllers\Admin\QuoteController;
 use App\Http\Controllers\Admin\SalesOrderController;
 use App\Http\Controllers\Admin\SaleController;
+use App\Http\Controllers\Admin\InvoiceController;
 
 Route::view('/', 'admin.dashboard')->name('dashboard');
 
@@ -120,3 +121,19 @@ Route::get('quotes/{quote}/send', [QuoteController::class, 'sendForm'])->name('q
 
     Route::post('sales/{sale}/close', [SaleController::class, 'close'])->name('sales.close');
 Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel'])->name('sales.cancel');
+
+Route::resource('invoices', InvoiceController::class)->except(['destroy'])->names('invoices');
+
+// Acciones CFDI
+Route::post('invoices/{invoice}/stamp',   [InvoiceController::class, 'stamp'])->name('invoices.stamp');
+Route::post('invoices/{invoice}/cancel',  [InvoiceController::class, 'cancel'])->name('invoices.cancel');
+Route::get ('invoices/{invoice}/pdf',     [InvoiceController::class, 'pdf'])->name('invoices.pdf');
+Route::get ('invoices/{invoice}/download',[InvoiceController::class, 'download'])->name('invoices.download');
+
+// Envío
+Route::get ('invoices/{invoice}/send',    [InvoiceController::class, 'sendForm'])->name('invoices.send.form');
+Route::post('invoices/{invoice}/send',    [InvoiceController::class, 'send'])->name('invoices.send');
+
+// Generación desde Pedido / Venta / Directa
+Route::post('sales-orders/{order}/invoice', [InvoiceController::class, 'fromSalesOrder'])->name('invoices.from-order');
+Route::post('sales/{sale}/invoice',         [InvoiceController::class, 'fromSale'])->name('invoices.from-sale');
