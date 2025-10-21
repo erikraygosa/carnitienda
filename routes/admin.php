@@ -117,3 +117,6 @@ Route::get('quotes/{quote}/send', [QuoteController::class, 'sendForm'])->name('q
     Route::post('sales/{sale}/cobrar',                [SaleController::class,'recordCash'])->name('sales.cobrar');
     Route::post('sales/{sale}/liquidar',              [SaleController::class,'settleDriver'])->name('sales.liquidar');
     Route::post('sales/{sale}/cancelar',              [SaleController::class,'cancel'])->name('sales.cancel');
+
+    Route::post('sales/{sale}/close', [SaleController::class, 'close'])->name('sales.close');
+Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel'])->name('sales.cancel');

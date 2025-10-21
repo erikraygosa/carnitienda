@@ -29,12 +29,14 @@
         $creditDays   = old('credit_days', $order->credit_days);
 
         $statusClasses = [
-            'BORRADOR'   => 'bg-gray-100 text-gray-700',
-            'APROBADO'   => 'bg-blue-100 text-blue-700',
-            'PROCESADO'  => 'bg-amber-100 text-amber-700',
-            'DESPACHADO' => 'bg-violet-100 text-violet-700',
-            'ENTREGADO'  => 'bg-emerald-100 text-emerald-700',
-            'CANCELADO'  => 'bg-rose-100 text-rose-700',
+            'BORRADOR'     => 'bg-gray-100 text-gray-700',
+            'APROBADO'     => 'bg-blue-100 text-blue-700',
+            'PREPARANDO'   => 'bg-sky-100 text-sky-700',
+            'PROCESADO'    => 'bg-amber-100 text-amber-700',
+            'EN_RUTA'      => 'bg-violet-100 text-violet-700',
+            'ENTREGADO'    => 'bg-emerald-100 text-emerald-700',
+            'NO_ENTREGADO' => 'bg-orange-100 text-orange-700',
+            'CANCELADO'    => 'bg-rose-100 text-rose-700',
         ];
         $statusClass = $statusClasses[$order->status] ?? 'bg-slate-100 text-slate-700';
 
@@ -251,7 +253,7 @@
         </form>
     </x-wire-card>
 
-    {{-- ====== Acciones (con PDF/Enviar al estilo de cotizaciones) ====== --}}
+    {{-- ====== Acciones (PDF / Enviar / Flujo logístico) ====== --}}
     <x-wire-card class="mt-4">
         <div class="flex items-center space-x-2">
             {{-- Editar --}}
@@ -278,17 +280,47 @@
                     <form action="{{ route('admin.sales-orders.cancel',$order) }}" method="POST">@csrf
                         <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
                     </form>
+
                 @elseif($order->status === 'APROBADO')
+                    <form action="{{ route('admin.sales-orders.prepare',$order) }}" method="POST">@csrf
+                        <x-wire-button type="submit" blue xs>Preparar</x-wire-button>
+                    </form>
                     <form action="{{ route('admin.sales-orders.process',$order) }}" method="POST">@csrf
                         <x-wire-button type="submit" amber xs>Procesar</x-wire-button>
                     </form>
-                @elseif($order->status === 'PROCESADO')
-                    <form action="{{ route('admin.sales-orders.dispatch',$order) }}" method="POST">@csrf
-                        <x-wire-button type="submit" violet xs>Despachar</x-wire-button>
+
+                @elseif($order->status === 'PREPARANDO')
+                    <form action="{{ route('admin.sales-orders.process',$order) }}" method="POST">@csrf
+                        <x-wire-button type="submit" amber xs>Procesar</x-wire-button>
                     </form>
-                @elseif($order->status === 'DESPACHADO')
+
+                @elseif($order->status === 'PROCESADO')
+                    <form action="{{ route('admin.sales-orders.en-ruta',$order) }}" method="POST">@csrf
+                        <x-wire-button type="submit" violet xs>Enviar a ruta</x-wire-button>
+                    </form>
+
+                @elseif($order->status === 'EN_RUTA')
                     <form action="{{ route('admin.sales-orders.deliver',$order) }}" method="POST">@csrf
                         <x-wire-button type="submit" emerald xs>Entregar</x-wire-button>
+                    </form>
+                    <form action="{{ route('admin.sales-orders.not-delivered',$order) }}" method="POST" class="inline">@csrf
+                        <x-wire-button type="submit" gray xs>No entregado</x-wire-button>
+                    </form>
+                    {{-- Si es contraentrega, botón rápido de cobro --}}
+                    @if($order->payment_method === 'CONTRAENTREGA')
+                        <form action="{{ route('admin.sales-orders.cobrar',$order) }}" method="POST" class="inline-flex items-center space-x-1">
+                            @csrf
+                            <input type="number" name="monto" min="0" step="0.01" placeholder="Monto" class="w-24 border rounded px-2 py-1 text-sm">
+                            <x-wire-button type="submit" gray xs>Cobrar</x-wire-button>
+                        </form>
+                    @endif
+
+                @elseif($order->status === 'NO_ENTREGADO')
+                    <form action="{{ route('admin.sales-orders.en-ruta',$order) }}" method="POST">@csrf
+                        <x-wire-button type="submit" violet xs>Reintentar ruta</x-wire-button>
+                    </form>
+                    <form action="{{ route('admin.sales-orders.cancel',$order) }}" method="POST">@csrf
+                        <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
                     </form>
                 @endif
             </div>

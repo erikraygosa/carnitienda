@@ -75,17 +75,18 @@ class SalesOrder extends Model
     public function getStatusLabelAttribute(): string
     {
         return [
-            self::S_BORRADOR     => 'Borrador',
-            self::S_APROBADO     => 'Aprobado',
-            self::S_PREPARANDO   => 'Preparando',
-            self::S_PROCESADO    => 'Procesado',
-            self::S_EN_RUTA      => 'En ruta',
-            self::S_DESPACHADO   => 'Despachado',
-            self::S_ENTREGADO    => 'Entregado',
-            self::S_NO_ENTREGADO => 'No entregado',
-            self::S_CANCELADO    => 'Cancelado',
+            'BORRADOR'     => 'Borrador',
+            'APROBADO'     => 'Aprobado',
+            'PREPARANDO'   => 'Preparando',
+            'PROCESADO'    => 'Procesado',
+            'DESPACHADO'   => 'Despachado',
+            'EN_RUTA'      => 'En ruta',
+            'ENTREGADO'    => 'Entregado',
+            'NO_ENTREGADO' => 'No entregado',
+            'CANCELADO'    => 'Cancelado',
         ][$this->status] ?? $this->status;
     }
+
 
     // === Helpers de negocio ===
     public function isContraentrega(): bool

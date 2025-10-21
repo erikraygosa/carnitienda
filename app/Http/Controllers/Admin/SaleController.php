@@ -339,98 +339,99 @@ class SaleController extends Controller
 
     // ====== Flujo de estados ======
 
-    public function approve(Sale $sale)
-    {
-        if ($sale->status !== 'BORRADOR') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR puede aprobarse.']);
-        }
-        $sale->update(['status'=>'APROBADO']);
-        return back()->with('swal',['icon'=>'success','title'=>'Aprobada','text'=>'Nota aprobada.']);
+    // ====== Flujo de estados (USAR ESTOS) ======
+
+public function approve(Sale $sale)
+{
+    if ($sale->status !== 'BORRADOR') {
+        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR puede aprobarse.']);
+    }
+    // Pasamos a ABIERTA (no existe APROBADO en tu ENUM actual)
+    $sale->update(['status'=>'ABIERTA']);
+    return back()->with('swal',['icon'=>'success','title'=>'Abierta','text'=>'Nota abierta.']);
+}
+
+public function startPreparing(Sale $sale)
+{
+    if ($sale->status !== 'ABIERTA') {
+        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Debe estar ABIERTA.']);
+    }
+    $sale->update(['status'=>'PREPARANDO','preparado_at'=>now()]);
+    return back()->with('swal',['icon'=>'success','title'=>'Preparando','text'=>'Nota en preparación.']);
+}
+
+public function process(Sale $sale)
+{
+    if (!in_array($sale->status, ['ABIERTA','PREPARANDO'])) {
+        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Debe estar ABIERTA o PREPARANDO.']);
     }
 
-    public function startPreparing(Sale $sale)
-    {
-        if ($sale->status !== 'APROBADO') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Debe estar APROBADA.']);
+    DB::transaction(function () use ($sale) {
+        foreach ($sale->items as $it) {
+            \App\Models\StockMovement::create([
+                'warehouse_id'    => $sale->warehouse_id,
+                'product_id'      => $it->product_id,
+                'tipo'            => 'OUT',
+                'cantidad'        => $it->cantidad,
+                'motivo'          => 'Nota de venta #'.$sale->id,
+                'referencia_type' => Sale::class,
+                'referencia_id'   => $sale->id,
+                'user_id'         => auth()->id(),
+            ]);
         }
-        $sale->update(['status'=>'PREPARANDO','preparado_at'=>now()]);
-        return back()->with('swal',['icon'=>'success','title'=>'Preparando','text'=>'Nota en preparación.']);
+        $sale->update(['status'=>'PROCESADA','despachado_at'=>now()]);
+    });
+
+    return back()->with('swal',['icon'=>'success','title'=>'Procesada','text'=>'Stock descontado y nota PROCESADA.']);
+}
+
+public function dispatchToRoute(Sale $sale)
+{
+    if ($sale->status !== 'PROCESADA') {
+        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo PROCESADA puede salir a ruta.']);
     }
-
-    public function process(Sale $sale)
-    {
-        if (!in_array($sale->status, ['APROBADO','PREPARANDO'])) {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Debe estar APROBADA o PREPARANDO.']);
-        }
-
-        DB::transaction(function () use ($sale) {
-            // Baja de inventario
-            foreach ($sale->items as $it) {
-                StockMovement::create([
-                    'warehouse_id'    => $sale->warehouse_id,
-                    'product_id'      => $it->product_id,
-                    'tipo'            => 'OUT',
-                    'cantidad'        => $it->cantidad,
-                    'motivo'          => 'Nota de venta #'.$sale->id,
-                    'referencia_type' => Sale::class,
-                    'referencia_id'   => $sale->id,
-                    'user_id'         => auth()->id(),
-                ]);
-            }
-            $sale->update(['status'=>'PROCESADO','despachado_at'=>now()]);
-        });
-
-        return back()->with('swal',['icon'=>'success','title'=>'Procesada','text'=>'Stock descontado y nota PROCESADA.']);
+    if (!$sale->driver_id) {
+        return back()->with('swal',['icon'=>'warning','title'=>'Sin chofer','text'=>'Asigna un chofer antes de enviar a ruta.']);
     }
+    $sale->update(['status'=>'EN_RUTA','en_ruta_at'=>now()]);
+    return back()->with('swal',['icon'=>'success','title'=>'En ruta','text'=>'La nota salió a ruta.']);
+}
 
-    public function dispatchToRoute(Sale $sale)
-    {
-        if ($sale->status !== 'PROCESADO') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo PROCESADA puede salir a ruta.']);
-        }
-        if (!$sale->driver_id) {
-            return back()->with('swal',['icon'=>'warning','title'=>'Sin chofer','text'=>'Asigna un chofer antes de enviar a ruta.']);
-        }
-        $sale->update(['status'=>'EN_RUTA','en_ruta_at'=>now()]);
-        return back()->with('swal',['icon'=>'success','title'=>'En ruta','text'=>'La nota salió a ruta.']);
+public function deliver(Sale $sale)
+{
+    if ($sale->status !== 'EN_RUTA') {
+        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como ENTREGADA.']);
     }
+    $sale->update(['status'=>'ENTREGADA','entregado_at'=>now()]);
+    return back()->with('swal',['icon'=>'success','title'=>'Entregada','text'=>'Nota entregada.']);
+}
 
-    public function deliver(Sale $sale)
-    {
-        if ($sale->status !== 'EN_RUTA') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como ENTREGADA.']);
-        }
-        $sale->update(['status'=>'ENTREGADO','entregado_at'=>now()]);
-        return back()->with('swal',['icon'=>'success','title'=>'Entregada','text'=>'Nota entregada.']);
+public function notDelivered(Request $request, Sale $sale)
+{
+    if ($sale->status !== 'EN_RUTA') {
+        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como NO_ENTREGADA.']);
     }
+    $request->validate(['nota'=>'nullable|string|max:500']);
+    $nota = $request->input('nota');
 
-    public function notDelivered(Request $request, Sale $sale)
-    {
-        if ($sale->status !== 'EN_RUTA') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como NO_ENTREGADO.']);
-        }
+    DB::transaction(function () use ($sale, $nota) {
+        $data = ['status'=>'NO_ENTREGADA','no_entregado_at'=>now()];
+        if ($nota) $data['delivery_notes'] = trim(($sale->delivery_notes ?? '')."\n".$nota);
+        $sale->update($data);
+        $sale->increment('delivery_attempts');
+    });
 
-        $request->validate(['nota'=>'nullable|string|max:500']);
-        $nota = $request->input('nota');
+    return back()->with('swal',['icon'=>'success','title'=>'No entregada','text'=>'Se marcó como no entregada.']);
+}
 
-        DB::transaction(function () use ($sale, $nota) {
-            $data = ['status'=>'NO_ENTREGADO','no_entregado_at'=>now()];
-            if ($nota) $data['delivery_notes'] = trim(($sale->delivery_notes ?? '')."\n".$nota);
-            $sale->update($data);
-            $sale->increment('delivery_attempts');
-        });
-
-        return back()->with('swal',['icon'=>'success','title'=>'No entregada','text'=>'Se marcó como no entregada.']);
+public function cancel(Sale $sale)
+{
+    if (in_array($sale->status, ['EN_RUTA','ENTREGADA'])) {
+        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'No se puede cancelar en este estado.']);
     }
-
-    public function cancel(Sale $sale)
-    {
-        if (in_array($sale->status, ['EN_RUTA','ENTREGADO'])) {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'No se puede cancelar en este estado.']);
-        }
-        $sale->update(['status'=>'CANCELADO']);
-        return back()->with('swal',['icon'=>'success','title'=>'Cancelada','text'=>'Nota cancelada.']);
-    }
+    $sale->update(['status'=>'CANCELADA']);
+    return back()->with('swal',['icon'=>'success','title'=>'Cancelada','text'=>'Nota cancelada.']);
+}
 
     // ====== Cobro y liquidación de chofer ======
 

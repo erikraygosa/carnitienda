@@ -25,14 +25,35 @@
         $selWh        = (string) old('warehouse_id', $sale->warehouse_id);
         $selPos       = (string) old('pos_register_id', $sale->pos_register_id);
         $selPayType   = (string) old('payment_type_id', $sale->payment_type_id);
+        $selPriceList = (string) old('price_list_id', $sale->price_list_id);
+        $selRoute     = (string) old('shipping_route_id', $sale->shipping_route_id);
+        $selDriver    = (string) old('driver_id', $sale->driver_id);
+
         $tipoVenta    = old('tipo_venta', $sale->tipo_venta);
         $creditDays   = old('credit_days', $sale->credit_days);
+
+        $deliveryType = old('delivery_type', $sale->delivery_type);
+        $entregaNombre   = old('entrega_nombre', $sale->entrega_nombre);
+        $entregaTelefono = old('entrega_telefono', $sale->entrega_telefono);
+        $entregaCalle    = old('entrega_calle', $sale->entrega_calle);
+        $entregaNumero   = old('entrega_numero', $sale->entrega_numero);
+        $entregaColonia  = old('entrega_colonia', $sale->entrega_colonia);
+        $entregaCiudad   = old('entrega_ciudad', $sale->entrega_ciudad);
+        $entregaEstado   = old('entrega_estado', $sale->entrega_estado);
+        $entregaCp       = old('entrega_cp', $sale->entrega_cp);
 
         $valueFecha   = old('fecha', optional($sale->fecha)->format('Y-m-d\TH:i'));
         $moneda       = old('moneda', $sale->moneda ?? 'MXN');
 
         $statusClasses = [
+            'BORRADOR'  => 'bg-gray-100 text-gray-700',
+            'APROBADO'  => 'bg-blue-100 text-blue-700',
             'ABIERTA'   => 'bg-amber-100 text-amber-700',
+            'PREPARANDO'=> 'bg-amber-100 text-amber-700',
+            'PROCESADA' => 'bg-amber-100 text-amber-700',
+            'EN_RUTA'   => 'bg-violet-100 text-violet-700',
+            'ENTREGADA' => 'bg-emerald-100 text-emerald-700',
+            'NO_ENTREGADA' => 'bg-slate-100 text-slate-700',
             'CERRADA'   => 'bg-emerald-100 text-emerald-700',
             'CANCELADA' => 'bg-rose-100 text-rose-700',
         ];
@@ -105,6 +126,19 @@
                     </select>
                 </div>
 
+                {{-- Lista de precios --}}
+                <div class="space-y-2 w-full">
+                    <label class="block text-sm font-medium text-gray-700" for="price_list_id">Lista de precios</label>
+                    <select name="price_list_id" id="price_list_id" class="w-full rounded-md border-gray-300" {{ $isLocked ? 'disabled' : '' }}>
+                        <option value="">— Personalizada del cliente —</option>
+                        @foreach($priceLists as $pl)
+                            <option value="{{ $pl->id }}" {{ $selPriceList===(string)$pl->id ? 'selected' : '' }}>
+                                {{ $pl->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
                 {{-- Fecha / Moneda --}}
                 <div>
                     <x-wire-input label="Fecha" name="fecha" type="datetime-local" value="{{ $valueFecha }}" :disabled="$isLocked" required/>
@@ -140,6 +174,51 @@
                 <div class="space-y-2 w-full" @class(['hidden' => $tipoVenta!=='CREDITO'])>
                     <x-wire-input label="Días de crédito" name="credit_days" type="number" min="0" value="{{ $creditDays ?? 0 }}" :disabled="$isLocked" />
                 </div>
+
+                {{-- Tipo de entrega --}}
+                <div class="space-y-2 w-full">
+                    <label class="block text-sm font-medium text-gray-700" for="delivery_type">Tipo de entrega</label>
+                    <select name="delivery_type" id="delivery_type" class="w-full rounded-md border-gray-300" {{ $isLocked ? 'disabled' : '' }}>
+                        <option value="ENVIO"   {{ $deliveryType==='ENVIO' ? 'selected' : '' }}>Envío a domicilio</option>
+                        <option value="RECOGER" {{ $deliveryType==='RECOGER' ? 'selected' : '' }}>Recoger en almacén</option>
+                    </select>
+                </div>
+
+                {{-- Ruta / Chofer --}}
+                <div class="space-y-2 w-full">
+                    <label class="block text-sm font-medium text-gray-700" for="shipping_route_id">Ruta</label>
+                    <select name="shipping_route_id" id="shipping_route_id" class="w-full rounded-md border-gray-300" {{ $isLocked ? 'disabled' : '' }}>
+                        <option value="">-- sin ruta --</option>
+                        @foreach($routes as $r)
+                            <option value="{{ $r->id }}" {{ $selRoute===(string)$r->id ? 'selected' : '' }}>
+                                {{ $r->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="space-y-2 w-full">
+                    <label class="block text-sm font-medium text-gray-700" for="driver_id">Chofer</label>
+                    <select name="driver_id" id="driver_id" class="w-full rounded-md border-gray-300" {{ $isLocked ? 'disabled' : '' }}>
+                        <option value="">-- sin chofer --</option>
+                        @foreach($drivers as $d)
+                            <option value="{{ $d->id }}" {{ $selDriver===(string)$d->id ? 'selected' : '' }}>
+                                {{ $d->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            {{-- Dirección de entrega (solo si ENVIO) --}}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4" @class(['hidden' => $deliveryType!=='ENVIO'])>
+                <div><x-wire-input label="Nombre quien recibe" name="entrega_nombre"   value="{{ $entregaNombre }}"   :disabled="$isLocked" /></div>
+                <div><x-wire-input label="Teléfono"             name="entrega_telefono" value="{{ $entregaTelefono }}" :disabled="$isLocked" /></div>
+                <div><x-wire-input label="Calle"                name="entrega_calle"    value="{{ $entregaCalle }}"    :disabled="$isLocked" /></div>
+                <div><x-wire-input label="Número"               name="entrega_numero"   value="{{ $entregaNumero }}"   :disabled="$isLocked" /></div>
+                <div><x-wire-input label="Colonia"              name="entrega_colonia"  value="{{ $entregaColonia }}"  :disabled="$isLocked" /></div>
+                <div><x-wire-input label="Ciudad"               name="entrega_ciudad"   value="{{ $entregaCiudad }}"   :disabled="$isLocked" /></div>
+                <div><x-wire-input label="Estado"               name="entrega_estado"   value="{{ $entregaEstado }}"   :disabled="$isLocked" /></div>
+                <div><x-wire-input label="CP"                   name="entrega_cp"       value="{{ $entregaCp }}"       :disabled="$isLocked" /></div>
             </div>
 
             {{-- Partidas --}}
@@ -222,35 +301,111 @@
         </form>
     </x-wire-card>
 
-    {{-- Cabecera de estado + Acciones como en cotizaciones --}}
-    <x-wire-card class="mt-4">
-        <div class="flex items-center gap-2">
-            <x-wire-badge>Folio: {{ $sale->folio ?? ('Sale #'.$sale->id) }}</x-wire-badge>
-            <span class="px-2 py-1 text-xs rounded-full {{ $statusClass }}">
-                Estatus: {{ $sale->status }}
-            </span>
+    {{-- Cabecera de estado + Acciones --}}
+    {{-- Cabecera de estado + Acciones --}}
+<x-wire-card class="mt-4">
+    <div class="flex items-center gap-2">
+        <x-wire-badge>Folio: {{ $sale->folio ?? ('Sale #'.$sale->id) }}</x-wire-badge>
+        <span class="px-2 py-1 text-xs rounded-full {{ $statusClass }}">
+            Estatus: {{ $sale->status }}
+        </span>
 
-            <div class="ml-auto flex items-center space-x-2">
-                {{-- PDF --}}
-                <x-wire-button href="{{ route('admin.sales.pdf',$sale) }}" gray outline xs target="_blank">Ver PDF</x-wire-button>
-                <x-wire-button href="{{ route('admin.sales.pdf.download',$sale) }}" gray xs>Descargar PDF</x-wire-button>
+        <div class="ml-auto flex items-center space-x-2">
+            {{-- PDF --}}
+            <x-wire-button href="{{ route('admin.sales.pdf',$sale) }}" gray outline xs target="_blank">Ver PDF</x-wire-button>
+            <x-wire-button href="{{ route('admin.sales.pdf.download',$sale) }}" gray xs>Descargar PDF</x-wire-button>
 
-                {{-- Enviar --}}
-                <x-wire-button href="{{ route('admin.sales.send.form',$sale) }}" violet xs>Enviar</x-wire-button>
+            {{-- Enviar --}}
+            <x-wire-button href="{{ route('admin.sales.send.form',$sale) }}" violet xs>Enviar</x-wire-button>
 
-                @if($sale->status === 'ABIERTA')
-                    <form method="POST" action="{{ route('admin.sales.close',$sale) }}"> @csrf
-                        <x-wire-button type="submit" green xs>Cerrar</x-wire-button>
-                    </form>
-                    <form method="POST" action="{{ route('admin.sales.cancel',$sale) }}"> @csrf
-                        <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
-                    </form>
-                @endif
-            </div>
+            {{-- ==== Flujo logístico por ESTADO ==== --}}@if($sale->status === 'BORRADOR')
+    <form method="POST" action="{{ route('admin.sales.approve',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" blue xs>Aprobar</x-wire-button>
+    </form>
+    <form method="POST" action="{{ route('admin.sales.cancel',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
+    </form>
+
+@elseif($sale->status === 'APROBADO')
+    {{-- Aquí estaban faltando los botones --}}
+    <form method="POST" action="{{ route('admin.sales.prepare',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" amber xs>Preparar</x-wire-button>
+    </form>
+    <form method="POST" action="{{ route('admin.sales.process',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" teal xs>Procesar</x-wire-button>
+    </form>
+    <form method="POST" action="{{ route('admin.sales.cancel',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
+    </form>
+
+@elseif($sale->status === 'ABIERTA')
+    <form method="POST" action="{{ route('admin.sales.prepare',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" amber xs>Preparar</x-wire-button>
+    </form>
+    <form method="POST" action="{{ route('admin.sales.process',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" teal xs>Procesar</x-wire-button>
+    </form>
+    <form method="POST" action="{{ route('admin.sales.cancel',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
+    </form>
+
+@elseif($sale->status === 'PREPARANDO')
+    <form method="POST" action="{{ route('admin.sales.process',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" teal xs>Procesar (descontar stock)</x-wire-button>
+    </form>
+    <form method="POST" action="{{ route('admin.sales.cancel',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
+    </form>
+
+@elseif($sale->status === 'PROCESADA')
+    @if($sale->delivery_type === 'ENVIO')
+        @if($sale->driver_id)
+            <form method="POST" action="{{ route('admin.sales.en-ruta',$sale) }}" class="inline">@csrf
+                <x-wire-button type="submit" violet xs>Enviar a ruta</x-wire-button>
+            </form>
+        @else
+            <x-wire-badge class="bg-rose-100 text-rose-700">Asigna chofer para salir a ruta</x-wire-badge>
+        @endif
+    @else
+        <form method="POST" action="{{ route('admin.sales.deliver',$sale) }}" class="inline">@csrf
+            <x-wire-button type="submit" green xs>Marcar entregada</x-wire-button>
+        </form>
+    @endif
+
+@elseif($sale->status === 'EN_RUTA')
+    <form method="POST" action="{{ route('admin.sales.deliver',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" green xs>Entregada</x-wire-button>
+    </form>
+    <form method="POST" action="{{ route('admin.sales.not-delivered',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" gray xs>No entregada</x-wire-button>
+    </form>
+    @if($sale->tipo_venta === 'CONTRAENTREGA')
+        <form method="POST" action="{{ route('admin.sales.cobrar',$sale) }}" class="inline">@csrf
+            <x-wire-button type="submit" indigo xs>Cobrar contraentrega</x-wire-button>
+        </form>
+    @endif
+
+@elseif($sale->status === 'ENTREGADA')
+    @if($sale->tipo_venta === 'CONTRAENTREGA')
+        <form method="POST" action="{{ route('admin.sales.liquidar',$sale) }}" class="inline">@csrf
+            <x-wire-button type="submit" fuchsia xs>Liquidar chofer</x-wire-button>
+        </form>
+    @endif
+
+@elseif($sale->status === 'NO_ENTREGADA')
+    <form method="POST" action="{{ route('admin.sales.en-ruta',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" violet xs>Reprogramar a ruta</x-wire-button>
+    </form>
+    <form method="POST" action="{{ route('admin.sales.cancel',$sale) }}" class="inline">@csrf
+        <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
+    </form>
+@endif 
         </div>
-    </x-wire-card>
+    </div>
+</x-wire-card>
 
-    {{-- Alpine: mismo patrón de cálculo que ya usamos --}}
+
+    {{-- Alpine: cálculo de totales --}}
     <script>
     function saleFormEdit(){
         const seed   = @json($itemsSeed);
