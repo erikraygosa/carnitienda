@@ -90,16 +90,31 @@ $links = [
 ],
 
 
-  // ===== FINANZAS (futuro) =====
-  ['header' => 'Finanzas'],
-  [
-    'name'     => 'Cuentas y cobros',
-    'icon'     => 'fa-solid fa-piggy-bank',
-    'active'   => request()->routeIs('admin.accounts-receivable.*') || request()->routeIs('admin.ar-payments.*'),
+  // ===== FINANZAS =====
+
+[
+    'header' => 'Finanzas',
+],
+[
+    'name'   => 'Cuentas y cobros',
+    'icon'   => 'fa-solid fa-piggy-bank',
+    'active' => request()->routeIs('admin.ar.*') || request()->routeIs('admin.ar-payments.*'),
     'children' => [
-      // futuros: CxC, pagos...
+        [
+            'name'   => 'Cuentas',
+            'icon'   => 'fa-solid fa-file-invoice-dollar',
+            'href'   => route('admin.ar.index'),
+            'active' => request()->routeIs('admin.ar.*'),
+        ],
+        [
+            'name'   => 'Cobros',
+            'icon'   => 'fa-solid fa-cash-register',
+            'href'   => route('admin.ar-payments.create'),
+            'active' => request()->routeIs('admin.ar-payments.*'),
+        ],
     ],
-  ],
+],
+
 
   // ===== CONFIGURACIÓN (futuro) =====
   ['header' => 'Configuración'],

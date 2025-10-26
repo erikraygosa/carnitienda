@@ -1,19 +1,29 @@
 <?php
-
+// app/Models/ArPayment.php
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
 class ArPayment extends Model
 {
+    protected $table = 'ar_payments';
+
     protected $fillable = [
-        'accounts_receivable_id','fecha','payment_type_id','monto','referencia','driver_id','recibido_por','nota'
+        'accounts_receivable_id', // FK al movimiento AR
+        'fecha',
+        'payment_type_id',
+        'monto',                  // << en DB es "monto"
+        'referencia',
+        'driver_id',              // si aplica
+        'recibido_por',           // si aplica (puedes guardar auth()->id())
+        'nota',                   // << en DB es "nota", no "notes"
     ];
 
     protected $casts = [
         'fecha' => 'date',
-        'monto' => 'decimal:2',
     ];
 
-    public function ar() { return $this->belongsTo(AccountsReceivable::class, 'accounts_receivable_id'); }
+    public function accountReceivable() {
+        return $this->belongsTo(\App\Models\AccountReceivable::class, 'accounts_receivable_id');
+    }
 }

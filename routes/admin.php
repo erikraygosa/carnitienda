@@ -18,6 +18,8 @@ use App\Http\Controllers\Admin\SaleController;
 use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\DispatchController;
 use App\Http\Controllers\Admin\DriverCashRegisterController;
+use App\Http\Controllers\Admin\AccountsReceivableController;
+use App\Http\Controllers\Admin\ArPaymentsController;
 
 
 Route::view('/', 'admin.dashboard')->name('dashboard');
@@ -159,3 +161,14 @@ Route::resource('dispatches', DispatchController::class)->except(['show']);
     Route::post('/{register}/abono',[DriverCashRegisterController::class,'abono'])->name('abono');
     Route::post('/{register}/close',[DriverCashRegisterController::class,'close'])->name('close');
 });   
+
+Route::prefix('ar')->name('ar.')->group(function () {
+    Route::get('/',                [AccountsReceivableController::class,'index'])->name('index');
+    Route::get('/cliente/{client}',[AccountsReceivableController::class,'show'])->name('show');
+    Route::post('/cliente/{client}/cargo',[AccountsReceivableController::class,'charge'])->name('charge'); // opcional
+});
+
+Route::prefix('ar-payments')->name('ar-payments.')->group(function () {
+    Route::get('/create', [ArPaymentsController::class,'create'])->name('create');
+    Route::post('/',       [ArPaymentsController::class,'store'])->name('store');
+});
