@@ -31,7 +31,7 @@
         </form>
 
     @elseif($order->status === 'PROCESADO')
-        <form action="{{ route('admin.sales-orders.dispatch',$order) }}" method="POST">
+        <form action="{{ route('admin.sales-orders.en-ruta',$order) }}" method="POST">
             @csrf
             <x-wire-button type="submit" violet xs>Despachar</x-wire-button>
         </form>

@@ -16,6 +16,8 @@ use App\Http\Controllers\Admin\QuoteController;
 use App\Http\Controllers\Admin\SalesOrderController;
 use App\Http\Controllers\Admin\SaleController;
 use App\Http\Controllers\Admin\InvoiceController;
+use App\Http\Controllers\Admin\DispatchController;
+
 
 Route::view('/', 'admin.dashboard')->name('dashboard');
 
@@ -137,3 +139,13 @@ Route::post('invoices/{invoice}/send',    [InvoiceController::class, 'send'])->n
 // Generación desde Pedido / Venta / Directa
 Route::post('sales-orders/{order}/invoice', [InvoiceController::class, 'fromSalesOrder'])->name('invoices.from-order');
 Route::post('sales/{sale}/invoice',         [InvoiceController::class, 'fromSale'])->name('invoices.from-sale');
+
+Route::resource('dispatches', DispatchController::class)->except(['show']);
+
+    // Acciones de flujo
+    Route::post('dispatches/{dispatch}/preparar', [DispatchController::class,'preparar'])->name('dispatches.preparar');
+    Route::post('dispatches/{dispatch}/cargar',   [DispatchController::class,'cargar'])->name('dispatches.cargar');
+    Route::post('dispatches/{dispatch}/en-ruta',  [DispatchController::class,'enRuta'])->name('dispatches.enruta');
+    Route::post('dispatches/{dispatch}/entregar', [DispatchController::class,'entregar'])->name('dispatches.entregar');
+    Route::post('dispatches/{dispatch}/cerrar',   [DispatchController::class,'cerrar'])->name('dispatches.cerrar');
+    Route::post('dispatches/{dispatch}/cancelar', [DispatchController::class,'cancelar'])->name('dispatches.cancelar');

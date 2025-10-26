@@ -66,15 +66,23 @@ $links = [
   ],
 
   // ===== LOGÍSTICA (futuro) =====
-  ['header' => 'Logística'],
-  [
+ ['header' => 'Logística'],
+
+[
     'name'     => 'Despacho',
     'icon'     => 'fa-solid fa-truck-fast',
-    'active'   => request()->routeIs('admin.shipping-routes.*') || request()->routeIs('admin.drivers.*'),
+  
     'children' => [
-      // futuros: rutas, choferes...
+        [
+            'name'   => 'Despachos',
+            'icon'   => 'fa-solid fa-route',
+            'href'   => route('admin.dispatches.index'),
+            'active' => request()->routeIs('admin.dispatches.*'),
+        ],
+      
     ],
-  ],
+],
+
 
   // ===== FINANZAS (futuro) =====
   ['header' => 'Finanzas'],
