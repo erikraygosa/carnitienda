@@ -79,6 +79,12 @@ $links = [
             'href'   => route('admin.dispatches.index'),
             'active' => request()->routeIs('admin.dispatches.*'),
         ],
+         [
+        'name'   => 'Cortes de choferes',
+        'icon'   => 'fa-solid fa-cash-register',
+        'href'   => route('admin.driver-cash.index'),
+        'active' => request()->routeIs('admin.driver-cash.*'),
+       ],
       
     ],
 ],

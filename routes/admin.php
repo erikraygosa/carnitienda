@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\SalesOrderController;
 use App\Http\Controllers\Admin\SaleController;
 use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\DispatchController;
+use App\Http\Controllers\Admin\DriverCashRegisterController;
 
 
 Route::view('/', 'admin.dashboard')->name('dashboard');
@@ -149,3 +150,12 @@ Route::resource('dispatches', DispatchController::class)->except(['show']);
     Route::post('dispatches/{dispatch}/entregar', [DispatchController::class,'entregar'])->name('dispatches.entregar');
     Route::post('dispatches/{dispatch}/cerrar',   [DispatchController::class,'cerrar'])->name('dispatches.cerrar');
     Route::post('dispatches/{dispatch}/cancelar', [DispatchController::class,'cancelar'])->name('dispatches.cancelar');
+
+ Route::prefix('driver-cash')->name('driver-cash.')->group(function () {
+    Route::get('/',                 [DriverCashRegisterController::class,'index'])->name('index');
+    Route::get('/create',           [DriverCashRegisterController::class,'create'])->name('create');
+    Route::post('/',                [DriverCashRegisterController::class,'store'])->name('store');
+    Route::get('/{register}',       [DriverCashRegisterController::class,'show'])->name('show');
+    Route::post('/{register}/abono',[DriverCashRegisterController::class,'abono'])->name('abono');
+    Route::post('/{register}/close',[DriverCashRegisterController::class,'close'])->name('close');
+});   
