@@ -23,9 +23,11 @@ use App\Http\Controllers\Admin\ArPaymentsController;
 use App\Http\Controllers\Admin\CashRegisterController;
 use App\Http\Controllers\Admin\CashMovementController;
 use App\Http\Controllers\Admin\POSController;
+use App\Http\Controllers\Admin\DashboardController;
 
 
-Route::view('/', 'admin.dashboard')->name('dashboard');
+Route::get('/', [DashboardController::class, 'index'])
+    ->name('dashboard');
 
 Route::resource('categories', CategoryController::class)->except(['show']);
 
