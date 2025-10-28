@@ -88,7 +88,32 @@ $links = [
       
     ],
 ],
-
+[
+    'name'   => 'Punto de venta',
+    'icon'   => 'fa-solid fa-shop',
+    'active' => request()->routeIs('admin.cash.*') || request()->routeIs('admin.pos.*'),
+    'children' => [
+        [
+            'name'   => 'Caja',
+            'icon'   => 'fa-solid fa-cash-register',
+            'href'   => route('admin.cash.index'),
+            'active' => request()->routeIs('admin.cash.*'),
+        ],
+        [
+            'name'   => 'Venta POS',
+            'icon'   => 'fa-solid fa-barcode',
+            'href'   => route('admin.pos.create'),
+            'active' => request()->routeIs('admin.pos.*'),
+        ],
+        // Si más adelante agregas listado de ventas POS:
+        // [
+        //     'name'   => 'Ventas',
+        //     'icon'   => 'fa-solid fa-receipt',
+        //     'href'   => route('admin.pos.sales.index'),
+        //     'active' => request()->routeIs('admin.pos.sales.*'),
+        // ],
+    ],
+],
 
   // ===== FINANZAS =====
 

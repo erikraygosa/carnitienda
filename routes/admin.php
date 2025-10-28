@@ -20,6 +20,9 @@ use App\Http\Controllers\Admin\DispatchController;
 use App\Http\Controllers\Admin\DriverCashRegisterController;
 use App\Http\Controllers\Admin\AccountsReceivableController;
 use App\Http\Controllers\Admin\ArPaymentsController;
+use App\Http\Controllers\Admin\CashRegisterController;
+use App\Http\Controllers\Admin\CashMovementController;
+use App\Http\Controllers\Admin\POSController;
 
 
 Route::view('/', 'admin.dashboard')->name('dashboard');
@@ -171,4 +174,22 @@ Route::prefix('ar')->name('ar.')->group(function () {
 Route::prefix('ar-payments')->name('ar-payments.')->group(function () {
     Route::get('/create', [ArPaymentsController::class,'create'])->name('create');
     Route::post('/',       [ArPaymentsController::class,'store'])->name('store');
+});
+
+Route::prefix('cash')->name('cash.')->group(function () {
+  Route::get('/', [CashRegisterController::class,'index'])->name('index');
+  Route::get('/create', [CashRegisterController::class,'create'])->name('create');
+  Route::post('/', [CashRegisterController::class,'store'])->name('store');
+  Route::get('/{cash}', [CashRegisterController::class,'show'])->name('show');
+  Route::post('/{cash}/close', [CashRegisterController::class,'close'])->name('close');
+  Route::get('/{cash}/ticket', [CashRegisterController::class,'ticket'])->name('ticket');
+
+  Route::post('/{cashRegister}/movement', [CashMovementController::class,'store'])->name('movement.store');
+});
+
+Route::prefix('pos')->name('pos.')->group(function () {
+  Route::get('/create', [POSController::class,'create'])->name('create');
+  Route::post('/', [POSController::class,'store'])->name('store');
+  Route::get('/ticket/{sale}', [POSController::class,'ticket'])->name('ticket');
+   Route::get('/ticket/{sale}/pdf', [POSController::class,'ticketPdf'])->name('ticket.pdf');
 });

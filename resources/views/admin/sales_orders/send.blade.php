@@ -40,11 +40,25 @@
                                    {{ in_array('email', old('channels', ['email','whatsapp'])) ? 'checked' : '' }}>
                             Email
                         </label>
-                        <label class="inline-flex items-center">
+                      {{-- Canales de envío --}}
+                        <div class="pt-2">
+                        <span class="block text-sm font-medium text-gray-700 mb-1">Enviar por</span>
+
+                        <label class="inline-flex items-center mr-4">
                             <input type="checkbox" name="channels[]" value="whatsapp" class="mr-2"
-                                   {{ in_array('whatsapp', old('channels', ['email','whatsapp'])) ? 'checked' : '' }}>
+                            {{ in_array('whatsapp', old('channels', ['whatsapp'])) ? 'checked' : '' }}>
                             WhatsApp
                         </label>
+
+                        {{-- si quieres, deja Email también
+                        <label class="inline-flex items-center mr-4">
+                            <input type="checkbox" name="channels[]" value="email" class="mr-2"
+                            {{ in_array('email', old('channels', [])) ? 'checked' : '' }}>
+                            Email
+                        </label>
+                        --}}
+                        </div>
+
                     </div>
                 </div>
 
