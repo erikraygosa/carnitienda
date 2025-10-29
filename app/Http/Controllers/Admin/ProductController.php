@@ -22,42 +22,52 @@ class ProductController extends Controller
     }
 
     /** Guardar */
-    public function store(Request $request)
-    {
-        $data = $request->validate([
-            'nombre'            => ['required','string','max:180','unique:products,nombre'],
-            'sku'               => ['nullable','string','max:60','unique:products,sku'],
-            'barcode'           => ['nullable','string','max:100','unique:products,barcode'],
-            'unidad'            => ['required','string','max:20'],
-            'category_id'       => ['required','integer','exists:categories,id'],
-            'es_compuesto'      => ['required','boolean'],
-            'es_subproducto'    => ['required','boolean'],
-            'precio_base'       => ['required','numeric','min:0'],
-            'costo_promedio'    => ['required','numeric','min:0'],
-            'tasa_iva'          => ['required','numeric','min:0','max:100'],
-            'stock_min'         => ['required','numeric','min:0'],
-            'maneja_inventario' => ['required','boolean'],
-            'activo'            => ['required','boolean'],
-            'notas'             => ['nullable','string'],
-        ]);
+   public function store(Request $request)
+{
+    // Coerción de checkboxes -> boolean (cuando vienen null)
+    $payload = $request->merge([
+        'es_compuesto'      => $request->boolean('es_compuesto'),
+        'es_subproducto'    => $request->boolean('es_subproducto'),
+        'maneja_inventario' => $request->boolean('maneja_inventario'),
+        'activo'            => $request->boolean('activo'),
+    ])->all();
 
-        // Regla de negocio: no ambas banderas a la vez
-        if (($data['es_compuesto'] ?? false) && ($data['es_subproducto'] ?? false)) {
-            return back()
-                ->withErrors(['es_compuesto' => 'Un producto no puede ser compuesto y subproducto al mismo tiempo.'])
-                ->withInput();
-        }
+    $data = validator($payload, [
+        'nombre'            => ['required','string','max:180','unique:products,nombre'],
+        'sku'               => ['nullable','string','max:60','unique:products,sku'],
+        'barcode'           => ['nullable','string','max:100','unique:products,barcode'],
+        'unidad'            => ['required','string','max:20'],
+        'category_id'       => ['required','integer','exists:categories,id'],
+        'es_compuesto'      => ['required','boolean'],
+        'es_subproducto'    => ['required','boolean'],
+        'precio_base'       => ['required','numeric','min:0'],
+        'costo_promedio'    => ['required','numeric','min:0'],
+        'tasa_iva'          => ['required','numeric','min:0','max:100'],
+        'stock_min'         => ['required','numeric','min:0'],
+        'maneja_inventario' => ['required','boolean'],
+        'activo'            => ['required','boolean'],
+        'notas'             => ['nullable','string'],
+    ])->validate();
 
-        $product = Product::create($data);
-
-        session()->flash('swal', [
-            'icon'  => 'success',
-            'title' => '¡Bien Hecho!',
-            'text'  => 'Producto creado exitosamente.',
-        ]);
-
-        return redirect()->route('admin.products.edit', $product);
+    // Regla: no ambas banderas a la vez
+    if (($data['es_compuesto'] ?? false) && ($data['es_subproducto'] ?? false)) {
+        return back()
+            ->withErrors(['es_compuesto' => 'Un producto no puede ser compuesto y subproducto al mismo tiempo.'])
+            ->withInput();
     }
+
+    // Normalizaciones opcionales
+    $data['nombre'] = trim($data['nombre']);
+    $data['sku']    = $data['sku'] ? trim($data['sku']) : null;
+    $data['barcode']= $data['barcode'] ? trim($data['barcode']) : null;
+
+    $product = Product::create($data);
+
+    return redirect()
+        ->route('admin.products.edit', $product)
+        ->with('swal', ['icon'=>'success','title'=>'¡Bien Hecho!','text'=>'Producto creado exitosamente.']);
+}
+
 
     /** Mostrar (opcional) */
     public function show(Product $product)
@@ -73,40 +83,50 @@ class ProductController extends Controller
 
     /** Actualizar */
     public function update(Request $request, Product $product)
-    {
-        $data = $request->validate([
-            'nombre'            => ['required','string','max:180', Rule::unique('products','nombre')->ignore($product->id)],
-            'sku'               => ['nullable','string','max:60',  Rule::unique('products','sku')->ignore($product->id)],
-            'barcode'           => ['nullable','string','max:100', Rule::unique('products','barcode')->ignore($product->id)],
-            'unidad'            => ['required','string','max:20'],
-            'category_id'       => ['required','integer','exists:categories,id'],
-            'es_compuesto'      => ['required','boolean'],
-            'es_subproducto'    => ['required','boolean'],
-            'precio_base'       => ['required','numeric','min:0'],
-            'costo_promedio'    => ['required','numeric','min:0'],
-            'tasa_iva'          => ['required','numeric','min:0','max:100'],
-            'stock_min'         => ['required','numeric','min:0'],
-            'maneja_inventario' => ['required','boolean'],
-            'activo'            => ['required','boolean'],
-            'notas'             => ['nullable','string'],
-        ]);
+{
+    // Coerción de checkboxes -> boolean (cuando vienen null)
+    $payload = $request->merge([
+        'es_compuesto'      => $request->boolean('es_compuesto'),
+        'es_subproducto'    => $request->boolean('es_subproducto'),
+        'maneja_inventario' => $request->boolean('maneja_inventario'),
+        'activo'            => $request->boolean('activo'),
+    ])->all();
 
-        if (($data['es_compuesto'] ?? false) && ($data['es_subproducto'] ?? false)) {
-            return back()
-                ->withErrors(['es_compuesto' => 'Un producto no puede ser compuesto y subproducto al mismo tiempo.'])
-                ->withInput();
-        }
+    $data = validator($payload, [
+        'nombre'            => ['required','string','max:180', Rule::unique('products','nombre')->ignore($product->id)],
+        'sku'               => ['nullable','string','max:60',  Rule::unique('products','sku')->ignore($product->id)],
+        'barcode'           => ['nullable','string','max:100', Rule::unique('products','barcode')->ignore($product->id)],
+        'unidad'            => ['required','string','max:20'],
+        'category_id'       => ['required','integer','exists:categories,id'],
+        'es_compuesto'      => ['required','boolean'],
+        'es_subproducto'    => ['required','boolean'],
+        'precio_base'       => ['required','numeric','min:0'],
+        'costo_promedio'    => ['required','numeric','min:0'],
+        'tasa_iva'          => ['required','numeric','min:0','max:100'],
+        'stock_min'         => ['required','numeric','min:0'],
+        'maneja_inventario' => ['required','boolean'],
+        'activo'            => ['required','boolean'],
+        'notas'             => ['nullable','string'],
+    ])->validate();
 
-        $product->update($data);
-
-        session()->flash('swal', [
-            'icon'  => 'success',
-            'title' => '¡Bien Hecho!',
-            'text'  => 'Producto actualizado exitosamente.',
-        ]);
-
-        return redirect()->route('admin.products.edit', $product);
+    // Regla: no ambas banderas a la vez
+    if (($data['es_compuesto'] ?? false) && ($data['es_subproducto'] ?? false)) {
+        return back()
+            ->withErrors(['es_compuesto' => 'Un producto no puede ser compuesto y subproducto al mismo tiempo.'])
+            ->withInput();
     }
+
+    // Normalizaciones opcionales
+    $data['nombre'] = trim($data['nombre']);
+    $data['sku']    = $data['sku'] ? trim($data['sku']) : null;
+    $data['barcode']= $data['barcode'] ? trim($data['barcode']) : null;
+
+    $product->update($data);
+
+    return redirect()
+        ->route('admin.products.edit', $product)
+        ->with('swal', ['icon'=>'success','title'=>'¡Bien Hecho!','text'=>'Producto actualizado exitosamente.']);
+}
 
     /** Desactivar (no borrar) */
     public function destroy(Product $product)

@@ -3,153 +3,185 @@
 namespace App\Services;
 
 use App\Models\Product;
-use App\Models\ProductBom;
 use App\Models\ProductSubproductRule;
 use App\Models\StockMovement;
 use Illuminate\Support\Facades\DB;
 
 class InventoryService
 {
-    /** Obtiene el ID del almacén principal (fallback: primero). */
     public function getMainWarehouseId(): int
     {
-        // Detectar la columna usada en tu tabla warehouses
         $id = DB::table('warehouses')->where('is_primary', 1)->value('id');
         if (!$id) $id = DB::table('warehouses')->where('principal', 1)->value('id');
         if (!$id) $id = DB::table('warehouses')->where('es_principal', 1)->value('id');
         if (!$id) $id = (int) DB::table('warehouses')->orderBy('id')->value('id');
-
-        if (!$id) {
-            throw new \RuntimeException('No hay almacenes definidos. Crea al menos un almacén.');
-        }
-
+        if (!$id) throw new \RuntimeException('No hay almacenes definidos. Crea al menos un almacén.');
         return (int) $id;
     }
 
-    /** Entrada a inventario (IN). */
+    protected function normQty(float $qty): float
+    {
+        $q = max(0, (float) $qty);
+        return (float) number_format($q, 3, '.', '');
+    }
+
     public function stockIn(int $productId, ?int $warehouseId, float $qty, string $motivo, $referencia = null, ?int $userId = null): void
     {
         $warehouseId = $warehouseId ?: $this->getMainWarehouseId();
+        $qty = $this->normQty($qty);
+        if ($qty <= 0) return;
 
         StockMovement::create([
             'warehouse_id'    => $warehouseId,
             'product_id'      => $productId,
             'tipo'            => 'IN',
-            'cantidad'        => $qty, // cantidad positiva
+            'cantidad'        => $qty,
             'motivo'          => $motivo,
             'referencia_type' => $referencia ? get_class($referencia) : null,
             'referencia_id'   => $referencia->id ?? null,
             'user_id'         => $userId,
         ]);
-
-        // Si llevas stock actual en otra tabla/campo, actualízalo aquí
-        // DB::table('products')->where('id',$productId)->increment('stock_actual', $qty);
     }
 
-    /** Salida de inventario (OUT). */
     public function stockOut(int $productId, ?int $warehouseId, float $qty, string $motivo, $referencia = null, ?int $userId = null): void
     {
         $warehouseId = $warehouseId ?: $this->getMainWarehouseId();
+        $qty = $this->normQty($qty);
+        if ($qty <= 0) return;
 
         StockMovement::create([
             'warehouse_id'    => $warehouseId,
             'product_id'      => $productId,
             'tipo'            => 'OUT',
-            'cantidad'        => $qty, // cantidad positiva (se interpreta como salida)
+            'cantidad'        => $qty,
             'motivo'          => $motivo,
             'referencia_type' => $referencia ? get_class($referencia) : null,
             'referencia_id'   => $referencia->id ?? null,
             'user_id'         => $userId,
         ]);
-
-        // Si llevas stock actual, aquí restarías:
-        // DB::table('products')->where('id',$productId)->decrement('stock_actual', $qty);
     }
 
-    /** Traspaso entre almacenes (OUT en origen, IN en destino). */
-    public function transfer(int $productId, int $fromWarehouseId, int $toWarehouseId, float $qty, ?string $nota = null, ?int $userId = null): void
-    {
-        DB::transaction(function () use ($productId, $fromWarehouseId, $toWarehouseId, $qty, $nota, $userId) {
-            $this->stockOut($productId, $fromWarehouseId, $qty, 'TRASPASO_OUT', null, $userId);
-            $this->stockIn($productId,  $toWarehouseId,   $qty, 'TRASPASO_IN',  null, $userId);
-        });
-    }
-
-    /** Consumir componentes de una BOM por una venta/producción. */
+    /** OUT de componentes según BOM del padre (no toca al padre). */
     public function consumeBom(Product $parent, float $qty, ?int $warehouseId, $referencia = null, ?int $userId = null): void
     {
         $warehouseId = $warehouseId ?: $this->getMainWarehouseId();
+        $qty = $this->normQty($qty);
+        if ($qty <= 0) return;
 
-        // Tu relación se llama bomComponents, pero en el modelo que mostraste
-        // usaste 'bomComponents' con FK 'parent_product_id'.
-        // Si tu tabla es product_boms(product_id, component_product_id, cantidad, activo),
-        // ajusta a ->bomItems() o cambia aquí según corresponda.
-        $components = $parent->bomItems()->where('activo', 1)->get();
-
+        $components = $parent->bomItems()->where('activo', 1)->with('component')->get();
         foreach ($components as $c) {
-            $amount = (float) $c->cantidad * $qty;
-            $this->stockOut($c->component_product_id, $warehouseId, $amount, 'CONSUMO_BOM', $referencia, $userId);
+            if (!$c->component || !$c->component->maneja_inventario) continue;
+            $amount = $this->normQty((float)$c->cantidad * $qty);
+            if ($amount <= 0) continue;
+
+            $this->stockOut(
+                (int) $c->component_product_id,
+                $warehouseId,
+                $amount,
+                'CONSUMO_BOM',
+                $referencia,
+                $userId
+            );
         }
     }
 
-    /**
-     * Consumir del producto padre segun regla de subproducto (venta de subproducto).
-     * Nota: tus nombres en el modelo eran main_product_id/sub_product_id; en otras partes usamos parent_product_id/subproduct_id.
-     * Lo hacemos compatible aquí.
-     */
-    public function consumeFromSubproduct(ProductSubproductRule $rule, float $qty, ?int $warehouseId, $referencia = null, ?int $userId = null): void
+    /** Venta/consumo del PADRE (descuenta padre; si es compuesto, además descuenta componentes). */
+    public function consumeForSale(Product $product, float $qty, ?int $warehouseId = null, $referencia = null, ?int $userId = null): void
     {
         $warehouseId = $warehouseId ?: $this->getMainWarehouseId();
+        $qty = $this->normQty($qty);
+        if ($qty <= 0) return;
 
-        $parentId = $rule->parent_product_id ?? $rule->main_product_id;
-        $ratio    = $rule->ratio ?? null;                // si usas ratio directo
-        $rendPct  = $rule->rendimiento_pct ?? null;      // o rendimiento %
-
-        // base necesaria del padre para obtener $qty del subproducto
-        if ($ratio !== null) {
-            $base = $qty * (float) $ratio;
-        } elseif ($rendPct !== null) {
-            $base = $qty / max(0.000001, ((float)$rendPct / 100.0));
-        } else {
-            throw new \RuntimeException('La regla de subproducto no define ratio ni rendimiento_pct.');
-        }
-
-        // considerar merma si la tienes
-        $mermaPct = (float) ($rule->merma_porcent ?? 0);
-        $merma    = $base * ($mermaPct / 100.0);
-        $amount   = $base + $merma;
-
-        $this->stockOut($parentId, $warehouseId, $amount, 'CONSUMO_SUBPRODUCTO', $referencia, $userId);
+        DB::transaction(function () use ($product, $qty, $warehouseId, $referencia, $userId) {
+            if ($product->maneja_inventario) {
+                $this->stockOut($product->id, $warehouseId, $qty, 'VENTA_PADRE', $referencia, $userId);
+            }
+            if ($product->es_compuesto) {
+                $this->consumeBom($product, $qty, $warehouseId, $referencia, $userId);
+            }
+        });
     }
 
     /**
-     * Despiece: descuenta del padre y da entrada a subproductos según porcentaje de rendimiento.
-     * Si no pasas $warehouseId, usará el ALMACÉN PRINCIPAL.
+     * Entrada para items del pedido.
+     * REGLA: si el PRODUCTO es SUBPRODUCTO y existe regla activa -> consumir el PADRE.
+     *        (no se descuenta el propio subproducto en ese caso)
+     * Si no hay regla, se descuenta el propio producto normalmente.
      */
+    public function consumeForOrderItem(object $item, ?int $warehouseId = null, $referencia = null, ?int $userId = null): void
+    {
+        $product = Product::with(['bomItems' => fn($q) => $q->where('activo', 1), 'bomItems.component'])
+            ->findOrFail((int) $item->product_id);
+
+        $qty = $this->normQty((float) $item->cantidad);
+        if ($qty <= 0) return;
+
+        // 1) ¿Es subproducto? intenta consumir su PADRE según la regla
+        if ($product->es_subproducto) {
+            $rule = ProductSubproductRule::where('sub_product_id', $product->id)
+                    ->where('activo', 1)
+                    ->orderByDesc('id')
+                    ->first();
+
+            if ($rule) {
+                $this->consumeFromSubproduct($rule, $qty, $warehouseId, $referencia, $userId);
+                return; // ✅ NO descontamos el subproducto
+            }
+            // Si no hay regla, cae al flujo normal (descuenta el propio subproducto)
+        }
+
+        // 2) No es subproducto (o no hay regla) -> flujo normal del producto
+        $this->consumeForSale($product, $qty, $warehouseId, $referencia, $userId);
+    }
+
+    /** Despiece: salida del padre y entrada a subproductos por ratio y merma. */
     public function despiece(Product $parent, float $qty, ?int $warehouseId = null, ?string $nota = null, ?int $userId = null): void
     {
         $warehouseId = $warehouseId ?: $this->getMainWarehouseId();
+        $qty = $this->normQty($qty);
+        if ($qty <= 0) return;
 
-        $rules = $parent->subproductRulesAsParent()->get();
+        $rules = $parent->subproductRulesAsParent()->where('activo', 1)->get();
         if ($rules->isEmpty()) {
-            throw new \RuntimeException('El producto no tiene reglas de subproducto.');
+            throw new \RuntimeException('El producto no tiene reglas de subproducto activas.');
         }
 
         DB::transaction(function () use ($parent, $qty, $rules, $warehouseId, $nota, $userId) {
-            // 1) Salida del padre (despiece)
-            $this->stockOut($parent->id, $warehouseId, $qty, 'DESPIECE', null, $userId);
+            $this->stockOut($parent->id, $warehouseId, $qty, 'DESPIECE_OUT'.($nota ? " ({$nota})" : ''), null, $userId);
 
-            // 2) Entradas de subproductos
-          foreach ($rules as $r) {
-    $rend = (float) ($r->rendimiento_pct ?? 0);
-    if ($rend <= 0) continue;
+            foreach ($rules as $r) {
+                $ratio   = (float) ($r->ratio ?? 0);
+                if ($ratio <= 0) continue;
 
-    $qtyOut = round($qty * ($rend / 100.0), 3);
-    if ($qtyOut <= 0) continue;
+                $merma   = (float) ($r->merma_porcent ?? 0);
+                $qtyBase = $qty * $ratio;
+                $qtyIn   = $this->normQty(max(0, $qtyBase - ($qtyBase * ($merma / 100.0))));
+                if ($qtyIn <= 0) continue;
 
-    $this->stockIn($r->sub_product_id, $warehouseId, $qtyOut, 'DESPIECE_OUT', null, $userId);
-}
-
+                $this->stockIn((int) $r->sub_product_id, $warehouseId, $qtyIn, 'DESPIECE_IN'.($nota ? " ({$nota})" : ''), null, $userId);
+            }
         });
+    }
+
+    /**
+     * Vendo X del SUBPRODUCTO => consumo del PADRE según ratio (+ merma si quieres considerarla).
+     * ratio = subunits_per_parent  =>  parent_needed = qty / ratio
+     */
+    public function consumeFromSubproduct(ProductSubproductRule $rule, float $qty, ?int $warehouseId = null, $referencia = null, ?int $userId = null): void
+    {
+        $warehouseId = $warehouseId ?: $this->getMainWarehouseId();
+        $qty = $this->normQty($qty);
+        if ($qty <= 0) return;
+
+        $ratio = (float) ($rule->ratio ?? 0);
+        if ($ratio <= 0) {
+            throw new \RuntimeException('La regla de subproducto no define ratio (> 0).');
+        }
+
+        $base     = $qty / $ratio; // cuántas unidades del padre necesito
+        $mermaPct = (float) ($rule->merma_porcent ?? 0);
+        $amount   = $this->normQty($base + ($base * ($mermaPct / 100.0)));
+
+        $this->stockOut((int) $rule->main_product_id, $warehouseId, $amount, 'CONSUMO_SUBPRODUCTO', $referencia, $userId);
     }
 }

@@ -34,8 +34,8 @@ class StockAdjustmentController extends Controller
                 'tipo'            => $data['tipo'],
                 'cantidad'        => $data['cantidad'],
                 'motivo'          => $data['motivo'] ?? 'AJUSTE MANUAL',
-                'referencia_type' => null,
-                'referencia_id'   => null,
+                 'referencia_type' => 'ManualAdjustment', // <- placeholder
+                  'referencia_id'   => 0,                  // <- placeholder
                 'user_id'         => auth()->id(),
             ]);
         });

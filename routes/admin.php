@@ -75,6 +75,9 @@ Route::resource('quotes', App\Http\Controllers\Admin\QuoteController::class)
     ->except('show')
     ->names('quotes');
 
+Route::post('quotes/{quote}/approve', [QuoteController::class,'approve'])
+    ->name('quotes.approve');    
+
  Route::post('quotes/{quote}/send',     [\App\Http\Controllers\Admin\QuoteController::class, 'send'])->name('quotes.send');
 Route::post('quotes/{quote}/approve',  [\App\Http\Controllers\Admin\QuoteController::class, 'approve'])->name('quotes.approve');
 Route::post('quotes/{quote}/reject',   [\App\Http\Controllers\Admin\QuoteController::class, 'reject'])->name('quotes.reject');

@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Mail;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\SalesOrderDeliveryNoteMailable;
 use App\Models\StockMovement;
+use App\Services\InventoryService;
 
 class SalesOrderController extends Controller
 {
@@ -314,32 +315,31 @@ class SalesOrderController extends Controller
         return back()->with('swal',['icon'=>'success','title'=>'Preparando','text'=>'Pedido en preparación.']);
     }
 
-    public function process(SalesOrder $order)
+  
+
+    public function process(SalesOrder $order, InventoryService $inv)
     {
         if (!in_array($order->status, ['APROBADO','PREPARANDO'])) {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Debe estar APROBADO o PREPARANDO.']);
+            return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Debe estar APROBADO o PREPARANDO.']);
         }
 
-        DB::transaction(function() use ($order){
+        DB::transaction(function () use ($order, $inv) {
             foreach ($order->items as $it) {
-                if ($it->product_id) {
-                    StockMovement::create([
-                        'warehouse_id'    => $order->warehouse_id,
-                        'product_id'      => $it->product_id,
-                        'tipo'            => 'OUT',
-                        'cantidad'        => $it->cantidad,
-                        'motivo'          => 'Pedido procesado #'.$order->id,
-                        'referencia_type' => SalesOrder::class,
-                        'referencia_id'   => $order->id,
-                        'user_id'         => auth()->id(),
-                    ]);
-                }
+                if (!$it->product_id || $it->cantidad <= 0) continue;
+
+                // 🔑 Aquí se resuelve: si es subproducto con regla -> descuenta PADRE,
+                // si es padre compuesto -> descuenta padre + BOM, si es simple -> descuenta él mismo.
+                $inv->consumeForOrderItem($it, $order->warehouse_id, $order, auth()->id());
             }
-            $order->update(['status' => 'PROCESADO','despachado_at'=>now()]);
+
+            $order->update(['status' => 'PROCESADO', 'despachado_at' => now()]);
         });
 
-        return back()->with('swal',['icon'=>'success','title'=>'Procesado','text'=>'Stock descontado y pedido PROCESADO.']);
+        return back()->with('swal', ['icon'=>'success','title'=>'Procesado','text'=>'Stock descontado y pedido PROCESADO.']);
     }
+
+
+    
 
     public function dispatchToRoute(SalesOrder $order)
     {

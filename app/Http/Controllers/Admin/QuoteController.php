@@ -8,12 +8,17 @@ use App\Models\PriceList;
 use App\Models\Product;
 use App\Models\Quote;
 use App\Models\QuoteItem;
+use App\Models\Warehouse; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\QuotePdfMailable;
 use App\Services\WhatsappSender;
+use App\Models\SalesOrder;
+use App\Models\SalesOrderItem;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 
 class QuoteController extends Controller
 {
@@ -339,4 +344,104 @@ class QuoteController extends Controller
         $pdf = Pdf::loadView('pdf.quote', ['quote' => $quote]);
         return $pdf->download('cotizacion-'.$quote->id.'.pdf');
     }
+
+  public function approve(Request $request, Quote $quote)
+{
+    if (! in_array($quote->status, ['BORRADOR','ENVIADA'], true)) {
+        return back()->with('swal', [
+            'icon'=>'error','title'=>'No permitido',
+            'text'=>'Solo BORRADOR o ENVIADA pueden aprobarse.'
+        ]);
+    }
+
+    $quote->load('items');
+    if ($quote->items->isEmpty()) {
+        return back()->with('swal', [
+            'icon'=>'error','title'=>'Sin conceptos',
+            'text'=>'La cotización no tiene partidas.'
+        ]);
+    }
+
+    // Defaults si no llegan en el form
+    $warehouseId   = $request->input('warehouse_id') ?: Warehouse::query()->value('id');
+    if (!$warehouseId) {
+        return back()->with('swal', [
+            'icon'=>'error','title'=>'Falta almacén',
+            'text'=>'No hay almacenes registrados. Crea uno primero.'
+        ]);
+    }
+    $deliveryType  = $request->input('delivery_type', 'RECOGER');
+    $paymentMethod = $request->input('payment_method', 'EFECTIVO');
+    $creditDays    = $paymentMethod === 'CREDITO' ? (int)$request->input('credit_days', 0) : null;
+    $programado    = $request->input('programado_para');
+
+    $order = null;
+
+    DB::transaction(function () use ($quote, $warehouseId, $deliveryType, $paymentMethod, $creditDays, $programado, &$order) {
+        $nextId = (SalesOrder::max('id') ?? 0) + 1;
+        $folio  = 'SO-'.now()->format('Ymd').'-'.Str::padLeft((string)$nextId, 4, '0');
+
+        $payload = [
+            'client_id'         => $quote->client_id,
+            'warehouse_id'      => $warehouseId,
+            'price_list_id'     => $quote->price_list_id,
+            'folio'             => $folio,
+            'fecha'             => $quote->fecha ?? now(),
+            'programado_para'   => $programado,
+
+            'delivery_type'     => $deliveryType,
+            'entrega_nombre'    => null,
+            'entrega_telefono'  => null,
+            'entrega_calle'     => null,
+            'entrega_numero'    => null,
+            'entrega_colonia'   => null,
+            'entrega_ciudad'    => null,
+            'entrega_estado'    => null,
+            'entrega_cp'        => null,
+
+            'shipping_route_id' => null,
+            'driver_id'         => null,
+
+            'payment_method'    => $paymentMethod,
+            'credit_days'       => $creditDays,
+
+            'moneda'            => $quote->moneda,
+            'subtotal'          => $quote->subtotal,
+            'impuestos'         => $quote->impuestos,
+            'descuento'         => $quote->descuento,
+            'total'             => $quote->total,
+            'status'            => 'BORRADOR', // luego podrás aprobar el pedido desde su flujo
+            'created_by'        => auth()->id(),
+            'owner_id'          => auth()->id(),
+
+            'contraentrega_total' => $paymentMethod === 'CONTRAENTREGA' ? $quote->total : 0,
+        ];
+
+        if (Schema::hasColumn('sales_orders','quote_id')) {
+            $payload['quote_id'] = $quote->id;
+        }
+
+        $order = SalesOrder::create($payload);
+
+        foreach ($quote->items as $it) {
+            SalesOrderItem::create([
+                'sales_order_id' => $order->id,
+                'product_id'     => $it->product_id,
+                'descripcion'    => $it->descripcion,
+                'cantidad'       => $it->cantidad,
+                'precio'         => $it->precio,
+                'descuento'      => $it->descuento,
+                'impuesto'       => $it->impuesto,
+                'total'          => $it->total,
+            ]);
+        }
+
+        $quote->update(['status' => 'APROBADA']);
+    });
+
+    return redirect()
+        ->route('admin.sales-orders.edit', $order)
+        ->with('swal', ['icon'=>'success','title'=>'Aprobada','text'=>'Se generó el Pedido.']);
+}
+
 }

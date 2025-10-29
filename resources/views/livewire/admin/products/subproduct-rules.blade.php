@@ -14,24 +14,21 @@
             searchable
         />
 
-        {{-- % rendimiento --}}
+        {{-- Rendimiento en % (UI) --}}
         <x-wire-input
-            type="number"
-            step="0.001"
-            min="0.001"
-            max="100"
+            type="number" step="0.001" min="0.001"
             name="rendimiento_pct"
             label="Rendimiento (%)"
             wire:model.defer="rendimiento_pct"
             placeholder="0.000"
         />
+        <p class="text-xs text-gray-500 -mt-3 md:mt-0">
+            Escribe porcentaje. Ej: <b>85</b> equivale a ratio <b>0.85</b>.
+        </p>
 
-        {{-- % merma (opcional) --}}
+        {{-- Merma en % (UI) --}}
         <x-wire-input
-            type="number"
-            step="0.001"
-            min="0"
-            max="100"
+            type="number" step="0.001" min="0" max="100"
             name="merma_porcent"
             label="Merma (%)"
             wire:model.defer="merma_porcent"
@@ -63,7 +60,7 @@
                 @forelse($rules as $r)
                     <tr class="border-b">
                         <td class="py-2 pr-4">{{ $r->subproduct?->nombre ?? '—' }}</td>
-                        <td class="py-2 pr-4">{{ number_format((float)$r->rendimiento_pct, 3) }}</td>
+                        <td class="py-2 pr-4">{{ number_format(((float)($r->ratio ?? 0)) * 100, 3) }}</td> {{-- ratio → % --}}
                         <td class="py-2 pr-4">{{ number_format((float)($r->merma_porcent ?? 0), 3) }}</td>
                         <td class="py-2 pr-0 text-right">
                             <div class="inline-flex gap-2">

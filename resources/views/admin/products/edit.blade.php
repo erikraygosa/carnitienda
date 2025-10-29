@@ -25,6 +25,8 @@
                 </x-wire-button>
             </div>
         </form>
+
+        {{-- SUBPRODUCTOS (Livewire) --}}
         @livewire('admin.products.subproduct-rules', ['product' => $product])
 
         {{-- FORM DESACTIVAR (ANTES: eliminar) - Fuera del form principal --}}
@@ -54,7 +56,7 @@
                         required
                     />
 
-                    {{-- Si quieres permitir una nota opcional --}}
+                    {{-- Nota opcional --}}
                     <x-wire-input
                         name="nota"
                         label="Nota (opcional)"
@@ -81,7 +83,11 @@
                     @foreach($product->parentRulesAsChild()->with('parent')->get() as $rule)
                         <li>
                             {{ $rule->parent?->nombre ?? 'Producto padre' }}
-                            — rendimiento: {{ number_format($rule->rendimiento_pct ?? 0, 2) }}%
+                            — rendimiento:
+                            {{ number_format((($rule->ratio ?? 0) * 100), 2) }}%
+                            @if(!is_null($rule->merma_porcent))
+                                — merma: {{ number_format($rule->merma_porcent, 2) }}%
+                            @endif
                         </li>
                     @endforeach
                 </ul>
