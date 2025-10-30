@@ -17,8 +17,12 @@
         <!-- Styles -->
         @livewireStyles
     </head>
-    <body>
-        <div class="font-sans text-gray-900 antialiased">
+    <body
+        class="min-h-screen bg-cover bg-center bg-no-repeat font-sans text-gray-900 antialiased"
+        style="background-image: url('{{ asset('back2.jpg') }}');"
+    >
+        <!-- Capa de oscurecimiento opcional -->
+        <div class="min-h-screen bg-black/50 flex items-center justify-center">
             {{ $slot }}
         </div>
 
