@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Dispatch;
 use App\Models\DispatchItem;
+use App\Models\AccountsReceivable;
 use App\Models\SalesOrder;
 use App\Models\Warehouse;
 use App\Models\ShippingRoute;
@@ -24,6 +25,10 @@ class DispatchController extends Controller
         $warehouses = Warehouse::orderBy('nombre')->get(['id','nombre']);
         $routes     = ShippingRoute::orderBy('nombre')->get(['id','nombre']);
         $drivers    = Driver::orderBy('nombre')->get(['id','nombre']);
+        $accounts   = AccountsReceivable::where('saldo','>',0)
+            ->orderByDesc('fecha')
+            ->limit(100)
+            ->get(['id','client_id','folio_documento','saldo','fecha']);
 
         // Pedidos candidatos (APROBADO/PROCESADO/ PREPARANDO): aún sin despacho o no cerrados
         $orders = SalesOrder::query()
@@ -31,7 +36,7 @@ class DispatchController extends Controller
             ->latest()->limit(100)
             ->get(['id','folio','client_id','status','programado_para']);
 
-        return view('admin.dispatches.create', compact('warehouses','routes','drivers','orders'));
+        return view('admin.dispatches.create', compact('warehouses','routes','drivers','orders','accounts'));
     }
 
     public function store(Request $request) {
@@ -44,6 +49,8 @@ class DispatchController extends Controller
             'notas'             => ['nullable','string'],
             'orders'            => ['required','array','min:1'],
             'orders.*'          => ['integer','exists:sales_orders,id'],
+            'accounts_receivable'   => ['nullable','array'],
+            'accounts_receivable.*' => ['integer','exists:accounts_receivable,id'],
         ]);
 
         return DB::transaction(function () use ($data) {
@@ -65,6 +72,11 @@ class DispatchController extends Controller
                     'referencia'     => $o->folio,
                     'status'         => 'ASIGNADO',
                 ]);
+            }
+
+            if (!empty($data['accounts_receivable'])) {
+                AccountsReceivable::whereIn('id', $data['accounts_receivable'])
+                    ->update(['driver_id' => $data['driver_id'] ?? null]);
             }
 
             session()->flash('swal', [
