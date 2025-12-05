@@ -25,10 +25,17 @@ class DispatchController extends Controller
         $warehouses = Warehouse::orderBy('nombre')->get(['id','nombre']);
         $routes     = ShippingRoute::orderBy('nombre')->get(['id','nombre']);
         $drivers    = Driver::orderBy('nombre')->get(['id','nombre']);
-        $accounts   = AccountsReceivable::where('saldo','>',0)
+        $accounts   = AccountsReceivable::query()
+            ->with('client:id,nombre')
+            ->where(function ($q) {
+                $q->where('saldo', '>', 0)
+                  ->orWhere(function ($q) {
+                      $q->where('tipo', 'CARGO')->where('monto', '>', 0);
+                  });
+            })
             ->orderByDesc('fecha')
             ->limit(100)
-            ->get(['id','client_id','folio_documento','saldo','fecha']);
+            ->get(['id','client_id','folio_documento','saldo','fecha','tipo','monto']);
 
         // Pedidos candidatos (APROBADO/PROCESADO/ PREPARANDO): aún sin despacho o no cerrados
         $orders = SalesOrder::query()

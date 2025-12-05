@@ -114,7 +114,10 @@
                                 <td class="p-2">{{ $ac->id }}</td>
                                 <td class="p-2">{{ $ac->folio_documento }}</td>
                                 <td class="p-2">{{ $ac->client?->nombre }}</td>
-                                <td class="p-2">${{ number_format($ac->saldo,2) }}</td>
+                                @php
+                                    $pending = $ac->saldo > 0 ? $ac->saldo : ($ac->tipo === 'CARGO' ? $ac->monto : 0);
+                                @endphp
+                                <td class="p-2">${{ number_format($pending,2) }}</td>
                                 <td class="p-2">{{ optional($ac->fecha)->format('Y-m-d') }}</td>
                             </tr>
                         @empty
