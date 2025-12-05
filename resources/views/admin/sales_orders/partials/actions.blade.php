@@ -7,6 +7,15 @@
         <x-wire-button href="{{ route('admin.sales-orders.pdf',$order) }}" gray outline xs target="_blank">Ver PDF</x-wire-button>
         <x-wire-button href="{{ route('admin.sales-orders.pdf.download',$order) }}" gray xs>Descargar PDF</x-wire-button>
         <x-wire-button href="{{ route('admin.sales-orders.send.form',$order) }}" violet xs>Enviar</x-wire-button>
+
+        {{-- Facturar (crear factura desde el pedido) --}}
+        <x-wire-button
+            href="{{ route('admin.invoices.create') . '?sales_order=' . $order->id }}"
+            indigo
+            xs
+        >
+            Facturar
+        </x-wire-button>
     @endif
 
     {{-- Flujo de estados --}}

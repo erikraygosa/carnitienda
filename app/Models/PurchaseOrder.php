@@ -10,7 +10,7 @@ class PurchaseOrder extends Model
 {
     protected $fillable = [
         'provider_id','warehouse_id','user_id','folio','fecha','expected_at',
-        'status','subtotal','discount_total','tax_total','total','currency','observaciones',
+        'status','subtotal','discount_total','tax_total','total','currency','observaciones','payment_method',
     ];
 
     protected $casts = [

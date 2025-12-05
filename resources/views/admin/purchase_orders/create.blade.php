@@ -35,6 +35,18 @@
                 <div>
                     <x-wire-input label="Moneda" name="currency" :value="old('currency','MXN')" />
                 </div>
+                  {{-- Método de pago + días crédito --}}
+                <div class="space-y-2 w-full">
+                    <label for="payment_method" class="block text-sm font-medium text-gray-700">Método de pago</label>
+                    <select name="payment_method" id="payment_method"
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        x-model="payment_method">
+                        <option value="EFECTIVO">Efectivo</option>
+                        <option value="TRANSFERENCIA" >Transferencia</option>
+                        <option value="CONTRAENTREGA" >Contraentrega</option>
+                        <option value="CREDITO" >Crédito</option>
+                    </select>
+                </div>
                 <div class="md:col-span-4">
                     <x-wire-textarea label="Observaciones" name="observaciones">{{ old('observaciones') }}</x-wire-textarea>
                 </div>
