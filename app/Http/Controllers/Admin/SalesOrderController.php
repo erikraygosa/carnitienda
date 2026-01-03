@@ -14,6 +14,7 @@ use App\Models\ShippingRoute;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\AccountsReceivable;
+use App\Models\ArMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -22,9 +23,12 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\SalesOrderDeliveryNoteMailable;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
+use App\Services\ArService;
 
 class SalesOrderController extends Controller
 {
+    public function __construct(private ArService $ar) {}
+
     public function index()
     {
         return view('admin.sales_orders.index');
@@ -363,6 +367,8 @@ class SalesOrderController extends Controller
             // (Opcional) Generar la venta aquí si así lo manejas
             // ...
 
+            $this->registerCreditCharge($order);
+
             $order->update(['status' => 'ENTREGADO', 'entregado_at'=>now()]);
         });
 
@@ -433,6 +439,30 @@ class SalesOrderController extends Controller
         }
         $order->update(['status'=>'CANCELADO']);
         return back()->with('swal',['icon'=>'success','title'=>'Cancelado','text'=>'Pedido cancelado']);
+    }
+
+    private function registerCreditCharge(SalesOrder $order): void
+    {
+        if ($order->payment_method !== SalesOrder::PM_CREDITO) return;
+        if (!$order->client_id) return;
+
+        $alreadyCharged = ArMovement::where('source_type', SalesOrder::class)
+            ->where('source_id', $order->id)
+            ->where('tipo', 'CARGO')
+            ->exists();
+
+        if ($alreadyCharged) return;
+
+        $fecha = $order->fecha ? $order->fecha->toDateString() : now()->toDateString();
+        $desc  = 'Pedido '.($order->folio ?? $order->id);
+
+        $this->ar->charge(
+            $order->client_id,
+            (float) $order->total,
+            $desc,
+            $order,
+            $fecha
+        );
     }
 
     // ========= PDF =========

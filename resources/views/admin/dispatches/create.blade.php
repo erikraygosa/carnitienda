@@ -92,6 +92,45 @@
                 @error('orders') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
 
+            {{-- Cuentas por cobrar a asignar a la ruta --}}
+            <div class="space-y-2">
+                <h3 class="font-semibold">Cuentas por cobrar</h3>
+                <div class="overflow-auto border rounded">
+                    <table class="min-w-full text-sm">
+                        <thead class="border-b">
+                        <tr>
+                            <th class="p-2 text-left">Sel</th>
+                            <th class="p-2 text-left">ID</th>
+                            <th class="p-2 text-left">Folio</th>
+                            <th class="p-2 text-left">Cliente</th>
+                            <th class="p-2 text-left">Saldo</th>
+                            <th class="p-2 text-left">Fecha</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @forelse($accounts as $ac)
+                            <tr class="border-b">
+                                <td class="p-2"><input type="checkbox" name="accounts_receivable[]" value="{{ $ac->id }}"></td>
+                                <td class="p-2">{{ $ac->id }}</td>
+                                <td class="p-2">{{ $ac->folio_documento }}</td>
+                                <td class="p-2">{{ $ac->client?->nombre }}</td>
+                                @php
+                                    $pending = $ac->saldo > 0 ? $ac->saldo : ($ac->tipo === 'CARGO' ? $ac->monto : 0);
+                                @endphp
+                                <td class="p-2">${{ number_format($pending,2) }}</td>
+                                <td class="p-2">{{ optional($ac->fecha)->format('Y-m-d') }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="p-3 text-center text-gray-500">No hay cuentas por cobrar con saldo pendiente.</td>
+                            </tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                @error('accounts_receivable') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
+            </div>
+
             <div>
                 <x-wire-textarea label="Notas" name="notas">{{ old('notas') }}</x-wire-textarea>
             </div>
