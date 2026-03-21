@@ -4,11 +4,8 @@
     <meta charset="UTF-8">
     <title>Hoja de ruta — Despacho #{{ $dispatch->id }}</title>
     <style>
-        /* ── Base ── */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: Arial, sans-serif; font-size: 12px; color: #111; background: #fff; }
-
-        /* ── Modo carta (default) ── */
         .page { width: 100%; max-width: 720px; margin: 0 auto; padding: 24px; }
         h1 { font-size: 18px; font-weight: bold; }
         h2 { font-size: 14px; font-weight: bold; margin: 16px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
@@ -24,8 +21,11 @@
         .firma { margin-top: 40px; border-top: 1px solid #333; width: 220px; text-align: center; padding-top: 6px; font-size: 11px; }
         .notas-box { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 8px 12px; font-size: 11px; margin-bottom: 12px; }
         .direccion { font-size: 10px; color: #555; }
+        .section-num { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #1a1a1a; color: #fff; font-size: 10px; font-weight: bold; margin-right: 4px; }
+        /* Traspasos */
+        .traspaso-origen { color: #4f46e5; font-weight: bold; }
+        .traspaso-destino { color: #059669; font-weight: bold; }
 
-        /* ── Modo ticket 80mm ── */
         @media print {
             body.ticket .page { max-width: 72mm; padding: 4mm; font-size: 10px; }
             body.ticket h1 { font-size: 13px; }
@@ -36,7 +36,6 @@
             body.ticket .firma { width: 100%; }
             body.ticket .no-ticket { display: none; }
         }
-
         @media screen {
             body.ticket .page { max-width: 340px; padding: 8px; font-size: 11px; }
             body.ticket h1 { font-size: 14px; }
@@ -45,20 +44,19 @@
 
         .btn-bar { display: flex; gap: 8px; margin-bottom: 16px; }
         .btn { padding: 6px 14px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
-        .btn-print { background: #4f46e5; color: #fff; }
+        .btn-print  { background: #4f46e5; color: #fff; }
         .btn-ticket { background: #0f766e; color: #fff; }
-        .btn-close { background: #e5e7eb; color: #333; }
+        .btn-close  { background: #e5e7eb; color: #333; }
         @media print { .btn-bar { display: none !important; } }
     </style>
 </head>
 <body id="body-root">
 <div class="page">
 
-    {{-- Botones (solo pantalla) --}}
     <div class="btn-bar">
-        <button class="btn btn-print" onclick="printCarta()">Imprimir carta</button>
+        <button class="btn btn-print"  onclick="printCarta()">Imprimir carta</button>
         <button class="btn btn-ticket" onclick="printTicket()">Imprimir ticket 80mm</button>
-        <button class="btn btn-close" onclick="window.close()">Cerrar</button>
+        <button class="btn btn-close"  onclick="window.close()">Cerrar</button>
     </div>
 
     {{-- Encabezado --}}
@@ -72,19 +70,56 @@
     </div>
 
     @if($dispatch->notas)
-    <div class="notas-box">
-        <strong>Notas:</strong> {{ $dispatch->notas }}
-    </div>
+    <div class="notas-box"><strong>Notas:</strong> {{ $dispatch->notas }}</div>
     @endif
 
-    {{-- Pedidos --}}
-    <h2>Pedidos a entregar ({{ $dispatch->items->count() }})</h2>
+    {{-- ══ 1. TRASPASOS ══ --}}
+    @if($dispatch->transferAssignments->count() > 0)
+    <h2><span class="section-num">1</span> Traspasos a entregar ({{ $dispatch->transferAssignments->count() }})</h2>
     <table>
         <thead>
             <tr>
                 <th>#</th>
                 <th>Folio</th>
-                <th>Cliente</th>
+                <th>Origen</th>
+                <th>Destino</th>
+                <th class="no-ticket">Productos</th>
+                <th class="text-center no-ticket">Entregado</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($dispatch->transferAssignments as $i => $ta)
+            @php $t = $ta->stockTransfer; @endphp
+            <tr>
+                <td>{{ $i + 1 }}</td>
+                <td><strong>{{ $t?->folio ?? '—' }}</strong></td>
+                <td class="traspaso-origen">{{ $t?->fromWarehouse?->nombre ?? '—' }}</td>
+                <td class="traspaso-destino">{{ $t?->toWarehouse?->nombre ?? '—' }}</td>
+                <td class="no-ticket">
+                    @if($t)
+                        @foreach($t->items as $it)
+                            <div style="font-size:10px;">{{ $it->product?->nombre ?? '—' }} — {{ number_format($it->qty, 3) }} {{ $it->product?->unidad }}</div>
+                        @endforeach
+                    @else —
+                    @endif
+                </td>
+                <td class="text-center no-ticket">☐</td>
+            </tr>
+            @endforeach
+        </tbody>
+    </table>
+    @endif
+
+    {{-- ══ 2. PEDIDOS ══ --}}
+    <h2>
+        <span class="section-num">{{ $dispatch->transferAssignments->count() > 0 ? '2' : '1' }}</span>
+        Pedidos a entregar ({{ $dispatch->items->count() }})
+    </h2>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Folio / Cliente</th>
                 <th class="no-ticket">Dirección</th>
                 <th class="text-right">Total</th>
                 <th>Pago</th>
@@ -100,16 +135,19 @@
                     $totalPedidos += $o->total;
                     if(in_array($o->payment_method, ['EFECTIVO','CONTRAENTREGA'])) $totalEfectivo += $o->total;
                     $dir = collect([
-                        $o->entrega_calle.' '.$o->entrega_numero,
-                        $o->entrega_colonia,
-                        $o->entrega_ciudad,
+                        trim(($o->entrega_calle ?? '').' '.($o->entrega_numero ?? '')),
+                        $o->entrega_colonia ?? '',
+                        $o->entrega_ciudad  ?? '',
                     ])->filter()->implode(', ');
                 @endphp
-                <tr>
-                    <td>{{ $i + 1 }}</td>
-                    <td><strong>{{ $o->folio }}</strong></td>
+                {{-- Fila principal del pedido --}}
+                <tr style="background:#f8fafc;">
+                    <td rowspan="{{ $o->items->count() + 1 }}" style="vertical-align:top;font-weight:bold;font-size:13px;color:#555;">
+                        {{ $i + 1 }}
+                    </td>
                     <td>
-                        {{ $o->client?->nombre ?? '—' }}
+                        <strong style="font-size:11px;">{{ $o->folio }}</strong><br>
+                        <span style="font-weight:bold;">{{ $o->client?->nombre ?? '—' }}</span>
                         @if($o->entrega_nombre)
                             <br><span class="direccion">Recibe: {{ $o->entrega_nombre }}</span>
                         @endif
@@ -119,21 +157,44 @@
                     </td>
                     <td class="no-ticket direccion">{{ $dir ?: '—' }}</td>
                     <td class="text-right"><strong>${{ number_format($o->total, 2) }}</strong></td>
-                    <td>{{ $o->payment_method }}</td>
-                    <td class="text-center no-ticket">☐</td>
+                    <td>
+                        <span style="font-size:10px;padding:1px 5px;border-radius:9999px;border:1px solid #ccc;
+                            {{ $o->payment_method === 'CREDITO' ? 'background:#dbeafe;color:#1d4ed8;' : 'background:#f3f4f6;' }}">
+                            {{ $o->payment_method }}
+                        </span>
+                    </td>
+                    <td class="text-center no-ticket" rowspan="{{ $o->items->count() + 1 }}" style="vertical-align:middle;font-size:18px;">☐</td>
                 </tr>
+                {{-- Filas de productos del pedido --}}
+                @foreach($o->items as $it)
+                <tr style="background:#fff;">
+                    <td colspan="3" style="padding-left:20px;font-size:10px;color:#374151;border-bottom:{{ $loop->last ? '2px solid #d1d5db' : '1px solid #f3f4f6' }};">
+                        <span style="color:#6b7280;margin-right:4px;">↳</span>
+                        <strong>{{ $it->product?->nombre ?? $it->descripcion }}</strong>
+                        &nbsp;
+                        <span style="color:#6b7280;">{{ number_format((float)$it->cantidad, 3) }} {{ $it->product?->unidad ?? '' }}</span>
+                        @if($it->descuento > 0)
+                            <span style="color:#dc2626;margin-left:4px;">-${{ number_format($it->descuento, 2) }}</span>
+                        @endif
+                    </td>
+                    <td class="text-right no-ticket" style="font-size:10px;color:#374151;border-bottom:{{ $loop->last ? '2px solid #d1d5db' : '1px solid #f3f4f6' }};">
+                        ${{ number_format((float)$it->total, 2) }}
+                    </td>
+                </tr>
+                @endforeach
             @endforeach
             <tr class="total-row">
-                <td colspan="4" class="text-right">Total pedidos:</td>
+                <td colspan="3" class="text-right">Total pedidos:</td>
                 <td class="text-right">${{ number_format($totalPedidos, 2) }}</td>
                 <td colspan="2"></td>
             </tr>
         </tbody>
     </table>
 
-    {{-- CxC a cobrar --}}
+    {{-- ══ 3. CXC ══ --}}
     @if($dispatch->arAssignments->count() > 0)
-    <h2>Cuentas por cobrar</h2>
+    @php $sectionNum = $dispatch->transferAssignments->count() > 0 ? 3 : 2; @endphp
+    <h2><span class="section-num">{{ $sectionNum }}</span> Cuentas por cobrar</h2>
     <table>
         <thead>
             <tr>
@@ -182,22 +243,13 @@
         </tbody>
     </table>
 
-    {{-- Firma --}}
-    <div class="firma">
-        Firma del chofer
-    </div>
+    <div class="firma">Firma del chofer</div>
 
 </div>
 
 <script>
-function printCarta() {
-    document.getElementById('body-root').classList.remove('ticket');
-    window.print();
-}
-function printTicket() {
-    document.getElementById('body-root').classList.add('ticket');
-    window.print();
-}
+function printCarta()  { document.getElementById('body-root').classList.remove('ticket'); window.print(); }
+function printTicket() { document.getElementById('body-root').classList.add('ticket');    window.print(); }
 </script>
 </body>
 </html>

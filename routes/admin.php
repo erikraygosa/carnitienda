@@ -26,6 +26,7 @@ use App\Http\Controllers\Admin\POSController;
 use App\Http\Controllers\Admin\DashboardController;
 
 
+
 Route::get('/', [DashboardController::class, 'index'])
     ->name('dashboard');
 
@@ -103,6 +104,20 @@ Route::get ('quotes/{quote}/pdf/download',  [QuoteController::class, 'pdfDownloa
     Route::post('sales-orders/{order}/cobrar',        [SalesOrderController::class,'recordCash'])->name('sales-orders.cobrar');
     Route::post('sales-orders/{order}/liquidar',      [SalesOrderController::class,'settleDriver'])->name('sales-orders.liquidar');
     Route::post('sales-orders/{order}/cancelar',      [SalesOrderController::class,'cancel'])->name('sales-orders.cancel');
+
+
+    Route::post('/{dispatch}/traspasos/{assignment}/completar',
+    [DispatchController::class, 'completarTraspaso'])->name('admin.dispatches.traspasos.completar');
+Route::post('/{dispatch}/traspasos/{assignment}/no-completar',
+    [DispatchController::class, 'noCompletarTraspaso'])->name('admin.dispatches.traspasos.no-completar');
+    // Traspasos en despacho
+Route::post('dispatches/{dispatch}/traspasos/{assignment}/completar',
+    [DispatchController::class, 'completarTraspaso'])->name('dispatches.traspasos.completar');
+Route::post('dispatches/{dispatch}/traspasos/{assignment}/no-completar',
+    [DispatchController::class, 'noCompletarTraspaso'])->name('dispatches.traspasos.no-completar');
+    Route::post('dispatches/{dispatch}/traspasos/bulk', [DispatchController::class, 'bulkTraspasos'])->name('dispatches.traspasos.bulk');
+Route::post('dispatches/{dispatch}/pedidos/bulk',   [DispatchController::class, 'bulkPedidos'])->name('dispatches.pedidos.bulk');
+Route::post('dispatches/{dispatch}/cxc/bulk',       [DispatchController::class, 'bulkCxc'])->name('dispatches.cxc.bulk');
 
 
     // =========================
@@ -206,4 +221,20 @@ Route::prefix('pos')->name('pos.')->group(function () {
   Route::post('/', [POSController::class,'store'])->name('store');
   Route::get('/ticket/{sale}', [POSController::class,'ticket'])->name('ticket');
    Route::get('/ticket/{sale}/pdf', [POSController::class,'ticketPdf'])->name('ticket.pdf');
+
+
+
+
+
+});
+
+// Dentro del grupo admin, junto a las otras rutas de stock:
+Route::prefix('stock/transfers')->name('stock.transfers.')->group(function () {
+    Route::get('/',                    [StockTransferController::class, 'index'])->name('index');
+    Route::get('/create',              [StockTransferController::class, 'create'])->name('create');
+    Route::post('/',                   [StockTransferController::class, 'store'])->name('store');
+    Route::get('/{transfer}',          [StockTransferController::class, 'show'])->name('show');
+    Route::get('/{transfer}/print',    [StockTransferController::class, 'print'])->name('print');
+    Route::post('/{transfer}/complete',[StockTransferController::class, 'complete'])->name('complete');
+    Route::post('/{transfer}/cancel',  [StockTransferController::class, 'cancel'])->name('cancel');
 });

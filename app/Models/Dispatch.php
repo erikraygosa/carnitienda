@@ -52,4 +52,8 @@ class Dispatch extends Model
     {
         return $this->hasMany(DispatchArAssignment::class);
     }
+    public function transferAssignments()
+    {
+        return $this->hasMany(DispatchTransferAssignment::class);
+    }
 }

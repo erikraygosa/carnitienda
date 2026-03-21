@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DispatchArAssignment extends Model
 {
@@ -15,13 +14,6 @@ class DispatchArAssignment extends Model
         'status',
     ];
 
-    public function dispatch(): BelongsTo
-    {
-        return $this->belongsTo(Dispatch::class);
-    }
-
-    public function client(): BelongsTo
-    {
-        return $this->belongsTo(Client::class);
-    }
+    public function dispatch() { return $this->belongsTo(Dispatch::class); }
+    public function client()   { return $this->belongsTo(Client::class); }
 }

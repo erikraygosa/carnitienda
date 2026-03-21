@@ -38,16 +38,35 @@ $links = [
   ],
 
   // ===== INVENTARIO =====
-  ['header' => 'Inventario'],
-  [
-    'name'     => 'Inventario',
-    'icon'     => 'fa-solid fa-warehouse',
-    'active'   => request()->routeIs('admin.warehouses.*') || request()->routeIs('admin.stock.*'),
-    'children' => [
-      ['name'=>'Almacenes','icon'=>'fa-solid fa-warehouse','href'=>route('admin.warehouses.index'),'active'=>request()->routeIs('admin.warehouses.*')],
-      ['name'=>'Stock','icon'=>'fa-solid fa-layer-group','href'=>route('admin.stock.index'),'active'=>request()->routeIs('admin.stock.*')],
+ ['header' => 'Inventario'],
+[
+  'name'   => 'Inventario',
+  'icon'   => 'fa-solid fa-warehouse',
+  'active' => request()->routeIs('admin.warehouses.*')
+           || request()->routeIs('admin.stock.*'),
+  'children' => [
+    [
+      'name'   => 'Almacenes',
+      'icon'   => 'fa-solid fa-warehouse',
+      'href'   => route('admin.warehouses.index'),
+      'active' => request()->routeIs('admin.warehouses.*'),
+    ],
+    [
+      'name'   => 'Stock',
+      'icon'   => 'fa-solid fa-layer-group',
+      'href'   => route('admin.stock.index'),
+      'active' => request()->routeIs('admin.stock.index')
+               || request()->routeIs('admin.stock.transfers.*') === false
+               && request()->routeIs('admin.stock.*'),
+    ],
+    [
+      'name'   => 'Traspasos',
+      'icon'   => 'fa-solid fa-right-left',
+      'href'   => route('admin.stock.transfers.index'),
+      'active' => request()->routeIs('admin.stock.transfers.*'),
     ],
   ],
+],
 
   // ===== VENTAS =====
   ['header' => 'Ventas'],

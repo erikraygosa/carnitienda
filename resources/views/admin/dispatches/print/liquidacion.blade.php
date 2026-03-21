@@ -6,8 +6,6 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: Arial, sans-serif; font-size: 12px; color: #111; background: #fff; }
-
-        /* ── Carta ── */
         .page { width: 100%; max-width: 720px; margin: 0 auto; padding: 24px; }
         h1 { font-size: 18px; font-weight: bold; }
         h2 { font-size: 13px; font-weight: bold; margin: 14px 0 5px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
@@ -20,9 +18,12 @@
         .text-center { text-align: center; }
         .total-row td { font-weight: bold; border-top: 2px solid #999; background: #f9fafb; }
         .highlight { background: #f0fdf4; }
-        .alert { background: #fff7ed; }
+        .alert     { background: #fff7ed; }
         .badge-ok  { color: #15803d; }
         .badge-no  { color: #b91c1c; }
+        .section-num { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #1a1a1a; color: #fff; font-size: 9px; font-weight: bold; margin-right: 4px; }
+        .traspaso-ok  { background: #eff6ff; }
+        .traspaso-no  { background: #fff7ed; }
         .summary-box { border: 2px solid #333; border-radius: 6px; padding: 12px 16px; margin: 14px 0; }
         .summary-box .row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }
         .summary-box .row.big { font-size: 16px; font-weight: bold; border-top: 1px solid #ccc; margin-top: 6px; padding-top: 6px; }
@@ -31,7 +32,6 @@
         .firma-row { display: flex; gap: 40px; margin-top: 36px; }
         .firma { border-top: 1px solid #333; width: 200px; text-align: center; padding-top: 6px; font-size: 11px; }
 
-        /* ── Ticket 80mm ── */
         @media print {
             body.ticket .page { max-width: 72mm; padding: 3mm; font-size: 9px; }
             body.ticket h1 { font-size: 12px; }
@@ -77,22 +77,61 @@
         <div><strong>Almacén:</strong> {{ $dispatch->warehouse?->nombre ?? '—' }}</div>
     </div>
 
-    {{-- Pedidos --}}
     @php
-        $entregados    = $dispatch->items->filter(fn($i) => $i->salesOrder?->status === 'ENTREGADO');
-        $noEntregados  = $dispatch->items->filter(fn($i) => $i->salesOrder?->status === 'NO_ENTREGADO');
-        $totalEsperado = $entregados->filter(fn($i) => in_array($i->salesOrder?->payment_method, ['EFECTIVO','CONTRAENTREGA']))->sum(fn($i) => $i->salesOrder?->total ?? 0);
+        $entregados      = $dispatch->items->filter(fn($i) => $i->salesOrder?->status === 'ENTREGADO');
+        $noEntregados    = $dispatch->items->filter(fn($i) => $i->salesOrder?->status === 'NO_ENTREGADO');
+        $totalEsperado   = $entregados->filter(fn($i) => in_array($i->salesOrder?->payment_method, ['EFECTIVO','CONTRAENTREGA']))->sum(fn($i) => $i->salesOrder?->total ?? 0);
         $totalCxcCobrada = $dispatch->arAssignments->where('status','COBRADO')->sum('monto_cobrado');
         $totalRecibido   = (float) $dispatch->monto_liquidado;
         $diferencia      = $totalRecibido - $totalEsperado - $totalCxcCobrada;
+        $traspasosCount  = $dispatch->transferAssignments->count();
+        $traspasosOk     = $dispatch->transferAssignments->where('status','COMPLETADO')->count();
+        $traspasosNo     = $dispatch->transferAssignments->where('status','NO_COMPLETADO')->count();
     @endphp
 
-    <h2>Pedidos entregados ({{ $entregados->count() }})</h2>
+    {{-- ══ 1. TRASPASOS ══ --}}
+    @if($traspasosCount > 0)
+    <h2><span class="section-num">1</span> Traspasos ({{ $traspasosOk }}/{{ $traspasosCount }} completados)</h2>
     <table>
         <thead>
             <tr>
                 <th>Folio</th>
-                <th>Cliente</th>
+                <th>Origen → Destino</th>
+                <th class="no-ticket">Productos</th>
+                <th class="text-center">Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($dispatch->transferAssignments as $ta)
+            @php $t = $ta->stockTransfer; @endphp
+            <tr class="{{ $ta->status === 'COMPLETADO' ? 'traspaso-ok' : 'traspaso-no' }}">
+                <td><strong>{{ $t?->folio ?? '—' }}</strong></td>
+                <td style="font-size:10px;">
+                    <span style="color:#4f46e5;">{{ $t?->fromWarehouse?->nombre ?? '—' }}</span>
+                    →
+                    <span style="color:#059669;">{{ $t?->toWarehouse?->nombre ?? '—' }}</span>
+                </td>
+                <td class="no-ticket" style="font-size:10px;">
+                    @if($t)
+                        {{ $t->items->count() }} producto(s)
+                    @else —
+                    @endif
+                </td>
+                <td class="text-center {{ $ta->status === 'COMPLETADO' ? 'badge-ok' : 'badge-no' }}">
+                    {{ $ta->status }}
+                </td>
+            </tr>
+            @endforeach
+        </tbody>
+    </table>
+    @endif
+
+    {{-- ══ 2. PEDIDOS ENTREGADOS ══ --}}
+    <h2><span class="section-num">{{ $traspasosCount > 0 ? '2' : '1' }}</span> Pedidos entregados ({{ $entregados->count() }})</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Folio / Cliente</th>
                 <th class="text-right">Total</th>
                 <th>Pago</th>
             </tr>
@@ -100,15 +139,32 @@
         <tbody>
             @foreach($entregados as $item)
                 @php $o = $item->salesOrder; @endphp
-                <tr class="highlight">
-                    <td>{{ $o?->folio }}</td>
-                    <td>{{ $o?->client?->nombre ?? '—' }}</td>
-                    <td class="text-right">${{ number_format($o?->total ?? 0, 2) }}</td>
+                {{-- Fila principal --}}
+                <tr class="highlight" style="background:#f0fdf4;">
+                    <td>
+                        <strong>{{ $o?->folio }}</strong> —
+                        {{ $o?->client?->nombre ?? '—' }}
+                    </td>
+                    <td class="text-right"><strong>${{ number_format($o?->total ?? 0, 2) }}</strong></td>
                     <td>{{ $o?->payment_method }}</td>
                 </tr>
+                {{-- Productos --}}
+                @foreach($o?->items ?? [] as $it)
+                <tr>
+                    <td style="padding-left:18px;font-size:10px;color:#374151;background:#f9fffe;border-bottom:{{ $loop->last ? '2px solid #bbf7d0' : '1px solid #f0fdf4' }};">
+                        <span style="color:#9ca3af;">↳</span>
+                        <strong>{{ $it->product?->nombre ?? $it->descripcion }}</strong>
+                        <span style="color:#6b7280;margin-left:4px;">{{ number_format((float)$it->cantidad, 3) }} {{ $it->product?->unidad ?? '' }}</span>
+                    </td>
+                    <td class="text-right" style="font-size:10px;color:#374151;background:#f9fffe;border-bottom:{{ $loop->last ? '2px solid #bbf7d0' : '1px solid #f0fdf4' }};">
+                        ${{ number_format((float)$it->total, 2) }}
+                    </td>
+                    <td style="background:#f9fffe;border-bottom:{{ $loop->last ? '2px solid #bbf7d0' : '1px solid #f0fdf4' }};"></td>
+                </tr>
+                @endforeach
             @endforeach
             <tr class="total-row">
-                <td colspan="2" class="text-right">Subtotal entregados:</td>
+                <td class="text-right">Subtotal entregados:</td>
                 <td class="text-right">${{ number_format($entregados->sum(fn($i) => $i->salesOrder?->total ?? 0), 2) }}</td>
                 <td></td>
             </tr>
@@ -116,7 +172,7 @@
     </table>
 
     @if($noEntregados->count() > 0)
-    <h2>Pedidos no entregados ({{ $noEntregados->count() }})</h2>
+    <h2><span class="section-num">{{ $traspasosCount > 0 ? '3' : '2' }}</span> Pedidos no entregados ({{ $noEntregados->count() }})</h2>
     <table>
         <thead>
             <tr>
@@ -140,7 +196,7 @@
     </table>
     @endif
 
-    {{-- CxC --}}
+    {{-- ══ CXC ══ --}}
     @if($dispatch->arAssignments->count() > 0)
     <h2>Cuentas por cobrar</h2>
     <table>
@@ -178,6 +234,12 @@
     {{-- Resumen de liquidación --}}
     <h2>Resumen de liquidación</h2>
     <div class="summary-box">
+        @if($traspasosCount > 0)
+        <div class="row">
+            <span>Traspasos completados:</span>
+            <span>{{ $traspasosOk }}/{{ $traspasosCount }}</span>
+        </div>
+        @endif
         <div class="row">
             <span>Efectivo esperado (pedidos):</span>
             <span>${{ number_format($totalEsperado, 2) }}</span>
