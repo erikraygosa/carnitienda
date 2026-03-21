@@ -18,7 +18,6 @@ use App\Services\WhatsappSender;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Schema;
 
 class QuoteController extends Controller
 {
@@ -417,9 +416,7 @@ class QuoteController extends Controller
             'contraentrega_total' => $paymentMethod === 'CONTRAENTREGA' ? $quote->total : 0,
         ];
 
-        if (Schema::hasColumn('sales_orders','quote_id')) {
-            $payload['quote_id'] = $quote->id;
-        }
+        $payload['quote_id'] = $quote->id;
 
         $order = SalesOrder::create($payload);
 
@@ -442,6 +439,34 @@ class QuoteController extends Controller
     return redirect()
         ->route('admin.sales-orders.edit', $order)
         ->with('swal', ['icon'=>'success','title'=>'Aprobada','text'=>'Se generó el Pedido.']);
+}
+
+public function reject(Request $request, Quote $quote)
+{
+    if (! in_array($quote->status, ['BORRADOR','ENVIADA'], true)) {
+        return back()->with('swal', [
+            'icon'=>'error','title'=>'No permitido',
+            'text'=>'Solo BORRADOR o ENVIADA pueden rechazarse.'
+        ]);
+    }
+
+    $quote->update(['status' => 'RECHAZADA']);
+
+    return back()->with('swal', ['icon'=>'success','title'=>'Rechazada','text'=>'Cotización marcada como rechazada.']);
+}
+
+public function cancel(Request $request, Quote $quote)
+{
+    if ($quote->status === 'CONVERTIDA') {
+        return back()->with('swal', [
+            'icon'=>'error','title'=>'No permitido',
+            'text'=>'Una cotización convertida no puede cancelarse.'
+        ]);
+    }
+
+    $quote->update(['status' => 'CANCELADA']);
+
+    return back()->with('swal', ['icon'=>'success','title'=>'Cancelada','text'=>'Cotización cancelada.']);
 }
 
 }

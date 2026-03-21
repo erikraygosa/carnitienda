@@ -180,7 +180,7 @@
                 <a href="{{ route('admin.quotes.pdf',$quote) }}" target="_blank" class="inline-flex px-3 py-1.5 text-sm rounded-md border">Ver PDF</a>
                 <a href="{{ route('admin.quotes.pdf.download',$quote) }}" class="inline-flex px-3 py-1.5 text-sm rounded-md border">Descargar PDF</a>
 
-                @if($quote->status === 'BORRADOR')
+                @if(in_array($quote->status, ['BORRADOR','ENVIADA']))
                     <form method="POST" action="{{ route('admin.quotes.approve',$quote) }}"> @csrf
                         <x-wire-button type="submit" green>Aprobar</x-wire-button>
                     </form>
