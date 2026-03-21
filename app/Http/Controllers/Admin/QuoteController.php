@@ -28,30 +28,32 @@ class QuoteController extends Controller
         return view('admin.quotes.index');
     }
 
-    public function create(Request $request)
-    {
-        $clients    = Client::orderBy('nombre')->get();
-        $priceLists = PriceList::orderBy('nombre')->get(['id','nombre']);
-        $products   = Product::orderBy('nombre')->get(['id','nombre','precio_base']);
+    // ── Helpers privados para construir los mapas de precios ─────────────────
 
-        $overrides = DB::table('client_price_overrides')
-            ->select('client_id','product_id','precio')
+    private function buildPriceMaps(object $clients, object $priceLists): array
+    {
+        $overridesMap = DB::table('client_price_overrides')
+            ->select('client_id', 'product_id', 'precio')
             ->whereIn('client_id', $clients->pluck('id'))
             ->get()
             ->groupBy('client_id')
-            ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
+            ->map(fn($rows) => $rows->pluck('precio', 'product_id')->map(fn($v) => (float)$v)->toArray())
             ->toArray();
 
-        $listItems = DB::table('price_list_items')
-            ->select('price_list_id','product_id','precio')
+        $listPricesMap = DB::table('price_list_items')
+            ->select('price_list_id', 'product_id', 'precio')
             ->whereIn('price_list_id', $priceLists->pluck('id'))
             ->get()
             ->groupBy('price_list_id')
-            ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
+            ->map(fn($rows) => $rows->pluck('precio', 'product_id')->map(fn($v) => (float)$v)->toArray())
             ->toArray();
 
-        // Defaults por cliente (igual que SalesOrder)
-        $clientDefaults = $clients->mapWithKeys(fn($c) => [(string)$c->id => [
+        return [$overridesMap, $listPricesMap];
+    }
+
+    private function buildClientDefaults(object $clients): array
+    {
+        return $clients->mapWithKeys(fn($c) => [(string)$c->id => [
             'shipping_route_id' => (string) ($c->shipping_route_id ?? ''),
             'price_list_id'     => (string) ($c->price_list_id ?? ''),
             'credito_dias'      => (int)    ($c->credito_dias  ?? 0),
@@ -64,17 +66,33 @@ class QuoteController extends Controller
             'entrega_estado'   => $c->entrega_igual_fiscal ? ($c->fiscal_estado  ?? '') : ($c->entrega_estado  ?? ''),
             'entrega_cp'       => $c->entrega_igual_fiscal ? ($c->fiscal_cp      ?? '') : ($c->entrega_cp      ?? ''),
         ]])->toArray();
+    }
+
+    // ── Create ────────────────────────────────────────────────────────────────
+
+    public function create(Request $request)
+    {
+        $clients    = Client::orderBy('nombre')->get();
+        $priceLists = PriceList::orderBy('nombre')->get(['id', 'nombre']);
+        $products   = Product::orderBy('nombre')->get(['id', 'nombre', 'precio_base']);
+        $routes     = ShippingRoute::orderBy('nombre')->get(['id', 'nombre']);
+
+        [$overridesMap, $listPricesMap] = $this->buildPriceMaps($clients, $priceLists);
+        $clientDefaults = $this->buildClientDefaults($clients);
 
         return view('admin.quotes.create', [
             'clients'        => $clients,
             'priceLists'     => $priceLists,
             'products'       => $products,
+            'routes'         => $routes,
             'seedItems'      => [],
-            'overridesMap'   => $overrides,
-            'listPricesMap'  => $listItems,
+            'overridesMap'   => $overridesMap,
+            'listPricesMap'  => $listPricesMap,
             'clientDefaults' => $clientDefaults,
         ]);
     }
+
+    // ── Store ─────────────────────────────────────────────────────────────────
 
     public function store(Request $request)
     {
@@ -83,18 +101,30 @@ class QuoteController extends Controller
         }
 
         $data = $request->validate([
-            'fecha'          => ['required','date'],
-            'client_id'      => ['nullable','exists:clients,id'],
-            'price_list_id'  => ['nullable','exists:price_lists,id'],
-            'moneda'         => ['required','string','max:10'],
-            'vigencia_hasta' => ['nullable','date'],
-            'items'                => ['required','array','min:1'],
-            'items.*.product_id'   => ['nullable','exists:products,id'],
-            'items.*.descripcion'  => ['required','string','max:255'],
-            'items.*.cantidad'     => ['required','numeric','gt:0'],
-            'items.*.precio'       => ['required','numeric','gte:0'],
-            'items.*.descuento'    => ['nullable','numeric','gte:0'],
-            'items.*.impuesto'     => ['nullable','numeric','gte:0'],
+            'fecha'             => ['required', 'date'],
+            'client_id'         => ['nullable', 'exists:clients,id'],
+            'price_list_id'     => ['nullable', 'exists:price_lists,id'],
+            'shipping_route_id' => ['nullable', 'exists:shipping_routes,id'],
+            'moneda'            => ['required', 'string', 'max:10'],
+            'vigencia_hasta'    => ['nullable', 'date'],
+            'payment_method'    => ['nullable', 'in:CREDITO,TRANSFERENCIA,CONTRAENTREGA,EFECTIVO'],
+            'credit_days'       => ['nullable', 'integer', 'min:0'],
+            'delivery_type'     => ['nullable', 'in:RECOGER,ENVIO'],
+            'entrega_nombre'    => ['nullable', 'string', 'max:255'],
+            'entrega_telefono'  => ['nullable', 'string', 'max:50'],
+            'entrega_calle'     => ['nullable', 'string', 'max:255'],
+            'entrega_numero'    => ['nullable', 'string', 'max:50'],
+            'entrega_colonia'   => ['nullable', 'string', 'max:255'],
+            'entrega_ciudad'    => ['nullable', 'string', 'max:255'],
+            'entrega_estado'    => ['nullable', 'string', 'max:255'],
+            'entrega_cp'        => ['nullable', 'string', 'max:10'],
+            'items'                => ['required', 'array', 'min:1'],
+            'items.*.product_id'   => ['nullable', 'exists:products,id'],
+            'items.*.descripcion'  => ['required', 'string', 'max:255'],
+            'items.*.cantidad'     => ['required', 'numeric', 'gt:0'],
+            'items.*.precio'       => ['required', 'numeric', 'gte:0'],
+            'items.*.descuento'    => ['nullable', 'numeric', 'gte:0'],
+            'items.*.impuesto'     => ['nullable', 'numeric', 'gte:0'],
         ]);
 
         $quote = null;
@@ -103,44 +133,75 @@ class QuoteController extends Controller
             [$subtotal, $descuento, $impuestos, $total] = $this->calcTotals($data['items']);
 
             $quote = Quote::create([
-                'fecha'          => $data['fecha'],
-                'client_id'      => $data['client_id'] ?? null,
-                'price_list_id'  => $data['price_list_id'] ?? null,
-                'moneda'         => $data['moneda'],
-                'subtotal'       => $subtotal,
-                'impuestos'      => $impuestos,
-                'descuento'      => $descuento,
-                'total'          => $total,
-                'vigencia_hasta' => $data['vigencia_hasta'] ?? null,
-                'status'         => 'BORRADOR',
-                'created_by'     => auth()->id(),
-                'owner_id'       => auth()->id(),
+                'fecha'             => $data['fecha'],
+                'client_id'         => $data['client_id'] ?? null,
+                'price_list_id'     => $data['price_list_id'] ?? null,
+                'shipping_route_id' => $data['shipping_route_id'] ?? null,
+                'moneda'            => $data['moneda'],
+                'subtotal'          => $subtotal,
+                'impuestos'         => $impuestos,
+                'descuento'         => $descuento,
+                'total'             => $total,
+                'vigencia_hasta'    => $data['vigencia_hasta'] ?? null,
+                'payment_method'    => $data['payment_method'] ?? 'EFECTIVO',
+                'credit_days'       => ($data['payment_method'] ?? '') === 'CREDITO' ? ($data['credit_days'] ?? 0) : null,
+                'delivery_type'     => $data['delivery_type'] ?? 'ENVIO',
+                'entrega_nombre'    => $data['entrega_nombre']   ?? null,
+                'entrega_telefono'  => $data['entrega_telefono'] ?? null,
+                'entrega_calle'     => $data['entrega_calle']    ?? null,
+                'entrega_numero'    => $data['entrega_numero']   ?? null,
+                'entrega_colonia'   => $data['entrega_colonia']  ?? null,
+                'entrega_ciudad'    => $data['entrega_ciudad']   ?? null,
+                'entrega_estado'    => $data['entrega_estado']   ?? null,
+                'entrega_cp'        => $data['entrega_cp']       ?? null,
+                'status'            => 'BORRADOR',
+                'created_by'        => auth()->id(),
+                'owner_id'          => auth()->id(),
             ]);
 
             $this->saveItems($quote->id, $data['items']);
         });
 
-        session()->flash('swal', ['icon'=>'success','title'=>'¡Creada!','text'=>'Cotización guardada.']);
+        session()->flash('swal', ['icon' => 'success', 'title' => '¡Creada!', 'text' => 'Cotización guardada.']);
         return redirect()->route('admin.quotes.edit', $quote);
     }
 
+    // ── Edit ──────────────────────────────────────────────────────────────────
+
     public function edit(Quote $quote)
     {
-        $warehouses = Warehouse::orderBy('nombre')->get(['id','nombre']);
+        $clients    = Client::orderBy('nombre')->get();
+        $priceLists = PriceList::orderBy('nombre')->get(['id', 'nombre']);
+        $products   = Product::orderBy('nombre')->get(['id', 'nombre', 'precio_base']);
+        $warehouses = Warehouse::orderBy('nombre')->get(['id', 'nombre']);
+        $routes     = ShippingRoute::orderBy('nombre')->get(['id', 'nombre']);
+
+        [$overridesMap, $listPricesMap] = $this->buildPriceMaps($clients, $priceLists);
+        $clientDefaults = $this->buildClientDefaults($clients);
+
+        $mainWarehouseId = DB::table('warehouses')->where('is_primary', 1)->value('id')
+            ?? $warehouses->first()?->id;
 
         return view('admin.quotes.edit', [
-            'quote'      => $quote->load('items.product','client','priceList'),
-            'clients'    => Client::orderBy('nombre')->get(['id','nombre']),
-            'priceLists' => PriceList::orderBy('nombre')->get(['id','nombre']),
-            'products'   => Product::orderBy('nombre')->get(['id','nombre','precio_base']),
-            'warehouses' => $warehouses,
+            'quote'          => $quote->load('items.product', 'client', 'priceList'),
+            'clients'        => $clients,
+            'priceLists'     => $priceLists,
+            'products'       => $products,
+            'warehouses'     => $warehouses,
+            'routes'         => $routes,
+            'overridesMap'   => $overridesMap,
+            'listPricesMap'  => $listPricesMap,
+            'clientDefaults' => $clientDefaults,
+            'mainWarehouseId'=> $mainWarehouseId,
         ]);
     }
+
+    // ── Update ────────────────────────────────────────────────────────────────
 
     public function update(Request $request, Quote $quote)
     {
         if ($quote->status !== 'BORRADOR') {
-            return back()->with('swal', ['icon'=>'error','title'=>'Error','text'=>'Solo borrador puede editarse.']);
+            return back()->with('swal', ['icon' => 'error', 'title' => 'Error', 'text' => 'Solo borrador puede editarse.']);
         }
 
         if ($request->input('price_list_id') === 'client') {
@@ -148,58 +209,84 @@ class QuoteController extends Controller
         }
 
         $data = $request->validate([
-            'fecha'          => ['required','date'],
-            'client_id'      => ['nullable','exists:clients,id'],
-            'price_list_id'  => ['nullable','exists:price_lists,id'],
-            'moneda'         => ['required','string','max:10'],
-            'vigencia_hasta' => ['nullable','date'],
-            'items'                => ['required','array','min:1'],
-            'items.*.product_id'   => ['nullable','exists:products,id'],
-            'items.*.descripcion'  => ['required','string','max:255'],
-            'items.*.cantidad'     => ['required','numeric','gt:0'],
-            'items.*.precio'       => ['required','numeric','gte:0'],
-            'items.*.descuento'    => ['nullable','numeric','gte:0'],
-            'items.*.impuesto'     => ['nullable','numeric','gte:0'],
+            'fecha'             => ['required', 'date'],
+            'client_id'         => ['nullable', 'exists:clients,id'],
+            'price_list_id'     => ['nullable', 'exists:price_lists,id'],
+            'shipping_route_id' => ['nullable', 'exists:shipping_routes,id'],
+            'moneda'            => ['required', 'string', 'max:10'],
+            'vigencia_hasta'    => ['nullable', 'date'],
+            'payment_method'    => ['nullable', 'in:CREDITO,TRANSFERENCIA,CONTRAENTREGA,EFECTIVO'],
+            'credit_days'       => ['nullable', 'integer', 'min:0'],
+            'delivery_type'     => ['nullable', 'in:RECOGER,ENVIO'],
+            'entrega_nombre'    => ['nullable', 'string', 'max:255'],
+            'entrega_telefono'  => ['nullable', 'string', 'max:50'],
+            'entrega_calle'     => ['nullable', 'string', 'max:255'],
+            'entrega_numero'    => ['nullable', 'string', 'max:50'],
+            'entrega_colonia'   => ['nullable', 'string', 'max:255'],
+            'entrega_ciudad'    => ['nullable', 'string', 'max:255'],
+            'entrega_estado'    => ['nullable', 'string', 'max:255'],
+            'entrega_cp'        => ['nullable', 'string', 'max:10'],
+            'items'                => ['required', 'array', 'min:1'],
+            'items.*.product_id'   => ['nullable', 'exists:products,id'],
+            'items.*.descripcion'  => ['required', 'string', 'max:255'],
+            'items.*.cantidad'     => ['required', 'numeric', 'gt:0'],
+            'items.*.precio'       => ['required', 'numeric', 'gte:0'],
+            'items.*.descuento'    => ['nullable', 'numeric', 'gte:0'],
+            'items.*.impuesto'     => ['nullable', 'numeric', 'gte:0'],
         ]);
 
         DB::transaction(function () use ($quote, $data) {
             [$subtotal, $descuento, $impuestos, $total] = $this->calcTotals($data['items']);
 
             $quote->update([
-                'fecha'          => $data['fecha'],
-                'client_id'      => $data['client_id'] ?? null,
-                'price_list_id'  => $data['price_list_id'] ?? null,
-                'moneda'         => $data['moneda'],
-                'subtotal'       => $subtotal,
-                'impuestos'      => $impuestos,
-                'descuento'      => $descuento,
-                'total'          => $total,
-                'vigencia_hasta' => $data['vigencia_hasta'] ?? null,
+                'fecha'             => $data['fecha'],
+                'client_id'         => $data['client_id'] ?? null,
+                'price_list_id'     => $data['price_list_id'] ?? null,
+                'shipping_route_id' => $data['shipping_route_id'] ?? null,
+                'moneda'            => $data['moneda'],
+                'subtotal'          => $subtotal,
+                'impuestos'         => $impuestos,
+                'descuento'         => $descuento,
+                'total'             => $total,
+                'vigencia_hasta'    => $data['vigencia_hasta'] ?? null,
+                'payment_method'    => $data['payment_method'] ?? 'EFECTIVO',
+                'credit_days'       => ($data['payment_method'] ?? '') === 'CREDITO' ? ($data['credit_days'] ?? 0) : null,
+                'delivery_type'     => $data['delivery_type'] ?? 'ENVIO',
+                'entrega_nombre'    => $data['entrega_nombre']   ?? null,
+                'entrega_telefono'  => $data['entrega_telefono'] ?? null,
+                'entrega_calle'     => $data['entrega_calle']    ?? null,
+                'entrega_numero'    => $data['entrega_numero']   ?? null,
+                'entrega_colonia'   => $data['entrega_colonia']  ?? null,
+                'entrega_ciudad'    => $data['entrega_ciudad']   ?? null,
+                'entrega_estado'    => $data['entrega_estado']   ?? null,
+                'entrega_cp'        => $data['entrega_cp']       ?? null,
             ]);
 
             $quote->items()->delete();
             $this->saveItems($quote->id, $data['items']);
         });
 
-        session()->flash('swal', ['icon'=>'success','title'=>'Actualizada','text'=>'Cotización actualizada.']);
+        session()->flash('swal', ['icon' => 'success', 'title' => 'Actualizada', 'text' => 'Cotización actualizada.']);
         return redirect()->route('admin.quotes.edit', $quote);
     }
 
+    // ── Destroy ───────────────────────────────────────────────────────────────
+
     public function destroy(Quote $quote)
     {
-        if (!in_array($quote->status, ['BORRADOR','RECHAZADA'], true)) {
-            return back()->with('swal', ['icon'=>'error','title'=>'Error','text'=>'No se puede eliminar en este estado.']);
+        if (!in_array($quote->status, ['BORRADOR', 'RECHAZADA'], true)) {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'Error', 'text' => 'No se puede eliminar en este estado.']);
         }
         $quote->delete();
         return redirect()->route('admin.quotes.index')
-            ->with('swal', ['icon'=>'success','title'=>'Eliminada','text'=>'Cotización eliminada.']);
+            ->with('swal', ['icon' => 'success', 'title' => 'Eliminada', 'text' => 'Cotización eliminada.']);
     }
 
     // ── Envío ─────────────────────────────────────────────────────────────────
 
     public function sendForm(Quote $quote)
     {
-        $quote->load('client','items.product');
+        $quote->load('client', 'items.product');
         return view('admin.quotes.send', [
             'quote'       => $quote,
             'clientEmail' => $quote->client->email ?? '',
@@ -210,39 +297,47 @@ class QuoteController extends Controller
     public function send(Request $request, Quote $quote, WhatsappSender $whatsapp)
     {
         $request->validate([
-            'channels'   => ['required','array','min:1'],
+            'channels'   => ['required', 'array', 'min:1'],
             'channels.*' => ['in:email,whatsapp'],
-            'email'      => ['nullable','email'],
-            'telefono'   => ['nullable','string'],
-            'mensaje'    => ['nullable','string','max:500'],
+            'email'      => ['nullable', 'email'],
+            'telefono'   => ['nullable', 'string'],
+            'mensaje'    => ['nullable', 'string', 'max:500'],
         ]);
 
-        $quote->load('client','items.product');
+        $quote->load('client', 'items.product');
         $pdf    = Pdf::loadView('pdf.quote', ['quote' => $quote]);
         $pdfRaw = $pdf->output();
-        $fname  = 'cotizacion-'.$quote->id.'.pdf';
+        $fname  = 'cotizacion-' . $quote->id . '.pdf';
 
         $sentEmail = $sentWa = false;
         $errors = [];
 
         if (in_array('email', $request->channels, true)) {
             $to = $request->input('email') ?: ($quote->client->email ?? null);
-            if (!$to) { $errors[] = 'Sin correo del cliente.'; }
-            else {
-                try { Mail::to($to)->send(new QuotePdfMailable($quote, $pdfRaw, $fname)); $sentEmail = true; }
-                catch (\Throwable $e) { $errors[] = 'Email: '.$e->getMessage(); }
+            if (!$to) {
+                $errors[] = 'Sin correo del cliente.';
+            } else {
+                try {
+                    Mail::to($to)->send(new QuotePdfMailable($quote, $pdfRaw, $fname));
+                    $sentEmail = true;
+                } catch (\Throwable $e) {
+                    $errors[] = 'Email: ' . $e->getMessage();
+                }
             }
         }
 
         if (in_array('whatsapp', $request->channels, true)) {
             $phone = $request->input('telefono') ?: ($quote->client->telefono ?? null);
-            if (!$phone) { $errors[] = 'Sin teléfono del cliente.'; }
-            else {
+            if (!$phone) {
+                $errors[] = 'Sin teléfono del cliente.';
+            } else {
                 try {
-                    $resp = $whatsapp->sendPdf($phone, $request->input('mensaje','Te adjunto la cotización 📎'), $fname, $pdfRaw);
-                    if (!($resp['ok'] ?? false)) $errors[] = 'WhatsApp: '.json_encode($resp['body'] ?? []);
+                    $resp = $whatsapp->sendPdf($phone, $request->input('mensaje', 'Te adjunto la cotización 📎'), $fname, $pdfRaw);
+                    if (!($resp['ok'] ?? false)) $errors[] = 'WhatsApp: ' . json_encode($resp['body'] ?? []);
                     else $sentWa = true;
-                } catch (\Throwable $e) { $errors[] = 'WhatsApp: '.$e->getMessage(); }
+                } catch (\Throwable $e) {
+                    $errors[] = 'WhatsApp: ' . $e->getMessage();
+                }
             }
         }
 
@@ -251,102 +346,123 @@ class QuoteController extends Controller
         }
 
         if ($errors) {
-            return back()->with('swal', ['icon'=>'error','title'=>'Envío parcial','text'=>implode(' | ', $errors)]);
+            return back()->with('swal', ['icon' => 'error', 'title' => 'Envío parcial', 'text' => implode(' | ', $errors)]);
         }
-        return back()->with('swal', ['icon'=>'success','title'=>'Enviada','text'=>'Cotización enviada correctamente.']);
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Enviada', 'text' => 'Cotización enviada correctamente.']);
     }
 
     // ── PDF ───────────────────────────────────────────────────────────────────
 
     public function pdf(Quote $quote)
     {
-        $quote->load('client','items.product');
-        return Pdf::loadView('pdf.quote', ['quote' => $quote])->stream('cotizacion-'.$quote->id.'.pdf');
+        $quote->load('client', 'items.product');
+        return Pdf::loadView('pdf.quote', ['quote' => $quote])->stream('cotizacion-' . $quote->id . '.pdf');
     }
 
     public function pdfDownload(Quote $quote)
     {
-        $quote->load('client','items.product');
-        return Pdf::loadView('pdf.quote', ['quote' => $quote])->download('cotizacion-'.$quote->id.'.pdf');
+        $quote->load('client', 'items.product');
+        return Pdf::loadView('pdf.quote', ['quote' => $quote])->download('cotizacion-' . $quote->id . '.pdf');
     }
 
-    // ── Transiciones de estado ────────────────────────────────────────────────
+    // ── Transiciones ─────────────────────────────────────────────────────────
 
     public function reject(Quote $quote)
     {
-        if (!in_array($quote->status, ['BORRADOR','ENVIADA'], true)) {
-            return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR o ENVIADA pueden rechazarse.']);
+        if (!in_array($quote->status, ['BORRADOR', 'ENVIADA'], true)) {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo BORRADOR o ENVIADA pueden rechazarse.']);
         }
         $quote->update(['status' => 'RECHAZADA']);
-        return back()->with('swal', ['icon'=>'success','title'=>'Rechazada','text'=>'Cotización marcada como rechazada.']);
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Rechazada', 'text' => 'Cotización rechazada.']);
     }
 
     public function cancel(Quote $quote)
     {
         if ($quote->status === 'CONVERTIDA') {
-            return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'No se puede cancelar una cotización convertida.']);
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'No se puede cancelar una cotización convertida.']);
         }
         $quote->update(['status' => 'CANCELADA']);
-        return back()->with('swal', ['icon'=>'success','title'=>'Cancelada','text'=>'Cotización cancelada.']);
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Cancelada', 'text' => 'Cotización cancelada.']);
     }
 
-    /**
-     * Aprobar: convierte la cotización en SalesOrder.
-     * Recibe warehouse_id, payment_method, delivery_type desde el formulario del edit.
-     */
+    // ── Approve → genera SalesOrder ───────────────────────────────────────────
+
     public function approve(Request $request, Quote $quote)
     {
-        if (!in_array($quote->status, ['BORRADOR','ENVIADA'], true)) {
-            return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR o ENVIADA pueden aprobarse.']);
+        if (!in_array($quote->status, ['BORRADOR', 'ENVIADA'], true)) {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo BORRADOR o ENVIADA pueden aprobarse.']);
         }
 
+        // warehouse_id viene del hidden input de la vista (usa mainWarehouseId por defecto)
         $request->validate([
-            'warehouse_id'   => ['required','exists:warehouses,id'],
-            'payment_method' => ['required','in:CREDITO,TRANSFERENCIA,CONTRAENTREGA,EFECTIVO'],
-            'delivery_type'  => ['required','in:RECOGER,ENVIO'],
-            'credit_days'    => ['nullable','integer','min:0'],
-            'programado_para'=> ['nullable','date'],
+            'warehouse_id'     => ['required', 'exists:warehouses,id'],
+            'payment_method'   => ['nullable', 'in:CREDITO,TRANSFERENCIA,CONTRAENTREGA,EFECTIVO'],
+            'delivery_type'    => ['nullable', 'in:RECOGER,ENVIO'],
+            'credit_days'      => ['nullable', 'integer', 'min:0'],
+            'programado_para'  => ['nullable', 'date'],
+            'shipping_route_id'=> ['nullable', 'exists:shipping_routes,id'],
+            'entrega_nombre'   => ['nullable', 'string', 'max:255'],
+            'entrega_telefono' => ['nullable', 'string', 'max:50'],
+            'entrega_calle'    => ['nullable', 'string', 'max:255'],
+            'entrega_numero'   => ['nullable', 'string', 'max:50'],
+            'entrega_colonia'  => ['nullable', 'string', 'max:255'],
+            'entrega_ciudad'   => ['nullable', 'string', 'max:255'],
+            'entrega_estado'   => ['nullable', 'string', 'max:255'],
+            'entrega_cp'       => ['nullable', 'string', 'max:10'],
         ]);
 
         $quote->load('items');
 
         if ($quote->items->isEmpty()) {
-            return back()->with('swal', ['icon'=>'error','title'=>'Sin partidas','text'=>'La cotización no tiene partidas.']);
+            return back()->with('swal', ['icon' => 'error', 'title' => 'Sin partidas', 'text' => 'La cotización no tiene partidas.']);
         }
 
         $order = null;
 
         DB::transaction(function () use ($quote, $request, &$order) {
-            // Folio seguro con lock
             $nextId = DB::table('sales_orders')->lockForUpdate()->max('id') + 1;
-            $folio  = 'SO-'.now()->format('Ymd').'-'.Str::padLeft((string)$nextId, 4, '0');
+            $folio  = 'SO-' . now()->format('Ymd') . '-' . Str::padLeft((string)$nextId, 4, '0');
 
-            $paymentMethod = $request->payment_method;
+            // Toma del request si vino, si no usa lo guardado en la cotización
+            $paymentMethod = $request->payment_method  ?? $quote->payment_method  ?? 'EFECTIVO';
+            $deliveryType  = $request->delivery_type   ?? $quote->delivery_type   ?? 'ENVIO';
+            $routeId       = $request->shipping_route_id ?? $quote->shipping_route_id ?? null;
 
             $payload = [
-                'client_id'       => $quote->client_id,
-                'warehouse_id'    => $request->warehouse_id,
-                'price_list_id'   => $quote->price_list_id,
-                'folio'           => $folio,
-                'fecha'           => now(),
-                'programado_para' => $request->programado_para,
-                'delivery_type'   => $request->delivery_type,
-                'shipping_route_id' => null,
-                'driver_id'       => null,
-                'payment_method'  => $paymentMethod,
-                'credit_days'     => $paymentMethod === 'CREDITO' ? ($request->credit_days ?? 0) : null,
-                'moneda'          => $quote->moneda,
-                'subtotal'        => $quote->subtotal,
-                'impuestos'       => $quote->impuestos,
-                'descuento'       => $quote->descuento,
-                'total'           => $quote->total,
-                'status'          => 'BORRADOR',
-                'created_by'      => auth()->id(),
-                'owner_id'        => auth()->id(),
+                'client_id'         => $quote->client_id,
+                'warehouse_id'      => $request->warehouse_id,
+                'price_list_id'     => $quote->price_list_id,
+                'shipping_route_id' => $routeId,
+                'folio'             => $folio,
+                'fecha'             => now(),
+                'programado_para'   => $request->programado_para ?? $quote->programado_para ?? null,
+                'delivery_type'     => $deliveryType,
+                'driver_id'         => null,
+                'payment_method'    => $paymentMethod,
+                'credit_days'       => $paymentMethod === 'CREDITO'
+                    ? ($request->credit_days ?? $quote->credit_days ?? 0)
+                    : null,
+                'moneda'            => $quote->moneda,
+                'subtotal'          => $quote->subtotal,
+                'impuestos'         => $quote->impuestos,
+                'descuento'         => $quote->descuento,
+                'total'             => $quote->total,
+                'status'            => 'BORRADOR',
+                'created_by'        => auth()->id(),
+                'owner_id'          => auth()->id(),
                 'contraentrega_total' => $paymentMethod === 'CONTRAENTREGA' ? $quote->total : 0,
+                // Dirección: request tiene prioridad (hidden inputs), fallback a la cotización
+                'entrega_nombre'    => $request->entrega_nombre   ?? $quote->entrega_nombre   ?? null,
+                'entrega_telefono'  => $request->entrega_telefono ?? $quote->entrega_telefono ?? null,
+                'entrega_calle'     => $request->entrega_calle    ?? $quote->entrega_calle    ?? null,
+                'entrega_numero'    => $request->entrega_numero   ?? $quote->entrega_numero   ?? null,
+                'entrega_colonia'   => $request->entrega_colonia  ?? $quote->entrega_colonia  ?? null,
+                'entrega_ciudad'    => $request->entrega_ciudad   ?? $quote->entrega_ciudad   ?? null,
+                'entrega_estado'    => $request->entrega_estado   ?? $quote->entrega_estado   ?? null,
+                'entrega_cp'        => $request->entrega_cp       ?? $quote->entrega_cp       ?? null,
             ];
 
-            if (Schema::hasColumn('sales_orders','quote_id')) {
+            if (Schema::hasColumn('sales_orders', 'quote_id')) {
                 $payload['quote_id'] = $quote->id;
             }
 
@@ -370,7 +486,7 @@ class QuoteController extends Controller
 
         return redirect()
             ->route('admin.sales-orders.edit', $order)
-            ->with('swal', ['icon'=>'success','title'=>'Aprobada','text'=>'Se generó el pedido '.$order->folio.'.']);
+            ->with('swal', ['icon' => 'success', 'title' => 'Aprobada', 'text' => 'Se generó el pedido ' . $order->folio . '.']);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -397,7 +513,6 @@ class QuoteController extends Controller
             $sub  = (float)$it['cantidad'] * (float)$it['precio'];
             $desc = (float)($it['descuento'] ?? 0);
             $tax  = (float)($it['impuesto']  ?? 0);
-            $tot  = max($sub - $desc, 0) + $tax;
 
             QuoteItem::create([
                 'quote_id'    => $quoteId,
@@ -407,7 +522,7 @@ class QuoteController extends Controller
                 'precio'      => $it['precio'],
                 'descuento'   => $desc,
                 'impuesto'    => $tax,
-                'total'       => $tot,
+                'total'       => max($sub - $desc, 0) + $tax,
             ]);
         }
     }

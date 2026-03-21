@@ -21,6 +21,11 @@ class Quote extends Model
         'status',
         'created_by',
         'owner_id',
+        'shipping_route_id',
+        'payment_method', 'credit_days', 'delivery_type',
+        'entrega_nombre', 'entrega_telefono', 'entrega_calle',
+        'entrega_numero', 'entrega_colonia', 'entrega_ciudad',
+        'entrega_estado', 'entrega_cp',
     ];
 
     protected $casts = [

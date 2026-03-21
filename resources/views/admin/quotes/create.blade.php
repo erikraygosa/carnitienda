@@ -13,9 +13,12 @@
 
     @php
         $selClient     = (string) old('client_id', '');
+        $selRoute      = (string) old('shipping_route_id', '');
         $valueFecha    = old('fecha', now()->format('Y-m-d\TH:i'));
         $valueMoneda   = old('moneda', 'MXN');
         $valueVigencia = old('vigencia_hasta', '');
+        $deliveryType  = old('delivery_type', 'ENVIO');
+        $paymentMethod = old('payment_method', 'EFECTIVO');
 
         $seedItems    = $seedItems ?? [];
         $initialItems = (is_array($seedItems) && count($seedItems)) ? $seedItems : [[
@@ -27,7 +30,22 @@
         $JS_INITIALITEMS = json_encode($initialItems,          JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
         $JS_SELCLIENT    = json_encode($selClient,              JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
         $JS_EDITBASE     = json_encode(url('admin/clients'),   JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-        $JS_CDEFAULTS    = json_encode($clientDefaults ?? [],   JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+
+        $clientDefaults = $clients->mapWithKeys(fn($c) => [(string)$c->id => [
+            'shipping_route_id' => (string) ($c->shipping_route_id ?? ''),
+            'price_list_id'     => (string) ($c->price_list_id ?? ''),
+            'credito_dias'      => (int)    ($c->credito_dias  ?? 0),
+            'credito_limite'    => (float)  ($c->credito_limite ?? 0),
+            'telefono'          => (string) ($c->telefono ?? ''),
+            'entrega_calle'    => $c->entrega_igual_fiscal ? ($c->fiscal_calle   ?? '') : ($c->entrega_calle   ?? ''),
+            'entrega_numero'   => $c->entrega_igual_fiscal ? ($c->fiscal_numero  ?? '') : ($c->entrega_numero  ?? ''),
+            'entrega_colonia'  => $c->entrega_igual_fiscal ? ($c->fiscal_colonia ?? '') : ($c->entrega_colonia ?? ''),
+            'entrega_ciudad'   => $c->entrega_igual_fiscal ? ($c->fiscal_ciudad  ?? '') : ($c->entrega_ciudad  ?? ''),
+            'entrega_estado'   => $c->entrega_igual_fiscal ? ($c->fiscal_estado  ?? '') : ($c->entrega_estado  ?? ''),
+            'entrega_cp'       => $c->entrega_igual_fiscal ? ($c->fiscal_cp      ?? '') : ($c->entrega_cp      ?? ''),
+        ]])->toArray();
+
+        $JS_CDEFAULTS = json_encode($clientDefaults, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
     @endphp
 
     <x-wire-card>
@@ -41,7 +59,9 @@
               class="space-y-6" x-data="qFormState()" x-init="init()">
             @csrf
 
+            {{-- ====== ENCABEZADO ====== --}}
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+
                 {{-- Cliente --}}
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
@@ -50,7 +70,9 @@
                             x-model="client_id" @change="onClientChange()">
                         <option value="">-- seleccionar --</option>
                         @foreach($clients as $c)
-                            <option value="{{ $c->id }}" {{ $selClient===(string)$c->id?'selected':'' }}>{{ $c->nombre }}</option>
+                            <option value="{{ $c->id }}" {{ $selClient===(string)$c->id ? 'selected' : '' }}>
+                                {{ $c->nombre }}
+                            </option>
                         @endforeach
                     </select>
                     <template x-if="creditoLimite > 0">
@@ -90,9 +112,101 @@
                 <div>
                     <x-wire-input label="Vigencia hasta" name="vigencia_hasta" type="date" value="{{ $valueVigencia }}" />
                 </div>
+
+                {{-- Ruta --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Ruta</label>
+                    <select name="shipping_route_id"
+                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            x-model="shipping_route_id">
+                        <option value="">-- sin ruta --</option>
+                        @foreach($routes as $r)
+                            <option value="{{ $r->id }}" {{ $selRoute===(string)$r->id ? 'selected' : '' }}>
+                                {{ $r->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                {{-- Tipo de entrega --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de entrega</label>
+                    <select name="delivery_type"
+                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            x-model="delivery_type">
+                        <option value="ENVIO">Envío a domicilio</option>
+                        <option value="RECOGER">Recoger en almacén</option>
+                    </select>
+                </div>
+
+                {{-- Método de pago --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Método de pago</label>
+                    <select name="payment_method"
+                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            x-model="payment_method">
+                        <option value="EFECTIVO">Efectivo</option>
+                        <option value="TRANSFERENCIA">Transferencia</option>
+                        <option value="CONTRAENTREGA">Contraentrega</option>
+                        <option value="CREDITO">Crédito</option>
+                    </select>
+                </div>
+
+                {{-- Días de crédito --}}
+                <div x-show="payment_method === 'CREDITO'" x-cloak>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Días de crédito
+                        <span class="text-gray-400 font-normal text-xs">(del cliente)</span>
+                    </label>
+                    <input type="number" name="credit_days"
+                           class="w-full rounded-md border-gray-300 bg-gray-50 shadow-sm text-sm"
+                           x-model="creditoDias" readonly>
+                </div>
+
             </div>
 
-            {{-- Alerta precio cero --}}
+            {{-- ====== DIRECCIÓN DE ENTREGA (solo si ENVIO) ====== --}}
+            <div x-show="delivery_type === 'ENVIO'"
+                 x-transition
+                 class="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4">
+                <div class="md:col-span-3">
+                    <p class="text-sm font-medium text-gray-700">Datos de entrega</p>
+                </div>
+                <div>
+                    <x-wire-input label="Nombre quien recibe" name="entrega_nombre"
+                                  value="{{ old('entrega_nombre') }}" />
+                </div>
+                <div>
+                    <x-wire-input label="Teléfono" name="entrega_telefono"
+                                  value="{{ old('entrega_telefono') }}" />
+                </div>
+                <div>
+                    <x-wire-input label="Calle" name="entrega_calle"
+                                  value="{{ old('entrega_calle') }}" />
+                </div>
+                <div>
+                    <x-wire-input label="Número" name="entrega_numero"
+                                  value="{{ old('entrega_numero') }}" />
+                </div>
+                <div>
+                    <x-wire-input label="Colonia" name="entrega_colonia"
+                                  value="{{ old('entrega_colonia') }}" />
+                </div>
+                <div>
+                    <x-wire-input label="Ciudad" name="entrega_ciudad"
+                                  value="{{ old('entrega_ciudad') }}" />
+                </div>
+                <div>
+                    <x-wire-input label="Estado" name="entrega_estado"
+                                  value="{{ old('entrega_estado') }}" />
+                </div>
+                <div>
+                    <x-wire-input label="CP" name="entrega_cp"
+                                  value="{{ old('entrega_cp') }}" />
+                </div>
+            </div>
+
+            {{-- ====== ALERTA: precio cero ====== --}}
             <template x-if="client_id && anyZeroPrice">
                 <div class="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800 flex items-center justify-between">
                     <span>Algunos productos no tienen precio para este cliente. Se estableció $0.00.</span>
@@ -103,7 +217,7 @@
                 </div>
             </template>
 
-            {{-- Partidas --}}
+            {{-- ====== PARTIDAS ====== --}}
             <div class="overflow-auto border-t pt-4">
                 <table class="min-w-full text-sm">
                     <thead class="border-b bg-gray-50">
@@ -138,22 +252,26 @@
                                            x-model="it.descripcion" required>
                                 </td>
                                 <td class="p-2 text-right">
-                                    <input type="number" min="0.001" step="0.001" class="w-24 border rounded p-1 text-right text-sm"
+                                    <input type="number" min="0.001" step="0.001"
+                                           class="w-24 border rounded p-1 text-right text-sm"
                                            x-bind:name="'items['+i+'][cantidad]'"
                                            x-model.number="it.cantidad" @input="recalc(i)" required>
                                 </td>
                                 <td class="p-2 text-right">
-                                    <input type="number" min="0" step="0.0001" class="w-28 border rounded p-1 text-right text-sm"
+                                    <input type="number" min="0" step="0.0001"
+                                           class="w-28 border rounded p-1 text-right text-sm"
                                            x-bind:name="'items['+i+'][precio]'"
                                            x-model.number="it.precio" @input="recalc(i)" required>
                                 </td>
                                 <td class="p-2 text-right">
-                                    <input type="number" min="0" step="0.01" class="w-24 border rounded p-1 text-right text-sm"
+                                    <input type="number" min="0" step="0.01"
+                                           class="w-24 border rounded p-1 text-right text-sm"
                                            x-model.number="it.descuento" @input="recalc(i)">
                                     <input type="hidden" x-bind:name="'items['+i+'][descuento]'" x-model="it.descuento">
                                 </td>
                                 <td class="p-2 text-right">
-                                    <input type="number" min="0" step="0.01" class="w-20 border rounded p-1 text-right text-sm"
+                                    <input type="number" min="0" step="0.01"
+                                           class="w-20 border rounded p-1 text-right text-sm"
                                            x-model.number="it.iva_pct" @input="recalc(i)">
                                     <input type="hidden" x-bind:name="'items['+i+'][impuesto]'" x-model="it.impuesto">
                                 </td>
@@ -173,13 +291,14 @@
                 </div>
             </div>
 
-            {{-- Totales --}}
+            {{-- ====== TOTALES ====== --}}
             <div class="text-right space-y-1 border-t pt-3">
                 <div class="text-sm text-gray-600">Subtotal: <span class="font-medium" x-text="fmt(subtotal)"></span></div>
                 <div class="text-sm text-gray-600">Descuento: <span class="font-medium" x-text="fmt(desc_total)"></span></div>
                 <div class="text-sm text-gray-600">Impuestos: <span class="font-medium" x-text="fmt(tax_total)"></span></div>
                 <div class="text-lg font-bold text-gray-800">Total: $<span x-text="fmt(grand)"></span></div>
             </div>
+
         </form>
     </x-wire-card>
 
@@ -195,11 +314,15 @@
         return {
             client_id:         DEFAULT_CLIENT_ID || '',
             selectedPriceList: 'client',
+            shipping_route_id: '',
+            payment_method:    @json($paymentMethod),
+            delivery_type:     @json($deliveryType),
             creditoDias:       0,
             creditoLimite:     0,
             overridesMap:      CLIENTS_OVERRIDES,
             listPricesMap:     LISTS_PRICES,
-            items: Array.isArray(INITIAL_ITEMS) && INITIAL_ITEMS.length ? INITIAL_ITEMS
+            items: Array.isArray(INITIAL_ITEMS) && INITIAL_ITEMS.length
+                ? INITIAL_ITEMS
                 : [{product_id:'',descripcion:'',cantidad:1,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}],
             anyZeroPrice: false,
             subtotal:0, desc_total:0, tax_total:0, grand:0,
@@ -225,10 +348,29 @@
 
             _applyClientDefaults(clientId){
                 const d = CLIENT_DEFAULTS[clientId];
-                if(!d){ this.creditoDias = 0; this.creditoLimite = 0; return; }
-                if(d.price_list_id) this.selectedPriceList = d.price_list_id;
+                if(!d){
+                    this.creditoDias       = 0;
+                    this.creditoLimite     = 0;
+                    this.shipping_route_id = '';
+                    return;
+                }
+                if(d.shipping_route_id) this.shipping_route_id = d.shipping_route_id;
+                if(d.price_list_id)     this.selectedPriceList  = d.price_list_id;
                 this.creditoDias   = d.credito_dias   || 0;
-                this.creditoLimite = d.credito_limite  || 0;
+                this.creditoLimite = d.credito_limite || 0;
+                if(d.credito_dias > 0) this.payment_method = 'CREDITO';
+
+                const set = (name, val) => {
+                    const el = document.querySelector(`[name="${name}"]`);
+                    if(el && val) el.value = val;
+                };
+                set('entrega_telefono', d.telefono        || '');
+                set('entrega_calle',    d.entrega_calle   || '');
+                set('entrega_numero',   d.entrega_numero  || '');
+                set('entrega_colonia',  d.entrega_colonia || '');
+                set('entrega_ciudad',   d.entrega_ciudad  || '');
+                set('entrega_estado',   d.entrega_estado  || '');
+                set('entrega_cp',       d.entrega_cp      || '');
             },
 
             getUnitPrice(productId){
@@ -253,8 +395,11 @@
             },
 
             repriceAll(){
-                this.items.forEach((it,i) => {
-                    if(it.product_id){ it.precio = this.getUnitPrice(it.product_id); this.recalc(i,true); }
+                this.items.forEach((it, i) => {
+                    if(it.product_id){
+                        it.precio = this.getUnitPrice(it.product_id);
+                        this.recalc(i, true);
+                    }
                 });
                 this.sum();
             },
@@ -263,23 +408,24 @@
             remove(i){ this.items.splice(i,1); this.sum(); },
 
             recalc(i, skipSum=false){
-                const it=this.items[i];
-                const line=(+it.cantidad||0)*(+it.precio||0);
-                const disc=+it.descuento||0;
-                const base=Math.max(line-disc,0);
-                const tax=((+it.iva_pct||0)*0.01)*base;
-                it.impuesto=tax; it.total=base+tax;
+                const it   = this.items[i];
+                const line = (+it.cantidad||0) * (+it.precio||0);
+                const disc = +it.descuento||0;
+                const base = Math.max(line - disc, 0);
+                const tax  = ((+it.iva_pct||0) * 0.01) * base;
+                it.impuesto = tax;
+                it.total    = base + tax;
                 if(!skipSum) this.sum();
             },
 
             sum(){
                 let s=0,d=0,t=0,g=0,hasZero=false;
                 this.items.forEach(it=>{
-                    const line=(+it.cantidad||0)*(+it.precio||0);
-                    const disc=+it.descuento||0;
-                    const base=Math.max(line-disc,0);
-                    const tax=((+it.iva_pct||0)*0.01)*base;
-                    const tot=base+tax;
+                    const line = (+it.cantidad||0)*(+it.precio||0);
+                    const disc = +it.descuento||0;
+                    const base = Math.max(line-disc,0);
+                    const tax  = ((+it.iva_pct||0)*0.01)*base;
+                    const tot  = base+tax;
                     s+=line; d+=disc; t+=tax; g+=tot;
                     if((+it.precio||0)===0 && it.product_id) hasZero=true;
                     it.impuesto=tax; it.total=tot;

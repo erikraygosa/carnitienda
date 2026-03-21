@@ -26,7 +26,7 @@ class SalesOrder extends Model
     public const PM_EFECTIVO      = 'EFECTIVO';
 
     protected $fillable = [
-        'client_id','warehouse_id','price_list_id','folio','fecha','programado_para',
+        'client_id','warehouse_id','price_list_id','quote_id','folio','fecha','programado_para',
         'delivery_type','entrega_nombre','entrega_telefono','entrega_calle','entrega_numero',
         'entrega_colonia','entrega_ciudad','entrega_estado','entrega_cp',
         'shipping_route_id','driver_id','payment_method','credit_days',
@@ -62,6 +62,7 @@ class SalesOrder extends Model
     ];
 
     // === Relaciones ===
+    public function quote(): BelongsTo          { return $this->belongsTo(Quote::class); }
     public function client(): BelongsTo         { return $this->belongsTo(Client::class); }
     public function warehouse(): BelongsTo      { return $this->belongsTo(Warehouse::class); }
     public function priceList(): BelongsTo      { return $this->belongsTo(PriceList::class); }
