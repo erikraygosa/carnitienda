@@ -4,15 +4,12 @@
 
     $isEdit = isset($client) && $client;
 
-    /** Devuelve opciones [id => label] detectando columnas disponibles */
     $buildOptionsKV = function (string $table, array $candidates = ['nombre','name','descripcion','codigo','titulo']) {
         $cols = Schema::getColumnListing($table);
         $labelCols = array_values(array_intersect($candidates, $cols));
-
         $q = DB::table($table)->select('id');
         foreach ($labelCols as $c) { $q->addSelect($c); }
         $rows = $q->orderBy('id')->get();
-
         $out = [];
         foreach ($rows as $r) {
             $label = null;
@@ -24,11 +21,10 @@
         return $out;
     };
 
-    $routes = $buildOptionsKV('shipping_routes');   // [id => label]
-    $pays   = $buildOptionsKV('payment_types');     // [id => label]
-    $lists  = $buildOptionsKV('price_lists');       // [id => label]
+    $routes = $buildOptionsKV('shipping_routes');
+    $pays   = $buildOptionsKV('payment_types');
+    $lists  = $buildOptionsKV('price_lists');
 
-    // Mapa: payment_type_id => esCredito (true/false) por pistas en columnas
     $payCols = Schema::getColumnListing('payment_types');
     $payRows = DB::table('payment_types')->select(array_merge(['id'], $payCols))->get();
     $creditHints = ['crédito','credito','credit','plazo','30d','net','contado diferido'];
@@ -38,10 +34,14 @@
         foreach ($payCols as $col) {
             if ($col === 'id') continue;
             $val = strtolower((string)($row->$col ?? ''));
-            foreach ($creditHints as $h) { if ($val !== '' && str_contains($val, $h)) { $flag = true; break 2; } }
+            foreach ($creditHints as $h) {
+                if ($val !== '' && str_contains($val, $h)) { $flag = true; break 2; }
+            }
         }
         $isCreditById[$row->id] = $flag;
     }
+
+    $igualFiscal = old('entrega_igual_fiscal', $isEdit ? ($client->entrega_igual_fiscal ?? false) : false);
 @endphp
 
 {{-- Errores --}}
@@ -54,9 +54,10 @@
     </div>
 @endif
 
+{{-- ====== DATOS GENERALES ====== --}}
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
     <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-        {{-- Generales --}}
+
         <x-wire-input name="nombre" label="Nombre" required
             placeholder="Ej. Carnes Don Pepe"
             :value="old('nombre', $isEdit ? $client->nombre : '')" />
@@ -69,20 +70,16 @@
             placeholder="(XXX) XXX-XXXX"
             :value="old('telefono', $isEdit ? $client->telefono : '')" />
 
-        <x-wire-input name="direccion" label="Dirección"
-            placeholder="Calle, número, colonia, ciudad"
+        <x-wire-input name="direccion" label="Dirección (referencia)"
+            placeholder="Referencia general"
             :value="old('direccion', $isEdit ? $client->direccion : '')" />
 
-        {{-- Tipo de persona (PF/PM) - SELECT NATIVO --}}
         <div class="space-y-2 w-full">
             <label for="tipo_persona" class="block text-sm font-medium text-gray-700">Tipo de persona</label>
             @php $tipo = old('tipo_persona', $isEdit ? $client->tipo_persona : 'PF'); @endphp
-            <select
-                name="tipo_persona"
-                id="tipo_persona"
-                class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                required
-            >
+            <select name="tipo_persona" id="tipo_persona"
+                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    required>
                 <option value="PF" {{ $tipo === 'PF' ? 'selected' : '' }}>Física</option>
                 <option value="PM" {{ $tipo === 'PM' ? 'selected' : '' }}>Moral</option>
             </select>
@@ -111,15 +108,11 @@
             :value="old('uso_cfdi_default', $isEdit ? $client->uso_cfdi_default : '')"
             data-fiscal="any" id="uso_cfdi_default" />
 
-        {{-- Ruta de reparto (SELECT NATIVO) --}}
         <div class="space-y-2 w-full">
-            <label for="shipping_route_id" class="block text-sm font-medium text-gray-700">Ruta de reparto</label>
+            <label class="block text-sm font-medium text-gray-700">Ruta de reparto</label>
             @php $selRoute = old('shipping_route_id', $isEdit ? $client->shipping_route_id : ''); @endphp
-            <select
-                name="shipping_route_id"
-                id="shipping_route_id"
-                class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-            >
+            <select name="shipping_route_id"
+                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                 <option value="">Seleccione ruta</option>
                 @foreach ($routes as $id => $label)
                     <option value="{{ $id }}" {{ (string)$selRoute === (string)$id ? 'selected' : '' }}>
@@ -129,15 +122,11 @@
             </select>
         </div>
 
-        {{-- Tipo de pago (SELECT NATIVO) --}}
         <div class="space-y-2 w-full">
-            <label for="payment_type_id" class="block text-sm font-medium text-gray-700">Tipo de pago (predeterminado)</label>
+            <label class="block text-sm font-medium text-gray-700">Tipo de pago (predeterminado)</label>
             @php $selPay = old('payment_type_id', $isEdit ? $client->payment_type_id : ''); @endphp
-            <select
-                name="payment_type_id"
-                id="payment_type_id"
-                class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-            >
+            <select name="payment_type_id" id="payment_type_id"
+                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                 <option value="">Seleccione tipo</option>
                 @foreach ($pays as $id => $label)
                     <option value="{{ $id }}" {{ (string)$selPay === (string)$id ? 'selected' : '' }}>
@@ -147,15 +136,11 @@
             </select>
         </div>
 
-        {{-- Lista de precios (SELECT NATIVO) --}}
         <div class="space-y-2 w-full">
-            <label for="price_list_id" class="block text-sm font-medium text-gray-700">Lista de precios del cliente</label>
+            <label class="block text-sm font-medium text-gray-700">Lista de precios</label>
             @php $selList = old('price_list_id', $isEdit ? $client->price_list_id : ''); @endphp
-            <select
-                name="price_list_id"
-                id="price_list_id"
-                class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-            >
+            <select name="price_list_id"
+                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                 <option value="">Seleccione lista</option>
                 @foreach ($lists as $id => $label)
                     <option value="{{ $id }}" {{ (string)$selList === (string)$id ? 'selected' : '' }}>
@@ -165,7 +150,6 @@
             </select>
         </div>
 
-        {{-- Crédito (se activa si el tipo de pago parece crédito) --}}
         <x-wire-input type="number" step="0.01" min="0" name="credito_limite" label="Crédito límite"
             placeholder="0.00"
             :value="old('credito_limite', $isEdit ? $client->credito_limite : 0)"
@@ -178,7 +162,6 @@
     </div>
 
     <div class="space-y-6">
-        {{-- Activo --}}
         <div class="flex items-center gap-2">
             <input id="activo_toggle" type="checkbox"
                    class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
@@ -186,6 +169,81 @@
             <label for="activo_toggle" class="text-sm text-gray-700">Activo</label>
             <input type="hidden" name="activo" id="activo_hidden"
                    value="{{ old('activo', $isEdit ? (int)$client->activo : 1) }}">
+        </div>
+    </div>
+</div>
+
+{{-- ====== DIRECCIÓN FISCAL ====== --}}
+<div class="mt-6 border-t pt-5">
+    <h4 class="text-sm font-semibold text-gray-700 mb-3">Dirección fiscal</h4>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="md:col-span-2">
+            <x-wire-input label="Calle" name="fiscal_calle"
+                value="{{ old('fiscal_calle', $isEdit ? $client->fiscal_calle : '') }}" />
+        </div>
+        <div>
+            <x-wire-input label="Número" name="fiscal_numero"
+                value="{{ old('fiscal_numero', $isEdit ? $client->fiscal_numero : '') }}" />
+        </div>
+        <div>
+            <x-wire-input label="Colonia" name="fiscal_colonia"
+                value="{{ old('fiscal_colonia', $isEdit ? $client->fiscal_colonia : '') }}" />
+        </div>
+        <div>
+            <x-wire-input label="Ciudad" name="fiscal_ciudad"
+                value="{{ old('fiscal_ciudad', $isEdit ? $client->fiscal_ciudad : '') }}" />
+        </div>
+        <div>
+            <x-wire-input label="Estado" name="fiscal_estado"
+                value="{{ old('fiscal_estado', $isEdit ? $client->fiscal_estado : '') }}" />
+        </div>
+        <div>
+            <x-wire-input label="CP" name="fiscal_cp"
+                value="{{ old('fiscal_cp', $isEdit ? $client->fiscal_cp : '') }}" />
+        </div>
+    </div>
+</div>
+
+{{-- ====== DIRECCIÓN DE ENTREGA ====== --}}
+<div class="mt-6 border-t pt-5" x-data="{ igualFiscal: {{ $igualFiscal ? 'true' : 'false' }} }">
+    <div class="flex items-center justify-between mb-3">
+        <h4 class="text-sm font-semibold text-gray-700">Dirección de entrega</h4>
+        <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input type="checkbox"
+                   name="entrega_igual_fiscal"
+                   value="1"
+                   class="rounded border-gray-300"
+                   x-model="igualFiscal"
+                   @change="if(igualFiscal) syncFiscalToEntrega()"
+                   {{ $igualFiscal ? 'checked' : '' }}>
+            Igual a la fiscal
+        </label>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4"
+         :class="igualFiscal ? 'opacity-50 pointer-events-none select-none' : ''">
+        <div class="md:col-span-2">
+            <x-wire-input label="Calle" name="entrega_calle"
+                value="{{ old('entrega_calle', $isEdit ? $client->entrega_calle : '') }}" />
+        </div>
+        <div>
+            <x-wire-input label="Número" name="entrega_numero"
+                value="{{ old('entrega_numero', $isEdit ? $client->entrega_numero : '') }}" />
+        </div>
+        <div>
+            <x-wire-input label="Colonia" name="entrega_colonia"
+                value="{{ old('entrega_colonia', $isEdit ? $client->entrega_colonia : '') }}" />
+        </div>
+        <div>
+            <x-wire-input label="Ciudad" name="entrega_ciudad"
+                value="{{ old('entrega_ciudad', $isEdit ? $client->entrega_ciudad : '') }}" />
+        </div>
+        <div>
+            <x-wire-input label="Estado" name="entrega_estado"
+                value="{{ old('entrega_estado', $isEdit ? $client->entrega_estado : '') }}" />
+        </div>
+        <div>
+            <x-wire-input label="CP" name="entrega_cp"
+                value="{{ old('entrega_cp', $isEdit ? $client->entrega_cp : '') }}" />
         </div>
     </div>
 </div>
@@ -199,10 +257,9 @@
     }
 
     function toggleFiscal() {
-        // PF = Física, PM = Moral
         const v = (getValueByName('tipo_persona') || 'PF').toUpperCase();
         document.querySelectorAll('[data-fiscal]').forEach(el => {
-            const t = el.getAttribute('data-fiscal'); // any | moral
+            const t = el.getAttribute('data-fiscal');
             const mustEnable = (t === 'any') || (t === 'moral' && v === 'PM');
             const wrapper = el.closest('.space-y-2, .w-full, .col-span-1, .grid, .form-control') || el.parentElement;
             if (wrapper) wrapper.classList.toggle('opacity-50', !mustEnable);
@@ -220,15 +277,7 @@
             const wrapper = el.closest('.space-y-2, .w-full, .col-span-1, .grid, .form-control') || el.parentElement;
             if (wrapper) wrapper.classList.toggle('opacity-50', !isCredit);
             el.toggleAttribute('disabled', !isCredit);
-            if (!isCredit) { el.value = 0; }
-        });
-    }
-
-    function bindHandlers() {
-        document.addEventListener('change', (e) => {
-            const name = e.target?.getAttribute?.('name');
-            if (name === 'tipo_persona') toggleFiscal();
-            if (name === 'payment_type_id') detectEsCredito();
+            if (!isCredit) el.value = 0;
         });
     }
 
@@ -241,6 +290,14 @@
         }
     }
 
+    function bindHandlers() {
+        document.addEventListener('change', (e) => {
+            const name = e.target?.getAttribute?.('name');
+            if (name === 'tipo_persona')    toggleFiscal();
+            if (name === 'payment_type_id') detectEsCredito();
+        });
+    }
+
     function applyAll() { toggleFiscal(); detectEsCredito(); initActivoHidden(); }
 
     document.addEventListener('DOMContentLoaded', () => { bindHandlers(); applyAll(); });
@@ -248,5 +305,20 @@
     document.addEventListener('livewire:navigated', applyAll);
     document.addEventListener('livewire:update', applyAll);
 })();
+
+// Función global para Alpine: copia fiscal → entrega
+function syncFiscalToEntrega() {
+    const get = name => document.querySelector(`[name="${name}"]`)?.value || '';
+    const set = (name, val) => {
+        const el = document.querySelector(`[name="${name}"]`);
+        if (el) el.value = val;
+    };
+    set('entrega_calle',   get('fiscal_calle'));
+    set('entrega_numero',  get('fiscal_numero'));
+    set('entrega_colonia', get('fiscal_colonia'));
+    set('entrega_ciudad',  get('fiscal_ciudad'));
+    set('entrega_estado',  get('fiscal_estado'));
+    set('entrega_cp',      get('fiscal_cp'));
+}
 </script>
 @endpush

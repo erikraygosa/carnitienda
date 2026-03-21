@@ -64,6 +64,7 @@ Route::post('purchases/{purchase}/cancel', [PurchaseController::class, 'cancel']
 
 Route::get('stock', [StockController::class, 'index'])->name('stock.index');
 Route::get('stock/costs', [StockController::class, 'costs'])->name('stock.costs');
+Route::get('stock/kardex', [StockController::class, 'kardex'])->name('stock.kardex');
 
 Route::get('stock/adjustments/create', [StockAdjustmentController::class, 'create'])->name('stock.adjustments.create');
 Route::post('stock/adjustments', [StockAdjustmentController::class, 'store'])->name('stock.adjustments.store');
@@ -151,24 +152,36 @@ Route::post('invoices/{invoice}/send',    [InvoiceController::class, 'send'])->n
 Route::post('sales-orders/{order}/invoice', [InvoiceController::class, 'fromSalesOrder'])->name('invoices.from-order');
 Route::post('sales/{sale}/invoice',         [InvoiceController::class, 'fromSale'])->name('invoices.from-sale');
 
+Route::prefix('driver-cash')->name('driver-cash.')->group(function () {
+    Route::get('/',                  [DriverCashRegisterController::class,'index'])->name('index');
+    Route::get('/create',            [DriverCashRegisterController::class,'create'])->name('create');
+    Route::post('/',                 [DriverCashRegisterController::class,'store'])->name('store');
+    Route::get('/{register}',        [DriverCashRegisterController::class,'show'])->name('show');
+    Route::post('/{register}/abono', [DriverCashRegisterController::class,'abono'])->name('abono');
+    Route::post('/{register}/close', [DriverCashRegisterController::class,'close'])->name('close');
+});
+
 Route::resource('dispatches', DispatchController::class)->except(['show']);
+ 
+// Acciones de flujo del despacho
+Route::post('dispatches/{dispatch}/preparar',  [DispatchController::class,'preparar'])->name('dispatches.preparar');
+Route::post('dispatches/{dispatch}/cargar',    [DispatchController::class,'cargar'])->name('dispatches.cargar');
+Route::post('dispatches/{dispatch}/en-ruta',   [DispatchController::class,'enRuta'])->name('dispatches.enruta');
+Route::post('dispatches/{dispatch}/entregar',  [DispatchController::class,'entregar'])->name('dispatches.entregar');
+Route::post('dispatches/{dispatch}/cancelar',  [DispatchController::class,'cancelar'])->name('dispatches.cancelar');
+Route::post('dispatches/{dispatch}/cerrar',    [DispatchController::class,'cerrar'])->name('dispatches.cerrar');
+Route::post('dispatches/{dispatch}/cxc/{assignment}/no-cobrar', [DispatchController::class,'noCobrarCxc'])->name('dispatches.cxc.no-cobrar'); 
 
-    // Acciones de flujo
-    Route::post('dispatches/{dispatch}/preparar', [DispatchController::class,'preparar'])->name('dispatches.preparar');
-    Route::post('dispatches/{dispatch}/cargar',   [DispatchController::class,'cargar'])->name('dispatches.cargar');
-    Route::post('dispatches/{dispatch}/en-ruta',  [DispatchController::class,'enRuta'])->name('dispatches.enruta');
-    Route::post('dispatches/{dispatch}/entregar', [DispatchController::class,'entregar'])->name('dispatches.entregar');
-    Route::post('dispatches/{dispatch}/cerrar',   [DispatchController::class,'cerrar'])->name('dispatches.cerrar');
-    Route::post('dispatches/{dispatch}/cancelar', [DispatchController::class,'cancelar'])->name('dispatches.cancelar');
+// Acciones sobre pedidos individuales dentro del despacho
+Route::post('dispatches/{dispatch}/pedido/{item}/entregar',    [DispatchController::class,'entregarPedido'])->name('dispatches.pedido.entregar');
+Route::post('dispatches/{dispatch}/pedido/{item}/no-entregar', [DispatchController::class,'noEntregarPedido'])->name('dispatches.pedido.no-entregar');
 
- Route::prefix('driver-cash')->name('driver-cash.')->group(function () {
-    Route::get('/',                 [DriverCashRegisterController::class,'index'])->name('index');
-    Route::get('/create',           [DriverCashRegisterController::class,'create'])->name('create');
-    Route::post('/',                [DriverCashRegisterController::class,'store'])->name('store');
-    Route::get('/{register}',       [DriverCashRegisterController::class,'show'])->name('show');
-    Route::post('/{register}/abono',[DriverCashRegisterController::class,'abono'])->name('abono');
-    Route::post('/{register}/close',[DriverCashRegisterController::class,'close'])->name('close');
-});   
+Route::get('dispatches/{dispatch}/print/ruta',        [DispatchController::class,'printRuta'])->name('dispatches.print.ruta');
+Route::get('dispatches/{dispatch}/print/liquidacion', [DispatchController::class,'printLiquidacion'])->name('dispatches.print.liquidacion');
+ 
+ 
+// Cobro de CxC desde el despacho
+Route::post('dispatches/{dispatch}/cxc/{assignment}/cobrar', [DispatchController::class,'cobrarCxc'])->name('dispatches.cxc.cobrar');
 
 Route::prefix('ar')->name('ar.')->group(function () {
     Route::get('/',                [AccountsReceivableController::class,'index'])->name('index');

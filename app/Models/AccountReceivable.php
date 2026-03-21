@@ -21,4 +21,10 @@ class AccountReceivable extends Model
     public function client() { return $this->belongsTo(Client::class); }
 
     public function source(): MorphTo { return $this->morphTo(); }
+
+            // app/Models/AccountsReceivable.php
+        public function getRouteKeyName(): string
+        {
+            return 'id';
+        }
 }

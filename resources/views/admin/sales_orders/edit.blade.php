@@ -191,7 +191,7 @@
                                     <input type="hidden" :name="'items['+i+'][descripcion]'" x-model="it.descripcion">
                                 </td>
 
-                                {{-- Cantidad (editable en BORRADOR / PREPARANDO) --}}
+                                {{-- Cantidad --}}
                                 <td class="p-2 text-right">
                                     <input type="number" min="0.001" step="0.001"
                                            class="w-24 border rounded p-1 text-right"
@@ -222,7 +222,7 @@
                                     <input type="hidden" :name="'items['+i+'][descuento]'" x-model="it.descuento">
                                 </td>
 
-                                {{-- IVA (visual) + impuesto (hidden) --}}
+                                {{-- IVA --}}
                                 <td class="p-2 text-right">
                                     <input type="number" min="0" step="0.01"
                                            class="w-20 border rounded p-1 text-right"
@@ -234,7 +234,7 @@
                                 {{-- Total --}}
                                 <td class="p-2 text-right" x-text="fmt(it.total)"></td>
 
-                                {{-- Eliminar (solo si no locked) --}}
+                                {{-- Eliminar --}}
                                 <td class="p-2" x-show="!locked">
                                     <button type="button" class="text-red-600" @click="remove(i)">Eliminar</button>
                                 </td>
@@ -257,22 +257,15 @@
     {{-- ====== ACCIONES (PDF / Enviar / Flujo) ====== --}}
     <x-wire-card class="mt-4">
         <div class="flex items-center space-x-2">
-            {{-- Editar --}}
             <x-wire-button href="{{ route('admin.sales-orders.edit',$order) }}" blue xs>Editar</x-wire-button>
-
-            {{-- PDF --}}
             <x-wire-button href="{{ route('admin.sales-orders.pdf',$order) }}" gray outline xs target="_blank">Ver PDF</x-wire-button>
             <x-wire-button href="{{ route('admin.sales-orders.pdf.download',$order) }}" gray xs>Descargar PDF</x-wire-button>
-
-            {{-- Envío (formulario de envío) --}}
             <x-wire-button href="{{ route('admin.sales-orders.send.form',$order) }}" violet xs>Enviar</x-wire-button>
 
-            {{-- Badge estado --}}
             <span class="ml-2 px-2 py-1 text-xs rounded-full {{ $statusClass }}">
                 Estatus: {{ $order->status_label }}
             </span>
 
-            {{-- Acciones por estado (derecha) --}}
             <div class="ml-auto flex items-center space-x-2">
                 @if($order->status === 'BORRADOR')
                     <form action="{{ route('admin.sales-orders.approve',$order) }}" method="POST">@csrf
@@ -307,8 +300,6 @@
                     <form action="{{ route('admin.sales-orders.not-delivered',$order) }}" method="POST" class="inline">@csrf
                         <x-wire-button type="submit" gray xs>No entregado</x-wire-button>
                     </form>
-
-                    {{-- Si es contraentrega, botón rápido de cobro --}}
                     @if($order->payment_method === 'CONTRAENTREGA')
                         <form action="{{ route('admin.sales-orders.cobrar',$order) }}" method="POST" class="inline-flex items-center space-x-1">
                             @csrf
@@ -327,6 +318,74 @@
                 @endif
             </div>
         </div>
+
+        {{-- ====== LIQUIDACIÓN DEL CHOFER ====== --}}
+        @if(
+            in_array($order->status, ['ENTREGADO', 'NO_ENTREGADO']) &&
+            ($order->driver_settlement_status ?? '') !== 'LIQUIDADO'
+        )
+        <div class="mt-4 border-t pt-4">
+            <p class="text-sm font-medium text-gray-700 mb-3">Liquidar cobro del chofer</p>
+            <form method="POST" action="{{ route('admin.sales-orders.liquidar', $order) }}">
+                @csrf
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Monto entregado</label>
+                        <input type="number" name="monto_entregado"
+                               min="0" step="0.01"
+                               value="{{ $order->total }}"
+                               class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                               required>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Forma de pago</label>
+                        <select name="payment_type_id"
+                                class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                required>
+                            <option value="">-- seleccionar --</option>
+                            @foreach(\App\Models\PaymentType::orderBy('descripcion')->get() as $pt)
+                                <option value="{{ $pt->id }}">{{ $pt->descripcion }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Caja del día (opcional)</label>
+                        <select name="pos_register_id"
+                                class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <option value="">-- sin caja --</option>
+                            @foreach(\App\Models\CashRegister::where('estatus','ABIERTO')->latest()->get() as $cr)
+                                <option value="{{ $cr->id }}">
+                                    {{ $cr->warehouse->nombre ?? 'Sin almacén' }} — {{ $cr->fecha }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Referencia (opcional)</label>
+                        <input type="text" name="referencia" maxlength="255"
+                               placeholder="Folio, transferencia, etc."
+                               class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button type="submit"
+                            class="inline-flex items-center px-4 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700">
+                        Confirmar liquidación
+                    </button>
+                </div>
+            </form>
+        </div>
+        @endif
+
+        {{-- Badge liquidado --}}
+        @if(($order->driver_settlement_status ?? '') === 'LIQUIDADO')
+        <div class="mt-4 border-t pt-4">
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-emerald-100 text-emerald-700">
+                Chofer liquidado — {{ optional($order->driver_settlement_at)->format('d/m/Y H:i') }}
+            </span>
+        </div>
+        @endif
+
     </x-wire-card>
 
     {{-- ====== SCRIPT ALPINE ====== --}}

@@ -4,25 +4,35 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Models\ShippingRoute;
+use App\Models\PaymentType;
+use App\Models\PriceList;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
-
 use Illuminate\Support\Facades\Schema;
-
 
 class ClientController extends Controller
 {
-    public function index()  { return view('admin.clients.index'); }
-    public function create() { return view('admin.clients.create'); }
-  
-    public function edit(Client $client) { return view('admin.clients.edit', compact('client')); }
+    public function index() { return view('admin.clients.index'); }
+
+    public function create()
+    {
+        return view('admin.clients.create', $this->formData());
+    }
+
+    public function edit(Client $client)
+    {
+        return view('admin.clients.edit', array_merge(
+            $this->formData(),
+            compact('client')
+        ));
+    }
 
     public function store(Request $request)
     {
         $data = $request->validate($this->rules());
-        $this->validateBusiness($data);
         $data = $this->normalize($data);
 
         $client = Client::create($data);
@@ -34,7 +44,6 @@ class ClientController extends Controller
     public function update(Request $request, Client $client)
     {
         $data = $request->validate($this->rules($client->id));
-        $this->validateBusiness($data);
         $data = $this->normalize($data);
 
         $client->update($data);
@@ -45,103 +54,113 @@ class ClientController extends Controller
 
     public function destroy(Client $client)
     {
-        if (! $client->activo) {
+        if (!$client->activo) {
             session()->flash('swal', ['icon'=>'info','title'=>'Ya estaba inactivo','text'=>'El cliente ya se encontraba desactivado.']);
             return redirect()->route('admin.clients.index');
         }
-
         $client->update(['activo' => false]);
-
         session()->flash('swal', ['icon'=>'success','title'=>'Cliente desactivado','text'=>'Se desactivó correctamente.']);
         return redirect()->route('admin.clients.index');
     }
 
-    /** --------- Helpers --------- */
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
-   private function rules(?int $id = null): array
-{
-    return [
-        'nombre'            => ['required','string','max:180'],
-        'email'             => ['nullable','email','max:150', Rule::unique('clients','email')->ignore($id)],
-        'telefono'          => ['nullable','string','max:50'],
-        'direccion'         => ['nullable','string','max:255'],
-        'activo'            => ['required','boolean'],
-
-        // Usa PF | PM (coincide con la migración)
-        'tipo_persona'      => ['required','in:PF,PM'],
-
-        'rfc'               => ['nullable','string','max:13'],
-        'razon_social'      => ['nullable','string','max:180'],
-        'nombre_comercial'  => ['nullable','string','max:180'],
-        'regimen_fiscal'    => ['nullable','string','max:10'],
-        'uso_cfdi_default'  => ['nullable','string','max:5'],
-
-        'shipping_route_id' => ['nullable','integer','exists:shipping_routes,id'],
-        'payment_type_id'   => ['nullable','integer','exists:payment_types,id'],
-
-        // <-- AHORA OPCIONAL
-        'price_list_id'     => ['nullable','integer','exists:price_lists,id'],
-
-        'credito_limite'    => ['nullable','numeric','min:0'],
-        'credito_dias'      => ['nullable','integer','min:0','max:365'],
-    ];
-}
-
-
-    private function validateBusiness(array $data): void
+    private function formData(): array
     {
-        // Mantener opcionales fiscales; aquí podrías endurecer para MORAL si un día lo decides.
+        return [
+            'routes'       => ShippingRoute::orderBy('nombre')->get(['id','nombre']),
+            'paymentTypes' => PaymentType::orderBy('descripcion')->get(['id','descripcion']),
+            'priceLists'   => PriceList::orderBy('nombre')->get(['id','nombre']),
+        ];
     }
 
-    /**
-     * Normaliza campos (crédito y banderas).
-     * - Si no hay tipo de pago de crédito, forzamos crédito_limite/dias a 0.
-     * - Si vienen nulos, a 0.
-     */
-private function normalize(array $data): array
-{
-    $data['activo'] = (bool)($data['activo'] ?? true);
+    private function rules(?int $id = null): array
+    {
+        return [
+            'nombre'           => ['required','string','max:180'],
+            'email'            => ['nullable','email','max:150', Rule::unique('clients','email')->ignore($id)],
+            'telefono'         => ['nullable','string','max:50'],
+            'direccion'        => ['nullable','string','max:255'],
+            'activo'           => ['required','boolean'],
+            'tipo_persona'     => ['required','in:PF,PM'],
+            'rfc'              => ['nullable','string','max:13'],
+            'razon_social'     => ['nullable','string','max:180'],
+            'nombre_comercial' => ['nullable','string','max:180'],
+            'regimen_fiscal'   => ['nullable','string','max:10'],
+            'uso_cfdi_default' => ['nullable','string','max:5'],
 
-    // Si por cualquier razón llega F/M, mapea a PF/PM
-    if (!empty($data['tipo_persona'])) {
-        $tp = strtoupper((string)$data['tipo_persona']);
+            'shipping_route_id' => ['nullable','integer','exists:shipping_routes,id'],
+            'payment_type_id'   => ['nullable','integer','exists:payment_types,id'],
+            'price_list_id'     => ['nullable','integer','exists:price_lists,id'],
+            'credito_limite'    => ['nullable','numeric','min:0'],
+            'credito_dias'      => ['nullable','integer','min:0','max:365'],
+
+            // Dirección fiscal
+            'fiscal_calle'   => ['nullable','string','max:255'],
+            'fiscal_numero'  => ['nullable','string','max:50'],
+            'fiscal_colonia' => ['nullable','string','max:255'],
+            'fiscal_ciudad'  => ['nullable','string','max:255'],
+            'fiscal_estado'  => ['nullable','string','max:255'],
+            'fiscal_cp'      => ['nullable','string','max:10'],
+
+            // Dirección de entrega
+            'entrega_igual_fiscal' => ['nullable','boolean'],
+            'entrega_calle'   => ['nullable','string','max:255'],
+            'entrega_numero'  => ['nullable','string','max:50'],
+            'entrega_colonia' => ['nullable','string','max:255'],
+            'entrega_ciudad'  => ['nullable','string','max:255'],
+            'entrega_estado'  => ['nullable','string','max:255'],
+            'entrega_cp'      => ['nullable','string','max:10'],
+        ];
+    }
+
+    private function normalize(array $data): array
+    {
+        $data['activo'] = (bool)($data['activo'] ?? true);
+
+        // Normalizar tipo persona
+        $tp = strtoupper((string)($data['tipo_persona'] ?? 'PF'));
         if ($tp === 'F') $tp = 'PF';
         if ($tp === 'M') $tp = 'PM';
         $data['tipo_persona'] = $tp;
-    } else {
-        $data['tipo_persona'] = 'PF';
-    }
 
-    // Detectar si el tipo de pago “parece” crédito para habilitar crédito
-    $isCredit = false;
-    if (!empty($data['payment_type_id'])) {
-        $cols = Schema::getColumnListing('payment_types');
-        $labelCols = array_values(array_intersect(['nombre','name','descripcion','tipo','titulo'], $cols));
-        $q = DB::table('payment_types')->where('id', $data['payment_type_id']);
-        foreach ($labelCols as $c) { $q->addSelect($c); }
-        $row = $q->first();
-        $label = '';
-        if ($row) {
-            foreach ($labelCols as $c) {
-                if (!empty($row->$c)) { $label = (string)$row->$c; break; }
-            }
+        // Checkbox booleano
+        $data['entrega_igual_fiscal'] = !empty($data['entrega_igual_fiscal']);
+
+        // Si entrega = fiscal, copiar campos fiscales a entrega
+        if ($data['entrega_igual_fiscal']) {
+            $data['entrega_calle']   = $data['fiscal_calle']   ?? null;
+            $data['entrega_numero']  = $data['fiscal_numero']  ?? null;
+            $data['entrega_colonia'] = $data['fiscal_colonia'] ?? null;
+            $data['entrega_ciudad']  = $data['fiscal_ciudad']  ?? null;
+            $data['entrega_estado']  = $data['fiscal_estado']  ?? null;
+            $data['entrega_cp']      = $data['fiscal_cp']      ?? null;
         }
-        $isCredit = \Illuminate\Support\Str::contains(\Illuminate\Support\Str::lower($label), ['crédito','credito']);
+
+        // Detectar si el tipo de pago es crédito
+        $isCredit = false;
+        if (!empty($data['payment_type_id'])) {
+            $cols      = Schema::getColumnListing('payment_types');
+            $labelCols = array_values(array_intersect(['nombre','name','descripcion','tipo','titulo'], $cols));
+            $q = DB::table('payment_types')->where('id', $data['payment_type_id']);
+            foreach ($labelCols as $c) { $q->addSelect($c); }
+            $row = $q->first();
+            $label = '';
+            if ($row) {
+                foreach ($labelCols as $c) {
+                    if (!empty($row->$c)) { $label = (string)$row->$c; break; }
+                }
+            }
+            $isCredit = Str::contains(Str::lower($label), ['crédito','credito']);
+        }
+
+        $data['credito_limite'] = $isCredit ? (float)($data['credito_limite'] ?? 0) : 0.0;
+        $data['credito_dias']   = $isCredit ? (int)($data['credito_dias']   ?? 0) : 0;
+
+        foreach (['rfc','razon_social','nombre_comercial','regimen_fiscal','uso_cfdi_default'] as $k) {
+            if (isset($data[$k]) && is_string($data[$k])) $data[$k] = trim($data[$k]);
+        }
+
+        return $data;
     }
-
-    $lim  = isset($data['credito_limite']) ? (float)$data['credito_limite'] : 0.0;
-    $dias = isset($data['credito_dias'])   ? (int)$data['credito_dias']   : 0;
-
-    if (!$isCredit) { $lim = 0.0; $dias = 0; }
-
-    $data['credito_limite'] = $lim;
-    $data['credito_dias']   = $dias;
-
-    foreach (['rfc','razon_social','nombre_comercial','regimen_fiscal','uso_cfdi_default'] as $k) {
-        if (isset($data[$k]) && is_string($data[$k])) $data[$k] = trim($data[$k]);
-    }
-
-    return $data;
-}
-
 }

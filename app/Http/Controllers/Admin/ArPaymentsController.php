@@ -13,11 +13,12 @@ class ArPaymentsController extends Controller
     public function __construct(private ArService $ar) {}
 
     public function create()
-    {
-        $clients = Client::where('activo',1)->orderBy('nombre')->get();
-        $types   = PaymentType::orderBy('descripcion')->get(); // ajusta si tu tabla es distinta
-        return view('admin.ar.payments.create', compact('clients','types'));
-    }
+{
+    $clients     = Client::where('activo', 1)->orderBy('nombre')->get();
+    $types       = PaymentType::orderBy('descripcion')->get();
+    $preClientId = request('client_id'); // ← agrega esta línea
+    return view('admin.ar.payments.create', compact('clients', 'types', 'preClientId'));
+}
 
     public function store(Request $request)
     {

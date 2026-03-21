@@ -31,35 +31,56 @@ class SalesOrderController extends Controller
     }
 
     public function create(Request $request)
-    {
-        $clients     = Client::orderBy('nombre')->get(['id','nombre','email','telefono']);
-        $priceLists  = PriceList::orderBy('nombre')->get(['id','nombre']);
-        $products    = Product::orderBy('nombre')->get(['id','nombre','precio_base']);
-        $warehouses  = Warehouse::orderBy('nombre')->get(['id','nombre']);
-        $drivers     = Driver::orderBy('nombre')->get(['id','nombre']);
-        $routes      = ShippingRoute::orderBy('nombre')->get(['id','nombre']);
-
-        // Overrides por cliente
-        $overrides = DB::table('client_price_overrides')
-            ->select('client_id','product_id','precio')
-            ->whereIn('client_id', $clients->pluck('id'))
-            ->get()
-            ->groupBy('client_id')
-            ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v)=>(float)$v)->toArray())
-            ->toArray();
-
-        // Items de listas
-        $listItems = DB::table('price_list_items')
-            ->select('price_list_id','product_id','precio')
-            ->whereIn('price_list_id', $priceLists->pluck('id'))
-            ->get()
-            ->groupBy('price_list_id')
-            ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v)=>(float)$v)->toArray())
-            ->toArray();
-
-        return view('admin.sales_orders.create', compact(
-            'clients','priceLists','products','warehouses','drivers','routes','overrides','listItems'
-        ));
+{
+    $clients    = Client::orderBy('nombre')->get();  // necesitamos todos los campos
+    $priceLists = PriceList::orderBy('nombre')->get(['id','nombre']);
+    $products   = Product::orderBy('nombre')->get(['id','nombre','precio_base']);
+    $warehouses = Warehouse::orderBy('nombre')->get(['id','nombre']);
+    $drivers    = Driver::orderBy('nombre')->get(['id','nombre']);
+    $routes     = ShippingRoute::orderBy('nombre')->get(['id','nombre']);
+ 
+    $mainWarehouseId = DB::table('warehouses')->where('is_primary', 1)->value('id')
+        ?? DB::table('warehouses')->orderBy('id')->value('id');
+ 
+    // Overrides de precios por cliente
+    $overrides = DB::table('client_price_overrides')
+        ->select('client_id','product_id','precio')
+        ->whereIn('client_id', $clients->pluck('id'))
+        ->get()
+        ->groupBy('client_id')
+        ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
+        ->toArray();
+ 
+    // Items de listas de precios
+    $listItems = DB::table('price_list_items')
+        ->select('price_list_id','product_id','precio')
+        ->whereIn('price_list_id', $priceLists->pluck('id'))
+        ->get()
+        ->groupBy('price_list_id')
+        ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
+        ->toArray();
+ 
+    // Defaults por cliente para Alpine (ruta, pago, crédito, dirección de entrega)
+    $clientDefaults = $clients->mapWithKeys(fn($c) => [(string)$c->id => [
+        'shipping_route_id' => (string) ($c->shipping_route_id ?? ''),
+        'price_list_id'     => (string) ($c->price_list_id ?? ''),
+        'credito_dias'      => (int)   ($c->credito_dias ?? 0),
+        'credito_limite'    => (float) ($c->credito_limite ?? 0),
+        'telefono'          => $c->telefono ?? '',
+        // Dirección de entrega efectiva (si igual_fiscal, usa la fiscal)
+        'entrega_calle'    => $c->entrega_igual_fiscal ? ($c->fiscal_calle   ?? '') : ($c->entrega_calle   ?? ''),
+        'entrega_numero'   => $c->entrega_igual_fiscal ? ($c->fiscal_numero  ?? '') : ($c->entrega_numero  ?? ''),
+        'entrega_colonia'  => $c->entrega_igual_fiscal ? ($c->fiscal_colonia ?? '') : ($c->entrega_colonia ?? ''),
+        'entrega_ciudad'   => $c->entrega_igual_fiscal ? ($c->fiscal_ciudad  ?? '') : ($c->entrega_ciudad  ?? ''),
+        'entrega_estado'   => $c->entrega_igual_fiscal ? ($c->fiscal_estado  ?? '') : ($c->entrega_estado  ?? ''),
+        'entrega_cp'       => $c->entrega_igual_fiscal ? ($c->fiscal_cp      ?? '') : ($c->entrega_cp      ?? ''),
+    ]])->toArray();
+ 
+    return view('admin.sales_orders.create', compact(
+        'clients','priceLists','products','warehouses',
+        'drivers','routes','overrides','listItems',
+        'mainWarehouseId','clientDefaults'
+    ));
     }
 
     public function store(Request $request)
@@ -297,14 +318,33 @@ class SalesOrderController extends Controller
 
     // ======== Transiciones de estado ========
 
-    public function approve(SalesOrder $order)
-    {
-        if ($order->status!=='BORRADOR') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR se puede aprobar.']);
-        }
-        $order->update(['status'=>'APROBADO']);
-        return back()->with('swal',['icon'=>'success','title'=>'Aprobado','text'=>'Pedido aprobado']);
+public function approve(SalesOrder $order)
+{
+    if ($order->status !== 'BORRADOR') {
+        return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR se puede aprobar.']);
     }
+
+    if ($order->payment_method === 'CREDITO' && $order->client_id) {
+        $client = $order->client;
+        $limite = (float) ($client->credito_limite ?? 0);
+
+        if ($limite > 0) {
+            $saldoActual = app(\App\Services\ArService::class)->saldoCliente($client->id);
+            if (($saldoActual + $order->total) > $limite) {
+                return back()->with('swal', [
+                    'icon'  => 'error',
+                    'title' => 'Límite de crédito excedido',
+                    'text'  => 'Saldo pendiente: $' . number_format($saldoActual, 2)
+                             . ' + Este pedido: $' . number_format($order->total, 2)
+                             . ' › Límite: $' . number_format($limite, 2),
+                ]);
+            }
+        }
+    }
+
+    $order->update(['status' => 'APROBADO']);
+    return back()->with('swal', ['icon'=>'success','title'=>'Aprobado','text'=>'Pedido aprobado.']);
+}
 
     public function startPreparing(SalesOrder $order)
     {
@@ -353,43 +393,64 @@ class SalesOrderController extends Controller
         return back()->with('swal',['icon'=>'success','title'=>'En ruta','text'=>'El pedido salió a ruta.']);
     }
 
-    public function deliver(SalesOrder $order)
-    {
-        if ($order->status !== 'EN_RUTA') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como entregado.']);
-        }
-
-        DB::transaction(function() use ($order){
-            // (Opcional) Generar la venta aquí si así lo manejas
-            // ...
-
-            $order->update(['status' => 'ENTREGADO', 'entregado_at'=>now()]);
-        });
-
-        return back()->with('swal',['icon'=>'success','title'=>'Entregado','text'=>'Pedido entregado correctamente.']);
+    public function deliver(SalesOrder $order, \App\Services\ArService $ar)
+{
+    if ($order->status !== 'EN_RUTA') {
+        return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como entregado.']);
     }
 
-    public function notDelivered(Request $request, SalesOrder $order)
-    {
-        if ($order->status !== 'EN_RUTA') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como No entregado.']);
+    DB::transaction(function () use ($order, $ar) {
+        $order->update(['status' => 'ENTREGADO', 'entregado_at' => now()]);
+
+        // Solo crédito genera deuda en ar_movements.
+        // Efectivo/transferencia/contraentrega se liquidan con el chofer (settleDriver).
+        if ($order->payment_method === 'CREDITO' && $order->client_id) {
+            $ar->charge(
+                clientId: $order->client_id,
+                monto:    $order->total,
+                desc:     "Entrega pedido {$order->folio}",
+                source:   $order,
+                fecha:    now()->toDateString(),
+            );
         }
+    });
 
-        $request->validate(['nota'=>'nullable|string|max:500']);
-        $nota = $request->input('nota');
+    return back()->with('swal', ['icon'=>'success','title'=>'Entregado','text'=>'Pedido entregado correctamente.']);
+}
 
-        $data = ['status'=>'NO_ENTREGADO','no_entregado_at'=>now()];
-        if ($nota) {
-            $data['delivery_notes'] = trim(($order->delivery_notes ?? '')."\n".$nota);
-        }
-
-        DB::transaction(function() use ($order, $data) {
-            $order->update($data);
-            $order->increment('delivery_attempts');
-        });
-
-        return back()->with('swal',['icon'=>'success','title'=>'No entregado','text'=>'Se marcó el pedido como no entregado.']);
+    public function notDelivered(Request $request, SalesOrder $order, \App\Services\InventoryService $inv)
+{
+    if ($order->status !== 'EN_RUTA') {
+        return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como No entregado.']);
     }
+
+    $request->validate(['nota' => 'nullable|string|max:500']);
+
+    DB::transaction(function () use ($order, $request, $inv) {
+        // El stock fue consumido en process(). Se devuelve ítem por ítem.
+        foreach ($order->items as $it) {
+            if (!$it->product_id || $it->cantidad <= 0) continue;
+            $inv->stockIn(
+                productId:   (int) $it->product_id,
+                warehouseId: $order->warehouse_id,
+                qty:         (float) $it->cantidad,
+                motivo:      'DEVOLUCION_NO_ENTREGADO',
+                referencia:  $order,
+                userId:      auth()->id(),
+            );
+        }
+
+        $data = ['status' => 'NO_ENTREGADO', 'no_entregado_at' => now()];
+        if ($nota = $request->input('nota')) {
+            $data['delivery_notes'] = trim(($order->delivery_notes ?? '') . "\n" . $nota);
+        }
+
+        $order->update($data);
+        $order->increment('delivery_attempts');
+    });
+
+    return back()->with('swal', ['icon'=>'success','title'=>'No entregado','text'=>'Pedido marcado y stock revertido.']);
+}
 
     // ======== Cobro y liquidación del chofer ========
 
@@ -409,22 +470,61 @@ class SalesOrderController extends Controller
         return back()->with('swal',['icon'=>'success','title'=>'Cobro registrado','text'=>'Se actualizó el cobro en efectivo.']);
     }
 
-    public function settleDriver(Request $request, SalesOrder $order)
-    {
-        // Si usas POS register para la liquidación del día:
-        $posRegisterId = $request->input('pos_register_id');
+        public function settleDriver(
+    Request $request,
+    SalesOrder $order,
+    \App\Services\ArService $ar,
+    \App\Services\CashService $cash
+) {
+    $request->validate([
+        'monto_entregado' => 'required|numeric|min:0',
+        'payment_type_id' => 'required|exists:payment_types,id',
+        'pos_register_id' => 'nullable|exists:cash_registers,id',
+        'referencia'      => 'nullable|string|max:255',
+    ]);
 
-        DB::transaction(function () use ($order, $posRegisterId) {
-            $data = [
-                'driver_settlement_status' => 'LIQUIDADO',
-                'driver_settlement_at'     => now(),
-            ];
-            if ($posRegisterId) $data['pos_register_id'] = $posRegisterId;
-            $order->update($data);
-        });
+    DB::transaction(function () use ($order, $request, $ar, $cash) {
+        $monto = (float) $request->monto_entregado;
 
-        return back()->with('swal',['icon'=>'success','title'=>'Liquidado','text'=>'Liquidación del chofer completada.']);
-    }
+        // 1) Abono en CxC — queda trazado contra el cliente
+        if ($order->client_id && $monto > 0) {
+            $ar->payment(
+                clientId:      $order->client_id,
+                amount:        $monto,
+                paymentTypeId: (int) $request->payment_type_id,
+                reference:     $request->referencia ?? $order->folio,
+                notes:         "Liquidación chofer — {$order->folio}",
+                fecha:         now()->toDateString(),
+                driverId:      $order->driver_id,
+            );
+        }
+
+        // 2) Registrar ingreso en la caja abierta del día
+        if ($request->pos_register_id && $monto > 0) {
+            $register = \App\Models\CashRegister::find($request->pos_register_id);
+            if ($register && $register->estatus === 'ABIERTO') {
+                $cash->addMovement(
+                    $register,
+                    'INGRESO',
+                    $monto,
+                    "Cobro pedido {$order->folio}",
+                    $order
+                );
+            }
+        }
+
+        // 3) Marcar pedido como liquidado
+        $order->update([
+            'cobrado_efectivo'         => round(($order->cobrado_efectivo ?? 0) + $monto, 2),
+            'driver_settlement_status' => 'LIQUIDADO',
+            'driver_settlement_at'     => now(),
+            'cobrado_confirmado_at'    => now(),
+            'cobrado_confirmado_por'   => auth()->id(),
+        ]);
+    });
+
+    return back()->with('swal', ['icon'=>'success','title'=>'Liquidado','text'=>'Liquidación completada.']);
+}
 
     public function cancel(SalesOrder $order)
     {

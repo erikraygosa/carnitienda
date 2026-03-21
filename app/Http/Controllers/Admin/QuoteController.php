@@ -8,7 +8,8 @@ use App\Models\PriceList;
 use App\Models\Product;
 use App\Models\Quote;
 use App\Models\QuoteItem;
-use App\Models\Warehouse; 
+use App\Models\Warehouse;
+use App\Models\ShippingRoute;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -29,18 +30,16 @@ class QuoteController extends Controller
 
     public function create(Request $request)
     {
-        $clients    = Client::orderBy('nombre')->get(['id','nombre']);
+        $clients    = Client::orderBy('nombre')->get();
         $priceLists = PriceList::orderBy('nombre')->get(['id','nombre']);
         $products   = Product::orderBy('nombre')->get(['id','nombre','precio_base']);
 
-        // === Mapas de precios ===
         $overrides = DB::table('client_price_overrides')
             ->select('client_id','product_id','precio')
             ->whereIn('client_id', $clients->pluck('id'))
             ->get()
             ->groupBy('client_id')
-            ->map(fn($rows) => $rows->pluck('precio','product_id')
-                ->map(fn($v) => (float)$v)->toArray())
+            ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
             ->toArray();
 
         $listItems = DB::table('price_list_items')
@@ -48,17 +47,32 @@ class QuoteController extends Controller
             ->whereIn('price_list_id', $priceLists->pluck('id'))
             ->get()
             ->groupBy('price_list_id')
-            ->map(fn($rows) => $rows->pluck('precio','product_id')
-                ->map(fn($v) => (float)$v)->toArray())
+            ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
             ->toArray();
 
+        // Defaults por cliente (igual que SalesOrder)
+        $clientDefaults = $clients->mapWithKeys(fn($c) => [(string)$c->id => [
+            'shipping_route_id' => (string) ($c->shipping_route_id ?? ''),
+            'price_list_id'     => (string) ($c->price_list_id ?? ''),
+            'credito_dias'      => (int)    ($c->credito_dias  ?? 0),
+            'credito_limite'    => (float)  ($c->credito_limite ?? 0),
+            'telefono'          => (string) ($c->telefono ?? ''),
+            'entrega_calle'    => $c->entrega_igual_fiscal ? ($c->fiscal_calle   ?? '') : ($c->entrega_calle   ?? ''),
+            'entrega_numero'   => $c->entrega_igual_fiscal ? ($c->fiscal_numero  ?? '') : ($c->entrega_numero  ?? ''),
+            'entrega_colonia'  => $c->entrega_igual_fiscal ? ($c->fiscal_colonia ?? '') : ($c->entrega_colonia ?? ''),
+            'entrega_ciudad'   => $c->entrega_igual_fiscal ? ($c->fiscal_ciudad  ?? '') : ($c->entrega_ciudad  ?? ''),
+            'entrega_estado'   => $c->entrega_igual_fiscal ? ($c->fiscal_estado  ?? '') : ($c->entrega_estado  ?? ''),
+            'entrega_cp'       => $c->entrega_igual_fiscal ? ($c->fiscal_cp      ?? '') : ($c->entrega_cp      ?? ''),
+        ]])->toArray();
+
         return view('admin.quotes.create', [
-            'clients'       => $clients,
-            'priceLists'    => $priceLists,
-            'products'      => $products,
-            'seedItems'     => [],
-            'overridesMap'  => $overrides,   // { client_id: { product_id: precio } }
-            'listPricesMap' => $listItems,   // { list_id:   { product_id: precio } }
+            'clients'        => $clients,
+            'priceLists'     => $priceLists,
+            'products'       => $products,
+            'seedItems'      => [],
+            'overridesMap'   => $overrides,
+            'listPricesMap'  => $listItems,
+            'clientDefaults' => $clientDefaults,
         ]);
     }
 
@@ -74,7 +88,6 @@ class QuoteController extends Controller
             'price_list_id'  => ['nullable','exists:price_lists,id'],
             'moneda'         => ['required','string','max:10'],
             'vigencia_hasta' => ['nullable','date'],
-
             'items'                => ['required','array','min:1'],
             'items.*.product_id'   => ['nullable','exists:products,id'],
             'items.*.descripcion'  => ['required','string','max:255'],
@@ -87,19 +100,7 @@ class QuoteController extends Controller
         $quote = null;
 
         DB::transaction(function () use (&$quote, $data) {
-            $subtotal = 0; $descuento = 0; $impuestos = 0; $total = 0;
-
-            foreach ($data['items'] as $it) {
-                $line_sub = (float)$it['cantidad'] * (float)$it['precio'];
-                $line_desc = (float)($it['descuento'] ?? 0);
-                $line_tax  = (float)($it['impuesto']  ?? 0);
-                $line_tot  = max($line_sub - $line_desc, 0) + $line_tax;
-
-                $subtotal += $line_sub;
-                $descuento += $line_desc;
-                $impuestos += $line_tax;
-                $total     += $line_tot;
-            }
+            [$subtotal, $descuento, $impuestos, $total] = $this->calcTotals($data['items']);
 
             $quote = Quote::create([
                 'fecha'          => $data['fecha'],
@@ -116,23 +117,7 @@ class QuoteController extends Controller
                 'owner_id'       => auth()->id(),
             ]);
 
-            foreach ($data['items'] as $it) {
-                $line_sub = (float)$it['cantidad'] * (float)$it['precio'];
-                $line_desc = (float)($it['descuento'] ?? 0);
-                $line_tax  = (float)($it['impuesto']  ?? 0);
-                $line_tot  = max($line_sub - $line_desc, 0) + $line_tax;
-
-                QuoteItem::create([
-                    'quote_id'    => $quote->id,
-                    'product_id'  => $it['product_id'] ?? null,
-                    'descripcion' => $it['descripcion'],
-                    'cantidad'    => $it['cantidad'],
-                    'precio'      => $it['precio'],
-                    'descuento'   => $line_desc,
-                    'impuesto'    => $line_tax,
-                    'total'       => $line_tot,
-                ]);
-            }
+            $this->saveItems($quote->id, $data['items']);
         });
 
         session()->flash('swal', ['icon'=>'success','title'=>'¡Creada!','text'=>'Cotización guardada.']);
@@ -141,11 +126,14 @@ class QuoteController extends Controller
 
     public function edit(Quote $quote)
     {
+        $warehouses = Warehouse::orderBy('nombre')->get(['id','nombre']);
+
         return view('admin.quotes.edit', [
-            'quote'       => $quote->load('items.product','client','priceList'),
-            'clients'     => Client::orderBy('nombre')->get(['id','nombre']),
-            'priceLists'  => PriceList::orderBy('nombre')->get(['id','nombre']),
-            'products'    => Product::orderBy('nombre')->get(['id','nombre','precio_base']),
+            'quote'      => $quote->load('items.product','client','priceList'),
+            'clients'    => Client::orderBy('nombre')->get(['id','nombre']),
+            'priceLists' => PriceList::orderBy('nombre')->get(['id','nombre']),
+            'products'   => Product::orderBy('nombre')->get(['id','nombre','precio_base']),
+            'warehouses' => $warehouses,
         ]);
     }
 
@@ -165,7 +153,6 @@ class QuoteController extends Controller
             'price_list_id'  => ['nullable','exists:price_lists,id'],
             'moneda'         => ['required','string','max:10'],
             'vigencia_hasta' => ['nullable','date'],
-
             'items'                => ['required','array','min:1'],
             'items.*.product_id'   => ['nullable','exists:products,id'],
             'items.*.descripcion'  => ['required','string','max:255'],
@@ -176,19 +163,7 @@ class QuoteController extends Controller
         ]);
 
         DB::transaction(function () use ($quote, $data) {
-            $subtotal = 0; $descuento = 0; $impuestos = 0; $total = 0;
-
-            foreach ($data['items'] as $it) {
-                $line_sub = (float)$it['cantidad'] * (float)$it['precio'];
-                $line_desc = (float)($it['descuento'] ?? 0);
-                $line_tax  = (float)($it['impuesto']  ?? 0);
-                $line_tot  = max($line_sub - $line_desc, 0) + $line_tax;
-
-                $subtotal += $line_sub;
-                $descuento += $line_desc;
-                $impuestos += $line_tax;
-                $total     += $line_tot;
-            }
+            [$subtotal, $descuento, $impuestos, $total] = $this->calcTotals($data['items']);
 
             $quote->update([
                 'fecha'          => $data['fecha'],
@@ -203,24 +178,7 @@ class QuoteController extends Controller
             ]);
 
             $quote->items()->delete();
-
-            foreach ($data['items'] as $it) {
-                $line_sub = (float)$it['cantidad'] * (float)$it['precio'];
-                $line_desc = (float)($it['descuento'] ?? 0);
-                $line_tax  = (float)($it['impuesto']  ?? 0);
-                $line_tot  = max($line_sub - $line_desc, 0) + $line_tax;
-
-                QuoteItem::create([
-                    'quote_id'    => $quote->id,
-                    'product_id'  => $it['product_id'] ?? null,
-                    'descripcion' => $it['descripcion'],
-                    'cantidad'    => $it['cantidad'],
-                    'precio'      => $it['precio'],
-                    'descuento'   => $line_desc,
-                    'impuesto'    => $line_tax,
-                    'total'       => $line_tot,
-                ]);
-            }
+            $this->saveItems($quote->id, $data['items']);
         });
 
         session()->flash('swal', ['icon'=>'success','title'=>'Actualizada','text'=>'Cotización actualizada.']);
@@ -229,21 +187,19 @@ class QuoteController extends Controller
 
     public function destroy(Quote $quote)
     {
-        if (! in_array($quote->status, ['BORRADOR','RECHAZADA'], true)) {
+        if (!in_array($quote->status, ['BORRADOR','RECHAZADA'], true)) {
             return back()->with('swal', ['icon'=>'error','title'=>'Error','text'=>'No se puede eliminar en este estado.']);
         }
-
         $quote->delete();
-
         return redirect()->route('admin.quotes.index')
             ->with('swal', ['icon'=>'success','title'=>'Eliminada','text'=>'Cotización eliminada.']);
     }
 
-    // ====== ENVÍO (FORM + ACCIÓN) ======
+    // ── Envío ─────────────────────────────────────────────────────────────────
+
     public function sendForm(Quote $quote)
     {
         $quote->load('client','items.product');
-
         return view('admin.quotes.send', [
             'quote'       => $quote,
             'clientEmail' => $quote->client->email ?? '',
@@ -254,194 +210,205 @@ class QuoteController extends Controller
     public function send(Request $request, Quote $quote, WhatsappSender $whatsapp)
     {
         $request->validate([
-            'channels'    => ['required','array','min:1'], // ['email','whatsapp']
-            'channels.*'  => ['in:email,whatsapp'],
-            'email'       => ['nullable','email'],
-            'telefono'    => ['nullable','string'],
-            'mensaje'     => ['nullable','string','max:500'],
+            'channels'   => ['required','array','min:1'],
+            'channels.*' => ['in:email,whatsapp'],
+            'email'      => ['nullable','email'],
+            'telefono'   => ['nullable','string'],
+            'mensaje'    => ['nullable','string','max:500'],
         ]);
 
         $quote->load('client','items.product');
+        $pdf    = Pdf::loadView('pdf.quote', ['quote' => $quote]);
+        $pdfRaw = $pdf->output();
+        $fname  = 'cotizacion-'.$quote->id.'.pdf';
 
-        // 1) Generar PDF
-        $pdf     = Pdf::loadView('pdf.quote', ['quote' => $quote]);
-        $pdfRaw  = $pdf->output();
-        $fname   = 'cotizacion-'.$quote->id.'.pdf';
+        $sentEmail = $sentWa = false;
+        $errors = [];
 
-        $sentEmail    = false;
-        $sentWhatsapp = false;
-        $errors       = [];
-
-        // 2) Email
         if (in_array('email', $request->channels, true)) {
             $to = $request->input('email') ?: ($quote->client->email ?? null);
-            if (!$to) {
-                $errors[] = 'El cliente no tiene correo y no proporcionaste uno.';
-            } else {
-                try {
-                    Mail::to($to)->send(new QuotePdfMailable($quote, $pdfRaw, $fname));
-                    $sentEmail = true;
-                } catch (\Throwable $e) {
-                    $errors[] = 'Error enviando email: '.$e->getMessage();
-                }
+            if (!$to) { $errors[] = 'Sin correo del cliente.'; }
+            else {
+                try { Mail::to($to)->send(new QuotePdfMailable($quote, $pdfRaw, $fname)); $sentEmail = true; }
+                catch (\Throwable $e) { $errors[] = 'Email: '.$e->getMessage(); }
             }
         }
 
-        // 3) WhatsApp
         if (in_array('whatsapp', $request->channels, true)) {
-            $phone  = $request->input('telefono') ?: ($quote->client->telefono ?? null);
-            $msg    = $request->input('mensaje', 'Te adjunto la cotización 📎');
-
-            if (!$phone) {
-                $errors[] = 'El cliente no tiene teléfono y no proporcionaste uno.';
-            } else {
+            $phone = $request->input('telefono') ?: ($quote->client->telefono ?? null);
+            if (!$phone) { $errors[] = 'Sin teléfono del cliente.'; }
+            else {
                 try {
-                    $resp = $whatsapp->sendPdf($phone, $msg, $fname, $pdfRaw);
-                    if (!($resp['ok'] ?? false)) {
-                        $errors[] = 'WhatsApp API respondió '.($resp['status'] ?? '400').': '.json_encode($resp['body'] ?? []);
-                    } else {
-                        $sentWhatsapp = true;
-                    }
-                } catch (\Throwable $e) {
-                    $errors[] = 'Error enviando WhatsApp: '.$e->getMessage();
-                }
+                    $resp = $whatsapp->sendPdf($phone, $request->input('mensaje','Te adjunto la cotización 📎'), $fname, $pdfRaw);
+                    if (!($resp['ok'] ?? false)) $errors[] = 'WhatsApp: '.json_encode($resp['body'] ?? []);
+                    else $sentWa = true;
+                } catch (\Throwable $e) { $errors[] = 'WhatsApp: '.$e->getMessage(); }
             }
         }
 
-        // Cambia estado si al menos un canal se envió
-        if ($sentEmail || $sentWhatsapp) {
-            if ($quote->status === 'BORRADOR') {
-                $quote->update(['status' => 'ENVIADA']);
-            }
+        if ($sentEmail || $sentWa) {
+            if ($quote->status === 'BORRADOR') $quote->update(['status' => 'ENVIADA']);
         }
 
         if ($errors) {
-            return back()->with('swal', [
-                'icon'  => 'error',
-                'title' => 'Envío parcial',
-                'text'  => implode(' | ', $errors),
-            ]);
+            return back()->with('swal', ['icon'=>'error','title'=>'Envío parcial','text'=>implode(' | ', $errors)]);
         }
-
-        return back()->with('swal', [
-            'icon'  => 'success',
-            'title' => 'Enviada',
-            'text'  => 'La cotización se envió correctamente.',
-        ]);
+        return back()->with('swal', ['icon'=>'success','title'=>'Enviada','text'=>'Cotización enviada correctamente.']);
     }
 
-    // ====== PDF ======
+    // ── PDF ───────────────────────────────────────────────────────────────────
+
     public function pdf(Quote $quote)
     {
         $quote->load('client','items.product');
-        $pdf = Pdf::loadView('pdf.quote', ['quote' => $quote]);
-        return $pdf->stream('cotizacion-'.$quote->id.'.pdf');
+        return Pdf::loadView('pdf.quote', ['quote' => $quote])->stream('cotizacion-'.$quote->id.'.pdf');
     }
 
     public function pdfDownload(Quote $quote)
     {
         $quote->load('client','items.product');
-        $pdf = Pdf::loadView('pdf.quote', ['quote' => $quote]);
-        return $pdf->download('cotizacion-'.$quote->id.'.pdf');
+        return Pdf::loadView('pdf.quote', ['quote' => $quote])->download('cotizacion-'.$quote->id.'.pdf');
     }
 
-  public function approve(Request $request, Quote $quote)
-{
-    if (! in_array($quote->status, ['BORRADOR','ENVIADA'], true)) {
-        return back()->with('swal', [
-            'icon'=>'error','title'=>'No permitido',
-            'text'=>'Solo BORRADOR o ENVIADA pueden aprobarse.'
-        ]);
+    // ── Transiciones de estado ────────────────────────────────────────────────
+
+    public function reject(Quote $quote)
+    {
+        if (!in_array($quote->status, ['BORRADOR','ENVIADA'], true)) {
+            return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR o ENVIADA pueden rechazarse.']);
+        }
+        $quote->update(['status' => 'RECHAZADA']);
+        return back()->with('swal', ['icon'=>'success','title'=>'Rechazada','text'=>'Cotización marcada como rechazada.']);
     }
 
-    $quote->load('items');
-    if ($quote->items->isEmpty()) {
-        return back()->with('swal', [
-            'icon'=>'error','title'=>'Sin conceptos',
-            'text'=>'La cotización no tiene partidas.'
-        ]);
+    public function cancel(Quote $quote)
+    {
+        if ($quote->status === 'CONVERTIDA') {
+            return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'No se puede cancelar una cotización convertida.']);
+        }
+        $quote->update(['status' => 'CANCELADA']);
+        return back()->with('swal', ['icon'=>'success','title'=>'Cancelada','text'=>'Cotización cancelada.']);
     }
 
-    // Defaults si no llegan en el form
-    $warehouseId   = $request->input('warehouse_id') ?: Warehouse::query()->value('id');
-    if (!$warehouseId) {
-        return back()->with('swal', [
-            'icon'=>'error','title'=>'Falta almacén',
-            'text'=>'No hay almacenes registrados. Crea uno primero.'
-        ]);
-    }
-    $deliveryType  = $request->input('delivery_type', 'RECOGER');
-    $paymentMethod = $request->input('payment_method', 'EFECTIVO');
-    $creditDays    = $paymentMethod === 'CREDITO' ? (int)$request->input('credit_days', 0) : null;
-    $programado    = $request->input('programado_para');
-
-    $order = null;
-
-    DB::transaction(function () use ($quote, $warehouseId, $deliveryType, $paymentMethod, $creditDays, $programado, &$order) {
-        $nextId = (SalesOrder::max('id') ?? 0) + 1;
-        $folio  = 'SO-'.now()->format('Ymd').'-'.Str::padLeft((string)$nextId, 4, '0');
-
-        $payload = [
-            'client_id'         => $quote->client_id,
-            'warehouse_id'      => $warehouseId,
-            'price_list_id'     => $quote->price_list_id,
-            'folio'             => $folio,
-            'fecha'             => $quote->fecha ?? now(),
-            'programado_para'   => $programado,
-
-            'delivery_type'     => $deliveryType,
-            'entrega_nombre'    => null,
-            'entrega_telefono'  => null,
-            'entrega_calle'     => null,
-            'entrega_numero'    => null,
-            'entrega_colonia'   => null,
-            'entrega_ciudad'    => null,
-            'entrega_estado'    => null,
-            'entrega_cp'        => null,
-
-            'shipping_route_id' => null,
-            'driver_id'         => null,
-
-            'payment_method'    => $paymentMethod,
-            'credit_days'       => $creditDays,
-
-            'moneda'            => $quote->moneda,
-            'subtotal'          => $quote->subtotal,
-            'impuestos'         => $quote->impuestos,
-            'descuento'         => $quote->descuento,
-            'total'             => $quote->total,
-            'status'            => 'BORRADOR', // luego podrás aprobar el pedido desde su flujo
-            'created_by'        => auth()->id(),
-            'owner_id'          => auth()->id(),
-
-            'contraentrega_total' => $paymentMethod === 'CONTRAENTREGA' ? $quote->total : 0,
-        ];
-
-        if (Schema::hasColumn('sales_orders','quote_id')) {
-            $payload['quote_id'] = $quote->id;
+    /**
+     * Aprobar: convierte la cotización en SalesOrder.
+     * Recibe warehouse_id, payment_method, delivery_type desde el formulario del edit.
+     */
+    public function approve(Request $request, Quote $quote)
+    {
+        if (!in_array($quote->status, ['BORRADOR','ENVIADA'], true)) {
+            return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR o ENVIADA pueden aprobarse.']);
         }
 
-        $order = SalesOrder::create($payload);
+        $request->validate([
+            'warehouse_id'   => ['required','exists:warehouses,id'],
+            'payment_method' => ['required','in:CREDITO,TRANSFERENCIA,CONTRAENTREGA,EFECTIVO'],
+            'delivery_type'  => ['required','in:RECOGER,ENVIO'],
+            'credit_days'    => ['nullable','integer','min:0'],
+            'programado_para'=> ['nullable','date'],
+        ]);
 
-        foreach ($quote->items as $it) {
-            SalesOrderItem::create([
-                'sales_order_id' => $order->id,
-                'product_id'     => $it->product_id,
-                'descripcion'    => $it->descripcion,
-                'cantidad'       => $it->cantidad,
-                'precio'         => $it->precio,
-                'descuento'      => $it->descuento,
-                'impuesto'       => $it->impuesto,
-                'total'          => $it->total,
+        $quote->load('items');
+
+        if ($quote->items->isEmpty()) {
+            return back()->with('swal', ['icon'=>'error','title'=>'Sin partidas','text'=>'La cotización no tiene partidas.']);
+        }
+
+        $order = null;
+
+        DB::transaction(function () use ($quote, $request, &$order) {
+            // Folio seguro con lock
+            $nextId = DB::table('sales_orders')->lockForUpdate()->max('id') + 1;
+            $folio  = 'SO-'.now()->format('Ymd').'-'.Str::padLeft((string)$nextId, 4, '0');
+
+            $paymentMethod = $request->payment_method;
+
+            $payload = [
+                'client_id'       => $quote->client_id,
+                'warehouse_id'    => $request->warehouse_id,
+                'price_list_id'   => $quote->price_list_id,
+                'folio'           => $folio,
+                'fecha'           => now(),
+                'programado_para' => $request->programado_para,
+                'delivery_type'   => $request->delivery_type,
+                'shipping_route_id' => null,
+                'driver_id'       => null,
+                'payment_method'  => $paymentMethod,
+                'credit_days'     => $paymentMethod === 'CREDITO' ? ($request->credit_days ?? 0) : null,
+                'moneda'          => $quote->moneda,
+                'subtotal'        => $quote->subtotal,
+                'impuestos'       => $quote->impuestos,
+                'descuento'       => $quote->descuento,
+                'total'           => $quote->total,
+                'status'          => 'BORRADOR',
+                'created_by'      => auth()->id(),
+                'owner_id'        => auth()->id(),
+                'contraentrega_total' => $paymentMethod === 'CONTRAENTREGA' ? $quote->total : 0,
+            ];
+
+            if (Schema::hasColumn('sales_orders','quote_id')) {
+                $payload['quote_id'] = $quote->id;
+            }
+
+            $order = SalesOrder::create($payload);
+
+            foreach ($quote->items as $it) {
+                SalesOrderItem::create([
+                    'sales_order_id' => $order->id,
+                    'product_id'     => $it->product_id,
+                    'descripcion'    => $it->descripcion,
+                    'cantidad'       => $it->cantidad,
+                    'precio'         => $it->precio,
+                    'descuento'      => $it->descuento,
+                    'impuesto'       => $it->impuesto,
+                    'total'          => $it->total,
+                ]);
+            }
+
+            $quote->update(['status' => 'APROBADA']);
+        });
+
+        return redirect()
+            ->route('admin.sales-orders.edit', $order)
+            ->with('swal', ['icon'=>'success','title'=>'Aprobada','text'=>'Se generó el pedido '.$order->folio.'.']);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private function calcTotals(array $items): array
+    {
+        $subtotal = $descuento = $impuestos = $total = 0;
+        foreach ($items as $it) {
+            $sub  = (float)$it['cantidad'] * (float)$it['precio'];
+            $desc = (float)($it['descuento'] ?? 0);
+            $tax  = (float)($it['impuesto']  ?? 0);
+            $tot  = max($sub - $desc, 0) + $tax;
+            $subtotal  += $sub;
+            $descuento += $desc;
+            $impuestos += $tax;
+            $total     += $tot;
+        }
+        return [$subtotal, $descuento, $impuestos, $total];
+    }
+
+    private function saveItems(int $quoteId, array $items): void
+    {
+        foreach ($items as $it) {
+            $sub  = (float)$it['cantidad'] * (float)$it['precio'];
+            $desc = (float)($it['descuento'] ?? 0);
+            $tax  = (float)($it['impuesto']  ?? 0);
+            $tot  = max($sub - $desc, 0) + $tax;
+
+            QuoteItem::create([
+                'quote_id'    => $quoteId,
+                'product_id'  => $it['product_id'] ?? null,
+                'descripcion' => $it['descripcion'],
+                'cantidad'    => $it['cantidad'],
+                'precio'      => $it['precio'],
+                'descuento'   => $desc,
+                'impuesto'    => $tax,
+                'total'       => $tot,
             ]);
         }
-
-        $quote->update(['status' => 'APROBADA']);
-    });
-
-    return redirect()
-        ->route('admin.sales-orders.edit', $order)
-        ->with('swal', ['icon'=>'success','title'=>'Aprobada','text'=>'Se generó el Pedido.']);
-}
-
+    }
 }

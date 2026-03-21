@@ -39,7 +39,27 @@ class CashService
     $reg->save();
   }
 
-  public function close(CashRegister $reg): void {
-    $reg->update(['estatus'=>'CERRADO','closed_at'=>now(),'closed_by'=>Auth::id()]);
-  }
+    public function close(CashRegister $reg): void
+{
+    DB::transaction(function () use ($reg) {
+        $totales = \App\Models\CashMovement::where('cash_register_id', $reg->id)
+            ->selectRaw("
+                SUM(CASE WHEN tipo = 'INGRESO' THEN monto ELSE 0 END) AS total_ingresos,
+                SUM(CASE WHEN tipo = 'EGRESO'  THEN monto ELSE 0 END) AS total_egresos
+            ")
+            ->first();
+
+        $ingresos = (float) ($totales->total_ingresos ?? 0);
+        $egresos  = (float) ($totales->total_egresos  ?? 0);
+
+        $reg->update([
+            'estatus'      => 'CERRADO',
+            'closed_at'    => now(),
+            'closed_by'    => \Illuminate\Support\Facades\Auth::id(),
+            'ingresos'     => $ingresos,
+            'egresos'      => $egresos,
+            'monto_cierre' => $reg->monto_apertura + $ingresos - $egresos + ($reg->ventas_efectivo ?? 0),
+        ]);
+    });
+}
 }

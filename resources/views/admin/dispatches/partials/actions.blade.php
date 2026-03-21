@@ -1,38 +1,34 @@
-<div class="flex items-center space-x-2">
-    <x-wire-button href="{{ route('admin.dispatches.edit',$dispatch) }}" blue xs>Editar</x-wire-button>
+<div class="flex items-center gap-1">
+    <a href="{{ route('admin.dispatches.edit', $dispatch) }}"
+       class="px-2 py-1 text-xs rounded border border-indigo-300 text-indigo-600 hover:bg-indigo-50">
+        Ver
+    </a>
 
-    @if(in_array($dispatch->status,['PLANEADO']))
-        <form action="{{ route('admin.dispatches.preparar',$dispatch) }}" method="POST">@csrf
-            <x-wire-button type="submit" sky xs>Preparar</x-wire-button>
-        </form>
-    @endif
-    @if(in_array($dispatch->status,['PLANEADO','PREPARANDO']))
-        <form action="{{ route('admin.dispatches.cargar',$dispatch) }}" method="POST">@csrf
-            <x-wire-button type="submit" amber xs>Cargado</x-wire-button>
-        </form>
-    @endif
-    @if(in_array($dispatch->status,['CARGADO']))
-        <form action="{{ route('admin.dispatches.enruta',$dispatch) }}" method="POST">@csrf
-            <x-wire-button type="submit" violet xs>En ruta</x-wire-button>
-        </form>
-    @endif
-    @if(in_array($dispatch->status,['EN_RUTA']))
-        <form action="{{ route('admin.dispatches.entregar',$dispatch) }}" method="POST">@csrf
-            <x-wire-button type="submit" emerald xs>Entregar</x-wire-button>
-        </form>
-    @endif
-    @if(in_array($dispatch->status,['ENTREGADO']))
-        <form action="{{ route('admin.dispatches.cerrar',$dispatch) }}" method="POST">@csrf
-            <x-wire-button type="submit" blue xs>Cerrar</x-wire-button>
-        </form>
+    @if(in_array($dispatch->status, ['PLANEADO','PREPARANDO','CARGADO','EN_RUTA']))
+        <a href="{{ route('admin.dispatches.print.ruta', $dispatch) }}"
+           target="_blank"
+           class="px-2 py-1 text-xs rounded border border-teal-300 text-teal-600 hover:bg-teal-50">
+            Ruta
+        </a>
     @endif
 
-    <form action="{{ route('admin.dispatches.cancelar',$dispatch) }}" method="POST">@csrf
-        <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
-    </form>
+    @if($dispatch->status === 'CERRADO')
+        <a href="{{ route('admin.dispatches.print.liquidacion', $dispatch) }}"
+           target="_blank"
+           class="px-2 py-1 text-xs rounded border border-blue-300 text-blue-600 hover:bg-blue-50">
+            Liquidación
+        </a>
+    @endif
 
-    <form action="{{ route('admin.dispatches.destroy',$dispatch) }}" method="POST" class="inline delete-form">
-        @csrf @method('DELETE')
-        <x-wire-button type="submit" red outline xs>Eliminar</x-wire-button>
-    </form>
+    @if(!in_array($dispatch->status, ['EN_RUTA','ENTREGADO','CERRADO']))
+        <form method="POST"
+              action="{{ route('admin.dispatches.destroy', $dispatch) }}"
+              class="delete-form inline">
+            @csrf @method('DELETE')
+            <button type="submit"
+                    class="px-2 py-1 text-xs rounded border border-red-200 text-red-500 hover:bg-red-50">
+                Eliminar
+            </button>
+        </form>
+    @endif
 </div>

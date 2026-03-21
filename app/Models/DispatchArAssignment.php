@@ -5,14 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class DispatchItem extends Model
+class DispatchArAssignment extends Model
 {
     protected $fillable = [
         'dispatch_id',
-        'sales_order_id',
-        'referencia',
-        'volumen',
-        'peso',
+        'client_id',
+        'saldo_asignado',
+        'monto_cobrado',
         'status',
     ];
 
@@ -21,8 +20,8 @@ class DispatchItem extends Model
         return $this->belongsTo(Dispatch::class);
     }
 
-    public function salesOrder(): BelongsTo
+    public function client(): BelongsTo
     {
-        return $this->belongsTo(SalesOrder::class, 'sales_order_id');
+        return $this->belongsTo(Client::class);
     }
 }
