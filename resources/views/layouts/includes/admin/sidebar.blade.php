@@ -159,20 +159,21 @@ $links = [
     ],
 ],
 
-
-  // ===== CONFIGURACIÓN (futuro) =====
   ['header' => 'Configuración'],
-  [
-    'name'     => 'Parámetros',
-    'icon'     => 'fa-solid fa-sliders',
-    'active'   => request()->routeIs('admin.price-lists.*')
-                 || request()->routeIs('admin.pos-registers.*')
-                 || request()->routeIs('admin.payment-types.*')
-                 || request()->routeIs('admin.users.*'),
-    'children' => [
-      // futuros: listas de precios, POS, tipos de pago, usuarios...
+[
+  'name'   => 'Parámetros',
+  'icon'   => 'fa-solid fa-sliders',
+  'active' => request()->routeIs('admin.parametros.*'),
+  'children' => [
+    [
+      'name'   => 'Empresas',
+      'href'   => route('admin.parametros.companies.index'), 
+      'icon'   => 'fa-solid fa-building',
+      'active' => request()->routeIs('admin.parametros.companies.*'),
     ],
   ],
+],
+ 
 ];
 
 // Marcar si un grupo tiene hijo activo

@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\CashRegisterController;
 use App\Http\Controllers\Admin\CashMovementController;
 use App\Http\Controllers\Admin\POSController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\CompanyController;
 
 
 
@@ -237,4 +238,43 @@ Route::prefix('stock/transfers')->name('stock.transfers.')->group(function () {
     Route::get('/{transfer}/print',    [StockTransferController::class, 'print'])->name('print');
     Route::post('/{transfer}/complete',[StockTransferController::class, 'complete'])->name('complete');
     Route::post('/{transfer}/cancel',  [StockTransferController::class, 'cancel'])->name('cancel');
+});
+
+Route::prefix('parametros')->name('parametros.')->middleware(['auth'])->group(function () {
+ 
+    // Gestión de empresas
+    Route::prefix('empresas')->name('companies.')->group(function () {
+ 
+        Route::get('/',                             [CompanyController::class, 'index'])
+            ->name('index');
+ 
+        Route::get('/nueva',                        [CompanyController::class, 'create'])
+            ->name('create');
+ 
+        Route::post('/',                            [CompanyController::class, 'store'])
+            ->name('store');
+ 
+        Route::get('/{company}/editar',             [CompanyController::class, 'edit'])
+            ->name('edit');
+ 
+        Route::put('/{company}',                    [CompanyController::class, 'update'])
+            ->name('update');
+ 
+        // Datos fiscales
+        Route::get('/{company}/fiscal',             [CompanyController::class, 'fiscalEdit'])
+            ->name('fiscal');
+ 
+        Route::put('/{company}/fiscal',             [CompanyController::class, 'fiscalUpdate'])
+            ->name('fiscal.update');
+ 
+        // Certificados CSD / FIEL
+        Route::get('/{company}/certificados',       [CompanyController::class, 'certificatesIndex'])
+            ->name('certificates');
+ 
+        Route::post('/{company}/certificados',      [CompanyController::class, 'certificateStore'])
+            ->name('certificates.store');
+ 
+        Route::delete('/{company}/certificados/{certificate}', [CompanyController::class, 'certificateDestroy'])
+            ->name('certificates.destroy');
+    });
 });
