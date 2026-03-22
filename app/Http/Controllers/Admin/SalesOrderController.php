@@ -536,19 +536,29 @@ public function approve(SalesOrder $order)
     }
 
     // ========= PDF =========
-    public function pdf(SalesOrder $order)
-    {
-        $order->load('client','items.product','warehouse','driver','route');
-        $pdf = Pdf::loadView('pdf.sales_order', ['order' => $order]);
-        return $pdf->stream('remision-pedido-'.$order->id.'.pdf');
-    }
+        public function pdf(SalesOrder $order)
+{
+    $order->load('client', 'items.product', 'warehouse', 'driver', 'route');
+    $empresa = app(\App\Services\CompanyService::class)->activa();
 
-    public function pdfDownload(SalesOrder $order)
-    {
-        $order->load('client','items.product','warehouse','driver','route');
-        $pdf = Pdf::loadView('pdf.sales_order', ['order' => $order]);
-        return $pdf->download('remision-pedido-'.$order->id.'.pdf');
-    }
+    $pdf = Pdf::loadView('pdf.sales_order', [
+        'order'   => $order,
+        'empresa' => $empresa,
+    ]);
+    return $pdf->stream('remision-pedido-' . $order->id . '.pdf');
+}
+
+public function pdfDownload(SalesOrder $order)
+{
+    $order->load('client', 'items.product', 'warehouse', 'driver', 'route');
+    $empresa = app(\App\Services\CompanyService::class)->activa();
+
+    $pdf = Pdf::loadView('pdf.sales_order', [
+        'order'   => $order,
+        'empresa' => $empresa,
+    ]);
+    return $pdf->download('remision-pedido-' . $order->id . '.pdf');
+}
 
     // ========= Envío (email + WhatsApp) =========
     public function sendForm(SalesOrder $order)

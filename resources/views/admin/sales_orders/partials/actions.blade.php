@@ -14,7 +14,7 @@
             indigo
             xs
         >
-            Facturar
+            Facturara
         </x-wire-button>
     @endif
 

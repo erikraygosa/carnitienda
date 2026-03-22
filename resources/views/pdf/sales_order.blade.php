@@ -4,31 +4,43 @@
     $driver = $order->driver ?? null;
     $route  = $order->route ?? null;
 
-    $statusBadge = match($order->status ?? '') {
-        'BORRADOR'     => ['bg'=>'#f0f0f0','color'=>'#555','border'=>'#ccc'],
-        'APROBADO'     => ['bg'=>'#dbeafe','color'=>'#1d4ed8','border'=>'#93c5fd'],
-        'PREPARANDO'   => ['bg'=>'#dbeafe','color'=>'#1d4ed8','border'=>'#93c5fd'],
-        'PROCESADO'    => ['bg'=>'#fef9c3','color'=>'#854d0e','border'=>'#fde047'],
-        'EN_RUTA'      => ['bg'=>'#ede9fe','color'=>'#5b21b6','border'=>'#c4b5fd'],
-        'ENTREGADO'    => ['bg'=>'#dcfce7','color'=>'#166534','border'=>'#86efac'],
-        'NO_ENTREGADO' => ['bg'=>'#fee2e2','color'=>'#991b1b','border'=>'#fca5a5'],
-        'CANCELADO'    => ['bg'=>'#fee2e2','color'=>'#991b1b','border'=>'#fca5a5'],
-        default        => ['bg'=>'#f0f0f0','color'=>'#555','border'=>'#ccc'],
-    };
+    // Datos empresa
+    $emp = $empresa ?? null;
+    $ef  = $emp?->fiscalData ?? null;
 
-    $dir = collect([
-        trim(($order->entrega_calle ?? '').' '.($order->entrega_numero ?? '')),
-        $order->entrega_colonia ?? '',
-        trim(($order->entrega_ciudad ?? '').' '.($order->entrega_estado ?? '').' '.($order->entrega_cp ?? '')),
+    $dirEmpresa = collect([
+        trim(($ef?->calle ?? '') . ' ' . ($ef?->numero_exterior ?? '')),
+        $ef?->colonia ?? '',
+        'C.P. ' . ($ef?->codigo_postal ?? ''),
+        $ef?->municipio ?? '',
+        $ef?->estado ?? '',
     ])->filter()->implode(', ');
 
-    // Ruta del logo en el servidor
-    $logoPath = public_path('logo.jpg');
+    // Logo
+    $logoPath   = public_path('logo.jpg');
     $logoExists = file_exists($logoPath);
     if ($logoExists) {
         $logoData = base64_encode(file_get_contents($logoPath));
-        $logoSrc  = 'data:image/jpeg;base64,'.$logoData;
+        $logoSrc  = 'data:image/jpeg;base64,' . $logoData;
     }
+
+    $statusBadge = match($order->status ?? '') {
+        'BORRADOR'     => ['bg' => '#f0f0f0', 'color' => '#555',    'border' => '#ccc'],
+        'APROBADO'     => ['bg' => '#dbeafe', 'color' => '#1d4ed8', 'border' => '#93c5fd'],
+        'PREPARANDO'   => ['bg' => '#dbeafe', 'color' => '#1d4ed8', 'border' => '#93c5fd'],
+        'PROCESADO'    => ['bg' => '#fef9c3', 'color' => '#854d0e', 'border' => '#fde047'],
+        'EN_RUTA'      => ['bg' => '#ede9fe', 'color' => '#5b21b6', 'border' => '#c4b5fd'],
+        'ENTREGADO'    => ['bg' => '#dcfce7', 'color' => '#166534', 'border' => '#86efac'],
+        'NO_ENTREGADO' => ['bg' => '#fee2e2', 'color' => '#991b1b', 'border' => '#fca5a5'],
+        'CANCELADO'    => ['bg' => '#fee2e2', 'color' => '#991b1b', 'border' => '#fca5a5'],
+        default        => ['bg' => '#f0f0f0', 'color' => '#555',    'border' => '#ccc'],
+    };
+
+    $dir = collect([
+        trim(($order->entrega_calle ?? '') . ' ' . ($order->entrega_numero ?? '')),
+        $order->entrega_colonia ?? '',
+        trim(($order->entrega_ciudad ?? '') . ' ' . ($order->entrega_estado ?? '') . ' ' . ($order->entrega_cp ?? '')),
+    ])->filter()->implode(', ');
 @endphp
 <!DOCTYPE html>
 <html lang="es">
@@ -140,17 +152,48 @@ body {
 </head>
 <body>
 
-{{-- HEADER --}}
+{{-- ══════════════ HEADER ══════════════ --}}
 <table class="header-table" cellpadding="0" cellspacing="0">
     <tr>
-        <td style="width:45%;vertical-align:middle">
+        {{-- Logo --}}
+        <td style="width:20%;vertical-align:middle">
             @if($logoExists ?? false)
-                <img src="{{ $logoSrc }}" class="logo-img" alt="CarniTienda">
+                <img src="{{ $logoSrc }}" class="logo-img" alt="Logo">
             @else
-                <div class="logo-placeholder">CarniTienda</div>
+                <div class="logo-placeholder">{{ $emp?->nombre_display ?? config('app.name') }}</div>
             @endif
         </td>
-        <td style="width:55%;vertical-align:top;text-align:right">
+
+        {{-- Datos empresa --}}
+        <td style="width:45%;vertical-align:middle;padding-left:16px;border-left:1px solid #e0e0e0">
+            <div style="font-size:13px;font-weight:bold;color:#111;margin-bottom:4px">
+                {{ $emp?->razon_social ?? config('app.name') }}
+            </div>
+            <div style="font-size:9.5px;color:#555;margin-bottom:2px">
+                R.F.C.: <strong>{{ $emp?->rfc ?? '' }}</strong>
+            </div>
+            @if($dirEmpresa)
+            <div style="font-size:9px;color:#666;margin-bottom:2px">{{ $dirEmpresa }}</div>
+            @endif
+            @if($emp?->telefono)
+            <div style="font-size:9px;color:#666;margin-bottom:2px">
+                Tel: {{ $emp->telefono }}
+            </div>
+            @endif
+            @if($emp?->email)
+            <div style="font-size:9px;color:#666;margin-bottom:2px">
+                {{ $emp->email }}
+            </div>
+            @endif
+            @if($ef?->regimen_fiscal)
+            <div style="font-size:9px;color:#666;margin-top:3px">
+                Régimen Fiscal: {{ $ef->regimen_fiscal }} — {{ \App\Models\CompanyFiscalData::REGIMENES_FISCALES[$ef->regimen_fiscal] ?? '' }}
+            </div>
+            @endif
+        </td>
+
+        {{-- Tipo + folio --}}
+        <td style="width:35%;vertical-align:top;text-align:right">
             <div class="doc-tipo">Remisión de Pedido</div>
             <div class="doc-folio">{{ $order->folio }}</div>
             <div class="doc-fecha">{{ optional($order->fecha)->format('d/m/Y H:i') }}</div>
@@ -160,7 +203,7 @@ body {
 </table>
 <hr class="divider">
 
-{{-- CARDS --}}
+{{-- ══════════════ CARDS ══════════════ --}}
 <table class="cards-table" cellpadding="0" cellspacing="0">
     <tr>
         <td style="width:33%;padding-right:7px">
@@ -221,7 +264,7 @@ body {
     </tr>
 </table>
 
-{{-- PARTIDAS --}}
+{{-- ══════════════ PARTIDAS ══════════════ --}}
 <table class="items-table">
     <thead>
         <tr>
@@ -249,7 +292,7 @@ body {
     </tbody>
 </table>
 
-{{-- TOTALES --}}
+{{-- ══════════════ TOTALES ══════════════ --}}
 <table class="totales-table">
     <tr class="sub-line">
         <td>Subtotal</td>
@@ -273,16 +316,16 @@ body {
     </tr>
 </table>
 
-{{-- FIRMA --}}
+{{-- ══════════════ FIRMA ══════════════ --}}
 <div class="firma-area">
     <div class="firma-line">Recibido por / Firma</div>
 </div>
 
-{{-- FOOTER --}}
+{{-- ══════════════ FOOTER ══════════════ --}}
 <div class="footer">
     <table class="footer-inner" cellpadding="0" cellspacing="0">
         <tr>
-            <td>{{ config('app.name') }} — Documento generado el {{ now()->format('d/m/Y H:i') }}</td>
+            <td>{{ $emp?->razon_social ?? config('app.name') }} — Documento generado el {{ now()->format('d/m/Y H:i') }}</td>
             <td style="text-align:right">{{ $order->folio }}</td>
         </tr>
     </table>

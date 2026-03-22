@@ -354,16 +354,26 @@ class QuoteController extends Controller
     // ── PDF ───────────────────────────────────────────────────────────────────
 
     public function pdf(Quote $quote)
-    {
-        $quote->load('client', 'items.product');
-        return Pdf::loadView('pdf.quote', ['quote' => $quote])->stream('cotizacion-' . $quote->id . '.pdf');
-    }
+{
+    $quote->load('client', 'items.product');
+    $empresa = app(\App\Services\CompanyService::class)->activa();
 
-    public function pdfDownload(Quote $quote)
-    {
-        $quote->load('client', 'items.product');
-        return Pdf::loadView('pdf.quote', ['quote' => $quote])->download('cotizacion-' . $quote->id . '.pdf');
-    }
+    return Pdf::loadView('pdf.quote', [
+        'quote'   => $quote,
+        'empresa' => $empresa,
+    ])->stream('cotizacion-' . $quote->id . '.pdf');
+}
+
+public function pdfDownload(Quote $quote)
+{
+    $quote->load('client', 'items.product');
+    $empresa = app(\App\Services\CompanyService::class)->activa();
+
+    return Pdf::loadView('pdf.quote', [
+        'quote'   => $quote,
+        'empresa' => $empresa,
+    ])->download('cotizacion-' . $quote->id . '.pdf');
+}
 
     // ── Transiciones ─────────────────────────────────────────────────────────
 

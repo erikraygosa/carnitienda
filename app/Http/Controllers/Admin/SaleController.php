@@ -470,18 +470,28 @@ public function cancel(Sale $sale)
 
     // ====== PDF ======
     public function pdf(Sale $sale)
-    {
-        $sale->load('client','items.product','warehouse','driver','route');
-        $pdf = Pdf::loadView('pdf.sales_note', ['sale' => $sale]);
-        return $pdf->stream('nota-venta-'.$sale->id.'.pdf');
-    }
+{
+    $sale->load('client', 'items.product', 'warehouse', 'driver', 'route');
+    $empresa = app(\App\Services\CompanyService::class)->activa();
 
-    public function pdfDownload(Sale $sale)
-    {
-        $sale->load('client','items.product','warehouse','driver','route');
-        $pdf = Pdf::loadView('pdf.sales_note', ['sale' => $sale]);
-        return $pdf->download('nota-venta-'.$sale->id.'.pdf');
-    }
+    $pdf = Pdf::loadView('pdf.sales_note', [
+        'sale'    => $sale,
+        'empresa' => $empresa,
+    ]);
+    return $pdf->stream('nota-venta-' . $sale->id . '.pdf');
+}
+
+public function pdfDownload(Sale $sale)
+{
+    $sale->load('client', 'items.product', 'warehouse', 'driver', 'route');
+    $empresa = app(\App\Services\CompanyService::class)->activa();
+
+    $pdf = Pdf::loadView('pdf.sales_note', [
+        'sale'    => $sale,
+        'empresa' => $empresa,
+    ]);
+    return $pdf->download('nota-venta-' . $sale->id . '.pdf');
+}
 
     // ====== Envío ======
     public function sendForm(Sale $sale)

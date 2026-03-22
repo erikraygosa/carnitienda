@@ -5,9 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\BelongsToCompany;
 
 class Sale extends Model
 {
+    use BelongsToCompany;
     // === Constantes de estado ===
     public const S_BORRADOR     = 'BORRADOR';
     public const S_APROBADO     = 'APROBADO';

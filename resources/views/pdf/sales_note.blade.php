@@ -1,16 +1,30 @@
 @php
     $client = $sale->client ?? null;
     $wh     = $sale->warehouse ?? null;
-    $dir = collect([
-        trim(($sale->entrega_calle ?? '').' '.($sale->entrega_numero ?? '')),
-        $sale->entrega_colonia ?? '',
-        trim(($sale->entrega_ciudad ?? '').' '.($sale->entrega_estado ?? '').' '.($sale->entrega_cp ?? '')),
+
+    // Datos empresa
+    $emp = $empresa ?? null;
+    $ef  = $emp?->fiscalData ?? null;
+
+    $dirEmpresa = collect([
+        trim(($ef?->calle ?? '') . ' ' . ($ef?->numero_exterior ?? '')),
+        $ef?->colonia ?? '',
+        'C.P. ' . ($ef?->codigo_postal ?? ''),
+        $ef?->municipio ?? '',
+        $ef?->estado ?? '',
     ])->filter()->implode(', ');
+
+    $dir = collect([
+        trim(($sale->entrega_calle ?? '') . ' ' . ($sale->entrega_numero ?? '')),
+        $sale->entrega_colonia ?? '',
+        trim(($sale->entrega_ciudad ?? '') . ' ' . ($sale->entrega_estado ?? '') . ' ' . ($sale->entrega_cp ?? '')),
+    ])->filter()->implode(', ');
+
     $logoPath   = public_path('logo.jpg');
     $logoExists = file_exists($logoPath);
     if ($logoExists) {
         $logoData = base64_encode(file_get_contents($logoPath));
-        $logoSrc  = 'data:image/jpeg;base64,'.$logoData;
+        $logoSrc  = 'data:image/jpeg;base64,' . $logoData;
     }
 @endphp
 <!DOCTYPE html>
@@ -54,16 +68,46 @@ body { font-size: 11px; color: #1a1a1a; padding: 28px 32px; }
 </head>
 <body>
 
+{{-- ══════════════ HEADER ══════════════ --}}
 <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
-        <td style="width:50%;vertical-align:top">
+        {{-- Logo --}}
+        <td style="width:20%;vertical-align:middle">
             @if($logoExists ?? false)
-                <img src="{{ $logoSrc }}" class="logo-img" alt="CarniTienda">
+                <img src="{{ $logoSrc }}" class="logo-img" alt="Logo">
             @else
-                <div style="font-size:20px;font-weight:bold;color:#d63384">CarniTienda</div>
+                <div style="font-size:20px;font-weight:bold;color:#d63384">
+                    {{ $emp?->nombre_display ?? config('app.name') }}
+                </div>
             @endif
         </td>
-        <td style="width:50%;vertical-align:top;text-align:right">
+
+        {{-- Datos empresa --}}
+        <td style="width:45%;vertical-align:middle;padding-left:16px;border-left:1px solid #e0e0e0">
+            <div style="font-size:13px;font-weight:bold;color:#111;margin-bottom:4px">
+                {{ $emp?->razon_social ?? config('app.name') }}
+            </div>
+            <div style="font-size:9.5px;color:#555;margin-bottom:2px">
+                R.F.C.: <strong>{{ $emp?->rfc ?? '' }}</strong>
+            </div>
+            @if($dirEmpresa)
+            <div style="font-size:9px;color:#666;margin-bottom:2px">{{ $dirEmpresa }}</div>
+            @endif
+            @if($emp?->telefono)
+            <div style="font-size:9px;color:#666;margin-bottom:2px">Tel: {{ $emp->telefono }}</div>
+            @endif
+            @if($emp?->email)
+            <div style="font-size:9px;color:#666;margin-bottom:2px">{{ $emp->email }}</div>
+            @endif
+            @if($ef?->regimen_fiscal)
+            <div style="font-size:9px;color:#666;margin-top:3px">
+                Régimen Fiscal: {{ $ef->regimen_fiscal }} — {{ \App\Models\CompanyFiscalData::REGIMENES_FISCALES[$ef->regimen_fiscal] ?? '' }}
+            </div>
+            @endif
+        </td>
+
+        {{-- Tipo + folio --}}
+        <td style="width:35%;vertical-align:top;text-align:right">
             <div class="doc-tipo">Nota de venta</div>
             <div class="doc-folio">{{ $sale->folio ?? '#'.$sale->id }}</div>
             <div class="doc-fecha">{{ optional($sale->fecha)->format('d/m/Y H:i') }}</div>
@@ -73,6 +117,7 @@ body { font-size: 11px; color: #1a1a1a; padding: 28px 32px; }
 </table>
 <div class="header-line"></div>
 
+{{-- ══════════════ INFO CLIENTE / ENTREGA ══════════════ --}}
 <table class="info-grid" cellpadding="0" cellspacing="0">
     <tr>
         <td style="width:50%;padding-right:6px">
@@ -101,6 +146,7 @@ body { font-size: 11px; color: #1a1a1a; padding: 28px 32px; }
     </tr>
 </table>
 
+{{-- ══════════════ PARTIDAS ══════════════ --}}
 <table class="tbl">
     <thead>
         <tr>
@@ -128,13 +174,23 @@ body { font-size: 11px; color: #1a1a1a; padding: 28px 32px; }
     </tbody>
 </table>
 
+{{-- ══════════════ TOTALES ══════════════ --}}
 <table class="totales">
-    <tr class="sub-row"><td>Subtotal</td><td class="r">{{ number_format((float)$sale->subtotal, 2) }}</td></tr>
+    <tr class="sub-row">
+        <td>Subtotal</td>
+        <td class="r">{{ number_format((float)$sale->subtotal, 2) }}</td>
+    </tr>
     @if($sale->descuento > 0)
-    <tr class="sub-row"><td>Descuento</td><td class="r">- {{ number_format((float)$sale->descuento, 2) }}</td></tr>
+    <tr class="sub-row">
+        <td>Descuento</td>
+        <td class="r">- {{ number_format((float)$sale->descuento, 2) }}</td>
+    </tr>
     @endif
     @if($sale->impuestos > 0)
-    <tr class="sub-row"><td>Impuestos</td><td class="r">{{ number_format((float)$sale->impuestos, 2) }}</td></tr>
+    <tr class="sub-row">
+        <td>Impuestos</td>
+        <td class="r">{{ number_format((float)$sale->impuestos, 2) }}</td>
+    </tr>
     @endif
     <tr class="grand-row">
         <td>TOTAL</td>
@@ -142,10 +198,12 @@ body { font-size: 11px; color: #1a1a1a; padding: 28px 32px; }
     </tr>
 </table>
 
+{{-- ══════════════ FIRMA ══════════════ --}}
 <div class="firma">Firma del cliente</div>
 
+{{-- ══════════════ FOOTER ══════════════ --}}
 <div class="footer" style="display:flex;justify-content:space-between">
-    <span>{{ config('app.name') }} — Generado el {{ now()->format('d/m/Y H:i') }}</span>
+    <span>{{ $emp?->razon_social ?? config('app.name') }} — Generado el {{ now()->format('d/m/Y H:i') }}</span>
     <span>{{ $sale->folio ?? '#'.$sale->id }}</span>
 </div>
 

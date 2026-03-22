@@ -5,9 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Traits\BelongsToCompany;
 
 class SalesOrder extends Model
 {
+    use BelongsToCompany;
     // === Constantes de estado ===
     public const S_BORRADOR     = 'BORRADOR';
     public const S_APROBADO     = 'APROBADO';
@@ -177,4 +179,6 @@ class SalesOrder extends Model
         if ($posRegisterId) $data['pos_register_id'] = $posRegisterId;
         $this->update($data);
     }
+
+    
 }

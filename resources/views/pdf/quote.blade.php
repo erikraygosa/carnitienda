@@ -1,6 +1,18 @@
 @php
     $client = $quote->client ?? null;
 
+     // Datos empresa
+    $emp = $empresa ?? null;
+    $ef  = $emp?->fiscalData ?? null;
+
+    $dirEmpresa = collect([
+        trim(($ef?->calle ?? '') . ' ' . ($ef?->numero_exterior ?? '')),
+        $ef?->colonia ?? '',
+        'C.P. ' . ($ef?->codigo_postal ?? ''),
+        $ef?->municipio ?? '',
+        $ef?->estado ?? '',
+    ])->filter()->implode(', ');
+
     $statusColors = match($quote->status ?? '') {
         'BORRADOR'  => ['bg'=>'#f0f0f0','color'=>'#555','border'=>'#ccc'],
         'ENVIADA'   => ['bg'=>'#dbeafe','color'=>'#1d4ed8','border'=>'#93c5fd'],
@@ -60,14 +72,43 @@ body { font-size: 11px; color: #1a1a1a; padding: 28px 32px; }
 {{-- HEADER --}}
 <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
-        <td style="width:45%;vertical-align:middle">
+        {{-- Logo --}}
+        <td style="width:20%;vertical-align:middle">
             @if($logoExists ?? false)
-                <img src="{{ $logoSrc }}" class="logo-img" alt="CarniTienda">
+                <img src="{{ $logoSrc }}" class="logo-img" alt="Logo">
             @else
-                <div style="font-size:20px;font-weight:bold;color:#d63384">CarniTienda</div>
+                <div style="font-size:20px;font-weight:bold;color:#d63384">
+                    {{ $emp?->nombre_display ?? config('app.name') }}
+                </div>
             @endif
         </td>
-        <td style="width:55%;vertical-align:top;text-align:right">
+
+        {{-- Datos empresa --}}
+        <td style="width:45%;vertical-align:middle;padding-left:16px;border-left:1px solid #e0e0e0">
+            <div style="font-size:13px;font-weight:bold;color:#111;margin-bottom:4px">
+                {{ $emp?->razon_social ?? config('app.name') }}
+            </div>
+            <div style="font-size:9.5px;color:#555;margin-bottom:2px">
+                R.F.C.: <strong>{{ $emp?->rfc ?? '' }}</strong>
+            </div>
+            @if($dirEmpresa)
+            <div style="font-size:9px;color:#666;margin-bottom:2px">{{ $dirEmpresa }}</div>
+            @endif
+            @if($emp?->telefono)
+            <div style="font-size:9px;color:#666;margin-bottom:2px">Tel: {{ $emp->telefono }}</div>
+            @endif
+            @if($emp?->email)
+            <div style="font-size:9px;color:#666;margin-bottom:2px">{{ $emp->email }}</div>
+            @endif
+            @if($ef?->regimen_fiscal)
+            <div style="font-size:9px;color:#666;margin-top:3px">
+                Régimen Fiscal: {{ $ef->regimen_fiscal }} — {{ \App\Models\CompanyFiscalData::REGIMENES_FISCALES[$ef->regimen_fiscal] ?? '' }}
+            </div>
+            @endif
+        </td>
+
+        {{-- Tipo + folio --}}
+        <td style="width:35%;vertical-align:top;text-align:right">
             <div class="doc-tipo">Cotización</div>
             <div class="doc-folio">{{ $quote->folio ?? '#'.$quote->id }}</div>
             <div class="doc-fecha">{{ optional($quote->fecha)->format('d/m/Y H:i') }}</div>

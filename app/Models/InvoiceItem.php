@@ -6,12 +6,28 @@ use Illuminate\Database\Eloquent\Model;
 
 class InvoiceItem extends Model
 {
-    protected $fillable = [
-        'invoice_id','product_id','clave_prod_serv','clave_unidad','unidad','descripcion',
-        'cantidad','valor_unitario','descuento',
-        'objeto_imp','base','iva_pct','iva_importe','ieps_pct','ieps_importe','importe',
-    ];
-
+   protected $fillable = [
+    'invoice_id',
+    'product_id',
+    'clave_prod_serv',
+    'clave_unidad',
+    'unidad',
+    'descripcion',
+    'cantidad',
+    'valor_unitario',      // ← nuevo
+    'precio_unitario',
+    'descuento',
+    'objeto_imp',          // ← nuevo
+    'base',                // ← nuevo
+    'iva_pct',             // ← nuevo
+    'iva_importe',         // ← nuevo
+    'ieps_pct',            // ← nuevo
+    'ieps_importe',        // ← nuevo
+    'importe',             // ← nuevo
+    'impuesto_trasladado',
+    'impuesto_retenido',
+    'total',
+];
     protected $casts = [
         'cantidad'       => 'decimal:6',
         'valor_unitario' => 'decimal:6',
