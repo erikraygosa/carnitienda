@@ -258,41 +258,37 @@ class InvoiceController extends Controller
    
 
 // En el método stamp():
-public function stamp(Invoice $invoice, PacCfdiService $pac, CompanyService $company)
+    public function stamp(Invoice $invoice, PacCfdiService $pac, CompanyService $company)
 {
     if (! $invoice->isDraft()) {
         return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR se puede timbrar.']);
     }
 
-    // Validar que la empresa tenga CSD activo antes de intentar timbrar
-    $empresa = $company->activa();
+    $empresa = $invoice->company ?? $company->activa();
 
     if (! $empresa) {
         return back()->with('swal', ['icon'=>'error','title'=>'Sin empresa','text'=>'No hay empresa activa configurada.']);
     }
 
     if (! $empresa->tieneCsd()) {
-        return back()->with('swal', ['icon'=>'error','title'=>'Sin CSD','text'=>'La empresa no tiene un Sello Digital (CSD) vigente. Configúralo en Parámetros → Empresas.']);
+        return back()->with('swal', ['icon'=>'error','title'=>'Sin CSD','text'=>'La empresa no tiene Sello Digital (CSD) vigente.']);
     }
 
     if (! $empresa->tieneConfiguracionCompleta()) {
         return back()->with('swal', ['icon'=>'error','title'=>'Configuración incompleta','text'=>'Completa los datos fiscales de la empresa antes de timbrar.']);
     }
 
-    $unsigned = $pac->buildXml($invoice, $empresa);
-    $resp     = $pac->stamp($invoice, $unsigned, $empresa);
+    // Cargar items si no están cargados
+    $invoice->loadMissing(['items', 'client', 'company.fiscalData']);
 
-    if (! ($resp['ok'] ?? false)) {
-        return back()->with('swal', ['icon'=>'error','title'=>'Error PAC','text'=>$resp['error'] ?? 'Fallo al timbrar.']);
+    $xml    = $pac->buildXml($invoice, $empresa);
+    $result = $pac->stamp($invoice, $xml, $empresa);
+
+    if (! ($result['ok'] ?? false)) {
+        return back()->with('swal', ['icon'=>'error','title'=>'Error PAC','text'=>$result['error'] ?? 'Fallo al timbrar.']);
     }
 
-    $invoice->update([
-        'uuid'         => $resp['uuid'],
-        'xml_timbrado' => $resp['xml_timbrado'],
-        'estatus'      => 'TIMBRADA',
-    ]);
-
-    return back()->with('swal', ['icon'=>'success','title'=>'Timbrada','text'=>'Factura timbrada correctamente.']);
+    return back()->with('swal', ['icon'=>'success','title'=>'Timbrada','text'=>'Factura timbrada correctamente. UUID: ' . $result['uuid']]);
 }
 
     // CANCELAR CFDI

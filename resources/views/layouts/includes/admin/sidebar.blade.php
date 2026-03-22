@@ -18,10 +18,10 @@ $links = [
                  || request()->routeIs('admin.clients.*')
                  || request()->routeIs('admin.providers.*'),
     'children' => [
-      ['name'=>'Categorias','icon'=>'fa-solid fa-list','href'=>route('admin.categories.index'),'active'=>request()->routeIs('admin.categories.*')],
-      ['name'=>'Productos','icon'=>'fa-solid fa-box-open','href'=>route('admin.products.index'),'active'=>request()->routeIs('admin.products.*')],
-      ['name'=>'Clientes','icon'=>'fa-solid fa-users','href'=>route('admin.clients.index'),'active'=>request()->routeIs('admin.clients.*')],
-      ['name'=>'Proveedores','icon'=>'fa-solid fa-truck','href'=>route('admin.providers.index'),'active'=>request()->routeIs('admin.providers.*')],
+      ['name'=>'Categorias', 'icon'=>'fa-solid fa-list',     'href'=>route('admin.categories.index'), 'active'=>request()->routeIs('admin.categories.*')],
+      ['name'=>'Productos',  'icon'=>'fa-solid fa-box-open', 'href'=>route('admin.products.index'),   'active'=>request()->routeIs('admin.products.*')],
+      ['name'=>'Clientes',   'icon'=>'fa-solid fa-users',    'href'=>route('admin.clients.index'),    'active'=>request()->routeIs('admin.clients.*')],
+      ['name'=>'Proveedores','icon'=>'fa-solid fa-truck',    'href'=>route('admin.providers.index'),  'active'=>request()->routeIs('admin.providers.*')],
     ],
   ],
 
@@ -32,41 +32,40 @@ $links = [
     'icon'     => 'fa-solid fa-cart-shopping',
     'active'   => request()->routeIs('admin.purchase-orders.*') || request()->routeIs('admin.purchases.*'),
     'children' => [
-      ['name'=>'Órdenes de compra','icon'=>'fa-solid fa-cart-plus','href'=>route('admin.purchase-orders.index'),'active'=>request()->routeIs('admin.purchase-orders.*')],
-      ['name'=>'Compras','icon'=>'fa-solid fa-cart-shopping','href'=>route('admin.purchases.index'),'active'=>request()->routeIs('admin.purchases.*')],
+      ['name'=>'Órdenes de compra','icon'=>'fa-solid fa-cart-plus',     'href'=>route('admin.purchase-orders.index'),'active'=>request()->routeIs('admin.purchase-orders.*')],
+      ['name'=>'Compras',          'icon'=>'fa-solid fa-cart-shopping', 'href'=>route('admin.purchases.index'),      'active'=>request()->routeIs('admin.purchases.*')],
     ],
   ],
 
   // ===== INVENTARIO =====
- ['header' => 'Inventario'],
-[
-  'name'   => 'Inventario',
-  'icon'   => 'fa-solid fa-warehouse',
-  'active' => request()->routeIs('admin.warehouses.*')
-           || request()->routeIs('admin.stock.*'),
-  'children' => [
-    [
-      'name'   => 'Almacenes',
-      'icon'   => 'fa-solid fa-warehouse',
-      'href'   => route('admin.warehouses.index'),
-      'active' => request()->routeIs('admin.warehouses.*'),
-    ],
-    [
-      'name'   => 'Stock',
-      'icon'   => 'fa-solid fa-layer-group',
-      'href'   => route('admin.stock.index'),
-      'active' => request()->routeIs('admin.stock.index')
-               || request()->routeIs('admin.stock.transfers.*') === false
-               && request()->routeIs('admin.stock.*'),
-    ],
-    [
-      'name'   => 'Traspasos',
-      'icon'   => 'fa-solid fa-right-left',
-      'href'   => route('admin.stock.transfers.index'),
-      'active' => request()->routeIs('admin.stock.transfers.*'),
+  ['header' => 'Inventario'],
+  [
+    'name'   => 'Inventario',
+    'icon'   => 'fa-solid fa-warehouse',
+    'active' => request()->routeIs('admin.warehouses.*') || request()->routeIs('admin.stock.*'),
+    'children' => [
+      [
+        'name'   => 'Almacenes',
+        'icon'   => 'fa-solid fa-warehouse',
+        'href'   => route('admin.warehouses.index'),
+        'active' => request()->routeIs('admin.warehouses.*'),
+      ],
+      [
+        'name'   => 'Stock',
+        'icon'   => 'fa-solid fa-layer-group',
+        'href'   => route('admin.stock.index'),
+        'active' => request()->routeIs('admin.stock.index')
+                 || request()->routeIs('admin.stock.transfers.*') === false
+                 && request()->routeIs('admin.stock.*'),
+      ],
+      [
+        'name'   => 'Traspasos',
+        'icon'   => 'fa-solid fa-right-left',
+        'href'   => route('admin.stock.transfers.index'),
+        'active' => request()->routeIs('admin.stock.transfers.*'),
+      ],
     ],
   ],
-],
 
   // ===== VENTAS =====
   ['header' => 'Ventas'],
@@ -75,105 +74,106 @@ $links = [
     'icon'     => 'fa-solid fa-file-invoice-dollar',
     'active'   => request()->routeIs('admin.quotes.*')
                  || request()->routeIs('admin.sales-orders.*')
-                 || request()->routeIs('admin.sales.*'),
+                 || request()->routeIs('admin.sales.*')
+                 || request()->routeIs('admin.invoices.*'),
     'children' => [
-      ['name'=>'Cotizaciones','icon'=>'fa-solid fa-file-invoice-dollar','href'=>route('admin.quotes.index'),'active'=>request()->routeIs('admin.quotes.*')],
-      ['name'=>'Pedidos','icon'=>'fa-solid fa-file-invoice','href'=>route('admin.sales-orders.index'),'active'=>request()->routeIs('admin.sales-orders.*')],
-      ['name'=>'Notas de venta','icon'=>'fa-solid fa-receipt','href'=>route('admin.sales.index'),'active'=>request()->routeIs('admin.sales.*')],
-      ['name'=>'Facturas','icon'=>'fa-solid fa-file-invoice','href'=>route('admin.invoices.index'),'active'=>request()->routeIs('admin.invoices.*')]
+      ['name'=>'Cotizaciones',  'icon'=>'fa-solid fa-file-invoice-dollar','href'=>route('admin.quotes.index'),       'active'=>request()->routeIs('admin.quotes.*')],
+      ['name'=>'Pedidos',       'icon'=>'fa-solid fa-file-invoice',       'href'=>route('admin.sales-orders.index'), 'active'=>request()->routeIs('admin.sales-orders.*')],
+      ['name'=>'Notas de venta','icon'=>'fa-solid fa-receipt',            'href'=>route('admin.sales.index'),        'active'=>request()->routeIs('admin.sales.*')],
+      ['name'=>'Facturas',      'icon'=>'fa-solid fa-file-invoice',       'href'=>route('admin.invoices.index'),     'active'=>request()->routeIs('admin.invoices.*')],
     ],
   ],
 
-  // ===== LOGÍSTICA (futuro) =====
- ['header' => 'Logística'],
-
-[
+  // ===== LOGÍSTICA =====
+  ['header' => 'Logística'],
+  [
     'name'     => 'Despacho',
     'icon'     => 'fa-solid fa-truck-fast',
-  
+    'active'   => request()->routeIs('admin.dispatches.*') || request()->routeIs('admin.driver-cash.*'),
     'children' => [
-        [
-            'name'   => 'Despachos',
-            'icon'   => 'fa-solid fa-route',
-            'href'   => route('admin.dispatches.index'),
-            'active' => request()->routeIs('admin.dispatches.*'),
-        ],
-         [
+      [
+        'name'   => 'Despachos',
+        'icon'   => 'fa-solid fa-route',
+        'href'   => route('admin.dispatches.index'),
+        'active' => request()->routeIs('admin.dispatches.*'),
+      ],
+      [
         'name'   => 'Cortes de choferes',
         'icon'   => 'fa-solid fa-cash-register',
         'href'   => route('admin.driver-cash.index'),
         'active' => request()->routeIs('admin.driver-cash.*'),
-       ],
-      
+      ],
     ],
-],
-[
+  ],
+  [
     'name'   => 'Punto de venta',
     'icon'   => 'fa-solid fa-shop',
     'active' => request()->routeIs('admin.cash.*') || request()->routeIs('admin.pos.*'),
     'children' => [
-        [
-            'name'   => 'Caja',
-            'icon'   => 'fa-solid fa-cash-register',
-            'href'   => route('admin.cash.index'),
-            'active' => request()->routeIs('admin.cash.*'),
-        ],
-        [
-            'name'   => 'Venta POS',
-            'icon'   => 'fa-solid fa-barcode',
-            'href'   => route('admin.pos.create'),
-            'active' => request()->routeIs('admin.pos.*'),
-        ],
-        // Si más adelante agregas listado de ventas POS:
-        // [
-        //     'name'   => 'Ventas',
-        //     'icon'   => 'fa-solid fa-receipt',
-        //     'href'   => route('admin.pos.sales.index'),
-        //     'active' => request()->routeIs('admin.pos.sales.*'),
-        // ],
+      [
+        'name'   => 'Caja',
+        'icon'   => 'fa-solid fa-cash-register',
+        'href'   => route('admin.cash.index'),
+        'active' => request()->routeIs('admin.cash.*'),
+      ],
+      [
+        'name'   => 'Venta POS',
+        'icon'   => 'fa-solid fa-barcode',
+        'href'   => route('admin.pos.create'),
+        'active' => request()->routeIs('admin.pos.*'),
+      ],
     ],
-],
+  ],
 
   // ===== FINANZAS =====
-
-[
-    'header' => 'Finanzas',
-],
-[
+  ['header' => 'Finanzas'],
+  [
     'name'   => 'Cuentas y cobros',
     'icon'   => 'fa-solid fa-piggy-bank',
     'active' => request()->routeIs('admin.ar.*') || request()->routeIs('admin.ar-payments.*'),
     'children' => [
-        [
-            'name'   => 'Cuentas',
-            'icon'   => 'fa-solid fa-file-invoice-dollar',
-            'href'   => route('admin.ar.index'),
-            'active' => request()->routeIs('admin.ar.*'),
-        ],
-        [
-            'name'   => 'Cobros',
-            'icon'   => 'fa-solid fa-cash-register',
-            'href'   => route('admin.ar-payments.create'),
-            'active' => request()->routeIs('admin.ar-payments.*'),
-        ],
-    ],
-],
-
-  ['header' => 'Configuración'],
-[
-  'name'   => 'Parámetros',
-  'icon'   => 'fa-solid fa-sliders',
-  'active' => request()->routeIs('admin.parametros.*'),
-  'children' => [
-    [
-      'name'   => 'Empresas',
-      'href'   => route('admin.parametros.companies.index'), 
-      'icon'   => 'fa-solid fa-building',
-      'active' => request()->routeIs('admin.parametros.companies.*'),
+      [
+        'name'   => 'Cuentas',
+        'icon'   => 'fa-solid fa-file-invoice-dollar',
+        'href'   => route('admin.ar.index'),
+        'active' => request()->routeIs('admin.ar.*'),
+      ],
+      [
+        'name'   => 'Cobros',
+        'icon'   => 'fa-solid fa-cash-register',
+        'href'   => route('admin.ar-payments.create'),
+        'active' => request()->routeIs('admin.ar-payments.*'),
+      ],
     ],
   ],
-],
- 
+
+  // ===== CONFIGURACIÓN =====
+  ['header' => 'Configuración'],
+  [
+    'name'   => 'Parámetros',
+    'icon'   => 'fa-solid fa-sliders',
+    'active' => request()->routeIs('admin.parametros.*'),
+    'children' => [
+      [
+        'name'   => 'Empresas',
+        'href'   => route('admin.parametros.companies.index'),
+        'icon'   => 'fa-solid fa-building',
+        'active' => request()->routeIs('admin.parametros.companies.*'),
+      ],
+    ],
+  ],
+
+  // ===== SISTEMA (solo superadmin) =====
+  ...(auth()->user()?->is_superadmin ? [
+    ['header' => 'Sistema'],
+    [
+      'name'   => 'Superadmin',
+      'icon'   => 'fa-solid fa-shield-halved',
+      'href'   => route('superadmin.dashboard'),
+      'active' => request()->routeIs('superadmin.*'),
+    ],
+  ] : []),
+
 ];
 
 // Marcar si un grupo tiene hijo activo
@@ -197,11 +197,10 @@ foreach ($links as $i => $item) {
 
         @if(!empty($link['children']) && is_array($link['children']))
           @php
-            $collapseId      = 'submenu-'.\Illuminate\Support\Str::slug($link['name'] ?? \Illuminate\Support\Str::random(6));
-            $isOpen          = !empty($link['has_active_child']);
-            $isActiveParent  = !empty($link['active']) || $isOpen;
+            $collapseId     = 'submenu-'.\Illuminate\Support\Str::slug($link['name'] ?? \Illuminate\Support\Str::random(6));
+            $isOpen         = !empty($link['has_active_child']);
+            $isActiveParent = !empty($link['active']) || $isOpen;
           @endphp
-
           <li>
             <button type="button"
               class="flex w-full items-center p-2 rounded-lg transition duration-75 group
@@ -220,7 +219,6 @@ foreach ($links as $i => $item) {
                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/>
               </svg>
             </button>
-
             <ul id="{{ $collapseId }}" class="{{ $isOpen ? '' : 'hidden' }} py-2 space-y-1">
               @foreach ($link['children'] as $child)
                 @php $activeChild = !empty($child['active']); @endphp
@@ -235,6 +233,7 @@ foreach ($links as $i => $item) {
               @endforeach
             </ul>
           </li>
+
         @else
           @php $isActive = !empty($link['active']); @endphp
           <li>
@@ -265,16 +264,13 @@ document.addEventListener('click', function(e) {
   const target = document.getElementById(id);
   if (!target) return;
 
-  // Cierra los demás submenús
   document.querySelectorAll('[id^="submenu-"]').forEach(el => {
     if (el !== target) el.classList.add('hidden');
   });
 
-  // Toggle del submenú actual
   const wasHidden = target.classList.contains('hidden');
   target.classList.toggle('hidden', !wasHidden);
 
-  // Actualiza aria-expanded y la flecha
   const expanded = wasHidden ? 'true' : 'false';
   btn.setAttribute('aria-expanded', expanded);
 
