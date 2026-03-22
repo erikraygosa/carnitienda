@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Superadmin') — {{ config('app.name') }}</title>
+    <script src="https://kit.fontawesome.com/e2d71e4ca2.js" crossorigin="anonymous"></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="h-full font-sans antialiased">
@@ -60,9 +61,9 @@
     </aside>
 
     {{-- Main --}}
-    <div class="flex-1 ml-56 flex flex-col min-h-screen bg-gray-950">
+   <div class="flex-1 min-w-0 flex flex-col min-h-screen bg-gray-950 overflow-x-hidden" style="margin-left: 224px;">
 
-        <header class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between sticky top-0 z-40">
+       <header class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between sticky top-0 z-40" style="margin-left: 0;">
             <div>
                 <h1 class="text-white text-base font-semibold">@yield('title', 'Superadmin')</h1>
                 @hasSection('breadcrumbs')
@@ -96,7 +97,7 @@
         </div>
         @endif
 
-        <main class="flex-1 p-6">
+        <main class="flex-1 p-6 overflow-x-auto">
             @yield('content')
         </main>
     </div>
