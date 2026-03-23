@@ -214,13 +214,13 @@ public function store(Request $request)
     $series = \App\Models\InvoiceSeries::where('es_default', 1)
     ->where('tipo_comprobante', 'I')
     ->first();
-if ($series && $data['folio']) {
-    // Solo actualizar si el folio guardado es mayor al actual
-    $folioGuardado = (int) $data['folio'];
-    if ($folioGuardado > $series->folio_actual) {
-        $series->update(['folio_actual' => $folioGuardado]);
+    if ($series && $data['folio']) {
+        // Solo actualizar si el folio guardado es mayor al actual
+        $folioGuardado = (int) $data['folio'];
+        if ($folioGuardado > $series->folio_actual) {
+            $series->update(['folio_actual' => $folioGuardado]);
+        }
     }
-}
 
 
     return redirect()->route('admin.invoices.edit', $invoice)
