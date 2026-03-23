@@ -22,7 +22,7 @@ class InvoiceController extends Controller
     }
 
     // Crear desde: pedido, venta o directa
-        public function create(Request $req)
+    public function create(Request $req)
 {
     $fromOrderId = $req->query('order_id');
     $fromSaleId  = $req->query('sale_id');
@@ -58,7 +58,6 @@ class InvoiceController extends Controller
         $prefill = $this->mapFromSale($sale);
     }
 
-    // Map para Alpine
     $clientsMap = $clients->keyBy('id')->map(fn($c) => [
         'rfc'            => $c->rfc ?? '',
         'razon_social'   => $c->razon_social ?? $c->nombre ?? '',
@@ -75,137 +74,158 @@ class InvoiceController extends Controller
         'unidad'          => $p->unidad ?? 'PZA',
     ]);
 
+    // Serie y folio desde configuración
+    $series = \App\Models\InvoiceSeries::where('es_default', 1)
+        ->where('tipo_comprobante', 'I')
+        ->first();
+
+    $nextSerie = $series?->serie ?? 'A';
+    $nextFolio = $series ? ($series->folio_actual + 1) : 1;
+
     return view('admin.invoices.create', compact(
         'clients', 'products', 'prefill',
         'empresa', 'emisorDefaults',
-        'clientsMap', 'productsMap'  // ← estos faltaban
+        'clientsMap', 'productsMap',
+        'nextSerie', 'nextFolio'
     ));
 }
 
-    public function store(Request $request)
-    {
-        $data = $request->validate([
-            // encabezado
-            'client_id'     => ['required','exists:clients,id'],
-            'sales_order_id'=> ['nullable','exists:sales_orders,id'],
-            'sale_id'       => ['nullable','exists:sales,id'],
+public function store(Request $request)
+{
+    $data = $request->validate([
+        'client_id'               => ['required', 'exists:clients,id'],
+        'sales_order_id'          => ['nullable', 'exists:sales_orders,id'],
+        'sale_id'                 => ['nullable', 'exists:sales,id'],
+        'serie'                   => ['nullable', 'string', 'max:10'],
+        'folio'                   => ['nullable', 'string', 'max:20'],
+        'fecha'                   => ['required', 'date'],
+        'tipo_comprobante'        => ['required', 'in:I,E,P,N'],
+        'moneda'                  => ['required', 'string', 'max:5'],
+        'uso_cfdi'                => ['required', 'string', 'max:5'],
+        'forma_pago'              => ['nullable', 'string', 'max:3'],
+        'metodo_pago'             => ['nullable', 'string', 'max:3'],
+        'lugar_expedicion'        => ['required', 'string', 'max:10'],
+        'regimen_fiscal_emisor'   => ['required', 'string', 'max:3'],
+        'regimen_fiscal_receptor' => ['required', 'string', 'max:3'],
+        'items'                   => ['required', 'array', 'min:1'],
+        'items.*.product_id'      => ['nullable', 'exists:products,id'],
+        'items.*.descripcion'     => ['required', 'string', 'max:255'],
+        'items.*.clave_prod_serv' => ['nullable', 'string', 'max:8'],
+        'items.*.clave_unidad'    => ['nullable', 'string', 'max:3'],
+        'items.*.unidad'          => ['nullable', 'string', 'max:20'],
+        'items.*.cantidad'        => ['required', 'numeric', 'gt:0'],
+        'items.*.valor_unitario'  => ['required', 'numeric', 'gte:0'],
+        'items.*.descuento'       => ['nullable', 'numeric', 'gte:0'],
+        'items.*.objeto_imp'      => ['required', 'in:01,02,03'],
+        'items.*.iva_pct'         => ['nullable', 'numeric', 'gte:0'],
+        'items.*.ieps_pct'        => ['nullable', 'numeric', 'gte:0'],
+    ]);
 
-            'serie'         => ['nullable','string','max:10'],
-            'folio'         => ['nullable','string','max:20'],
-            'fecha'         => ['required','date'],
-            'tipo_comprobante' => ['required','in:I,E,P,N'],
-            'moneda'        => ['required','string','max:5'],
+    if (!empty($data['sales_order_id']) && !empty($data['sale_id'])) {
+        return back()
+            ->with('swal', ['icon' => 'error', 'title' => 'Datos inválidos', 'text' => 'Elige pedido o nota, no ambos.'])
+            ->withInput();
+    }
 
-            // Receptor / SAT
-            'uso_cfdi'      => ['required','string','max:5'],
-            'forma_pago'    => ['nullable','string','max:3'],
-            'metodo_pago'   => ['nullable','string','max:3'],
+    $invoice = null;
 
-            'lugar_expedicion'       => ['required','string','max:10'],
-            'regimen_fiscal_emisor'  => ['required','string','max:3'],
-            'regimen_fiscal_receptor'=> ['required','string','max:3'],
+    DB::transaction(function () use (&$invoice, $data) {
+        $subtotal  = 0;
+        $iva       = 0;
+        $ieps      = 0;
+        $impuestos = 0;
+        $total     = 0;
 
-            // partidas
-            'items' => ['required','array','min:1'],
-            'items.*.product_id'     => ['nullable','exists:products,id'],
-            'items.*.descripcion'    => ['required','string','max:255'],
-            'items.*.clave_prod_serv'=> ['nullable','string','max:8'],
-            'items.*.clave_unidad'   => ['nullable','string','max:3'],
-            'items.*.unidad'         => ['nullable','string','max:20'],
-            'items.*.cantidad'       => ['required','numeric','gt:0'],
-            'items.*.valor_unitario' => ['required','numeric','gte:0'],
-            'items.*.descuento'      => ['nullable','numeric','gte:0'],
-            'items.*.objeto_imp'     => ['required','in:01,02,03'],
-            'items.*.iva_pct'        => ['nullable','numeric','gte:0'],
-            'items.*.ieps_pct'       => ['nullable','numeric','gte:0'],
+        $invoice = Invoice::create([
+            'client_id'               => $data['client_id'],
+            'sales_order_id'          => $data['sales_order_id'] ?? null,
+            'sale_id'                 => $data['sale_id'] ?? null,
+            'serie'                   => $data['serie'] ?? null,
+            'folio'                   => $data['folio'] ?? null,
+            'fecha'                   => $data['fecha'],
+            'tipo_comprobante'        => $data['tipo_comprobante'],
+            'moneda'                  => $data['moneda'],
+            'uso_cfdi'                => $data['uso_cfdi'],
+            'forma_pago'              => $data['forma_pago'] ?? null,
+            'metodo_pago'             => $data['metodo_pago'] ?? null,
+            'lugar_expedicion'        => $data['lugar_expedicion'],
+            'regimen_fiscal_emisor'   => $data['regimen_fiscal_emisor'],
+            'regimen_fiscal_receptor' => $data['regimen_fiscal_receptor'],
+            'estatus'                 => 'BORRADOR',
+            'version_cfdi'            => '4.0',
+            'created_by'              => auth()->id(),
+            'owner_id'                => auth()->id(),
         ]);
 
-        // Regla: no permitir ambos sales_order_id y sale_id al mismo tiempo
-        if (!empty($data['sales_order_id']) && !empty($data['sale_id'])) {
-            return back()->with('swal',['icon'=>'error','title'=>'Datos inválidos','text'=>'Elige pedido o nota, no ambos.'])->withInput();
+        foreach ($data['items'] as $row) {
+            $cantidad = (float) $row['cantidad'];
+            $vu       = (float) $row['valor_unitario'];
+            $desc     = (float) ($row['descuento'] ?? 0);
+
+            $linea    = $cantidad * $vu;
+            $base     = max($linea - $desc, 0);
+            $iva_pct  = (float) ($row['iva_pct']  ?? 0) / 100;
+            $ieps_pct = (float) ($row['ieps_pct'] ?? 0) / 100;
+
+            $iva_imp  = round($base * $iva_pct,  6);
+            $ieps_imp = round($base * $ieps_pct, 6);
+            $importe  = $base + $iva_imp + $ieps_imp;
+
+            InvoiceItem::create([
+                'invoice_id'          => $invoice->id,
+                'product_id'          => $row['product_id'] ?? null,
+                'clave_prod_serv'     => $row['clave_prod_serv'] ?? null,
+                'clave_unidad'        => $row['clave_unidad'] ?? null,
+                'unidad'              => $row['unidad'] ?? null,
+                'descripcion'         => $row['descripcion'],
+                'cantidad'            => $cantidad,
+                'valor_unitario'      => $vu,
+                'precio_unitario'     => $vu,
+                'descuento'           => $desc,
+                'objeto_imp'          => $row['objeto_imp'],
+                'base'                => $base,
+                'iva_pct'             => (float) ($row['iva_pct']  ?? 0),
+                'iva_importe'         => $iva_imp,
+                'ieps_pct'            => (float) ($row['ieps_pct'] ?? 0),
+                'ieps_importe'        => $ieps_imp,
+                'importe'             => $importe,
+                'impuesto_trasladado' => $iva_imp,
+                'total'               => $importe,
+            ]);
+
+            $subtotal += $linea;
+            $iva      += $iva_imp;
+            $ieps     += $ieps_imp;
+            $total    += $importe;
         }
 
-        $invoice = null;
+        $impuestos = $iva + $ieps;
 
-        DB::transaction(function () use (&$invoice, $data) {
-            // Totales
-            $subtotal=0; $iva=0; $ieps=0; $impuestos=0; $total=0;
+        $invoice->update([
+            'subtotal'  => $subtotal,
+            'impuestos' => $impuestos,
+            'total'     => $total,
+        ]);
 
-            $invoice = Invoice::create([
-                'client_id'      => $data['client_id'],
-                'sales_order_id' => $data['sales_order_id'] ?? null,
-                'sale_id'        => $data['sale_id'] ?? null,
-                'serie'          => $data['serie'] ?? null,
-                'folio'          => $data['folio'] ?? null,
-                'fecha'          => $data['fecha'],
-                'tipo_comprobante' => $data['tipo_comprobante'],
-                'moneda'         => $data['moneda'],
-                'uso_cfdi'       => $data['uso_cfdi'],
-                'forma_pago'     => $data['forma_pago'] ?? null,
-                'metodo_pago'    => $data['metodo_pago'] ?? null,
-                'lugar_expedicion'       => $data['lugar_expedicion'],
-                'regimen_fiscal_emisor'  => $data['regimen_fiscal_emisor'],
-                'regimen_fiscal_receptor'=> $data['regimen_fiscal_receptor'],
-                'estatus'        => 'BORRADOR',
-                'version_cfdi'   => '4.0',
-                'created_by'     => auth()->id(),
-                'owner_id'       => auth()->id(),
-            ]);
+        
 
-            foreach ($data['items'] as $row) {
-                $cantidad  = (float)$row['cantidad'];
-                $vu        = (float)$row['valor_unitario'];
-                $desc      = (float)($row['descuento'] ?? 0);
-
-                $linea     = $cantidad * $vu;
-                $base      = max($linea - $desc, 0);
-                $iva_pct   = (float)($row['iva_pct']  ?? 0) / 100;
-                $ieps_pct  = (float)($row['ieps_pct'] ?? 0) / 100;
-
-                $iva_imp   = round($base * $iva_pct, 6);
-                $ieps_imp  = round($base * $ieps_pct, 6);
-                $importe   = $base + $iva_imp + $ieps_imp;
-
-              InvoiceItem::create([
-    'invoice_id'          => $invoice->id,
-    'product_id'          => $row['product_id'] ?? null,
-    'clave_prod_serv'     => $row['clave_prod_serv'] ?? null,
-    'clave_unidad'        => $row['clave_unidad'] ?? null,
-    'unidad'              => $row['unidad'] ?? null,
-    'descripcion'         => $row['descripcion'],
-    'cantidad'            => $cantidad,
-    'valor_unitario'      => $vu,
-    'precio_unitario'     => $vu,      // columna vieja — mantener compatibilidad
-    'descuento'           => $desc,
-    'objeto_imp'          => $row['objeto_imp'],
-    'base'                => $base,
-    'iva_pct'             => (float)($row['iva_pct'] ?? 0),
-    'iva_importe'         => $iva_imp,
-    'ieps_pct'            => (float)($row['ieps_pct'] ?? 0),
-    'ieps_importe'        => $ieps_imp,
-    'importe'             => $importe,
-    'impuesto_trasladado' => $iva_imp, // columna vieja — mantener compatibilidad
-    'total'               => $importe, // columna vieja — mantener compatibilidad
-]);
-
-                $subtotal += $linea;
-                $iva      += $iva_imp;
-                $ieps     += $ieps_imp;
-                $total    += $importe;
-            }
-
-            $impuestos = $iva + $ieps;
-
-            $invoice->update([
-                'subtotal'  => $subtotal,
-                'impuestos' => $impuestos,
-                'total'     => $total,
-            ]);
-        });
-
-        return redirect()->route('admin.invoices.edit', $invoice)
-            ->with('swal',['icon'=>'success','title'=>'Creada','text'=>'Factura en borrador creada.']);
+    
+    });
+    $series = \App\Models\InvoiceSeries::where('es_default', 1)
+    ->where('tipo_comprobante', 'I')
+    ->first();
+if ($series && $data['folio']) {
+    // Solo actualizar si el folio guardado es mayor al actual
+    $folioGuardado = (int) $data['folio'];
+    if ($folioGuardado > $series->folio_actual) {
+        $series->update(['folio_actual' => $folioGuardado]);
     }
+}
+
+
+    return redirect()->route('admin.invoices.edit', $invoice)
+        ->with('swal', ['icon' => 'success', 'title' => 'Creada', 'text' => 'Factura en borrador creada.']);
+}
 
     public function edit(Invoice $invoice)
 {
@@ -249,10 +269,10 @@ class InvoiceController extends Controller
     ]);
 
     return view('admin.invoices.edit', compact(
-        'invoice', 'clients', 'products',
-        'empresa', 'emisorDefaults',
-        'clientsMap', 'productsMap'
-    ));
+    'invoice', 'clients', 'products',
+    'empresa', 'emisorDefaults',
+    'clientsMap', 'productsMap'
+));
 }
     // TIMBRAR
    

@@ -26,9 +26,79 @@ use App\Services\InventoryService;
 class SalesOrderController extends Controller
 {
     public function index()
-    {
-        return view('admin.sales_orders.index');
-    }
+{
+    return view('admin.sales_orders.index');
+}
+
+public function data(Request $request)
+{
+    $search     = $request->get('search', '');
+    $status     = $request->get('status', '');
+    $fechaDesde = $request->get('fecha_desde', '');
+    $fechaHasta = $request->get('fecha_hasta', '');
+    $sortBy     = in_array($request->get('sort_by'), ['folio','fecha','status','total']) ? $request->get('sort_by') : 'id';
+    $sortDir    = $request->get('sort_dir', 'desc') === 'asc' ? 'asc' : 'desc';
+    $perPage    = in_array((int)$request->get('per_page'), [10,15,25,50]) ? (int)$request->get('per_page') : 15;
+    $page       = max(1, (int)$request->get('page', 1));
+
+    $q = SalesOrder::with(['client','warehouse'])
+        ->when($search, fn($q) =>
+            $q->where(fn($q) =>
+                $q->where('folio','like',"%$search%")
+                  ->orWhereHas('client', fn($q) => $q->where('nombre','like',"%$search%"))
+            )
+        )
+        ->when($status,     fn($q) => $q->where('status', $status))
+        ->when($fechaDesde, fn($q) => $q->whereDate('fecha', '>=', $fechaDesde))
+        ->when($fechaHasta, fn($q) => $q->whereDate('fecha', '<=', $fechaHasta))
+        ->orderBy($sortBy, $sortDir);
+
+    $total   = $q->count();
+    $orders  = $q->skip(($page - 1) * $perPage)->take($perPage)->get();
+
+    $statusClasses = [
+        'BORRADOR'     => 'bg-gray-100 text-gray-700',
+        'APROBADO'     => 'bg-blue-100 text-blue-700',
+        'PREPARANDO'   => 'bg-sky-100 text-sky-700',
+        'PROCESADO'    => 'bg-amber-100 text-amber-700',
+        'EN_RUTA'      => 'bg-violet-100 text-violet-700',
+        'ENTREGADO'    => 'bg-emerald-100 text-emerald-700',
+        'NO_ENTREGADO' => 'bg-orange-100 text-orange-700',
+        'CANCELADO'    => 'bg-rose-100 text-rose-700',
+    ];
+
+        $rows = $orders->map(fn($o) => [
+    'id'            => $o->id,
+    'folio'         => $o->folio,
+    'cliente'       => $o->client?->nombre ?? '—',
+    'almacen'       => $o->warehouse?->nombre ?? '—',
+    'fecha'         => optional($o->fecha)->format('d/m/Y H:i'),
+    'status'        => $o->status,
+    'status_label'  => $o->status_label ?? $o->status,
+    'status_class'  => $statusClasses[$o->status] ?? 'bg-gray-100 text-gray-700',
+    'total'         => number_format((float)$o->total, 2),
+    'csrf'          => csrf_token(),
+    'edit_url'      => route('admin.sales-orders.edit',        $o),
+    'pdf_url'       => route('admin.sales-orders.pdf',         $o),
+    'pdf_dl_url'    => route('admin.sales-orders.pdf.download', $o),
+    'send_url'      => route('admin.sales-orders.send.form',   $o),
+    'invoice_url' => route('admin.invoices.create').'?order_id='.$o->id,
+    'approve_url'   => route('admin.sales-orders.approve',     $o),
+    'process_url'   => route('admin.sales-orders.process',     $o),
+    'cancel_url'    => route('admin.sales-orders.cancel',      $o),
+    'enruta_url'    => route('admin.sales-orders.en-ruta',     $o),
+    'deliver_url'   => route('admin.sales-orders.deliver',     $o),
+    'nodeliver_url' => route('admin.sales-orders.not-delivered',$o),
+]);
+
+    return response()->json([
+        'rows'      => $rows,
+        'total'     => $total,
+        'page'      => $page,
+        'per_page'  => $perPage,
+        'last_page' => (int) ceil($total / $perPage),
+    ]);
+}
 
     public function create(Request $request)
 {

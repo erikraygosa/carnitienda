@@ -123,6 +123,22 @@
                     <span class="text-blue-300">|</span>
                     <span>CP: {{ $emisorDefaults['lugar_expedicion'] }}</span>
                 </div>
+                {{-- Serie y Folio --}}
+                {{-- Serie y Folio --}}
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+    <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Serie</label>
+        <input type="text" value="{{ $invoice->serie }}" readonly
+               class="w-full rounded-md border-gray-300 bg-gray-50 shadow-sm text-sm cursor-not-allowed">
+        <input type="hidden" name="serie" value="{{ $invoice->serie }}">
+    </div>
+    <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Folio</label>
+        <input type="text" value="{{ $invoice->folio }}" readonly
+               class="w-full rounded-md border-gray-300 bg-gray-50 shadow-sm text-sm cursor-not-allowed">
+        <input type="hidden" name="folio" value="{{ $invoice->folio }}">
+    </div>
+</div>
             </div>
             @endif
 

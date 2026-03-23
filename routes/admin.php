@@ -85,7 +85,9 @@ Route::post('quotes/{quote}/reject',        [QuoteController::class, 'reject'])-
 Route::post('quotes/{quote}/cancel',        [QuoteController::class, 'cancel'])->name('quotes.cancel');
 Route::get ('quotes/{quote}/pdf',           [QuoteController::class, 'pdf'])->name('quotes.pdf');
 Route::get ('quotes/{quote}/pdf/download',  [QuoteController::class, 'pdfDownload'])->name('quotes.pdf.download');
- Route::resource('sales-orders', SalesOrderController::class);
+
+Route::get('sales-orders/data', [SalesOrderController::class, 'data'])->name('sales-orders.data');
+Route::resource('sales-orders', SalesOrderController::class)->except(['show']);
 
     // PDF
     Route::get ('sales-orders/{order}/pdf',           [SalesOrderController::class,'pdf'])->name('sales-orders.pdf');
@@ -291,3 +293,4 @@ Route::get ('products/{product}/subproducts',        [ProductController::class, 
 Route::post('products/{product}/subproducts',        [ProductController::class, 'subproductsStore'])->name('products.subproducts.store');
 Route::put ('products/{product}/subproducts/{rule}', [ProductController::class, 'subproductsUpdate'])->name('products.subproducts.update');
 Route::delete('products/{product}/subproducts/{rule}',[ProductController::class, 'subproductsDelete'])->name('products.subproducts.delete');
+

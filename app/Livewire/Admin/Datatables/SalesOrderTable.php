@@ -3,46 +3,53 @@
 namespace App\Livewire\Admin\Datatables;
 
 use App\Models\SalesOrder;
-use Illuminate\Database\Eloquent\Builder;
-use Rappasoft\LaravelLivewireTables\DataTableComponent;
-use Rappasoft\LaravelLivewireTables\Views\Column;
+use Livewire\Component;
+use Livewire\WithPagination;
 
-class SalesOrderTable extends DataTableComponent
+class SalesOrderTable extends Component
 {
-    protected $model = SalesOrder::class;
+    use WithPagination;
 
-    public function configure(): void
+    public string $search    = '';
+    public string $status    = '';
+    public string $fechaDesde= '';
+    public string $fechaHasta= '';
+    public string $sortBy    = 'id';
+    public string $sortDir   = 'desc';
+    public int    $perPage   = 15;
+
+    public function updatingSearch():    void { $this->resetPage(); }
+    public function updatingStatus():    void { $this->resetPage(); }
+    public function updatingFechaDesde():void { $this->resetPage(); }
+    public function updatingFechaHasta():void { $this->resetPage(); }
+    public function updatingPerPage():   void { $this->resetPage(); }
+
+    public function sort(string $col): void
     {
-        $this->setPrimaryKey('id')
-            ->setDefaultSort('id', 'desc')
-            ->setPerPage(10)
-            ->setPerPageAccepted([10,25,50,100]);
+        $this->sortDir = $this->sortBy === $col
+            ? ($this->sortDir === 'asc' ? 'desc' : 'asc')
+            : 'asc';
+        $this->sortBy = $col;
+        $this->resetPage();
     }
 
-    public function builder(): Builder
+    public function render()
     {
-        return SalesOrder::query()
-            ->select('sales_orders.*')
-            ->with(['client','warehouse']);
-    }
+        $q = SalesOrder::with(['client','warehouse'])
+            ->when($this->search, function($q) {
+                $t = '%'.$this->search.'%';
+                $q->where(fn($q) =>
+                    $q->where('folio','like',$t)
+                      ->orWhereHas('client', fn($q) => $q->where('nombre','like',$t))
+                );
+            })
+            ->when($this->status,     fn($q) => $q->where('status', $this->status))
+            ->when($this->fechaDesde, fn($q) => $q->whereDate('fecha', '>=', $this->fechaDesde))
+            ->when($this->fechaHasta, fn($q) => $q->whereDate('fecha', '<=', $this->fechaHasta))
+            ->orderBy($this->sortBy, $this->sortDir);
 
-    public function columns(): array
-    {
-        return [
-            Column::make('ID','id')->sortable()->collapseOnMobile(),
-            Column::make('Folio','folio')->searchable()->sortable(),
-            Column::make('Cliente','client.nombre')
-                ->format(fn($v,$row)=>$row->client?->nombre)->searchable(),
-            Column::make('Almacén','warehouse.nombre')
-                ->format(fn($v,$row)=>$row->warehouse?->nombre)->searchable(),
-            Column::make('Fecha','fecha')->sortable(),
-            Column::make('Estatus','status')
-                ->format(fn($v,$row)=>$row->status_label)->sortable(),
-            Column::make('Total','total')
-                ->format(fn($v)=>number_format((float)$v,2))->sortable(),
-            Column::make('Acciones')
-                ->label(fn ($row) => view('admin.sales_orders.partials.actions',['order'=>$row])->render())
-                ->html(),
-        ];
+        return view('livewire.admin.datatables.sales-order-table', [
+            'orders' => $q->paginate($this->perPage),
+        ]);
     }
 }

@@ -167,12 +167,8 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
     $fiscalData = $company->fiscalData;
     $cliente    = $invoice->client;
 
-    $serie = InvoiceSeries::defaultParaEmpresa(
-        $company->id,
-        $invoice->tipo_comprobante ?? 'I'
-    );
-
-    $folio = $serie ? $serie->siguienteFolio() : null;
+    $folio = $invoice->folio ?? null;
+$serie = $invoice->serie ?? 'A';
 
     $items = $invoice->items->map(function ($item) {
         $impuestos = [];
@@ -228,9 +224,9 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
         'use'            => $invoice->uso_cfdi ?? 'G03',
     ];
 
-    if ($invoice->serie) {
-        $payload['series'] = $invoice->serie;
-    }
+        if ($invoice->serie) {
+    $payload['series'] = $invoice->serie;
+}
 
     if ($folio) {
         $payload['folio_number'] = $folio;
