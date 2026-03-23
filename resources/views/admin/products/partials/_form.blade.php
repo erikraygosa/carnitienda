@@ -63,23 +63,38 @@
             :value="old('barcode', $isEdit ? $product->barcode : '')"
         />
 
-        <x-wire-select
-            name="unidad" label="Unidad"
-            :options="$unidades"
-            :option-label="'name'" :option-value="'id'"
-            placeholder="Seleccione unidad"
-            :selected="old('unidad', $isEdit ? $product->unidad : 'PZA')"
-            required
-        />
+        <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">
+        Unidad <span class="text-red-500">*</span>
+    </label>
+    <select name="unidad"
+            class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
+            required>
+        @foreach($unidades as $u)
+            <option value="{{ $u['id'] }}"
+                {{ old('unidad', $isEdit ? $product->unidad : 'PZA') === $u['id'] ? 'selected' : '' }}>
+                {{ $u['name'] }}
+            </option>
+        @endforeach
+    </select>
+</div>
 
-        <x-wire-select
-            name="category_id" label="Categoría"
-            :options="$categoryOptions"
-            :option-label="'name'" :option-value="'id'"
-            placeholder="Seleccione una categoría"
-            :selected="old('category_id', $isEdit ? $product->category_id : null)"
-            required searchable
-        />
+        <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">
+        Categoría <span class="text-red-500">*</span>
+    </label>
+    <select name="category_id"
+            class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
+            required>
+        <option value="">-- seleccionar --</option>
+        @foreach($categories as $c)
+            <option value="{{ $c->id }}"
+                {{ old('category_id', $isEdit ? $product->category_id : null) == $c->id ? 'selected' : '' }}>
+                {{ $c->nombre }}
+            </option>
+        @endforeach
+    </select>
+</div>
 
         <x-wire-input
             type="number" step="0.0001" min="0"

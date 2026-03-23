@@ -163,4 +163,58 @@ class ClientController extends Controller
 
         return $data;
     }
+    public function pricesData(Request $request, Client $client)
+{
+    $search  = $request->get('search', '');
+    $perPage = (int) $request->get('per_page', 15);
+    $page    = (int) $request->get('page', 1);
+
+    $q = \App\Models\Product::select('id','sku','nombre','precio_base')
+        ->orderBy('nombre')
+        ->when($search, fn($q) => $q->where(fn($q) =>
+            $q->where('nombre','like',"%$search%")
+              ->orWhere('sku','like',"%$search%")
+        ));
+
+    $total    = $q->count();
+    $products = $q->skip(($page - 1) * $perPage)->take($perPage)->get();
+
+    $overrides = \Illuminate\Support\Facades\DB::table('client_price_overrides')
+        ->where('client_id', $client->id)
+        ->pluck('precio','product_id');
+
+    $listPrices = [];
+    if ($client->price_list_id) {
+        $listPrices = \Illuminate\Support\Facades\DB::table('price_list_items')
+            ->where('price_list_id', $client->price_list_id)
+            ->pluck('precio','product_id');
+    }
+
+    return response()->json([
+        'products'   => $products,
+        'overrides'  => $overrides,
+        'listPrices' => $listPrices,
+        'total'      => $total,
+        'page'       => $page,
+        'per_page'   => $perPage,
+        'last_page'  => (int) ceil($total / $perPage),
+    ]);
+}
+
+public function pricesSave(Request $request, Client $client)
+{
+    $prices = $request->input('prices', []);
+
+    \Illuminate\Support\Facades\DB::transaction(function () use ($client, $prices) {
+        foreach ($prices as $productId => $precio) {
+            $precio = is_numeric($precio) ? (float) $precio : 0.0;
+            \Illuminate\Support\Facades\DB::table('client_price_overrides')->updateOrInsert(
+                ['client_id' => $client->id, 'product_id' => (int)$productId],
+                ['precio' => $precio, 'updated_at' => now(), 'created_at' => now()]
+            );
+        }
+    });
+
+    return response()->json(['ok' => true, 'message' => 'Precios guardados correctamente.']);
+}
 }

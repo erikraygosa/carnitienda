@@ -3,108 +3,50 @@
 namespace App\Livewire\Admin\Datatables;
 
 use App\Models\Client;
-use Illuminate\Database\Eloquent\Builder;
-use Rappasoft\LaravelLivewireTables\DataTableComponent;
-use Rappasoft\LaravelLivewireTables\Views\Column;
-use Rappasoft\LaravelLivewireTables\Views\Filters\SelectFilter;
+use Livewire\Component;
+use Livewire\WithPagination;
 
-class ClientTable extends DataTableComponent
+class ClientTable extends Component
 {
-    protected $model = Client::class;
+    use WithPagination;
 
-    public function configure(): void
+    public string $search   = '';
+    public string $activo   = '';
+    public string $sortBy   = 'id';
+    public string $sortDir  = 'desc';
+    public int    $perPage  = 15;
+
+    public function updatingSearch(): void  { $this->resetPage(); }
+    public function updatingActivo(): void  { $this->resetPage(); }
+    public function updatingPerPage(): void { $this->resetPage(); }
+
+    public function sort(string $col): void
     {
-        $this->setPrimaryKey('id')
-            ->setDefaultSort('id', 'desc')
-            ->setSearchPlaceholder('Buscar nombre / email / teléfono...');
+        if ($this->sortBy === $col) {
+            $this->sortDir = $this->sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortBy  = $col;
+            $this->sortDir = 'asc';
+        }
+        $this->resetPage();
     }
 
-    public function builder(): Builder
+    public function render()
     {
-        return Client::query()
-            ->select('clients.*') // asegura traer `activo` y demás
-            ->with(['shippingRoute', 'paymentType', 'priceList']); // ← sin listas de columnas
-    }
+        $q = Client::with(['shippingRoute','paymentType','priceList'])
+            ->when($this->search, function ($q) {
+                $t = '%'.$this->search.'%';
+                $q->where(fn($q) =>
+                    $q->where('nombre','like',$t)
+                      ->orWhere('email','like',$t)
+                      ->orWhere('telefono','like',$t)
+                );
+            })
+            ->when($this->activo !== '', fn($q) => $q->where('activo', $this->activo))
+            ->orderBy($this->sortBy, $this->sortDir);
 
-    public function columns(): array
-    {
-        return [
-            Column::make('ID','id')->sortable()->collapseOnTablet(),
-            Column::make('Nombre','nombre')->sortable()->searchable(),
-
-            Column::make('Email','email')
-                ->label(fn ($r) => $r->email ?: '—')
-                ->sortable()->searchable(),
-
-            Column::make('Teléfono','telefono')
-                ->label(fn ($r) => $r->telefono ?: '—')
-                ->sortable()->searchable()->collapseOnTablet(),
-
-            Column::make('Ruta')
-                ->label(function ($r) {
-                    $m = $r->shippingRoute;
-                    if (! $m) return '—';
-                    foreach (['nombre','name','descripcion','codigo','titulo'] as $col) {
-                        if (!empty($m->$col)) return $m->$col;
-                    }
-                    return 'ID '.$m->id;
-                })
-                ->sortable(),
-
-            Column::make('Tipo pago')
-                ->label(function ($r) {
-                    $m = $r->paymentType;
-                    if (! $m) return '—';
-                    foreach (['nombre','name','descripcion','tipo','titulo','codigo'] as $col) {
-                        if (!empty($m->$col)) return $m->$col;
-                    }
-                    return 'ID '.$m->id;
-                })
-                ->sortable(),
-
-            Column::make('Lista precio')
-                ->label(function ($r) {
-                    $m = $r->priceList;
-                    if (! $m) return '—';
-                    foreach (['nombre','name','descripcion','titulo','codigo'] as $col) {
-                        if (!empty($m->$col)) return $m->$col;
-                    }
-                    return 'ID '.$m->id;
-                })
-                ->sortable(),
-
-            Column::make('Crédito límite','credito_limite')
-                ->label(fn ($r) => '<span class="font-mono">$'.number_format((float)$r->credito_limite,2).'</span>')
-                ->html()->sortable()->collapseOnTablet(),
-
-            Column::make('Crédito días','credito_dias')
-                ->label(fn ($r) => (string)($r->credito_dias ?? 0))
-                ->sortable()->collapseOnTablet(),
-
-            Column::make('Activo','activo')
-                ->sortable()
-                ->label(fn ($r) => $this->statusBadge((int) data_get($r,'activo',0)))
-                ->html(),
-
-            Column::make('Acciones')
-                ->label(fn ($r) => view('admin.clients.actions', ['client' => $r]))
-                ->html(),
-        ];
-    }
-
-    public function filters(): array
-    {
-        return [
-            SelectFilter::make('Activo')
-                ->options(['' => 'Todos','1' => 'Activos','0' => 'Inactivos'])
-                ->filter(fn (Builder $q, $v) => in_array($v, ['0','1'], true) ? $q->where('activo', $v) : null),
-        ];
-    }
-
-    private function statusBadge(int $value): string
-    {
-        return $value === 1
-            ? '<span class="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-700">Activo</span>'
-            : '<span class="px-2 py-1 text-xs rounded-full bg-rose-100 text-rose-700">Inactivo</span>';
+        return view('livewire.admin.datatables.client-table', [
+            'clients' => $q->paginate($this->perPage),
+        ]);
     }
 }

@@ -20,16 +20,14 @@
     {{-- Fontawesome --}}
     <script src="https://kit.fontawesome.com/e2d71e4ca2.js" crossorigin="anonymous"></script>
 
+    {{-- SweetAlert2 --}}
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-    {{-- wireui --}}
-    <wireui:scripts />
-
-    <!-- Scripts -->
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-
-    <!-- Styles -->
+    {{-- Livewire styles --}}
     @livewireStyles
+
+    <!-- Vite: CSS + JS -->
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     @stack('css')
 </head>
@@ -41,7 +39,7 @@
     @include('layouts.includes.admin.sidebar')
 
     <div class="p-4 sm:ml-64">
-        
+
         <div class="mt-14 flex items-center">
 
             @include('layouts.includes.admin.breadcrumb')
@@ -59,17 +57,20 @@
 
     @stack('modals')
 
+    {{-- Livewire primero --}}
     @livewireScripts
 
+    {{-- WireUI después de Livewire (usa el Alpine de Livewire) --}}
+    <wireui:scripts />
+
+    {{-- Flowbite --}}
     <script src="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.js"></script>
 
-
-
-  @if (session('swal'))
-<script>
-  Swal.fire(@json(session('swal')));
-</script>
-@endif
+    @if(session('swal'))
+    <script>
+        Swal.fire(@json(session('swal')));
+    </script>
+    @endif
 
     @stack('js')
 

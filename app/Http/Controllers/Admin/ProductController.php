@@ -252,4 +252,76 @@ class ProductController extends Controller
 
         return $data;
     }
+    public function subproductsData(Product $product)
+{
+    $rules = \App\Models\ProductSubproductRule::with('subproduct')
+        ->where('main_product_id', $product->id)
+        ->orderBy('id','desc')
+        ->get()
+        ->map(fn($r) => [
+            'id'            => $r->id,
+            'sub_product_id'=> $r->sub_product_id,
+            'nombre'        => $r->subproduct?->nombre ?? '—',
+            'rendimiento'   => round(((float)($r->ratio ?? 0)) * 100, 3),
+            'merma'         => round((float)($r->merma_porcent ?? 0), 3),
+        ]);
+
+    $options = Product::where('es_subproducto', 1)
+        ->where('id', '!=', $product->id)
+        ->where('activo', 1)
+        ->orderBy('nombre')
+        ->get(['id','nombre']);
+
+    return response()->json(['rules' => $rules, 'options' => $options]);
+}
+
+public function subproductsStore(Request $request, Product $product)
+{
+    $data = $request->validate([
+        'sub_product_id'  => ['required','integer','exists:products,id'],
+        'rendimiento_pct' => ['required','numeric','min:0.001'],
+        'merma_porcent'   => ['nullable','numeric','min:0','max:100'],
+    ]);
+
+    $ratio = (float)$data['rendimiento_pct'] > 1
+        ? (float)$data['rendimiento_pct'] / 100
+        : (float)$data['rendimiento_pct'];
+
+    \App\Models\ProductSubproductRule::create([
+        'main_product_id' => $product->id,
+        'sub_product_id'  => (int)$data['sub_product_id'],
+        'ratio'           => round($ratio, 6),
+        'merma_porcent'   => round((float)($data['merma_porcent'] ?? 0), 4),
+        'activo'          => 1,
+    ]);
+
+    return response()->json(['ok' => true]);
+}
+
+public function subproductsUpdate(Request $request, Product $product, \App\Models\ProductSubproductRule $rule)
+{
+    $data = $request->validate([
+        'sub_product_id'  => ['required','integer','exists:products,id'],
+        'rendimiento_pct' => ['required','numeric','min:0.001'],
+        'merma_porcent'   => ['nullable','numeric','min:0','max:100'],
+    ]);
+
+    $ratio = (float)$data['rendimiento_pct'] > 1
+        ? (float)$data['rendimiento_pct'] / 100
+        : (float)$data['rendimiento_pct'];
+
+    $rule->update([
+        'sub_product_id' => (int)$data['sub_product_id'],
+        'ratio'          => round($ratio, 6),
+        'merma_porcent'  => round((float)($data['merma_porcent'] ?? 0), 4),
+    ]);
+
+    return response()->json(['ok' => true]);
+}
+
+public function subproductsDelete(Product $product, \App\Models\ProductSubproductRule $rule)
+{
+    $rule->delete();
+    return response()->json(['ok' => true]);
+}
 }

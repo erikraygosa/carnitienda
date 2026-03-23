@@ -282,3 +282,12 @@ Route::prefix('parametros')->name('parametros.')->middleware(['auth'])->group(fu
 //Envio de correos
 Route::get('/{invoice}/send',        [InvoiceController::class, 'sendForm'])->name('invoices.send.form');
 Route::post('/{invoice}/send',       [InvoiceController::class, 'send'])->name('invoices.send');
+
+Route::get ('clients/{client}/prices',  [ClientController::class, 'pricesData'])->name('clients.prices.data');
+Route::post('clients/{client}/prices',  [ClientController::class, 'pricesSave'])->name('clients.prices.save');
+
+/// PRUDUCTOS
+Route::get ('products/{product}/subproducts',        [ProductController::class, 'subproductsData'])->name('products.subproducts.data');
+Route::post('products/{product}/subproducts',        [ProductController::class, 'subproductsStore'])->name('products.subproducts.store');
+Route::put ('products/{product}/subproducts/{rule}', [ProductController::class, 'subproductsUpdate'])->name('products.subproducts.update');
+Route::delete('products/{product}/subproducts/{rule}',[ProductController::class, 'subproductsDelete'])->name('products.subproducts.delete');
