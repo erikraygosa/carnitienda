@@ -24,63 +24,69 @@
         <form id="dispatch-form"
               action="{{ route('admin.dispatches.store') }}"
               method="POST"
-              class="space-y-6"
-              x-data="dispatchForm()"
-              x-init="init()">
+              class="space-y-6">
             @csrf
 
             {{-- ── Encabezado ── --}}
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+                {{-- Almacén --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Almacén</label>
                     @php $selW = (string)old('warehouse_id'); @endphp
                     <select name="warehouse_id" class="w-full rounded-md border-gray-300 text-sm">
                         <option value="">-- seleccionar --</option>
                         @foreach($warehouses as $w)
-                            <option value="{{ $w->id }}" {{ $selW===(string)$w->id?'selected':'' }}>
+                            <option value="{{ $w->id }}" {{ $selW===(string)$w->id ? 'selected' : '' }}>
                                 {{ $w->nombre }}
                             </option>
                         @endforeach
                     </select>
                 </div>
 
-                {{-- Ruta — al cambiar filtra las tablas --}}
+                {{-- Ruta --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Ruta</label>
-                    <select name="shipping_route_id"
+                    <select name="shipping_route_id" id="shipping_route_id"
                             class="w-full rounded-md border-gray-300 text-sm"
-                            x-model="selectedRoute"
-                            @change="onRouteChange()">
+                            onchange="DF.onRouteChange(this.value)">
                         <option value="">-- sin ruta --</option>
                         @foreach($routes as $r)
-                            <option value="{{ $r->id }}" {{ $selR===(string)$r->id?'selected':'' }}>
+                            <option value="{{ $r->id }}" {{ $selR===(string)$r->id ? 'selected' : '' }}>
                                 {{ $r->nombre }}
                             </option>
                         @endforeach
                     </select>
                 </div>
 
+                {{-- Chofer --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Chofer</label>
                     @php $selD = (string)old('driver_id'); @endphp
                     <select name="driver_id" class="w-full rounded-md border-gray-300 text-sm">
                         <option value="">-- sin chofer --</option>
                         @foreach($drivers as $d)
-                            <option value="{{ $d->id }}" {{ $selD===(string)$d->id?'selected':'' }}>
+                            <option value="{{ $d->id }}" {{ $selD===(string)$d->id ? 'selected' : '' }}>
                                 {{ $d->nombre }}
                             </option>
                         @endforeach
                     </select>
                 </div>
 
+                {{-- Vehículo --}}
                 <div>
-                    <x-wire-input label="Vehículo" name="vehicle" value="{{ old('vehicle') }}" />
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Vehículo</label>
+                    <input type="text" name="vehicle" value="{{ old('vehicle') }}"
+                           class="w-full rounded-md border-gray-300 shadow-sm text-sm">
                 </div>
 
+                {{-- Fecha --}}
                 <div class="md:col-span-2">
-                    <x-wire-input label="Fecha" name="fecha" type="datetime-local"
-                                  value="{{ $valueFecha }}" required />
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Fecha <span class="text-red-500">*</span></label>
+                    <input type="datetime-local" name="fecha" value="{{ $valueFecha }}" required
+                           class="w-full rounded-md border-gray-300 shadow-sm text-sm">
                 </div>
+
             </div>
 
             {{-- ══ 1. TRASPASOS ══════════════════════════════════════════════ --}}
@@ -136,6 +142,7 @@
                         </table>
                     </div>
                 @endif
+
                 @error('transfers')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
@@ -148,14 +155,13 @@
                     <h3 class="font-semibold text-gray-800">Pedidos candidatos</h3>
                     <span class="text-sm font-normal text-gray-400">(PROCESADOS)</span>
 
-                    {{-- Botón seleccionar todos los de la ruta --}}
-                    <template x-if="selectedRoute">
-                        <button type="button"
-                                @click="selectByRoute()"
-                                class="ml-auto inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">
-                            ✓ Seleccionar todos de la ruta
-                        </button>
-                    </template>
+                    <button type="button"
+                            id="btn-select-route"
+                            onclick="DF.selectByRoute()"
+                            style="{{ $selR ? '' : 'display:none' }}"
+                            class="ml-auto inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">
+                        ✓ Seleccionar todos de la ruta
+                    </button>
                 </div>
 
                 <div class="overflow-auto border rounded">
@@ -194,8 +200,7 @@
                                 </td>
                                 <td class="p-2 text-xs text-gray-500">
                                     @if($o->shipping_route_id)
-                                        <span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-xs route-badge"
-                                              data-route="{{ $o->shipping_route_id }}">
+                                        <span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-xs">
                                             {{ $o->route?->nombre ?? '#'.$o->shipping_route_id }}
                                         </span>
                                     @else
@@ -217,12 +222,11 @@
                     </table>
                 </div>
 
-                {{-- Contador de seleccionados --}}
                 <p class="mt-1 text-xs text-gray-400">
                     <span id="orders-count">0</span> pedido(s) seleccionado(s)
-                    <template x-if="selectedRoute">
-                        <span> · <span id="route-count">0</span> de esta ruta</span>
-                    </template>
+                    <span id="route-count-wrap" style="{{ $selR ? '' : 'display:none' }}">
+                        · <span id="route-count">0</span> de esta ruta
+                    </span>
                 </p>
 
                 @error('orders')
@@ -283,70 +287,75 @@
                 @endif
             </div>
 
+            {{-- Notas --}}
             <div>
-                <x-wire-textarea label="Notas" name="notas">{{ old('notas') }}</x-wire-textarea>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                <textarea name="notas" rows="3"
+                          class="w-full rounded-md border-gray-300 shadow-sm text-sm">{{ old('notas') }}</textarea>
             </div>
 
         </form>
     </x-wire-card>
 
     <script>
-    function dispatchForm() {
-        return {
-            selectedRoute: '{{ $selR }}',
+    (function(){
+        let selectedRoute = '{{ $selR }}';
 
-            init() {
-                this.updateCounters();
-                // Escuchar cambios en checkboxes de pedidos para actualizar contador
-                document.querySelectorAll('.order-check').forEach(c => {
-                    c.addEventListener('change', () => this.updateCounters());
-                });
+        window.DF = {
+            onRouteChange(val) {
+                selectedRoute = val;
+                const btn  = document.getElementById('btn-select-route');
+                const wrap = document.getElementById('route-count-wrap');
+                if (btn)  btn.style.display  = val ? '' : 'none';
+                if (wrap) wrap.style.display = val ? '' : 'none';
+                DF.updateCounters();
             },
 
-            onRouteChange() {
-                this.updateCounters();
-            },
-
-            // Selecciona todos los pedidos que pertenecen a la ruta activa
             selectByRoute() {
-                const route = this.selectedRoute;
-                if (!route) return;
+                if (!selectedRoute) return;
                 document.querySelectorAll('.order-row').forEach(row => {
                     const cb = row.querySelector('.order-check');
-                    if (cb) cb.checked = row.dataset.route === route;
+                    if (cb) cb.checked = row.dataset.route === selectedRoute;
                 });
-                this.updateCounters();
+                DF.updateCounters();
             },
 
             updateCounters() {
-                const checked = document.querySelectorAll('.order-check:checked').length;
-                const routeCount = this.selectedRoute
-                    ? document.querySelectorAll(`.order-row[data-route="${this.selectedRoute}"] .order-check:checked`).length
+                const checked    = document.querySelectorAll('.order-check:checked').length;
+                const routeCount = selectedRoute
+                    ? document.querySelectorAll(`.order-row[data-route="${selectedRoute}"] .order-check:checked`).length
                     : 0;
-                const el = document.getElementById('orders-count');
+                const el  = document.getElementById('orders-count');
                 const elR = document.getElementById('route-count');
-                if (el) el.textContent = checked;
+                if (el)  el.textContent  = checked;
                 if (elR) elR.textContent = routeCount;
             },
-        }
-    }
+        };
 
-    // Check-all traspasos
-    document.getElementById('check-all-transfers')?.addEventListener('change', function() {
-        document.querySelectorAll('.transfer-check').forEach(c => c.checked = this.checked);
-    });
+        // Listeners checkboxes pedidos
+        document.querySelectorAll('.order-check').forEach(c => {
+            c.addEventListener('change', () => DF.updateCounters());
+        });
 
-    // Check-all pedidos
-    document.getElementById('check-all-orders')?.addEventListener('change', function() {
-        document.querySelectorAll('.order-check').forEach(c => c.checked = this.checked);
-        // Actualizar contador via Alpine
-        const alpine = document.querySelector('[x-data]')?._x_dataStack?.[0];
-        if (alpine) alpine.updateCounters();
-    });
+        // Check-all traspasos
+        document.getElementById('check-all-transfers')?.addEventListener('change', function() {
+            document.querySelectorAll('.transfer-check').forEach(c => c.checked = this.checked);
+        });
 
-    // Check-all CxC
-    document.getElementById('check-all-ar')?.addEventListener('change', function() {
-        document.querySelectorAll('.ar-check').forEach(c => c.checked = this.checked);
-    });
+        // Check-all pedidos
+        document.getElementById('check-all-orders')?.addEventListener('change', function() {
+            document.querySelectorAll('.order-check').forEach(c => c.checked = this.checked);
+            DF.updateCounters();
+        });
+
+        // Check-all CxC
+        document.getElementById('check-all-ar')?.addEventListener('change', function() {
+            document.querySelectorAll('.ar-check').forEach(c => c.checked = this.checked);
+        });
+
+        // Init contadores
+        DF.updateCounters();
+    })();
     </script>
+
 </x-admin-layout>
