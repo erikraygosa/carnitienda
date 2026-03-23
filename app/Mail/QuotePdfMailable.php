@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Mail;
 
 use App\Models\Quote;
@@ -11,22 +10,26 @@ class QuotePdfMailable extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public Quote $quote;
-    public string $pdfRaw;
-    public string $filename;
-
-    public function __construct(Quote $quote, string $pdfRaw, string $filename = 'cotizacion.pdf')
-    {
-        $this->quote    = $quote;
-        $this->pdfRaw   = $pdfRaw;
-        $this->filename = $filename;
-    }
+    public function __construct(
+    public Quote  $quote,
+    public string $pdfRaw,
+    public string $filename = 'cotizacion.pdf',
+    public string $mensaje  = '',
+    public mixed  $empresa  = null,
+) {
+    $this->mensaje = $mensaje ?? '';
+}
 
     public function build()
     {
         return $this->from(config('mail.from.address'), config('mail.from.name'))
-            ->subject('Cotización '.$this->quote->id.' - '.$this->quote->client?->nombre)
-            ->view('emails.quotes.send') // vista simple con texto
+            ->subject('Cotización ' . ($this->quote->folio ?? $this->quote->id) . ' — ' . $this->quote->client?->nombre)
+            ->view('emails.quote')
+            ->with([
+                'quote'   => $this->quote,
+                'mensaje' => $this->mensaje,
+                'empresa' => $this->empresa,
+            ])
             ->attachData($this->pdfRaw, $this->filename, ['mime' => 'application/pdf']);
     }
 }

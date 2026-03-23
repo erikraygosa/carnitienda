@@ -287,6 +287,12 @@ class QuoteController extends Controller
     public function sendForm(Quote $quote)
     {
         $quote->load('client', 'items.product');
+
+$empresa = app(\App\Services\CompanyService::class)->activa();
+
+$pdf    = Pdf::loadView('pdf.quote', ['quote' => $quote, 'empresa' => $empresa]);
+$pdfRaw = $pdf->output();
+$fname  = 'cotizacion-' . ($quote->folio ?? $quote->id) . '.pdf';
         return view('admin.quotes.send', [
             'quote'       => $quote,
             'clientEmail' => $quote->client->email ?? '',
@@ -294,63 +300,70 @@ class QuoteController extends Controller
         ]);
     }
 
-    public function send(Request $request, Quote $quote, WhatsappSender $whatsapp)
-    {
-        $request->validate([
-            'channels'   => ['required', 'array', 'min:1'],
-            'channels.*' => ['in:email,whatsapp'],
-            'email'      => ['nullable', 'email'],
-            'telefono'   => ['nullable', 'string'],
-            'mensaje'    => ['nullable', 'string', 'max:500'],
-        ]);
+        public function send(Request $request, Quote $quote, WhatsappSender $whatsapp)
+{
+    $request->validate([
+        'channels'   => ['required', 'array', 'min:1'],
+        'channels.*' => ['in:email,whatsapp'],
+        'email'      => ['nullable', 'email'],
+        'telefono'   => ['nullable', 'string'],
+        'mensaje'    => ['nullable', 'string', 'max:500'],
+    ]);
 
-        $quote->load('client', 'items.product');
-        $pdf    = Pdf::loadView('pdf.quote', ['quote' => $quote]);
-        $pdfRaw = $pdf->output();
-        $fname  = 'cotizacion-' . $quote->id . '.pdf';
+    $quote->load('client', 'items.product');
+    $empresa = app(\App\Services\CompanyService::class)->activa();
 
-        $sentEmail = $sentWa = false;
-        $errors = [];
+    $pdf    = Pdf::loadView('pdf.quote', ['quote' => $quote, 'empresa' => $empresa]);
+    $pdfRaw = $pdf->output();
+    $fname  = 'cotizacion-' . ($quote->folio ?? $quote->id) . '.pdf';
 
-        if (in_array('email', $request->channels, true)) {
-            $to = $request->input('email') ?: ($quote->client->email ?? null);
-            if (!$to) {
-                $errors[] = 'Sin correo del cliente.';
-            } else {
-                try {
-                    Mail::to($to)->send(new QuotePdfMailable($quote, $pdfRaw, $fname));
-                    $sentEmail = true;
-                } catch (\Throwable $e) {
-                    $errors[] = 'Email: ' . $e->getMessage();
-                }
+    $sentEmail = $sentWa = false;
+    $errors = [];
+
+    if (in_array('email', $request->channels, true)) {
+        $to = $request->input('email') ?: ($quote->client?->email ?? null);
+        if (!$to) {
+            $errors[] = 'Sin correo del cliente.';
+        } else {
+            try {
+                Mail::to($to)->send(new QuotePdfMailable(
+                    quote:    $quote,
+                    pdfRaw:   $pdfRaw,
+                    filename: $fname,
+                  mensaje: $request->input('mensaje') ?? '',
+                    empresa:  $empresa,
+                ));
+                $sentEmail = true;
+            } catch (\Throwable $e) {
+                $errors[] = 'Email: ' . $e->getMessage();
             }
         }
-
-        if (in_array('whatsapp', $request->channels, true)) {
-            $phone = $request->input('telefono') ?: ($quote->client->telefono ?? null);
-            if (!$phone) {
-                $errors[] = 'Sin teléfono del cliente.';
-            } else {
-                try {
-                    $resp = $whatsapp->sendPdf($phone, $request->input('mensaje', 'Te adjunto la cotización 📎'), $fname, $pdfRaw);
-                    if (!($resp['ok'] ?? false)) $errors[] = 'WhatsApp: ' . json_encode($resp['body'] ?? []);
-                    else $sentWa = true;
-                } catch (\Throwable $e) {
-                    $errors[] = 'WhatsApp: ' . $e->getMessage();
-                }
-            }
-        }
-
-        if ($sentEmail || $sentWa) {
-            if ($quote->status === 'BORRADOR') $quote->update(['status' => 'ENVIADA']);
-        }
-
-        if ($errors) {
-            return back()->with('swal', ['icon' => 'error', 'title' => 'Envío parcial', 'text' => implode(' | ', $errors)]);
-        }
-        return back()->with('swal', ['icon' => 'success', 'title' => 'Enviada', 'text' => 'Cotización enviada correctamente.']);
     }
 
+    if (in_array('whatsapp', $request->channels, true)) {
+        $phone = $request->input('telefono') ?: ($quote->client?->telefono ?? null);
+        if (!$phone) {
+            $errors[] = 'Sin teléfono del cliente.';
+        } else {
+            try {
+                $resp = $whatsapp->sendPdf($phone, $request->input('mensaje', 'Te adjunto la cotización 📎'), $fname, $pdfRaw);
+                if (!($resp['ok'] ?? false)) $errors[] = 'WhatsApp: ' . json_encode($resp['body'] ?? []);
+                else $sentWa = true;
+            } catch (\Throwable $e) {
+                $errors[] = 'WhatsApp: ' . $e->getMessage();
+            }
+        }
+    }
+
+    if ($sentEmail || $sentWa) {
+        if ($quote->status === 'BORRADOR') $quote->update(['status' => 'ENVIADA']);
+    }
+
+    if ($errors) {
+        return back()->with('swal', ['icon' => 'error', 'title' => 'Envío parcial', 'text' => implode(' | ', $errors)]);
+    }
+    return back()->with('swal', ['icon' => 'success', 'title' => 'Enviada', 'text' => 'Cotización enviada correctamente.']);
+}
     // ── PDF ───────────────────────────────────────────────────────────────────
 
     public function pdf(Quote $quote)

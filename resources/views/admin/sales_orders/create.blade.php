@@ -412,41 +412,41 @@
             },
 
             onClientChange(clientId) {
-                state.clientId = clientId;
-                const d = CLIENT_DEFAULTS[clientId];
-                if (!d) {
-                    $('credito-info').classList.add('hidden');
-                    return;
-                }
-                if (d.shipping_route_id) set('shipping_route_id', d.shipping_route_id);
-                if (d.price_list_id) {
-                    $('price_list_sel').value = d.price_list_id;
-                    SOF.onPriceListChange(d.price_list_id);
-                }
-                set('credit_days', d.credito_dias || 0);
-                if (d.credito_dias > 0) {
-                    set('payment_method', 'CREDITO');
-                    SOF.onPaymentChange('CREDITO');
-                }
-                if (d.credito_limite > 0) {
-                    const info = $('credito-info');
-                    info.textContent = `Límite: $${fmt(d.credito_limite)} · Días: ${d.credito_dias}d`;
-                    info.classList.remove('hidden');
-                }
-                // Dirección entrega
-                const fields = {
-                    entrega_telefono: d.telefono,
-                    entrega_calle:    d.entrega_calle,
-                    entrega_numero:   d.entrega_numero,
-                    entrega_colonia:  d.entrega_colonia,
-                    entrega_ciudad:   d.entrega_ciudad,
-                    entrega_estado:   d.entrega_estado,
-                    entrega_cp:       d.entrega_cp,
-                };
-                Object.entries(fields).forEach(([id, val]) => { if(val) set(id, val); });
+                    state.clientId = clientId;
+                    state.priceList = 'client';
 
-                SOF.repriceAll();
-            },
+                    const d = CLIENT_DEFAULTS[clientId];
+                    if (d) {
+                        if (d.shipping_route_id) set('shipping_route_id', d.shipping_route_id);
+                        if (d.credito_dias > 0) {
+                            set('payment_method', 'CREDITO');
+                            set('credit_days', d.credito_dias);
+                            SOF.onPaymentChange('CREDITO');
+                        }
+                        if (d.credito_limite > 0) {
+                            const info = $('credito-info');
+                            if (info) {
+                                info.textContent = `Límite: $${fmt(d.credito_limite)} · Días: ${d.credito_dias}d`;
+                                info.classList.remove('hidden');
+                            }
+                        }
+                        const fields = {
+                            entrega_telefono: d.telefono,
+                            entrega_calle:    d.entrega_calle,
+                            entrega_numero:   d.entrega_numero,
+                            entrega_colonia:  d.entrega_colonia,
+                            entrega_ciudad:   d.entrega_ciudad,
+                            entrega_estado:   d.entrega_estado,
+                            entrega_cp:       d.entrega_cp,
+                        };
+                        Object.entries(fields).forEach(([id, val]) => { if(val) set(id, val); });
+                    } else {
+                        const info = $('credito-info');
+                        if (info) info.classList.add('hidden');
+                    }
+
+                    SOF.repriceAll();
+                },
 
             onPriceListChange(val) {
                 state.priceList = val;
@@ -463,9 +463,18 @@
             },
 
             repriceAll() {
+                // Actualiza precio en state Y en el input visible
                 state.items.forEach((it, i) => {
-                    if (it.product_id) it.precio = getPrice(it.product_id);
-                    recalcRow(i);
+                    if (it.product_id) {
+                        it.precio = getPrice(it.product_id);
+                        // Actualizar el input visible en el DOM
+                        const row = document.querySelector(`#items-body tr[data-idx="${i}"]`);
+                        if (row) {
+                            const inp = row.querySelector('.inp-precio');
+                            if (inp) inp.value = it.precio;
+                        }
+                        recalcRow(i);
+                    }
                 });
             },
         };

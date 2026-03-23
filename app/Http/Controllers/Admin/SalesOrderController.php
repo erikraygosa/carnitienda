@@ -571,73 +571,75 @@ public function pdfDownload(SalesOrder $order)
         ]);
     }
 
-    public function send(Request $request, SalesOrder $order, \App\Services\WhatsappSender $whatsapp)
-    {
-        $request->validate([
-            'channels'    => ['required','array','min:1'],
-            'channels.*'  => ['in:email,whatsapp'],
-            'email'       => ['nullable','email'],
-            'telefono'    => ['nullable','string'],
-            'mensaje'     => ['nullable','string','max:500'],
-        ]);
+   public function send(Request $request, SalesOrder $order, \App\Services\WhatsappSender $whatsapp)
+{
+    $request->validate([
+        'channels'    => ['required','array','min:1'],
+        'channels.*'  => ['in:email,whatsapp'],
+        'email'       => ['nullable','email'],
+        'telefono'    => ['nullable','string'],
+        'mensaje'     => ['nullable','string','max:500'],
+    ]);
 
-        $order->load('client','items.product');
+    $empresa = app(\App\Services\CompanyService::class)->activa();
+    $order->loadMissing(['client','items.product','warehouse','driver','route']);
 
-        $pdf     = Pdf::loadView('pdf.sales_order', ['order' => $order]);
-        $pdfRaw  = $pdf->output();
-        $fname   = 'remision-pedido-'.$order->id.'.pdf';
+    $pdf    = Pdf::loadView('pdf.sales_order', ['order' => $order, 'empresa' => $empresa]);
+    $pdfRaw = $pdf->output();
+    $fname  = 'remision-' . ($order->folio ?? $order->id) . '.pdf';
 
-        $sentEmail = false;
-        $sentWhatsapp = false;
-        $errors = [];
+    $errors = [];
 
-        if (in_array('email', $request->channels, true)) {
-            $to = $request->input('email') ?: ($order->client->email ?? null);
-            if (!$to) {
-                $errors[] = 'El cliente no tiene correo y no proporcionaste uno.';
-            } else {
-                try {
-                    Mail::to($to)->send(new SalesOrderDeliveryNoteMailable($order, $pdfRaw, $fname));
-                    $sentEmail = true;
-                } catch (\Throwable $e) {
-                    $errors[] = 'Error enviando email: '.$e->getMessage();
-                }
+    if (in_array('email', $request->channels, true)) {
+        $to = $request->input('email') ?: ($order->client?->email ?? null);
+        if (!$to) {
+            $errors[] = 'El cliente no tiene correo y no proporcionaste uno.';
+        } else {
+            try {
+                Mail::to($to)->send(new SalesOrderDeliveryNoteMailable(
+                    order:    $order,
+                    pdfRaw:   $pdfRaw,
+                    filename: $fname,
+                    mensaje:  $request->input('mensaje', ''),
+                    empresa:  $empresa,
+                ));
+            } catch (\Throwable $e) {
+                $errors[] = 'Error enviando email: ' . $e->getMessage();
             }
         }
+    }
 
-        if (in_array('whatsapp', $request->channels, true)) {
-            $phone  = $request->input('telefono') ?: ($order->client->telefono ?? null);
-            $msg    = $request->input('mensaje', 'Te adjunto la remisión del pedido 📎');
+    if (in_array('whatsapp', $request->channels, true)) {
+        $phone = $request->input('telefono') ?: ($order->client?->telefono ?? null);
+        $msg   = $request->input('mensaje', 'Te adjunto la remisión del pedido 📎');
 
-            if (!$phone) {
-                $errors[] = 'El cliente no tiene teléfono y no proporcionaste uno.';
-            } else {
-                try {
-                    $resp = $whatsapp->sendPdf($phone, $msg, $fname, $pdfRaw);
-                    if (!($resp['ok'] ?? false)) {
-                        $errors[] = 'WhatsApp API respondió '.($resp['status'] ?? '500').': '.json_encode($resp['body'] ?? []);
-                    } else {
-                        $sentWhatsapp = true;
-                    }
-                } catch (\Throwable $e) {
-                    $errors[] = 'Error enviando WhatsApp: '.$e->getMessage();
+        if (!$phone) {
+            $errors[] = 'El cliente no tiene teléfono y no proporcionaste uno.';
+        } else {
+            try {
+                $resp = $whatsapp->sendPdf($phone, $msg, $fname, $pdfRaw);
+                if (!($resp['ok'] ?? false)) {
+                    $errors[] = 'WhatsApp API respondió ' . ($resp['status'] ?? '500') . ': ' . json_encode($resp['body'] ?? []);
                 }
+            } catch (\Throwable $e) {
+                $errors[] = 'Error enviando WhatsApp: ' . $e->getMessage();
             }
         }
+    }
 
-        // Ya no movemos a DESPACHADO automáticamente; la salida a ruta se hace con dispatchToRoute()
-        if ($errors) {
-            return back()->with('swal', [
-                'icon'  => 'error',
-                'title' => 'Envío parcial',
-                'text'  => implode(' | ', $errors),
-            ]);
-        }
-
+    if ($errors) {
         return back()->with('swal', [
-            'icon'  => 'success',
-            'title' => 'Enviado',
-            'text'  => 'Se envió la remisión correctamente.',
+            'icon'  => 'error',
+            'title' => 'Envío parcial',
+            'text'  => implode(' | ', $errors),
         ]);
     }
+        
+
+    return back()->with('swal', [
+        'icon'  => 'success',
+        'title' => 'Enviado',
+        'text'  => 'Se envió la remisión correctamente.',
+    ]);
+}
 }
