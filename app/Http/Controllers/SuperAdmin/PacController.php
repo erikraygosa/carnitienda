@@ -55,9 +55,8 @@ class PacController extends Controller
             if (! $apiKey) return back()->with('error', 'No hay API Key configurada.');
 
             if ($pac->driver === 'factuapi') {
-                $url      = $pac->esSandbox()
-                    ? 'https://apisandbox.factuapi.io/v2/catalogs/tax_systems'
-                    : 'https://api.factuapi.io/v2/catalogs/tax_systems';
+                $url = 'https://www.facturapi.io/v2/tools/tax_id_validation?tax_id=ABC101010111';
+    
                 $response = Http::withToken($apiKey)->timeout(10)->get($url);
 
                 if ($response->successful()) {

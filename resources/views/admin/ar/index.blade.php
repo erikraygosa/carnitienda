@@ -16,4 +16,5 @@
     <x-wire-card>
         @livewire('admin.datatables.ar-accounts-table')
     </x-wire-card>
+
 </x-admin-layout>

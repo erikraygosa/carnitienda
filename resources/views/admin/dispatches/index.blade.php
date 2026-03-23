@@ -38,7 +38,6 @@
         @livewire('admin.datatables.dispatch-table')
     </x-wire-card>
 
-    @push('js')
     <script>
         document.addEventListener('livewire:navigated', bindDeleteForms);
         document.addEventListener('DOMContentLoaded', bindDeleteForms);
@@ -59,5 +58,5 @@
             });
         }
     </script>
-    @endpush
+
 </x-admin-layout>

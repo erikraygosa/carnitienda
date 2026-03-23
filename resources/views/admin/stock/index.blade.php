@@ -79,4 +79,4 @@
             </p>
         @endif
     </x-wire-card>
-</x-admin-layout>
+

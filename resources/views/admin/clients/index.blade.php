@@ -11,7 +11,6 @@
 
     @livewire('admin.datatables.client-table')
 
-    @push('js')
     <script>
         // Confirmación para desactivar
         document.querySelectorAll('.delete-form').forEach(form => {
@@ -28,5 +27,5 @@
             })
         });
     </script>
-    @endpush
 </x-admin-layout>
+

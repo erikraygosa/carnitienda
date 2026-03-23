@@ -13,7 +13,6 @@
         @livewire('admin.datatables.quote-table')
     </x-wire-card>
 
-    @push('js')
     <script>
       document.querySelectorAll('.delete-form').forEach(f=>{
         f.addEventListener('submit',e=>{
@@ -26,5 +25,5 @@
         });
       });
     </script>
-    @endpush
 </x-admin-layout>
+

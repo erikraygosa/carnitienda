@@ -36,3 +36,4 @@
         @livewire('admin.datatables.ar-client-ledger-table', ['clientId'=>$client->id])
     </x-wire-card>
 </x-admin-layout>
+

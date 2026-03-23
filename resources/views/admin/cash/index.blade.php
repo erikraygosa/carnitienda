@@ -17,3 +17,4 @@
     <livewire:admin.datatables.cash-registers-table />
   </x-wire-card>
 </x-admin-layout>
+

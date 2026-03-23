@@ -13,7 +13,6 @@
 
     @livewire('admin.datatables.provider-table')
 
-    @push('js')
     <script>
       const forms = document.querySelectorAll('.delete-form');
       forms.forEach(form => {
@@ -34,5 +33,5 @@
         });
       });
     </script>
-    @endpush
 </x-admin-layout>
+

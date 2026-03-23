@@ -15,7 +15,6 @@
         @livewire('admin.datatables.invoice-table')
     </x-wire-card>
 
-    @push('js')
     <script>
         const forms = document.querySelectorAll('.delete-form');
         forms.forEach(form => {
@@ -34,5 +33,5 @@
             });
         });
     </script>
-    @endpush
 </x-admin-layout>
+

@@ -18,7 +18,6 @@
 
     @livewire('admin.datatables.category-table')
 
-    @push('js')
     <script>
         forms = document.querySelectorAll('.delete-form');   
         forms.forEach(form => {
@@ -42,6 +41,6 @@
             });
         });
     </script>    
-    @endpush
 
 </x-admin-layout>
+

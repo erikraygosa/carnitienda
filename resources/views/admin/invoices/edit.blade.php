@@ -10,7 +10,7 @@
         <a href="{{ route('admin.invoices.index') }}"
            class="inline-flex px-3 py-1.5 text-sm rounded-md border">Regresar</a>
         @if($invoice->estatus === 'BORRADOR')
-            <button form="invoice-edit-form" type="submit"
+            <button type="button" onclick="submitForm()"
                     class="ml-2 inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white">
                 Actualizar
             </button>
@@ -97,9 +97,7 @@
         <form id="invoice-edit-form"
               action="{{ route('admin.invoices.update', $invoice) }}"
               method="POST"
-              class="space-y-6"
-              x-data="invoiceEditForm()"
-              x-init="init()">
+              class="space-y-6">
             @csrf
             @method('PUT')
 
@@ -109,6 +107,9 @@
             <input type="hidden" name="regimen_fiscal_emisor"
                    value="{{ old('regimen_fiscal_emisor', $invoice->regimen_fiscal_emisor ?? $emisorDefaults['regimen_fiscal_emisor']) }}">
             <input type="hidden" name="exportacion" value="{{ $invoice->exportacion ?? '01' }}">
+            <input type="hidden" name="subtotal"    id="hidden-subtotal">
+            <input type="hidden" name="impuestos"   id="hidden-impuestos">
+            <input type="hidden" name="total"       id="hidden-total">
 
             {{-- ====== EMISOR ====== --}}
             @if($empresa)
@@ -135,8 +136,7 @@
                     </label>
                     <select name="client_id" id="client_id"
                             class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            x-model="client_id"
-                            @change="onClientChange()"
+                            onchange="onClientChange(this.value)"
                             {{ $isLocked ? 'disabled' : '' }}
                             required>
                         <option value="">-- seleccionar --</option>
@@ -147,10 +147,9 @@
                             </option>
                         @endforeach
                     </select>
-                    <div x-show="clientInfo.rfc" x-cloak
-                         class="text-xs text-gray-500 flex gap-3 pt-1">
-                        <span>RFC: <strong x-text="clientInfo.rfc"></strong></span>
-                        <span x-show="clientInfo.razon_social" x-text="clientInfo.razon_social"></span>
+                    <div id="client-meta" class="text-xs text-gray-500 flex gap-3 pt-1" style="display:none">
+                        <span>RFC: <strong id="client-rfc"></strong></span>
+                        <span id="client-razon"></span>
                     </div>
                 </div>
 
@@ -251,7 +250,7 @@
             <div class="border-t pt-5">
                 <h4 class="text-sm font-semibold text-gray-700 mb-3">Partidas</h4>
                 <div class="overflow-x-auto">
-                    <table class="min-w-full text-sm">
+                    <table class="min-w-full text-sm" id="items-table">
                         <thead class="border-b bg-gray-50">
                             <tr>
                                 <th class="p-2 text-left" style="min-width:200px">Producto / Concepto</th>
@@ -266,135 +265,20 @@
                                 <th class="p-2 w-8"></th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <template x-for="(it, i) in items" :key="i">
-                                <tr class="border-b hover:bg-gray-50">
-
-                                    {{-- Producto --}}
-                                    <td class="p-2">
-                                        <select class="w-full border rounded p-1 text-sm"
-                                                @change="onProductChange(i, $event)"
-                                                :disabled="locked">
-                                            <option value="">— seleccionar —</option>
-                                            @foreach($products as $p)
-                                                <option value="{{ $p->id }}"
-                                                        :selected="it.product_id == '{{ $p->id }}'">
-                                                    {{ $p->nombre }}
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                        <input type="hidden" :name="'items['+i+'][product_id]'" x-model="it.product_id">
-                                        <input class="w-full border rounded p-1 text-xs mt-1 text-gray-600"
-                                               x-model="it.descripcion"
-                                               :name="'items['+i+'][descripcion]'"
-                                               placeholder="Descripción del concepto"
-                                               :disabled="locked"
-                                               required>
-                                    </td>
-
-                                    {{-- Clave SAT --}}
-                                    <td class="p-2">
-                                        <input class="w-full border rounded p-1 text-sm"
-                                               x-model="it.clave_prod_serv"
-                                               :name="'items['+i+'][clave_prod_serv]'"
-                                               :disabled="locked"
-                                               placeholder="01010101">
-                                    </td>
-
-                                    {{-- Unidad --}}
-                                    <td class="p-2">
-                                        <input class="w-16 border rounded p-1 text-sm mb-1"
-                                               x-model="it.clave_unidad"
-                                               :name="'items['+i+'][clave_unidad]'"
-                                               :disabled="locked"
-                                               placeholder="H87">
-                                        <input class="w-16 border rounded p-1 text-sm"
-                                               x-model="it.unidad"
-                                               :name="'items['+i+'][unidad]'"
-                                               :disabled="locked"
-                                               placeholder="PZA">
-                                    </td>
-
-                                    {{-- Cantidad --}}
-                                    <td class="p-2">
-                                        <input type="number" step="0.001" min="0"
-                                               class="w-full border rounded p-1 text-right text-sm"
-                                               x-model.number="it.cantidad"
-                                               :name="'items['+i+'][cantidad]'"
-                                               @input="recalc(i)"
-                                               :disabled="locked" required>
-                                    </td>
-
-                                    {{-- Valor unitario --}}
-                                    <td class="p-2">
-                                        <input type="number" step="0.0001" min="0"
-                                               class="w-full border rounded p-1 text-right text-sm"
-                                               x-model.number="it.valor_unitario"
-                                               :name="'items['+i+'][valor_unitario]'"
-                                               @input="recalc(i)"
-                                               :disabled="locked" required>
-                                    </td>
-
-                                    {{-- Descuento --}}
-                                    <td class="p-2">
-                                        <input type="number" step="0.01" min="0"
-                                               class="w-full border rounded p-1 text-right text-sm"
-                                               x-model.number="it.descuento"
-                                               :name="'items['+i+'][descuento]'"
-                                               @input="recalc(i)"
-                                               :disabled="locked">
-                                    </td>
-
-                                    {{-- % IVA --}}
-                                    <td class="p-2 text-center">
-                                        <select class="w-full border rounded p-1 text-sm"
-                                                x-model.number="it.iva_pct"
-                                                @change="recalc(i)"
-                                                :disabled="locked">
-                                            <option value="0">0%</option>
-                                            <option value="8">8%</option>
-                                            <option value="16">16%</option>
-                                        </select>
-                                        <input type="hidden" :name="'items['+i+'][iva_pct]'"     x-model="it.iva_pct">
-                                        <input type="hidden" :name="'items['+i+'][iva_importe]'" x-model="it.iva_importe">
-                                        <input type="hidden" :name="'items['+i+'][ieps_pct]'"    x-model="it.ieps_pct">
-                                    </td>
-
-                                    {{-- Objeto impuesto --}}
-                                    <td class="p-2 text-center">
-                                        <select class="w-full border rounded p-1 text-sm"
-                                                x-model="it.objeto_imp"
-                                                :name="'items['+i+'][objeto_imp]'"
-                                                :disabled="locked">
-                                            <option value="01">01</option>
-                                            <option value="02">02</option>
-                                            <option value="03">03</option>
-                                        </select>
-                                    </td>
-
-                                    {{-- Importe --}}
-                                    <td class="p-2 text-right font-medium"
-                                        x-text="'$' + fmt(it.importe)"></td>
-
-                                    {{-- Eliminar --}}
-                                    <td class="p-2 text-center" x-show="!locked">
-                                        <button type="button"
-                                                class="text-red-400 hover:text-red-600"
-                                                @click="remove(i)">✕</button>
-                                    </td>
-
-                                </tr>
-                            </template>
+                        <tbody id="items-body">
+                            {{-- Filas generadas por JS --}}
                         </tbody>
                     </table>
 
-                    <div class="mt-3" x-show="!locked">
+                    @if(!$isLocked)
+                    <div class="mt-3">
                         <button type="button"
-                                class="inline-flex px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
-                                @click="add()">
+                                onclick="addItem()"
+                                class="inline-flex px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50">
                             + Agregar partida
                         </button>
                     </div>
+                    @endif
                 </div>
             </div>
 
@@ -403,22 +287,18 @@
                 <div class="w-64 space-y-1 text-sm">
                     <div class="flex justify-between text-gray-600">
                         <span>Subtotal</span>
-                        <span x-text="'$' + fmt(subtotal)"></span>
+                        <span id="display-subtotal">$0.00</span>
                     </div>
                     <div class="flex justify-between text-gray-600">
                         <span>IVA</span>
-                        <span x-text="'$' + fmt(tax_total)"></span>
+                        <span id="display-iva">$0.00</span>
                     </div>
                     <div class="flex justify-between font-bold text-gray-900 text-base border-t pt-2">
                         <span>Total</span>
-                        <span x-text="'$' + fmt(grand)"></span>
+                        <span id="display-total">$0.00</span>
                     </div>
                 </div>
             </div>
-
-            <input type="hidden" name="subtotal"  x-model="subtotal">
-            <input type="hidden" name="impuestos" x-model="tax_total">
-            <input type="hidden" name="total"     x-model="grand">
 
         </form>
     </x-wire-card>
@@ -450,7 +330,7 @@
                     Enviar
                 </x-wire-button>
                 <form action="{{ route('admin.invoices.cancel', $invoice) }}" method="POST"
-                      x-data x-on:submit.prevent="if(confirm('¿Cancelar esta factura en el SAT?')) $el.submit()">
+                      onsubmit="return confirm('¿Cancelar esta factura en el SAT?')">
                     @csrf
                     <div class="grid grid-cols-2 gap-2 items-end">
                         <div>
@@ -479,136 +359,336 @@
     </x-wire-card>
 
     <script>
-    function invoiceEditForm() {
-        const SEED         = @json($itemsSeed);
-        const CLIENTS_MAP  = @json($clientsMap);
-        const PRODUCTS_MAP = @json($productsMap);
-        const PREFILL_CID  = @json((string)($invoice->client_id ?? ''));
-        const IS_LOCKED    = @json($isLocked);
+    // ─── Datos inyectados desde PHP ───────────────────────────────────────────
+    const CLIENTS_MAP  = @json($clientsMap);
+    const PRODUCTS_MAP = @json($productsMap);
+    const ITEMS_SEED   = @json($itemsSeed);
+    const PREFILL_CID  = @json((string)($invoice->client_id ?? ''));
+    const IS_LOCKED    = @json($isLocked);
 
-        return {
-            items:      JSON.parse(JSON.stringify(SEED)),
-            locked:     IS_LOCKED,
-            client_id:  PREFILL_CID || '',
-            clientInfo: { rfc: '', razon_social: '' },
-            subtotal:   0,
-            tax_total:  0,
-            grand:      0,
+    // ─── Estado ───────────────────────────────────────────────────────────────
+    let items = JSON.parse(JSON.stringify(ITEMS_SEED));
 
-            init() {
-                if (this.client_id) this._applyClient(this.client_id, false);
-                this.items.forEach((_, i) => this.recalc(i));
-            },
+    // ─── Inicialización ───────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function () {
+        renderAllRows();
 
-            onClientChange() {
-                this._applyClient(this.client_id, true);
-            },
+        // Mostrar info del cliente ya seleccionado sin sobreescribir selects
+        if (PREFILL_CID) {
+            applyClient(PREFILL_CID, false);
+        }
 
-            _applyClient(clientId, updateSelects) {
-                const d = CLIENTS_MAP[String(clientId)];
-                if (!d) {
-                    this.clientInfo = { rfc: '', razon_social: '' };
-                    return;
-                }
+        items.forEach(function (_, i) { recalc(i); });
+    });
 
-                this.clientInfo = {
-                    rfc:          d.rfc         || '',
-                    razon_social: d.razon_social || '',
-                };
+    // ─── Cliente ──────────────────────────────────────────────────────────────
+    function onClientChange(clientId) {
+        applyClient(clientId, true);
+    }
 
-                if (updateSelects) {
-                    const regEl = document.getElementById('regimen_fiscal_receptor');
-                    if (regEl && d.regimen_fiscal) regEl.value = d.regimen_fiscal;
+    function applyClient(clientId, updateSelects) {
+        var d = CLIENTS_MAP[String(clientId)];
+        var meta = document.getElementById('client-meta');
 
-                    const usoEl = document.getElementById('uso_cfdi');
-                    if (usoEl && d.uso_cfdi) usoEl.value = d.uso_cfdi;
-                }
-            },
+        if (!d) {
+            if (meta) meta.style.display = 'none';
+            return;
+        }
 
-            onProductChange(i, ev) {
-                if (this.locked) return;
-                const productId = ev.target.value;
-                const it        = this.items[i];
+        document.getElementById('client-rfc').textContent   = d.rfc         || '';
+        document.getElementById('client-razon').textContent = d.razon_social || '';
+        if (meta) meta.style.display = 'flex';
 
-                if (!productId) {
-                    it.product_id      = '';
-                    it.descripcion     = '';
-                    it.clave_prod_serv = '01010101';
-                    it.clave_unidad    = 'H87';
-                    it.unidad          = 'PZA';
-                    it.valor_unitario  = 0;
-                    this.recalc(i);
-                    return;
-                }
+        // Solo autocompleta los selects cuando el usuario cambia el cliente
+        // (no al cargar la página, para respetar los valores guardados)
+        if (updateSelects) {
+            var regEl = document.getElementById('regimen_fiscal_receptor');
+            if (regEl && d.regimen_fiscal) regEl.value = d.regimen_fiscal;
 
-                const p = PRODUCTS_MAP[String(productId)];
-                if (!p) return;
+            var usoEl = document.getElementById('uso_cfdi');
+            if (usoEl && d.uso_cfdi) usoEl.value = d.uso_cfdi;
+        }
+    }
 
-                it.product_id      = productId;
-                it.descripcion     = p.nombre;
-                it.clave_prod_serv = p.clave_prod_serv || '01010101';
-                it.clave_unidad    = p.clave_unidad    || 'H87';
-                it.unidad          = p.unidad          || 'PZA';
-                it.valor_unitario  = p.precio_base     || 0;
+    // ─── Productos ────────────────────────────────────────────────────────────
+    function onProductChange(i, productId) {
+        if (IS_LOCKED) return;
 
-                this.recalc(i);
-            },
+        items[i].product_id = productId;
 
-            add() {
-                if (this.locked) return;
-                this.items.push({
-                    id: null, product_id: '',
-                    clave_prod_serv: '01010101',
-                    clave_unidad: 'H87', unidad: 'PZA',
-                    descripcion: '', cantidad: 1,
-                    valor_unitario: 0, descuento: 0,
-                    iva_pct: 16, objeto_imp: '02',
-                    importe: 0, iva_importe: 0,
-                    ieps_pct: 0, ieps_importe: 0,
-                });
-            },
+        if (!productId) {
+            items[i].descripcion     = '';
+            items[i].clave_prod_serv = '01010101';
+            items[i].clave_unidad    = 'H87';
+            items[i].unidad          = 'PZA';
+            items[i].valor_unitario  = 0;
+            updateRowFields(i);
+            recalc(i);
+            return;
+        }
 
-            remove(i) {
-                if (this.locked) return;
-                this.items.splice(i, 1);
-                this.sum();
-            },
+        var p = PRODUCTS_MAP[String(productId)];
+        if (!p) return;
 
-            recalc(i) {
-                const it   = this.items[i];
-                const base = Math.max(
-                    (+it.cantidad || 0) * (+it.valor_unitario || 0) - (+it.descuento || 0),
-                    0
-                );
-                const iva       = base * ((+it.iva_pct  || 0) / 100);
-                const ieps      = base * ((+it.ieps_pct || 0) / 100);
-                it.iva_importe  = iva;
-                it.ieps_importe = ieps;
-                it.importe      = base + iva + ieps;
-                this.sum();
-            },
+        items[i].descripcion     = p.nombre;
+        items[i].clave_prod_serv = p.clave_prod_serv || '01010101';
+        items[i].clave_unidad    = p.clave_unidad    || 'H87';
+        items[i].unidad          = p.unidad          || 'PZA';
+        items[i].valor_unitario  = p.precio_base     || 0;
 
-            sum() {
-                let s = 0, t = 0, g = 0;
-                this.items.forEach(it => {
-                    const base = Math.max(
-                        (+it.cantidad || 0) * (+it.valor_unitario || 0) - (+it.descuento || 0),
-                        0
-                    );
-                    const iva       = base * ((+it.iva_pct  || 0) / 100);
-                    const ieps      = base * ((+it.ieps_pct || 0) / 100);
-                    it.iva_importe  = iva;
-                    it.ieps_importe = ieps;
-                    it.importe      = base + iva + ieps;
-                    s += base; t += iva + ieps; g += it.importe;
-                });
-                this.subtotal  = s;
-                this.tax_total = t;
-                this.grand     = g;
-            },
+        // Actualizar hidden product_id
+        var hidPid = document.querySelector('#item-row-' + i + ' [data-field="product_id"]');
+        if (hidPid) hidPid.value = productId;
 
-            fmt(n) { return Number(n || 0).toFixed(2); }
-        };
+        updateRowFields(i);
+        recalc(i);
+    }
+
+    function updateRowFields(i) {
+        var row = document.getElementById('item-row-' + i);
+        if (!row) return;
+        row.querySelector('[data-field="descripcion"]').value     = items[i].descripcion     || '';
+        row.querySelector('[data-field="clave_prod_serv"]').value = items[i].clave_prod_serv || '';
+        row.querySelector('[data-field="clave_unidad"]').value    = items[i].clave_unidad    || '';
+        row.querySelector('[data-field="unidad"]').value          = items[i].unidad          || '';
+        row.querySelector('[data-field="valor_unitario"]').value  = items[i].valor_unitario  || 0;
+    }
+
+    // ─── Agregar / Eliminar filas ─────────────────────────────────────────────
+    function addItem() {
+        if (IS_LOCKED) return;
+        items.push({
+            id: null, product_id: '',
+            clave_prod_serv: '01010101',
+            clave_unidad: 'H87', unidad: 'PZA',
+            descripcion: '', cantidad: 1,
+            valor_unitario: 0, descuento: 0,
+            iva_pct: 16, objeto_imp: '02',
+            importe: 0, iva_importe: 0,
+            ieps_pct: 0, ieps_importe: 0,
+        });
+        var i = items.length - 1;
+        appendRow(i);
+        recalc(i);
+    }
+
+    function removeItem(i) {
+        if (IS_LOCKED) return;
+        items.splice(i, 1);
+        renderAllRows();
+        updateTotals();
+    }
+
+    // ─── Render ───────────────────────────────────────────────────────────────
+    function renderAllRows() {
+        var tbody = document.getElementById('items-body');
+        tbody.innerHTML = '';
+        items.forEach(function (_, i) { appendRow(i); });
+        updateTotals();
+    }
+
+    function appendRow(i) {
+        var it    = items[i];
+        var tbody = document.getElementById('items-body');
+        var locked = IS_LOCKED;
+        var dis   = locked ? 'disabled' : '';
+
+        // Opciones de productos
+        var productOptions = '<option value="">— seleccionar —</option>';
+        Object.entries(PRODUCTS_MAP).forEach(function (entry) {
+            var id = entry[0], p = entry[1];
+            var sel = String(it.product_id) === String(id) ? 'selected' : '';
+            productOptions += '<option value="' + id + '" ' + sel + '>' + escHtml(p.nombre) + '</option>';
+        });
+
+        var tr = document.createElement('tr');
+        tr.id = 'item-row-' + i;
+        tr.className = 'border-b hover:bg-gray-50';
+        tr.innerHTML = `
+            <td class="p-2">
+                <select class="w-full border rounded p-1 text-sm mb-1"
+                        onchange="onProductChange(${i}, this.value)"
+                        ${dis}>
+                    ${productOptions}
+                </select>
+                <input type="hidden" data-field="product_id"
+                       name="items[${i}][product_id]"
+                       value="${escHtml(it.product_id)}">
+                <input type="hidden" name="items[${i}][id]"
+                       value="${escHtml(it.id ?? '')}">
+                <input class="w-full border rounded p-1 text-xs text-gray-600"
+                       data-field="descripcion"
+                       name="items[${i}][descripcion]"
+                       value="${escHtml(it.descripcion)}"
+                       placeholder="Descripción del concepto"
+                       oninput="items[${i}].descripcion = this.value"
+                       ${dis} required>
+            </td>
+            <td class="p-2">
+                <input class="w-full border rounded p-1 text-sm"
+                       data-field="clave_prod_serv"
+                       name="items[${i}][clave_prod_serv]"
+                       value="${escHtml(it.clave_prod_serv)}"
+                       placeholder="01010101"
+                       oninput="items[${i}].clave_prod_serv = this.value"
+                       ${dis}>
+            </td>
+            <td class="p-2">
+                <input class="w-16 border rounded p-1 text-sm mb-1"
+                       data-field="clave_unidad"
+                       name="items[${i}][clave_unidad]"
+                       value="${escHtml(it.clave_unidad)}"
+                       placeholder="H87"
+                       oninput="items[${i}].clave_unidad = this.value"
+                       ${dis}>
+                <input class="w-16 border rounded p-1 text-sm"
+                       data-field="unidad"
+                       name="items[${i}][unidad]"
+                       value="${escHtml(it.unidad)}"
+                       placeholder="PZA"
+                       oninput="items[${i}].unidad = this.value"
+                       ${dis}>
+            </td>
+            <td class="p-2">
+                <input type="number" step="0.001" min="0"
+                       class="w-full border rounded p-1 text-right text-sm"
+                       data-field="cantidad"
+                       name="items[${i}][cantidad]"
+                       value="${it.cantidad}"
+                       oninput="items[${i}].cantidad = parseFloat(this.value)||0; recalc(${i})"
+                       ${dis} required>
+            </td>
+            <td class="p-2">
+                <input type="number" step="0.0001" min="0"
+                       class="w-full border rounded p-1 text-right text-sm"
+                       data-field="valor_unitario"
+                       name="items[${i}][valor_unitario]"
+                       value="${it.valor_unitario}"
+                       oninput="items[${i}].valor_unitario = parseFloat(this.value)||0; recalc(${i})"
+                       ${dis} required>
+            </td>
+            <td class="p-2">
+                <input type="number" step="0.01" min="0"
+                       class="w-full border rounded p-1 text-right text-sm"
+                       data-field="descuento"
+                       name="items[${i}][descuento]"
+                       value="${it.descuento}"
+                       oninput="items[${i}].descuento = parseFloat(this.value)||0; recalc(${i})"
+                       ${dis}>
+            </td>
+            <td class="p-2 text-center">
+                <select class="w-full border rounded p-1 text-sm"
+                        onchange="items[${i}].iva_pct = parseInt(this.value); recalc(${i})"
+                        ${dis}>
+                    <option value="0"  ${it.iva_pct == 0  ? 'selected' : ''}>0%</option>
+                    <option value="8"  ${it.iva_pct == 8  ? 'selected' : ''}>8%</option>
+                    <option value="16" ${it.iva_pct == 16 ? 'selected' : ''}>16%</option>
+                </select>
+                <input type="hidden" name="items[${i}][iva_pct]"      id="hid-iva-pct-${i}"  value="${it.iva_pct}">
+                <input type="hidden" name="items[${i}][iva_importe]"  id="hid-iva-imp-${i}"  value="${it.iva_importe}">
+                <input type="hidden" name="items[${i}][ieps_pct]"     id="hid-ieps-pct-${i}" value="${it.ieps_pct}">
+                <input type="hidden" name="items[${i}][ieps_importe]" id="hid-ieps-imp-${i}" value="${it.ieps_importe}">
+                <input type="hidden" name="items[${i}][importe]"      id="hid-importe-${i}"  value="${it.importe}">
+            </td>
+            <td class="p-2 text-center">
+                <select class="w-full border rounded p-1 text-sm"
+                        name="items[${i}][objeto_imp]"
+                        onchange="items[${i}].objeto_imp = this.value"
+                        ${dis}>
+                    <option value="01" ${it.objeto_imp === '01' ? 'selected' : ''}>01</option>
+                    <option value="02" ${it.objeto_imp === '02' ? 'selected' : ''}>02</option>
+                    <option value="03" ${it.objeto_imp === '03' ? 'selected' : ''}>03</option>
+                </select>
+            </td>
+            <td class="p-2 text-right font-medium" id="display-importe-${i}">
+                $${fmt(it.importe)}
+            </td>
+            <td class="p-2 text-center">
+                ${!locked ? `<button type="button" class="text-red-400 hover:text-red-600" onclick="removeItem(${i})">✕</button>` : ''}
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+    }
+
+    // ─── Cálculos ─────────────────────────────────────────────────────────────
+    function recalc(i) {
+        var it   = items[i];
+        var base = Math.max(
+            (parseFloat(it.cantidad)       || 0) *
+            (parseFloat(it.valor_unitario) || 0) -
+            (parseFloat(it.descuento)      || 0),
+            0
+        );
+        var iva        = base * ((parseFloat(it.iva_pct)  || 0) / 100);
+        var ieps       = base * ((parseFloat(it.ieps_pct) || 0) / 100);
+        it.iva_importe  = iva;
+        it.ieps_importe = ieps;
+        it.importe      = base + iva + ieps;
+
+        var hidIvaPct  = document.getElementById('hid-iva-pct-'  + i);
+        var hidIvaImp  = document.getElementById('hid-iva-imp-'  + i);
+        var hidIepsPct = document.getElementById('hid-ieps-pct-' + i);
+        var hidIepsImp = document.getElementById('hid-ieps-imp-' + i);
+        var hidImporte = document.getElementById('hid-importe-'  + i);
+        if (hidIvaPct)  hidIvaPct.value  = it.iva_pct;
+        if (hidIvaImp)  hidIvaImp.value  = it.iva_importe;
+        if (hidIepsPct) hidIepsPct.value = it.ieps_pct;
+        if (hidIepsImp) hidIepsImp.value = it.ieps_importe;
+        if (hidImporte) hidImporte.value = it.importe;
+
+        var cell = document.getElementById('display-importe-' + i);
+        if (cell) cell.textContent = '$' + fmt(it.importe);
+
+        updateTotals();
+    }
+
+    function updateTotals() {
+        var subtotal  = 0;
+        var tax_total = 0;
+        var grand     = 0;
+
+        items.forEach(function (it) {
+            var base = Math.max(
+                (parseFloat(it.cantidad)       || 0) *
+                (parseFloat(it.valor_unitario) || 0) -
+                (parseFloat(it.descuento)      || 0),
+                0
+            );
+            var iva  = base * ((parseFloat(it.iva_pct)  || 0) / 100);
+            var ieps = base * ((parseFloat(it.ieps_pct) || 0) / 100);
+            subtotal  += base;
+            tax_total += iva + ieps;
+            grand     += base + iva + ieps;
+        });
+
+        document.getElementById('display-subtotal').textContent = '$' + fmt(subtotal);
+        document.getElementById('display-iva').textContent      = '$' + fmt(tax_total);
+        document.getElementById('display-total').textContent    = '$' + fmt(grand);
+
+        document.getElementById('hidden-subtotal').value  = subtotal;
+        document.getElementById('hidden-impuestos').value = tax_total;
+        document.getElementById('hidden-total').value     = grand;
+    }
+
+    // ─── Envío del formulario ─────────────────────────────────────────────────
+    function submitForm() {
+        updateTotals();
+        document.getElementById('invoice-edit-form').submit();
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+    function fmt(n) {
+        return Number(n || 0).toFixed(2);
+    }
+
+    function escHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
     }
     </script>
 

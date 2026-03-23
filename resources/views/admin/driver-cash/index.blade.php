@@ -15,7 +15,6 @@
         @livewire('admin.datatables.driver-cash-registers-table')
     </x-wire-card>
 
-    @push('js')
     <script>
         // Confirmar cierre con SweetAlert
         document.querySelectorAll('.close-form')?.forEach(form => {
@@ -32,5 +31,5 @@
             });
         });
     </script>
-    @endpush
 </x-admin-layout>
+

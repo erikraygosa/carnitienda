@@ -270,15 +270,18 @@ class InvoiceController extends Controller
         return back()->with('swal', ['icon'=>'error','title'=>'Sin empresa','text'=>'No hay empresa activa configurada.']);
     }
 
-    if (! $empresa->tieneCsd()) {
+    // Solo validar CSD en producción
+    $pacConfig = \App\Models\PacConfiguration::activo()->first();
+    $esSandbox = $pacConfig?->ambiente === 'sandbox';
+
+    if (! $esSandbox && ! $empresa->tieneCsd()) {
         return back()->with('swal', ['icon'=>'error','title'=>'Sin CSD','text'=>'La empresa no tiene Sello Digital (CSD) vigente.']);
     }
 
-    if (! $empresa->tieneConfiguracionCompleta()) {
-        return back()->with('swal', ['icon'=>'error','title'=>'Configuración incompleta','text'=>'Completa los datos fiscales de la empresa antes de timbrar.']);
+    if (! $esSandbox && ! $empresa->tieneConfiguracionCompleta()) {
+        return back()->with('swal', ['icon'=>'error','title'=>'Configuración incompleta','text'=>'Completa los datos fiscales antes de timbrar.']);
     }
 
-    // Cargar items si no están cargados
     $invoice->loadMissing(['items', 'client', 'company.fiscalData']);
 
     $xml    = $pac->buildXml($invoice, $empresa);
@@ -288,7 +291,7 @@ class InvoiceController extends Controller
         return back()->with('swal', ['icon'=>'error','title'=>'Error PAC','text'=>$result['error'] ?? 'Fallo al timbrar.']);
     }
 
-    return back()->with('swal', ['icon'=>'success','title'=>'Timbrada','text'=>'Factura timbrada correctamente. UUID: ' . $result['uuid']]);
+    return back()->with('swal', ['icon'=>'success','title'=>'Timbrada','text'=>'Factura timbrada. UUID: ' . $result['uuid']]);
 }
 
     // CANCELAR CFDI

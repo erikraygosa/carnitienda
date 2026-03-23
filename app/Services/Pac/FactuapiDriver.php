@@ -14,8 +14,9 @@ class FactuapiDriver implements PacDriverInterface
     protected PacConfiguration $config;
 
     // URLs de Factuapi
-    const URL_SANDBOX    = 'https://apisandbox.factuapi.io/v2';
-    const URL_PRODUCCION = 'https://api.factuapi.io/v2';
+        const URL_SANDBOX    = 'https://www.facturapi.io/v2';
+const URL_PRODUCCION = 'https://www.facturapi.io/v2';
+    
 
     public function __construct(PacConfiguration $config)
     {
@@ -161,77 +162,80 @@ class FactuapiDriver implements PacDriverInterface
     // ------------------------------------------------------------------
     // Construir payload para Factuapi
     // ------------------------------------------------------------------
-    protected function buildPayload(Invoice $invoice, Company $company): array
-    {
-        $fiscalData = $company->fiscalData;
-        $cliente    = $invoice->client;
+        protected function buildPayload(Invoice $invoice, Company $company): array
+{
+    $fiscalData = $company->fiscalData;
+    $cliente    = $invoice->client;
 
-        // Obtener siguiente folio de la serie
-        $serie = InvoiceSeries::defaultParaEmpresa(
-            $company->id,
-            $invoice->tipo_comprobante ?? 'I'
-        );
+    $serie = InvoiceSeries::defaultParaEmpresa(
+        $company->id,
+        $invoice->tipo_comprobante ?? 'I'
+    );
 
-        $items = $invoice->items->map(function ($item) {
-            $impuestos = [];
+    $folio = $serie ? $serie->siguienteFolio() : null;
 
-            if ((float)$item->iva_pct > 0) {
-                $impuestos[] = [
-                    'type'   => 'IVA',
-                    'rate'   => (float)$item->iva_pct / 100,
-                    'factor' => 'Tasa',
-                ];
-            }
+    $items = $invoice->items->map(function ($item) {
+        $impuestos = [];
 
-            if ((float)$item->ieps_pct > 0) {
-                $impuestos[] = [
-                    'type'   => 'IEPS',
-                    'rate'   => (float)$item->ieps_pct / 100,
-                    'factor' => 'Tasa',
-                ];
-            }
+        if ((float)$item->iva_pct > 0) {
+            $impuestos[] = [
+                'type'   => 'IVA',
+                'rate'   => round((float)$item->iva_pct / 100, 4),
+            ];
+        }
 
-            return array_filter([
-                'quantity'          => (float)$item->cantidad,
-                'product_code'      => $item->clave_prod_serv ?? '01010101',
-                'unit_code'         => $item->clave_unidad ?? 'H87',
-                'unit'              => $item->unidad ?? 'Pieza',
-                'description'       => $item->descripcion,
-                'price'             => (float)$item->valor_unitario,
-                'discount'          => (float)$item->descuento > 0 ? (float)$item->descuento : null,
-                'tax_included'      => false,
-                'taxability'        => $item->objeto_imp ?? '02',
-                'taxes'             => ! empty($impuestos) ? $impuestos : null,
-            ]);
-        })->values()->toArray();
+        if ((float)$item->ieps_pct > 0) {
+            $impuestos[] = [
+                'type'   => 'IEPS',
+                'rate'   => round((float)$item->ieps_pct / 100, 4),
+            ];
+        }
 
-        return array_filter([
-            'type'                => $invoice->tipo_comprobante ?? 'I',
-            'series'              => $serie?->serie ?? $invoice->serie ?? 'A',
-            'folio_number'        => $serie ? $serie->siguienteFolio() : null,
-            'date'                => optional($invoice->fecha)->format('Y-m-d\TH:i:s'),
-            'payment_form'        => $invoice->forma_pago ?? '99',
-            'payment_method'      => $invoice->metodo_pago ?? 'PUE',
-            'currency'            => $invoice->moneda ?? 'MXN',
-            'expedition_place'    => $invoice->lugar_expedicion ?? $fiscalData?->codigo_postal,
-            'cfdi_use'            => $invoice->uso_cfdi ?? 'G03',
-            'export'              => $invoice->exportacion ?? '01',
+        $productData = [
+            'description' => $item->descripcion,
+            'product_key' => $item->clave_prod_serv ?? '01010101',
+            'price'       => (float)$item->valor_unitario,
+        ];
 
-            'issuer' => array_filter([
-                'tax_id'      => $company->rfc,
-                'name'        => $company->razon_social,
-                'tax_system'  => $invoice->regimen_fiscal_emisor ?? $fiscalData?->regimen_fiscal,
-            ]),
+        if (! empty($impuestos)) {
+            $productData['taxes'] = $impuestos;
+        }
 
-            'recipient' => array_filter([
-                'tax_id'      => $cliente?->rfc ?? 'XAXX010101000',
-                'name'        => $cliente?->razon_social ?? $cliente?->nombre ?? 'PUBLICO EN GENERAL',
-                'zip'         => $cliente?->fiscal_cp ?? $cliente?->cp ?? '00000',
-                'tax_system'  => $invoice->regimen_fiscal_receptor ?? '616',
-                'use'         => $invoice->uso_cfdi ?? 'G03',
-            ]),
+        $itemData = [
+            'quantity' => (float)$item->cantidad,
+            'product'  => $productData,
+        ];
 
-            'items' => $items,
-        ]);
+        if ((float)$item->descuento > 0) {
+            $itemData['discount'] = (float)$item->descuento;
+        }
+
+        return $itemData;
+    })->values()->toArray();
+
+    $payload = [
+        'customer' => [
+            'legal_name' => $cliente?->razon_social ?? $cliente?->nombre ?? 'PUBLICO EN GENERAL',
+            'tax_id'     => $cliente?->rfc ?? 'XAXX010101000',
+            'tax_system' => $invoice->regimen_fiscal_receptor ?? '616',
+            'address'    => [
+                'zip' => $cliente?->fiscal_cp ?? $cliente?->cp ?? '06600',
+            ],
+        ],
+        'items'          => $items,
+        'payment_form'   => $invoice->forma_pago ?? '99',
+        'payment_method' => $invoice->metodo_pago ?? 'PUE',
+        'use'            => $invoice->uso_cfdi ?? 'G03',
+    ];
+
+    if ($invoice->serie) {
+        $payload['series'] = $invoice->serie;
     }
+
+    if ($folio) {
+        $payload['folio_number'] = $folio;
+    }
+
+    return $payload;
+}
 }

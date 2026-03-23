@@ -127,3 +127,4 @@
         ])
     </x-wire-card>
 </x-admin-layout>
+

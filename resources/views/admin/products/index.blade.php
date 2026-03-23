@@ -14,7 +14,6 @@
     {{-- Contenido --}}
     @livewire('admin.datatables.product-table')
 
-    @push('js')
     <script>
         // Confirmación de borrado (para formularios con class="delete-form")
         const forms = document.querySelectorAll('.delete-form');
@@ -36,5 +35,5 @@
             });
         });
     </script>
-    @endpush
 </x-admin-layout>
+

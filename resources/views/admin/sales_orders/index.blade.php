@@ -10,3 +10,4 @@
         @livewire('admin.datatables.sales-order-table')
     </x-wire-card>
 </x-admin-layout>
+
