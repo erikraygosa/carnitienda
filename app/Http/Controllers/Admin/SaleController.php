@@ -31,7 +31,15 @@ class SaleController extends Controller
 
     public function create(Request $request)
     {
-        $clients      = Client::orderBy('nombre')->get(['id','nombre','email','telefono']);
+        $clients = Client::orderBy('nombre')->get([
+            'id','nombre','email','telefono',
+            'shipping_route_id','price_list_id',
+            'credito_dias','credito_limite',
+            'entrega_igual_fiscal',
+            'fiscal_calle','fiscal_numero','fiscal_colonia','fiscal_ciudad','fiscal_estado','fiscal_cp',
+            'entrega_calle','entrega_numero','entrega_colonia','entrega_ciudad','entrega_estado','entrega_cp',
+        ]);
+
         $priceLists   = PriceList::orderBy('nombre')->get(['id','nombre']);
         $products     = Product::orderBy('nombre')->get(['id','nombre','precio_base']);
         $warehouses   = Warehouse::orderBy('nombre')->get(['id','nombre']);
@@ -45,17 +53,16 @@ class SaleController extends Controller
             ->get()
             ->map(fn($p) => (object)[
                 'id'    => $p->id,
-                'clave' => $p->clave,                 // EFECTIVO, TRANSFERENCIA, etc.
+                'clave' => $p->clave,
                 'label' => $p->descripcion ?: $p->clave,
             ]);
 
-        // Precios por cliente / lista
         $overrides = DB::table('client_price_overrides')
             ->select('client_id','product_id','precio')
             ->whereIn('client_id', $clients->pluck('id'))
             ->get()
             ->groupBy('client_id')
-            ->map(fn($rows)=> $rows->pluck('precio','product_id')->map(fn($v)=>(float)$v)->toArray())
+            ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
             ->toArray();
 
         $listItems = DB::table('price_list_items')
@@ -63,17 +70,31 @@ class SaleController extends Controller
             ->whereIn('price_list_id', $priceLists->pluck('id'))
             ->get()
             ->groupBy('price_list_id')
-            ->map(fn($rows)=> $rows->pluck('precio','product_id')->map(fn($v)=>(float)$v)->toArray())
+            ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
             ->toArray();
 
+        $clientDefaults = $clients->mapWithKeys(fn($c) => [(string)$c->id => [
+            'shipping_route_id' => (string) ($c->shipping_route_id ?? ''),
+            'price_list_id'     => (string) ($c->price_list_id ?? ''),
+            'credito_dias'      => (int)    ($c->credito_dias  ?? 0),
+            'credito_limite'    => (float)  ($c->credito_limite ?? 0),
+            'telefono'          => (string) ($c->telefono ?? ''),
+            'entrega_calle'    => $c->entrega_igual_fiscal ? ($c->fiscal_calle   ?? '') : ($c->entrega_calle   ?? ''),
+            'entrega_numero'   => $c->entrega_igual_fiscal ? ($c->fiscal_numero  ?? '') : ($c->entrega_numero  ?? ''),
+            'entrega_colonia'  => $c->entrega_igual_fiscal ? ($c->fiscal_colonia ?? '') : ($c->entrega_colonia ?? ''),
+            'entrega_ciudad'   => $c->entrega_igual_fiscal ? ($c->fiscal_ciudad  ?? '') : ($c->entrega_ciudad  ?? ''),
+            'entrega_estado'   => $c->entrega_igual_fiscal ? ($c->fiscal_estado  ?? '') : ($c->entrega_estado  ?? ''),
+            'entrega_cp'       => $c->entrega_igual_fiscal ? ($c->fiscal_cp      ?? '') : ($c->entrega_cp      ?? ''),
+        ]])->toArray();
+
         return view('admin.sales.create', compact(
-            'clients','priceLists','products','warehouses','drivers','routes','posRegisters','payTypes','overrides','listItems'
+            'clients','priceLists','products','warehouses','drivers','routes',
+            'posRegisters','payTypes','overrides','listItems','clientDefaults'
         ));
     }
 
     public function store(Request $request)
     {
-        // Normaliza "client" -> null en lista de precios
         if ($request->input('price_list_id') === 'client') {
             $request->merge(['price_list_id' => null]);
         }
@@ -86,12 +107,8 @@ class SaleController extends Controller
             'payment_type_id'   => ['nullable','exists:payment_types,id'],
             'price_list_id'     => ['nullable','exists:price_lists,id'],
             'moneda'            => ['required','string','max:10'],
-
-            // Tipo de venta (alineado con contraentrega)
             'tipo_venta'        => ['required','in:CONTADO,CREDITO,CONTRAENTREGA'],
             'credit_days'       => ['nullable','integer','min:0'],
-
-            // Entrega
             'delivery_type'     => ['required','in:ENVIO,RECOGER'],
             'entrega_nombre'    => ['nullable','string','max:255'],
             'entrega_telefono'  => ['nullable','string','max:50'],
@@ -103,8 +120,6 @@ class SaleController extends Controller
             'entrega_cp'        => ['nullable','string','max:10'],
             'shipping_route_id' => ['nullable','exists:shipping_routes,id'],
             'driver_id'         => ['nullable','exists:drivers,id'],
-
-            // Items
             'items'                 => ['required','array','min:1'],
             'items.*.product_id'    => ['required','exists:products,id'],
             'items.*.descripcion'   => ['required','string','max:255'],
@@ -119,10 +134,10 @@ class SaleController extends Controller
         DB::transaction(function () use (&$sale, $data) {
             $subtotal=0; $descuento=0; $impuestos=0; $total=0;
             foreach ($data['items'] as $it) {
-                $line_sub = (float)$it['cantidad'] * (float)$it['precio'];
-                $line_desc= (float)($it['descuento'] ?? 0);
-                $line_tax = (float)($it['impuesto']  ?? 0);
-                $line_tot = max($line_sub - $line_desc, 0) + $line_tax;
+                $line_sub  = (float)$it['cantidad'] * (float)$it['precio'];
+                $line_desc = (float)($it['descuento'] ?? 0);
+                $line_tax  = (float)($it['impuesto']  ?? 0);
+                $line_tot  = max($line_sub - $line_desc, 0) + $line_tax;
                 $subtotal += $line_sub; $descuento += $line_desc; $impuestos += $line_tax; $total += $line_tot;
             }
 
@@ -130,49 +145,41 @@ class SaleController extends Controller
             $folio  = 'NV-'.now()->format('Ymd').'-'.str_pad((string)$nextId, 4, '0', STR_PAD_LEFT);
 
             $sale = Sale::create([
-                'folio'           => $folio,
-                'fecha'           => $data['fecha'],
-                'pos_register_id' => $data['pos_register_id'],
-                'warehouse_id'    => $data['warehouse_id'],
-                'client_id'       => $data['client_id'] ?? null,
-                'payment_type_id' => $data['payment_type_id'] ?? null,
-                'price_list_id'   => $data['price_list_id'] ?? null,
-                'moneda'          => $data['moneda'],
-
-                'tipo_venta'      => $data['tipo_venta'],
-                'credit_days'     => $data['tipo_venta']==='CREDITO' ? ($data['credit_days'] ?? 0) : null,
-
-                'delivery_type'   => $data['delivery_type'],
-                'entrega_nombre'  => $data['entrega_nombre'] ?? null,
-                'entrega_telefono'=> $data['entrega_telefono'] ?? null,
-                'entrega_calle'   => $data['entrega_calle'] ?? null,
-                'entrega_numero'  => $data['entrega_numero'] ?? null,
-                'entrega_colonia' => $data['entrega_colonia'] ?? null,
-                'entrega_ciudad'  => $data['entrega_ciudad'] ?? null,
-                'entrega_estado'  => $data['entrega_estado'] ?? null,
-                'entrega_cp'      => $data['entrega_cp'] ?? null,
-
-                'shipping_route_id'=> $data['shipping_route_id'] ?? null,
-                'driver_id'        => $data['driver_id'] ?? null,
-
-                'subtotal'        => $subtotal,
-                'impuestos'       => $impuestos,
-                'descuento'       => $descuento,
-                'total'           => $total,
-
-                // Estados alineados a flujo logístico
-                'status'          => 'BORRADOR',
-                'user_id'         => auth()->id(),
-
-                // Contraentrega: esperado a cobrar
+                'folio'               => $folio,
+                'fecha'               => $data['fecha'],
+                'pos_register_id'     => $data['pos_register_id'],
+                'warehouse_id'        => $data['warehouse_id'],
+                'client_id'           => $data['client_id'] ?? null,
+                'payment_type_id'     => $data['payment_type_id'] ?? null,
+                'price_list_id'       => $data['price_list_id'] ?? null,
+                'moneda'              => $data['moneda'],
+                'tipo_venta'          => $data['tipo_venta'],
+                'credit_days'         => $data['tipo_venta']==='CREDITO' ? ($data['credit_days'] ?? 0) : null,
+                'delivery_type'       => $data['delivery_type'],
+                'entrega_nombre'      => $data['entrega_nombre'] ?? null,
+                'entrega_telefono'    => $data['entrega_telefono'] ?? null,
+                'entrega_calle'       => $data['entrega_calle'] ?? null,
+                'entrega_numero'      => $data['entrega_numero'] ?? null,
+                'entrega_colonia'     => $data['entrega_colonia'] ?? null,
+                'entrega_ciudad'      => $data['entrega_ciudad'] ?? null,
+                'entrega_estado'      => $data['entrega_estado'] ?? null,
+                'entrega_cp'          => $data['entrega_cp'] ?? null,
+                'shipping_route_id'   => $data['shipping_route_id'] ?? null,
+                'driver_id'           => $data['driver_id'] ?? null,
+                'subtotal'            => $subtotal,
+                'impuestos'           => $impuestos,
+                'descuento'           => $descuento,
+                'total'               => $total,
+                'status'              => 'BORRADOR',
+                'user_id'             => auth()->id(),
                 'contraentrega_total' => $data['tipo_venta'] === 'CONTRAENTREGA' ? $total : 0,
             ]);
 
             foreach ($data['items'] as $it) {
-                $line_sub = (float)$it['cantidad'] * (float)$it['precio'];
-                $line_desc= (float)($it['descuento'] ?? 0);
-                $line_tax = (float)($it['impuesto']  ?? 0);
-                $line_tot = max($line_sub - $line_desc, 0) + $line_tax;
+                $line_sub  = (float)$it['cantidad'] * (float)$it['precio'];
+                $line_desc = (float)($it['descuento'] ?? 0);
+                $line_tax  = (float)($it['impuesto']  ?? 0);
+                $line_tot  = max($line_sub - $line_desc, 0) + $line_tax;
 
                 SaleItem::create([
                     'sale_id'     => $sale->id,
@@ -195,7 +202,15 @@ class SaleController extends Controller
     {
         $sale->load('items.product','client','priceList','warehouse','driver','route','posRegister','paymentType');
 
-        $clients      = Client::orderBy('nombre')->get(['id','nombre','email','telefono']);
+        $clients = Client::orderBy('nombre')->get([
+            'id','nombre','email','telefono',
+            'shipping_route_id','price_list_id',
+            'credito_dias','credito_limite',
+            'entrega_igual_fiscal',
+            'fiscal_calle','fiscal_numero','fiscal_colonia','fiscal_ciudad','fiscal_estado','fiscal_cp',
+            'entrega_calle','entrega_numero','entrega_colonia','entrega_ciudad','entrega_estado','entrega_cp',
+        ]);
+
         $priceLists   = PriceList::orderBy('nombre')->get(['id','nombre']);
         $products     = Product::orderBy('nombre')->get(['id','nombre','precio_base']);
         $warehouses   = Warehouse::orderBy('nombre')->get(['id','nombre']);
@@ -214,7 +229,8 @@ class SaleController extends Controller
             ]);
 
         return view('admin.sales.edit', compact(
-            'sale','clients','priceLists','products','warehouses','drivers','routes','posRegisters','payTypes'
+            'sale','clients','priceLists','products','warehouses',
+            'drivers','routes','posRegisters','payTypes'
         ));
     }
 
@@ -236,10 +252,8 @@ class SaleController extends Controller
             'payment_type_id'   => ['nullable','exists:payment_types,id'],
             'price_list_id'     => ['nullable','exists:price_lists,id'],
             'moneda'            => ['required','string','max:10'],
-
             'tipo_venta'        => ['required','in:CONTADO,CREDITO,CONTRAENTREGA'],
             'credit_days'       => ['nullable','integer','min:0'],
-
             'delivery_type'     => ['required','in:ENVIO,RECOGER'],
             'entrega_nombre'    => ['nullable','string','max:255'],
             'entrega_telefono'  => ['nullable','string','max:50'],
@@ -251,7 +265,6 @@ class SaleController extends Controller
             'entrega_cp'        => ['nullable','string','max:10'],
             'shipping_route_id' => ['nullable','exists:shipping_routes,id'],
             'driver_id'         => ['nullable','exists:drivers,id'],
-
             'items'                 => ['required','array','min:1'],
             'items.*.product_id'    => ['required','exists:products,id'],
             'items.*.descripcion'   => ['required','string','max:255'],
@@ -264,14 +277,13 @@ class SaleController extends Controller
         DB::transaction(function () use ($sale, $data) {
             $subtotal=0; $descuento=0; $impuestos=0; $total=0;
 
-            // Reemplaza items
             $sale->items()->delete();
 
             foreach ($data['items'] as $it) {
-                $line_sub = (float)$it['cantidad'] * (float)$it['precio'];
-                $line_desc= (float)($it['descuento'] ?? 0);
-                $line_tax = (float)($it['impuesto']  ?? 0);
-                $line_tot = max($line_sub - $line_desc, 0) + $line_tax;
+                $line_sub  = (float)$it['cantidad'] * (float)$it['precio'];
+                $line_desc = (float)($it['descuento'] ?? 0);
+                $line_tax  = (float)($it['impuesto']  ?? 0);
+                $line_tot  = max($line_sub - $line_desc, 0) + $line_tax;
 
                 $subtotal += $line_sub; $descuento += $line_desc; $impuestos += $line_tax; $total += $line_tot;
 
@@ -288,36 +300,30 @@ class SaleController extends Controller
             }
 
             $sale->update([
-                'fecha'           => $data['fecha'],
-                'pos_register_id' => $data['pos_register_id'],
-                'warehouse_id'    => $data['warehouse_id'],
-                'client_id'       => $data['client_id'] ?? null,
-                'payment_type_id' => $data['payment_type_id'] ?? null,
-                'price_list_id'   => $data['price_list_id'] ?? null,
-                'moneda'          => $data['moneda'],
-
-                'tipo_venta'      => $data['tipo_venta'],
-                'credit_days'     => $data['tipo_venta']==='CREDITO' ? ($data['credit_days'] ?? 0) : null,
-
-                'delivery_type'   => $data['delivery_type'],
-                'entrega_nombre'  => $data['entrega_nombre'] ?? null,
-                'entrega_telefono'=> $data['entrega_telefono'] ?? null,
-                'entrega_calle'   => $data['entrega_calle'] ?? null,
-                'entrega_numero'  => $data['entrega_numero'] ?? null,
-                'entrega_colonia' => $data['entrega_colonia'] ?? null,
-                'entrega_ciudad'  => $data['entrega_ciudad'] ?? null,
-                'entrega_estado'  => $data['entrega_estado'] ?? null,
-                'entrega_cp'      => $data['entrega_cp'] ?? null,
-
-                'shipping_route_id'=> $data['shipping_route_id'] ?? null,
-                'driver_id'        => $data['driver_id'] ?? null,
-
-                'subtotal'        => $subtotal,
-                'impuestos'       => $impuestos,
-                'descuento'       => $descuento,
-                'total'           => $total,
-
-                // Actualiza esperado a cobrar si es contraentrega
+                'fecha'               => $data['fecha'],
+                'pos_register_id'     => $data['pos_register_id'],
+                'warehouse_id'        => $data['warehouse_id'],
+                'client_id'           => $data['client_id'] ?? null,
+                'payment_type_id'     => $data['payment_type_id'] ?? null,
+                'price_list_id'       => $data['price_list_id'] ?? null,
+                'moneda'              => $data['moneda'],
+                'tipo_venta'          => $data['tipo_venta'],
+                'credit_days'         => $data['tipo_venta']==='CREDITO' ? ($data['credit_days'] ?? 0) : null,
+                'delivery_type'       => $data['delivery_type'],
+                'entrega_nombre'      => $data['entrega_nombre'] ?? null,
+                'entrega_telefono'    => $data['entrega_telefono'] ?? null,
+                'entrega_calle'       => $data['entrega_calle'] ?? null,
+                'entrega_numero'      => $data['entrega_numero'] ?? null,
+                'entrega_colonia'     => $data['entrega_colonia'] ?? null,
+                'entrega_ciudad'      => $data['entrega_ciudad'] ?? null,
+                'entrega_estado'      => $data['entrega_estado'] ?? null,
+                'entrega_cp'          => $data['entrega_cp'] ?? null,
+                'shipping_route_id'   => $data['shipping_route_id'] ?? null,
+                'driver_id'           => $data['driver_id'] ?? null,
+                'subtotal'            => $subtotal,
+                'impuestos'           => $impuestos,
+                'descuento'           => $descuento,
+                'total'               => $total,
                 'contraentrega_total' => $data['tipo_venta'] === 'CONTRAENTREGA' ? $total : 0,
             ]);
         });
@@ -339,101 +345,96 @@ class SaleController extends Controller
 
     // ====== Flujo de estados ======
 
-    // ====== Flujo de estados (USAR ESTOS) ======
-
-public function approve(Sale $sale)
-{
-    if ($sale->status !== 'BORRADOR') {
-        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR puede aprobarse.']);
-    }
-    // Pasamos a ABIERTA (no existe APROBADO en tu ENUM actual)
-    $sale->update(['status'=>'ABIERTA']);
-    return back()->with('swal',['icon'=>'success','title'=>'Abierta','text'=>'Nota abierta.']);
-}
-
-public function startPreparing(Sale $sale)
-{
-    if ($sale->status !== 'ABIERTA') {
-        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Debe estar ABIERTA.']);
-    }
-    $sale->update(['status'=>'PREPARANDO','preparado_at'=>now()]);
-    return back()->with('swal',['icon'=>'success','title'=>'Preparando','text'=>'Nota en preparación.']);
-}
-
-public function process(Sale $sale)
-{
-    if (!in_array($sale->status, ['ABIERTA','PREPARANDO'])) {
-        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Debe estar ABIERTA o PREPARANDO.']);
-    }
-
-    DB::transaction(function () use ($sale) {
-        foreach ($sale->items as $it) {
-            \App\Models\StockMovement::create([
-                'warehouse_id'    => $sale->warehouse_id,
-                'product_id'      => $it->product_id,
-                'tipo'            => 'OUT',
-                'cantidad'        => $it->cantidad,
-                'motivo'          => 'Nota de venta #'.$sale->id,
-                'referencia_type' => Sale::class,
-                'referencia_id'   => $sale->id,
-                'user_id'         => auth()->id(),
-            ]);
+    public function approve(Sale $sale)
+    {
+        if ($sale->status !== 'BORRADOR') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR puede aprobarse.']);
         }
-        $sale->update(['status'=>'PROCESADA','despachado_at'=>now()]);
-    });
-
-    return back()->with('swal',['icon'=>'success','title'=>'Procesada','text'=>'Stock descontado y nota PROCESADA.']);
-}
-
-public function dispatchToRoute(Sale $sale)
-{
-    if ($sale->status !== 'PROCESADA') {
-        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo PROCESADA puede salir a ruta.']);
+        $sale->update(['status'=>'ABIERTA']);
+        return back()->with('swal',['icon'=>'success','title'=>'Abierta','text'=>'Nota abierta.']);
     }
-    if (!$sale->driver_id) {
-        return back()->with('swal',['icon'=>'warning','title'=>'Sin chofer','text'=>'Asigna un chofer antes de enviar a ruta.']);
+
+    public function startPreparing(Sale $sale)
+    {
+        if ($sale->status !== 'ABIERTA') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Debe estar ABIERTA.']);
+        }
+        $sale->update(['status'=>'PREPARANDO','preparado_at'=>now()]);
+        return back()->with('swal',['icon'=>'success','title'=>'Preparando','text'=>'Nota en preparación.']);
     }
-    $sale->update(['status'=>'EN_RUTA','en_ruta_at'=>now()]);
-    return back()->with('swal',['icon'=>'success','title'=>'En ruta','text'=>'La nota salió a ruta.']);
-}
 
-public function deliver(Sale $sale)
-{
-    if ($sale->status !== 'EN_RUTA') {
-        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como ENTREGADA.']);
+    public function process(Sale $sale)
+    {
+        if (!in_array($sale->status, ['ABIERTA','PREPARANDO'])) {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Debe estar ABIERTA o PREPARANDO.']);
+        }
+
+        DB::transaction(function () use ($sale) {
+            foreach ($sale->items as $it) {
+                StockMovement::create([
+                    'warehouse_id'    => $sale->warehouse_id,
+                    'product_id'      => $it->product_id,
+                    'tipo'            => 'OUT',
+                    'cantidad'        => $it->cantidad,
+                    'motivo'          => 'Nota de venta #'.$sale->id,
+                    'referencia_type' => Sale::class,
+                    'referencia_id'   => $sale->id,
+                    'user_id'         => auth()->id(),
+                ]);
+            }
+            $sale->update(['status'=>'PROCESADA','despachado_at'=>now()]);
+        });
+
+        return back()->with('swal',['icon'=>'success','title'=>'Procesada','text'=>'Stock descontado y nota PROCESADA.']);
     }
-    $sale->update(['status'=>'ENTREGADA','entregado_at'=>now()]);
-    return back()->with('swal',['icon'=>'success','title'=>'Entregada','text'=>'Nota entregada.']);
-}
 
-public function notDelivered(Request $request, Sale $sale)
-{
-    if ($sale->status !== 'EN_RUTA') {
-        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como NO_ENTREGADA.']);
+    public function dispatchToRoute(Sale $sale)
+    {
+        if ($sale->status !== 'PROCESADA') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo PROCESADA puede salir a ruta.']);
+        }
+        if (!$sale->driver_id) {
+            return back()->with('swal',['icon'=>'warning','title'=>'Sin chofer','text'=>'Asigna un chofer antes de enviar a ruta.']);
+        }
+        $sale->update(['status'=>'EN_RUTA','en_ruta_at'=>now()]);
+        return back()->with('swal',['icon'=>'success','title'=>'En ruta','text'=>'La nota salió a ruta.']);
     }
-    $request->validate(['nota'=>'nullable|string|max:500']);
-    $nota = $request->input('nota');
 
-    DB::transaction(function () use ($sale, $nota) {
-        $data = ['status'=>'NO_ENTREGADA','no_entregado_at'=>now()];
-        if ($nota) $data['delivery_notes'] = trim(($sale->delivery_notes ?? '')."\n".$nota);
-        $sale->update($data);
-        $sale->increment('delivery_attempts');
-    });
-
-    return back()->with('swal',['icon'=>'success','title'=>'No entregada','text'=>'Se marcó como no entregada.']);
-}
-
-public function cancel(Sale $sale)
-{
-    if (in_array($sale->status, ['EN_RUTA','ENTREGADA'])) {
-        return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'No se puede cancelar en este estado.']);
+    public function deliver(Sale $sale)
+    {
+        if ($sale->status !== 'EN_RUTA') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como ENTREGADA.']);
+        }
+        $sale->update(['status'=>'ENTREGADA','entregado_at'=>now()]);
+        return back()->with('swal',['icon'=>'success','title'=>'Entregada','text'=>'Nota entregada.']);
     }
-    $sale->update(['status'=>'CANCELADA']);
-    return back()->with('swal',['icon'=>'success','title'=>'Cancelada','text'=>'Nota cancelada.']);
-}
 
-    // ====== Cobro y liquidación de chofer ======
+    public function notDelivered(Request $request, Sale $sale)
+    {
+        if ($sale->status !== 'EN_RUTA') {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo EN_RUTA puede marcarse como NO_ENTREGADA.']);
+        }
+        $request->validate(['nota'=>'nullable|string|max:500']);
+        $nota = $request->input('nota');
+
+        DB::transaction(function () use ($sale, $nota) {
+            $data = ['status'=>'NO_ENTREGADA','no_entregado_at'=>now()];
+            if ($nota) $data['delivery_notes'] = trim(($sale->delivery_notes ?? '')."\n".$nota);
+            $sale->update($data);
+            $sale->increment('delivery_attempts');
+        });
+
+        return back()->with('swal',['icon'=>'success','title'=>'No entregada','text'=>'Se marcó como no entregada.']);
+    }
+
+    public function cancel(Sale $sale)
+    {
+        if (in_array($sale->status, ['EN_RUTA','ENTREGADA'])) {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'No se puede cancelar en este estado.']);
+        }
+        $sale->update(['status'=>'CANCELADA']);
+        return back()->with('swal',['icon'=>'success','title'=>'Cancelada','text'=>'Nota cancelada.']);
+    }
 
     public function recordCash(Request $request, Sale $sale)
     {
@@ -468,32 +469,30 @@ public function cancel(Sale $sale)
         return back()->with('swal',['icon'=>'success','title'=>'Liquidada','text'=>'Liquidación de chofer completada.']);
     }
 
-    // ====== PDF ======
     public function pdf(Sale $sale)
-{
-    $sale->load('client', 'items.product', 'warehouse', 'driver', 'route');
-    $empresa = app(\App\Services\CompanyService::class)->activa();
+    {
+        $sale->load('client','items.product','warehouse','driver','route');
+        $empresa = app(\App\Services\CompanyService::class)->activa();
 
-    $pdf = Pdf::loadView('pdf.sales_note', [
-        'sale'    => $sale,
-        'empresa' => $empresa,
-    ]);
-    return $pdf->stream('nota-venta-' . $sale->id . '.pdf');
-}
+        $pdf = Pdf::loadView('pdf.sales_note', [
+            'sale'    => $sale,
+            'empresa' => $empresa,
+        ]);
+        return $pdf->stream('nota-venta-'.$sale->id.'.pdf');
+    }
 
-public function pdfDownload(Sale $sale)
-{
-    $sale->load('client', 'items.product', 'warehouse', 'driver', 'route');
-    $empresa = app(\App\Services\CompanyService::class)->activa();
+    public function pdfDownload(Sale $sale)
+    {
+        $sale->load('client','items.product','warehouse','driver','route');
+        $empresa = app(\App\Services\CompanyService::class)->activa();
 
-    $pdf = Pdf::loadView('pdf.sales_note', [
-        'sale'    => $sale,
-        'empresa' => $empresa,
-    ]);
-    return $pdf->download('nota-venta-' . $sale->id . '.pdf');
-}
+        $pdf = Pdf::loadView('pdf.sales_note', [
+            'sale'    => $sale,
+            'empresa' => $empresa,
+        ]);
+        return $pdf->download('nota-venta-'.$sale->id.'.pdf');
+    }
 
-    // ====== Envío ======
     public function sendForm(Sale $sale)
     {
         $sale->load('client');
@@ -507,29 +506,27 @@ public function pdfDownload(Sale $sale)
     public function send(Request $request, Sale $sale, WhatsappSender $whatsapp)
     {
         $request->validate([
-            'channels'    => ['required','array','min:1'],
-            'channels.*'  => ['in:email,whatsapp'],
-            'email'       => ['nullable','email'],
-            'telefono'    => ['nullable','string'],
-            'mensaje'     => ['nullable','string','max:500'],
+            'channels'   => ['required','array','min:1'],
+            'channels.*' => ['in:email,whatsapp'],
+            'email'      => ['nullable','email'],
+            'telefono'   => ['nullable','string'],
+            'mensaje'    => ['nullable','string','max:500'],
         ]);
 
         $sale->load('client','items.product','warehouse','driver','route');
+        $pdf   = Pdf::loadView('pdf.sales_note', ['sale' => $sale]);
+        $raw   = $pdf->output();
+        $fname = 'nota-venta-'.$sale->id.'.pdf';
 
-        $pdf    = Pdf::loadView('pdf.sales_note', ['sale' => $sale]);
-        $raw    = $pdf->output();
-        $fname  = 'nota-venta-'.$sale->id.'.pdf';
-
-        $sentEmail=false; $sentWhatsapp=false; $errors=[];
+        $errors = [];
 
         if (in_array('email', $request->channels, true)) {
             $to = $request->input('email') ?: ($sale->client->email ?? null);
             if (!$to) {
-                $errors[] = 'Sin email de cliente y no proporcionaste uno.';
+                $errors[] = 'Sin email de cliente.';
             } else {
                 try {
                     Mail::to($to)->send(new SaleNoteMailable($sale, $raw, $fname));
-                    $sentEmail = true;
                 } catch (\Throwable $e) {
                     $errors[] = 'Error email: '.$e->getMessage();
                 }
@@ -540,14 +537,12 @@ public function pdfDownload(Sale $sale)
             $phone = $request->input('telefono') ?: ($sale->client->telefono ?? null);
             $msg   = $request->input('mensaje', 'Te adjunto la nota de venta 📎');
             if (!$phone) {
-                $errors[] = 'Sin teléfono de cliente y no proporcionaste uno.';
+                $errors[] = 'Sin teléfono de cliente.';
             } else {
                 try {
                     $resp = $whatsapp->sendPdf($phone, $msg, $fname, $raw);
                     if (!($resp['ok'] ?? false)) {
-                        $errors[] = 'WhatsApp API '.($resp['status'] ?? '500').': '.json_encode($resp['body'] ?? []);
-                    } else {
-                        $sentWhatsapp = true;
+                        $errors[] = 'WhatsApp: '.json_encode($resp['body'] ?? []);
                     }
                 } catch (\Throwable $e) {
                     $errors[] = 'Error WhatsApp: '.$e->getMessage();
@@ -556,9 +551,9 @@ public function pdfDownload(Sale $sale)
         }
 
         if ($errors) {
-            return back()->with('swal', ['icon'=>'error','title'=>'Envío parcial','text'=>implode(' | ', $errors)]);
+            return back()->with('swal',['icon'=>'error','title'=>'Envío parcial','text'=>implode(' | ', $errors)]);
         }
 
-        return back()->with('swal', ['icon'=>'success','title'=>'Enviado','text'=>'Se envió la nota correctamente.']);
+        return back()->with('swal',['icon'=>'success','title'=>'Enviado','text'=>'Nota enviada correctamente.']);
     }
 }
