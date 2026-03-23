@@ -278,3 +278,7 @@ Route::prefix('parametros')->name('parametros.')->middleware(['auth'])->group(fu
             ->name('certificates.destroy');
     });
 });
+
+//Envio de correos
+Route::get('/{invoice}/send',        [InvoiceController::class, 'sendForm'])->name('invoices.send.form');
+Route::post('/{invoice}/send',       [InvoiceController::class, 'send'])->name('invoices.send');

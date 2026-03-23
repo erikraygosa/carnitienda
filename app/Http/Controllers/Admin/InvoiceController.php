@@ -396,4 +396,45 @@ public function pdfDownload(Invoice $invoice)
             })->values()->toArray(),
         ];
     }
+
+    public function sendForm(Invoice $invoice)
+{
+    $invoice->load('client');
+    return view('admin.invoices.send', [
+        'invoice'     => $invoice,
+        'clientEmail' => $invoice->client?->email ?? '',
+    ]);
+}
+
+    public function send(Request $request, Invoice $invoice)
+{
+    $request->validate([
+        'email'   => ['required', 'email'],
+        'mensaje' => ['nullable', 'string', 'max:500'],
+    ]);
+
+    $empresa = app(\App\Services\CompanyService::class)->activa();
+    $invoice->loadMissing(['client', 'items', 'company.fiscalData']);
+
+    $pdf   = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.invoice', [
+        'invoice' => $invoice,
+        'empresa' => $empresa,
+    ]);
+    $raw   = $pdf->output();
+    $fname = 'factura-' . ($invoice->serie ?? '') . ($invoice->folio ?? $invoice->id) . '.pdf';
+
+    try {
+        \Illuminate\Support\Facades\Mail::to($request->email)
+            ->send(new \App\Mail\InvoiceMailable(
+                invoice: $invoice,
+                pdfRaw:  $raw,
+                pdfName: $fname,
+               mensaje: $request->input('mensaje') ?? '',
+            ));
+
+        return back()->with('swal', ['icon'=>'success','title'=>'Enviada','text'=>'Factura enviada correctamente.']);
+    } catch (\Throwable $e) {
+        return back()->with('swal', ['icon'=>'error','title'=>'Error al enviar','text'=>$e->getMessage()]);
+    }
+}
 }
