@@ -13,10 +13,13 @@ use Illuminate\Support\Facades\DB;
 
 class PurchaseOrderController extends Controller
 {
-    public function index()
-    {
-        return view('admin.purchase_orders.index');
-    }
+        public function index()
+        {
+            $orders = \App\Models\PurchaseOrder::with(['provider', 'warehouse'])
+                ->orderBy('id', 'desc')
+                ->get();
+            return view('admin.purchase_orders.index', compact('orders'));
+        }
 
     public function create()
     {
