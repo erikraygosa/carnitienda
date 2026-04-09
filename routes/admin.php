@@ -210,15 +210,18 @@ Route::prefix('ar-payments')->name('ar-payments.')->group(function () {
 });
 
 Route::prefix('cash')->name('cash.')->group(function () {
-  Route::get('/', [CashRegisterController::class,'index'])->name('index');
-  Route::get('/create', [CashRegisterController::class,'create'])->name('create');
-  Route::post('/', [CashRegisterController::class,'store'])->name('store');
-  Route::get('/{cash}', [CashRegisterController::class,'show'])->name('show');
-  Route::post('/{cash}/close', [CashRegisterController::class,'close'])->name('close');
-  Route::get('/{cash}/ticket', [CashRegisterController::class,'ticket'])->name('ticket');
+    Route::get('/',       [CashRegisterController::class, 'index'])->name('index');
+    Route::get('/create', [CashRegisterController::class, 'create'])->name('create');
+    Route::post('/',      [CashRegisterController::class, 'store'])->name('store');
 
-  Route::post('/{cashRegister}/movement', [CashMovementController::class,'store'])->name('movement.store');
+    Route::get('/{cash}/ticket/pdf', [CashRegisterController::class, 'ticketPdf'])->name('ticket.pdf');
+    Route::get('/{cash}/ticket',     [CashRegisterController::class, 'ticket'])->name('ticket');
+    Route::post('/{cash}/close',     [CashRegisterController::class, 'close'])->name('close');
+    Route::get('/{cash}',            [CashRegisterController::class, 'show'])->name('show');
+
+    Route::post('/{cashRegister}/movement', [CashMovementController::class, 'store'])->name('movement.store');
 });
+
 Route::prefix('pos')->name('pos.')->group(function () {
     Route::get('/create',              [POSController::class, 'create'])->name('create');
     Route::post('/',                   [POSController::class, 'store'])->name('store');

@@ -3,43 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <title>Ticket Caja #{{ $register->id }}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root { --w: 80mm; }
-        body { font-family: Arial, Helvetica, sans-serif; background:#f8fafc; margin:0; }
-        .wrap { width: var(--w); max-width: 100%; margin: 12px auto; background:#fff; box-shadow: 0 1px 4px rgba(0,0,0,.12); padding: 12px; }
-        .center { text-align:center; }
-        .small { font-size: 11px; }
-        .xs { font-size: 10px; }
-        .bold { font-weight: 600; }
-        hr { border:0; border-top:1px dashed #333; margin:6px 0; }
-        table { width:100%; border-collapse: collapse; }
-        th, td { padding:2px 0; font-size: 11px; vertical-align: top; }
-        .right { text-align:right; }
-        .left { text-align:left; }
-        .mt-2 { margin-top:8px; }
-        .logo { max-width: 60mm; max-height: 20mm; object-fit: contain; margin-bottom: 4px; }
-        .btns { display:flex; gap:8px; justify-content:flex-end; margin:8px auto 0; width: var(--w); max-width:100%; }
-        .btn { font-size:12px; border:1px solid #ddd; background:#fff; padding:6px 10px; border-radius:6px; cursor:pointer; text-decoration:none; color:#111; }
-        .btn-primary { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+        * { box-sizing: border-box; }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11px;
+            background: #f8fafc;
+            margin: 0;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .wrap {
+            width: var(--w);
+            background: #fff;
+            box-shadow: 0 1px 4px rgba(0,0,0,.12);
+            padding: 12px;
+        }
+        .center { text-align: center; }
+        .right  { text-align: right; }
+        .left   { text-align: left; }
+        .bold   { font-weight: 700; }
+        .small  { font-size: 11px; }
+        .xs     { font-size: 10px; }
+        .mt-2   { margin-top: 8px; }
+        hr { border: 0; border-top: 1px dashed #333; margin: 6px 0; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 2px 0; font-size: 11px; vertical-align: top; }
+        .logo { max-width: 55mm; max-height: 18mm; object-fit: contain; margin-bottom: 4px; display: block; margin-left: auto; margin-right: auto; }
+        .btns {
+            width: var(--w);
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 8px;
+        }
+        .btn {
+            font-size: 12px;
+            border: 1px solid #ddd;
+            background: #fff;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            color: #111;
+        }
+        .btn-primary { background: #4f46e5; color: #fff; border-color: #4f46e5; }
         @media print {
-            .btns { display:none !important; }
-            body { background:#fff; }
-            .wrap { box-shadow:none; padding:0; }
+            .btns { display: none !important; }
+            body  { background: #fff; padding: 0; }
+            .wrap { box-shadow: none; padding: 0; }
         }
     </style>
 </head>
 <body>
     <div class="wrap" id="ticket">
+
         <div class="center">
-            {{-- Logo --}}
             @if($company?->logo_path)
-                <img src="{{ Storage::url($company->logo_path) }}"
-                     alt="Logo" class="logo">
-                <br>
+                <img src="{{ Storage::url($company->logo_path) }}" alt="Logo" class="logo">
             @endif
 
-            {{-- Datos empresa --}}
             <div class="bold">{{ $company?->nombre_comercial ?? $company?->razon_social ?? 'Mi Tienda' }}</div>
             @if($company?->razon_social && $company?->nombre_comercial)
                 <div class="xs">{{ $company->razon_social }}</div>
@@ -56,9 +83,10 @@
 
             <hr>
 
-            <div class="xs">Caja #{{ $register->id }} • {{ $register->fecha->format('d/m/Y') }}</div>
+            <div class="xs bold">Caja #{{ $register->id }} • {{ $register->fecha->format('d/m/Y') }}</div>
             <div class="xs">Usuario: {{ $register->user?->name ?? 'N/D' }}</div>
             <div class="xs">Almacén: {{ $register->warehouse?->nombre ?? 'N/D' }}</div>
+
             <hr>
         </div>
 
@@ -89,13 +117,13 @@
 
         <hr class="mt-2">
 
-        <div class="small center">Movimientos</div>
+        <div class="center small bold">Movimientos</div>
         <table>
             <thead>
                 <tr>
                     <th class="left">Hora</th>
-                    <th>Tipo</th>
-                    <th>Concepto</th>
+                    <th class="left">Tipo</th>
+                    <th class="left">Concepto</th>
                     <th class="right">Monto</th>
                 </tr>
             </thead>
@@ -104,7 +132,7 @@
                 <tr>
                     <td class="xs">{{ $m->created_at->format('H:i') }}</td>
                     <td class="xs">{{ $m->tipo }}</td>
-                    <td class="xs">{{ \Illuminate\Support\Str::limit($m->concepto, 20) }}</td>
+                    <td class="xs">{{ \Illuminate\Support\Str::limit($m->concepto, 18) }}</td>
                     <td class="xs right">${{ number_format($m->monto, 2) }}</td>
                 </tr>
                 @empty
@@ -116,14 +144,17 @@
         </table>
 
         <hr class="mt-2">
-        <div class="center xs mt-2">¡Gracias!</div>
+        <div class="center xs">¡Gracias!</div>
         @if($company?->sitio_web)
             <div class="center xs">{{ $company->sitio_web }}</div>
         @endif
+
     </div>
 
     <div class="btns">
-        <a href="#" onclick="window.print();return false;" class="btn btn-primary">Imprimir</a>
+        <a href="{{ route('admin.cash.ticket.pdf', $register) }}" target="_blank" class="btn btn-primary">
+            🖨 Imprimir / PDF
+        </a>
         <a href="{{ route('admin.cash.show', $register) }}" class="btn">Volver</a>
     </div>
 </body>
