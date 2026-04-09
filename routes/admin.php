@@ -25,7 +25,8 @@ use App\Http\Controllers\Admin\CashMovementController;
 use App\Http\Controllers\Admin\POSController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\CompanyController;
-
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\RoleController;
 
 
 Route::get('/', [DashboardController::class, 'index'])
@@ -293,3 +294,21 @@ Route::post('products/{product}/subproducts',        [ProductController::class, 
 Route::put ('products/{product}/subproducts/{rule}', [ProductController::class, 'subproductsUpdate'])->name('products.subproducts.update');
 Route::delete('products/{product}/subproducts/{rule}',[ProductController::class, 'subproductsDelete'])->name('products.subproducts.delete');
 
+
+Route::prefix('users')->name('users.')->group(function () {
+    Route::get('/',           [UserController::class, 'index'])->name('index');
+    Route::get('/create',     [UserController::class, 'create'])->name('create');
+    Route::post('/',          [UserController::class, 'store'])->name('store');
+    Route::get('/{user}/edit',[UserController::class, 'edit'])->name('edit');
+    Route::put('/{user}',     [UserController::class, 'update'])->name('update');
+    Route::delete('/{user}',  [UserController::class, 'destroy'])->name('destroy');
+});
+
+Route::prefix('roles')->name('roles.')->group(function () {
+    Route::get('/',                        [RoleController::class, 'index'])->name('index');
+    Route::post('/',                       [RoleController::class, 'store'])->name('store');
+    Route::put('/{role}',                  [RoleController::class, 'update'])->name('update');
+    Route::delete('/{role}',               [RoleController::class, 'destroy'])->name('destroy');
+    Route::post('/permissions',            [RoleController::class, 'storePermission'])->name('permissions.store');
+    Route::delete('/permissions/{permission}', [RoleController::class, 'destroyPermission'])->name('permissions.destroy');
+});

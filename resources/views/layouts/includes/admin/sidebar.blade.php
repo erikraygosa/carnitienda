@@ -1,4 +1,6 @@
 @php
+$user = auth()->user();
+
 $links = [
   // HOME
   [
@@ -6,181 +8,163 @@ $links = [
     'icon'   => 'fa-solid fa-gauge',
     'href'   => route('admin.dashboard'),
     'active' => request()->routeIs('admin.dashboard'),
+    'can'    => true,
   ],
 
   // ===== CATÁLOGO =====
-  ['header' => 'Catálogo'],
+  ['header' => 'Catálogo', 'can' => $user->hasAnyPermission(['ver productos','ver clientes','ver proveedores'])],
   [
     'name'     => 'Catálogo',
     'icon'     => 'fa-solid fa-database',
+    'can'      => $user->hasAnyPermission(['ver productos','ver clientes','ver proveedores']),
     'active'   => request()->routeIs('admin.categories.*')
                  || request()->routeIs('admin.products.*')
                  || request()->routeIs('admin.clients.*')
                  || request()->routeIs('admin.providers.*'),
     'children' => [
-      ['name'=>'Categorias', 'icon'=>'fa-solid fa-list',     'href'=>route('admin.categories.index'), 'active'=>request()->routeIs('admin.categories.*')],
-      ['name'=>'Productos',  'icon'=>'fa-solid fa-box-open', 'href'=>route('admin.products.index'),   'active'=>request()->routeIs('admin.products.*')],
-      ['name'=>'Clientes',   'icon'=>'fa-solid fa-users',    'href'=>route('admin.clients.index'),    'active'=>request()->routeIs('admin.clients.*')],
-      ['name'=>'Proveedores','icon'=>'fa-solid fa-truck',    'href'=>route('admin.providers.index'),  'active'=>request()->routeIs('admin.providers.*')],
+      ['name'=>'Categorias', 'icon'=>'fa-solid fa-list',     'href'=>route('admin.categories.index'), 'active'=>request()->routeIs('admin.categories.*'), 'can'=>$user->hasPermissionTo('ver productos')],
+      ['name'=>'Productos',  'icon'=>'fa-solid fa-box-open', 'href'=>route('admin.products.index'),   'active'=>request()->routeIs('admin.products.*'),   'can'=>$user->hasPermissionTo('ver productos')],
+      ['name'=>'Clientes',   'icon'=>'fa-solid fa-users',    'href'=>route('admin.clients.index'),    'active'=>request()->routeIs('admin.clients.*'),    'can'=>$user->hasPermissionTo('ver clientes')],
+      ['name'=>'Proveedores','icon'=>'fa-solid fa-truck',    'href'=>route('admin.providers.index'),  'active'=>request()->routeIs('admin.providers.*'),  'can'=>$user->hasPermissionTo('ver proveedores')],
     ],
   ],
 
   // ===== COMPRAS =====
-  ['header' => 'Compras'],
+  ['header' => 'Compras', 'can' => $user->hasRole('admin')],
   [
     'name'     => 'Compras',
     'icon'     => 'fa-solid fa-cart-shopping',
+    'can'      => $user->hasRole('admin'),
     'active'   => request()->routeIs('admin.purchase-orders.*') || request()->routeIs('admin.purchases.*'),
     'children' => [
-      ['name'=>'Órdenes de compra','icon'=>'fa-solid fa-cart-plus',     'href'=>route('admin.purchase-orders.index'),'active'=>request()->routeIs('admin.purchase-orders.*')],
-      ['name'=>'Compras',          'icon'=>'fa-solid fa-cart-shopping', 'href'=>route('admin.purchases.index'),      'active'=>request()->routeIs('admin.purchases.*')],
+      ['name'=>'Órdenes de compra','icon'=>'fa-solid fa-cart-plus',     'href'=>route('admin.purchase-orders.index'),'active'=>request()->routeIs('admin.purchase-orders.*'), 'can'=>$user->hasRole('admin')],
+      ['name'=>'Compras',          'icon'=>'fa-solid fa-cart-shopping', 'href'=>route('admin.purchases.index'),      'active'=>request()->routeIs('admin.purchases.*'),       'can'=>$user->hasRole('admin')],
     ],
   ],
 
   // ===== INVENTARIO =====
-  ['header' => 'Inventario'],
+  ['header' => 'Inventario', 'can' => $user->hasPermissionTo('ver stock')],
   [
     'name'   => 'Inventario',
     'icon'   => 'fa-solid fa-warehouse',
+    'can'    => $user->hasPermissionTo('ver stock'),
     'active' => request()->routeIs('admin.warehouses.*') || request()->routeIs('admin.stock.*'),
     'children' => [
-      [
-        'name'   => 'Almacenes',
-        'icon'   => 'fa-solid fa-warehouse',
-        'href'   => route('admin.warehouses.index'),
-        'active' => request()->routeIs('admin.warehouses.*'),
-      ],
-      [
-        'name'   => 'Stock',
-        'icon'   => 'fa-solid fa-layer-group',
-        'href'   => route('admin.stock.index'),
-        'active' => request()->routeIs('admin.stock.index')
-                 || request()->routeIs('admin.stock.transfers.*') === false
-                 && request()->routeIs('admin.stock.*'),
-      ],
-      [
-        'name'   => 'Traspasos',
-        'icon'   => 'fa-solid fa-right-left',
-        'href'   => route('admin.stock.transfers.index'),
-        'active' => request()->routeIs('admin.stock.transfers.*'),
-      ],
+      ['name'=>'Almacenes', 'icon'=>'fa-solid fa-warehouse',  'href'=>route('admin.warehouses.index'),       'active'=>request()->routeIs('admin.warehouses.*'),      'can'=>$user->hasRole('admin')],
+      ['name'=>'Stock',     'icon'=>'fa-solid fa-layer-group','href'=>route('admin.stock.index'),            'active'=>request()->routeIs('admin.stock.index'),       'can'=>$user->hasPermissionTo('ver stock')],
+      ['name'=>'Traspasos', 'icon'=>'fa-solid fa-right-left', 'href'=>route('admin.stock.transfers.index'), 'active'=>request()->routeIs('admin.stock.transfers.*'), 'can'=>$user->hasPermissionTo('gestionar traspasos')],
     ],
   ],
 
   // ===== VENTAS =====
-  ['header' => 'Ventas'],
+  ['header' => 'Ventas', 'can' => $user->hasPermissionTo('ver pedidos')],
   [
     'name'     => 'Ventas',
     'icon'     => 'fa-solid fa-file-invoice-dollar',
+    'can'      => $user->hasPermissionTo('ver pedidos'),
     'active'   => request()->routeIs('admin.quotes.*')
                  || request()->routeIs('admin.sales-orders.*')
                  || request()->routeIs('admin.sales.*')
                  || request()->routeIs('admin.invoices.*'),
     'children' => [
-      ['name'=>'Cotizaciones',  'icon'=>'fa-solid fa-file-invoice-dollar','href'=>route('admin.quotes.index'),       'active'=>request()->routeIs('admin.quotes.*')],
-      ['name'=>'Pedidos',       'icon'=>'fa-solid fa-file-invoice',       'href'=>route('admin.sales-orders.index'), 'active'=>request()->routeIs('admin.sales-orders.*')],
-      ['name'=>'Notas de venta','icon'=>'fa-solid fa-receipt',            'href'=>route('admin.sales.index'),        'active'=>request()->routeIs('admin.sales.*')],
-      ['name'=>'Facturas',      'icon'=>'fa-solid fa-file-invoice',       'href'=>route('admin.invoices.index'),     'active'=>request()->routeIs('admin.invoices.*')],
+      ['name'=>'Cotizaciones',  'icon'=>'fa-solid fa-file-invoice-dollar','href'=>route('admin.quotes.index'),       'active'=>request()->routeIs('admin.quotes.*'),        'can'=>$user->hasPermissionTo('ver pedidos')],
+      ['name'=>'Pedidos',       'icon'=>'fa-solid fa-file-invoice',       'href'=>route('admin.sales-orders.index'), 'active'=>request()->routeIs('admin.sales-orders.*'), 'can'=>$user->hasPermissionTo('ver pedidos')],
+      ['name'=>'Notas de venta','icon'=>'fa-solid fa-receipt',            'href'=>route('admin.sales.index'),        'active'=>request()->routeIs('admin.sales.*'),         'can'=>$user->hasPermissionTo('ver pedidos')],
+      ['name'=>'Facturas',      'icon'=>'fa-solid fa-file-invoice',       'href'=>route('admin.invoices.index'),     'active'=>request()->routeIs('admin.invoices.*'),      'can'=>$user->hasRole('admin')],
     ],
   ],
 
   // ===== LOGÍSTICA =====
-  ['header' => 'Logística'],
+  ['header' => 'Logística', 'can' => $user->hasPermissionTo('ver despachos')],
   [
     'name'     => 'Despacho',
     'icon'     => 'fa-solid fa-truck-fast',
+    'can'      => $user->hasPermissionTo('ver despachos'),
     'active'   => request()->routeIs('admin.dispatches.*') || request()->routeIs('admin.driver-cash.*'),
     'children' => [
-      [
-        'name'   => 'Despachos',
-        'icon'   => 'fa-solid fa-route',
-        'href'   => route('admin.dispatches.index'),
-        'active' => request()->routeIs('admin.dispatches.*'),
-      ],
-      [
-        'name'   => 'Cortes de choferes',
-        'icon'   => 'fa-solid fa-cash-register',
-        'href'   => route('admin.driver-cash.index'),
-        'active' => request()->routeIs('admin.driver-cash.*'),
-      ],
+      ['name'=>'Despachos',         'icon'=>'fa-solid fa-route',         'href'=>route('admin.dispatches.index'),   'active'=>request()->routeIs('admin.dispatches.*'),   'can'=>$user->hasPermissionTo('ver despachos')],
+      ['name'=>'Cortes de choferes','icon'=>'fa-solid fa-cash-register', 'href'=>route('admin.driver-cash.index'), 'active'=>request()->routeIs('admin.driver-cash.*'), 'can'=>$user->hasPermissionTo('ver despachos')],
     ],
   ],
   [
     'name'   => 'Punto de venta',
     'icon'   => 'fa-solid fa-shop',
+    'can'    => $user->hasPermissionTo('usar pos'),
     'active' => request()->routeIs('admin.cash.*') || request()->routeIs('admin.pos.*'),
     'children' => [
-      [
-        'name'   => 'Caja',
-        'icon'   => 'fa-solid fa-cash-register',
-        'href'   => route('admin.cash.index'),
-        'active' => request()->routeIs('admin.cash.*'),
-      ],
-      [
-        'name'   => 'Venta POS',
-        'icon'   => 'fa-solid fa-barcode',
-        'href'   => route('admin.pos.create'),
-        'active' => request()->routeIs('admin.pos.*'),
-      ],
+      ['name'=>'Caja',     'icon'=>'fa-solid fa-cash-register','href'=>route('admin.cash.index'),  'active'=>request()->routeIs('admin.cash.*'), 'can'=>$user->hasPermissionTo('usar pos')],
+      ['name'=>'Venta POS','icon'=>'fa-solid fa-barcode',      'href'=>route('admin.pos.create'),  'active'=>request()->routeIs('admin.pos.*'),  'can'=>$user->hasPermissionTo('usar pos')],
     ],
   ],
 
   // ===== FINANZAS =====
-  ['header' => 'Finanzas'],
+  ['header' => 'Finanzas', 'can' => $user->hasPermissionTo('ver cxc')],
   [
     'name'   => 'Cuentas y cobros',
     'icon'   => 'fa-solid fa-piggy-bank',
+    'can'    => $user->hasPermissionTo('ver cxc'),
     'active' => request()->routeIs('admin.ar.*') || request()->routeIs('admin.ar-payments.*'),
     'children' => [
-      [
-        'name'   => 'Cuentas',
-        'icon'   => 'fa-solid fa-file-invoice-dollar',
-        'href'   => route('admin.ar.index'),
-        'active' => request()->routeIs('admin.ar.*'),
-      ],
-      [
-        'name'   => 'Cobros',
-        'icon'   => 'fa-solid fa-cash-register',
-        'href'   => route('admin.ar-payments.create'),
-        'active' => request()->routeIs('admin.ar-payments.*'),
-      ],
+      ['name'=>'Cuentas','icon'=>'fa-solid fa-file-invoice-dollar','href'=>route('admin.ar.index'),          'active'=>request()->routeIs('admin.ar.*'),          'can'=>$user->hasPermissionTo('ver cxc')],
+      ['name'=>'Cobros', 'icon'=>'fa-solid fa-cash-register',      'href'=>route('admin.ar-payments.create'),'active'=>request()->routeIs('admin.ar-payments.*'), 'can'=>$user->hasPermissionTo('registrar cobros')],
     ],
   ],
 
-  // ===== CONFIGURACIÓN =====
-  ['header' => 'Configuración'],
-  [
+ // ===== CONFIGURACIÓN =====
+['header' => 'Configuración', 'can' => $user->hasAnyPermission(['ver configuracion','ver usuarios'])],
+[
     'name'   => 'Parámetros',
     'icon'   => 'fa-solid fa-sliders',
+    'can'    => $user->hasPermissionTo('ver configuracion'),
     'active' => request()->routeIs('admin.parametros.*'),
     'children' => [
-      [
-        'name'   => 'Empresas',
-        'href'   => route('admin.parametros.companies.index'),
-        'icon'   => 'fa-solid fa-building',
-        'active' => request()->routeIs('admin.parametros.companies.*'),
-      ],
+        ['name'=>'Empresas','href'=>route('admin.parametros.companies.index'),'icon'=>'fa-solid fa-building','active'=>request()->routeIs('admin.parametros.companies.*'),'can'=>$user->hasPermissionTo('editar configuracion')],
     ],
-  ],
+],
+[
+    'name'   => 'Sistema',
+    'icon'   => 'fa-solid fa-shield-halved',
+    'can'    => $user->hasAnyPermission(['ver usuarios','ver configuracion']),
+    'active' => request()->routeIs('admin.users.*') || request()->routeIs('admin.roles.*'),
+    'children' => [
+        [
+            'name'   => 'Usuarios',
+            'icon'   => 'fa-solid fa-users-gear',
+            'href'   => route('admin.users.index'),
+            'active' => request()->routeIs('admin.users.*'),
+            'can'    => $user->hasPermissionTo('ver usuarios'),
+        ],
+        [
+            'name'   => 'Roles y permisos',
+            'icon'   => 'fa-solid fa-key',
+            'href'   => route('admin.roles.index'),
+            'active' => request()->routeIs('admin.roles.*'),
+            'can'    => $user->hasPermissionTo('ver configuracion'),
+        ],
+    ],
+],
 
-  // ===== SISTEMA (solo superadmin) =====
+  
+
+  // ===== SUPERADMIN =====
   ...(auth()->user()?->is_superadmin ? [
-    ['header' => 'Sistema'],
+    ['header' => 'Superadmin', 'can' => true],
     [
       'name'   => 'Superadmin',
       'icon'   => 'fa-solid fa-shield-halved',
       'href'   => route('superadmin.dashboard'),
       'active' => request()->routeIs('superadmin.*'),
+      'can'    => true,
     ],
   ] : []),
-
 ];
 
-// Marcar si un grupo tiene hijo activo
+// Filtrar children sin permiso y marcar hijo activo
 foreach ($links as $i => $item) {
-  if (!empty($item['children']) && is_array($item['children'])) {
-    $links[$i]['has_active_child'] = collect($item['children'])->contains(fn($c) => !empty($c['active']));
-  }
+    if (!empty($item['children']) && is_array($item['children'])) {
+        $links[$i]['children'] = array_filter($item['children'], fn($c) => $c['can'] ?? true);
+        $links[$i]['has_active_child'] = collect($links[$i]['children'])->contains(fn($c) => !empty($c['active']));
+    }
 }
 @endphp
 
@@ -188,6 +172,12 @@ foreach ($links as $i => $item) {
   <div class="h-full px-3 pb-4 overflow-y-auto">
     <ul class="space-y-2 font-medium">
       @foreach ($links as $link)
+
+        {{-- Saltar si no tiene permiso --}}
+        @if(isset($link['can']) && !$link['can'])
+          @continue
+        @endif
+
         @if(isset($link['header']))
           <li class="px-2 pt-4 text-xs font-semibold text-gray-400 uppercase tracking-wide dark:text-gray-500">
             {{ $link['header'] }}
@@ -195,7 +185,7 @@ foreach ($links as $i => $item) {
           @continue
         @endif
 
-        @if(!empty($link['children']) && is_array($link['children']))
+        @if(!empty($link['children']) && is_array($link['children']) && count($link['children']) > 0)
           @php
             $collapseId     = 'submenu-'.\Illuminate\Support\Str::slug($link['name'] ?? \Illuminate\Support\Str::random(6));
             $isOpen         = !empty($link['has_active_child']);
