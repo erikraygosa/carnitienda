@@ -73,6 +73,7 @@ Route::post('stock/adjustments', [StockAdjustmentController::class, 'store'])->n
 
 Route::get('stock/transfers/create', [StockTransferController::class, 'create'])->name('stock.transfers.create');
 Route::post('stock/transfers', [StockTransferController::class, 'store'])->name('stock.transfers.store');
+Route::get('stock/print-warehouse/{warehouse}', [StockController::class, 'printWarehouse'])->name('stock.print-warehouse');
 
 Route::resource('quotes', QuoteController::class)
     ->except('show')

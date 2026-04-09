@@ -15,13 +15,28 @@ use Illuminate\Support\Facades\DB;
 class StockTransferController extends Controller
 {
     public function index()
-    {
-        $transfers = StockTransfer::with(['fromWarehouse', 'toWarehouse', 'creator'])
-            ->latest()
-            ->paginate(30);
+{
+    $warehouses = \App\Models\Warehouse::orderBy('nombre')->get(['id','nombre']);
 
-        return view('admin.stock.transfers.index', compact('transfers'));
-    }
+    $transfers = StockTransfer::with(['fromWarehouse', 'toWarehouse', 'creator'])
+        ->when(request('search'), fn($q) =>
+            $q->where('folio', 'like', '%'.request('search').'%')
+        )
+        ->when(request('status'), fn($q) =>
+            $q->where('status', request('status'))
+        )
+        ->when(request('from_warehouse'), fn($q) =>
+            $q->where('from_warehouse_id', request('from_warehouse'))
+        )
+        ->when(request('to_warehouse'), fn($q) =>
+            $q->where('to_warehouse_id', request('to_warehouse'))
+        )
+        ->latest()
+        ->paginate(20)
+        ->withQueryString();
+
+    return view('admin.stock.transfers.index', compact('transfers', 'warehouses'));
+}
 
     public function create(Request $request)
     {

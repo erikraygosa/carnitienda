@@ -11,55 +11,93 @@ use Illuminate\Support\Facades\DB;
 
 class StockController extends Controller
 {
-   public function index()
-{
-    $warehouses      = Warehouse::orderBy('nombre')->get();
-    $products        = Product::where('maneja_inventario', 1)
-        ->where('activo', 1)
-        ->orderBy('nombre')
-        ->get(['id','nombre','sku']);
+        public function index()
+    {
+        $warehouses      = Warehouse::orderBy('nombre')->get();
+        $products        = Product::where('maneja_inventario', 1)
+            ->where('activo', 1)
+            ->orderBy('nombre')
+            ->get(['id','nombre','sku']);
 
-    $mainWarehouseId = $this->getMainWarehouseId();
-    $warehouseId     = request('warehouse_id', $mainWarehouseId);
-    $productId       = request('product_id');
+        $mainWarehouseId = $this->getMainWarehouseId();
+        $warehouseId     = request('warehouse_id', $mainWarehouseId);
+        $productId       = request('product_id');
+        $vista           = request('vista', 'productos'); // 'productos' o 'almacenes'
 
-    $stock = [];
+        $stock = collect();
 
-    if ($warehouseId) {
-        $sumExpr = "COALESCE(SUM(CASE
-            WHEN sm.tipo = 'IN'  THEN sm.cantidad
-            WHEN sm.tipo = 'OUT' THEN -sm.cantidad
-            ELSE 0 END), 0)";
+        if ($vista === 'productos' && $warehouseId) {
+            $sumExpr = "COALESCE(SUM(CASE
+                WHEN sm.tipo = 'IN'  THEN sm.cantidad
+                WHEN sm.tipo = 'OUT' THEN -sm.cantidad
+                ELSE 0 END), 0)";
 
-        $stock = Product::query()
-            ->where('products.maneja_inventario', 1)
-            ->where('products.activo', 1)
-            ->select([
-                'products.id as product_id',
-                'products.sku',
-                'products.nombre',
-                'products.unidad',
-                'products.stock_min',
-                'products.costo_promedio',
-                DB::raw("({$sumExpr}) as existencia"),
-            ])
-            ->leftJoin('stock_movements as sm', function($join) use ($warehouseId) {
-                $join->on('sm.product_id', '=', 'products.id')
-                     ->where('sm.warehouse_id', '=', $warehouseId);
-            })
-            ->when($productId, fn($q) => $q->where('products.id', $productId))
-            ->groupBy(
-                'products.id','products.sku','products.nombre',
-                'products.unidad','products.stock_min','products.costo_promedio'
-            )
-            ->orderBy('products.nombre')
-            ->get();
+            $stock = Product::query()
+                ->where('products.maneja_inventario', 1)
+                ->where('products.activo', 1)
+                ->select([
+                    'products.id as product_id',
+                    'products.sku',
+                    'products.nombre',
+                    'products.unidad',
+                    'products.stock_min',
+                    'products.costo_promedio',
+                    DB::raw("({$sumExpr}) as existencia"),
+                ])
+                ->leftJoin('stock_movements as sm', function($join) use ($warehouseId) {
+                    $join->on('sm.product_id', '=', 'products.id')
+                        ->where('sm.warehouse_id', '=', $warehouseId);
+                })
+                ->when($productId, fn($q) => $q->where('products.id', $productId))
+                ->groupBy('products.id','products.sku','products.nombre','products.unidad','products.stock_min','products.costo_promedio')
+                ->orderBy('products.nombre')
+                ->get();
+        }
+
+        // Vista resumen por almacén
+        $resumenAlmacenes = collect();
+        if ($vista === 'almacenes') {
+            $sumExpr = "COALESCE(SUM(CASE
+                WHEN sm.tipo = 'IN'  THEN sm.cantidad
+                WHEN sm.tipo = 'OUT' THEN -sm.cantidad
+                ELSE 0 END), 0)";
+
+            $resumenAlmacenes = Warehouse::orderBy('nombre')
+                ->get()
+                ->map(function($w) use ($sumExpr) {
+                    $rows = Product::query()
+                        ->where('products.maneja_inventario', 1)
+                        ->where('products.activo', 1)
+                        ->select([
+                            'products.id as product_id',
+                            'products.sku',
+                            'products.nombre',
+                            'products.unidad',
+                            'products.stock_min',
+                            'products.costo_promedio',
+                            DB::raw("({$sumExpr}) as existencia"),
+                        ])
+                        ->leftJoin('stock_movements as sm', function($join) use ($w) {
+                            $join->on('sm.product_id', '=', 'products.id')
+                                ->where('sm.warehouse_id', '=', $w->id);
+                        })
+                        ->groupBy('products.id','products.sku','products.nombre','products.unidad','products.stock_min','products.costo_promedio')
+                        ->orderBy('products.nombre')
+                        ->get();
+
+                    $w->productos   = $rows;
+                    $w->total_valor = $rows->sum(fn($r) => (float)$r->costo_promedio * (float)$r->existencia);
+                    $w->con_stock   = $rows->where('existencia', '>', 0)->count();
+                    $w->sin_stock   = $rows->where('existencia', '<=', 0)->count();
+                    return $w;
+                });
+        }
+
+        return view('admin.stock.index', compact(
+            'warehouses','products','mainWarehouseId',
+            'warehouseId','productId','stock','vista','resumenAlmacenes'
+        ));
     }
-
-    return view('admin.stock.index', compact(
-        'warehouses','products','mainWarehouseId','warehouseId','productId','stock'
-    ));
-}
 
     public function costs()
     {
@@ -144,4 +182,37 @@ class StockController extends Controller
 
         return $id ? (int) $id : null;
     }
+
+    public function printWarehouse(Warehouse $warehouse)
+{
+    $sumExpr = "COALESCE(SUM(CASE
+        WHEN sm.tipo = 'IN'  THEN sm.cantidad
+        WHEN sm.tipo = 'OUT' THEN -sm.cantidad
+        ELSE 0 END), 0)";
+
+    $stock = Product::query()
+        ->where('products.maneja_inventario', 1)
+        ->where('products.activo', 1)
+        ->select([
+            'products.id as product_id',
+            'products.sku',
+            'products.nombre',
+            'products.unidad',
+            'products.stock_min',
+            'products.costo_promedio',
+            DB::raw("({$sumExpr}) as existencia"),
+        ])
+        ->leftJoin('stock_movements as sm', function($join) use ($warehouse) {
+            $join->on('sm.product_id', '=', 'products.id')
+                 ->where('sm.warehouse_id', '=', $warehouse->id);
+        })
+        ->groupBy(
+            'products.id','products.sku','products.nombre',
+            'products.unidad','products.stock_min','products.costo_promedio'
+        )
+        ->orderBy('products.nombre')
+        ->get();
+
+    return view('admin.stock.print_warehouse', compact('warehouse', 'stock'));
+}
 }
