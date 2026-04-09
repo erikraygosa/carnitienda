@@ -74,6 +74,71 @@
             placeholder="Referencia general"
             :value="old('direccion', $isEdit ? $client->direccion : '')" />
 
+
+            {{-- ====== DÍAS DE PEDIDO ====== --}}
+            <div class="mt-6 border-t pt-5">
+                <h4 class="text-sm font-semibold text-gray-700 mb-3">Pedido recurrente</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                    {{-- Días de pedido --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Días de pedido</label>
+                        @php
+                            $diasSeleccionados = old('dias_pedido', $isEdit ? ($client->dias_pedido ?? []) : []);
+                            $diasSemana = [
+                                'lunes'     => 'Lunes',
+                                'martes'    => 'Martes',
+                                'miercoles' => 'Miércoles',
+                                'jueves'    => 'Jueves',
+                                'viernes'   => 'Viernes',
+                                'sabado'    => 'Sábado',
+                                'domingo'   => 'Domingo',
+                            ];
+                        @endphp
+                        <div class="flex flex-wrap gap-2">
+                            @foreach($diasSemana as $valor => $etiqueta)
+                            <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                                <input type="checkbox"
+                                    name="dias_pedido[]"
+                                    value="{{ $valor }}"
+                                    class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
+                                    {{ in_array($valor, $diasSeleccionados) ? 'checked' : '' }}>
+                                <span class="text-sm text-gray-700">{{ $etiqueta }}</span>
+                            </label>
+                            @endforeach
+                        </div>
+                        <p class="mt-1 text-xs text-gray-400">Días en que el cliente normalmente hace pedidos</p>
+                    </div>
+
+                    {{-- Periodicidad --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Periodicidad (días entre pedidos)
+                        </label>
+                        <input type="number"
+                            name="pedido_periodicidad"
+                            min="1" max="365" step="1"
+                            placeholder="Ej. 7 = semanal, 14 = quincenal"
+                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                            value="{{ old('pedido_periodicidad', $isEdit ? ($client->pedido_periodicidad ?? 7) : 7) }}">
+                        <p class="mt-1 text-xs text-gray-400">
+                            Cada cuántos días se espera que el cliente haga un pedido
+                        </p>
+                        {{-- Accesos rápidos --}}
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            @foreach([['7','Semanal'],['14','Quincenal'],['30','Mensual']] as [$val,$label])
+                            <button type="button"
+                                    onclick="document.querySelector('[name=pedido_periodicidad]').value = {{ $val }}"
+                                    class="px-2 py-0.5 text-xs rounded border border-gray-300 hover:bg-gray-50 text-gray-600">
+                                {{ $label }} ({{ $val }}d)
+                            </button>
+                            @endforeach
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de persona</label>
             @php $tipo = old('tipo_persona', $isEdit ? $client->tipo_persona : 'PF'); @endphp
@@ -326,9 +391,24 @@
     };
 
     document.addEventListener('DOMContentLoaded', () => {
-        toggleFiscal();
-        toggleCredito();
-        initActivo();
+    toggleFiscal();
+    toggleCredito();
+    initActivo();
+
+    // Resaltar etiqueta al marcar/desmarcar día
+    document.querySelectorAll('.dia-pedido-chk').forEach(chk => {
+        chk.addEventListener('change', function() {
+            const label = document.getElementById('label-dia-' + this.value);
+            if (!label) return;
+            if (this.checked) {
+                label.classList.add('border-indigo-500', 'bg-indigo-50', 'text-indigo-700');
+                label.classList.remove('border-gray-300', 'text-gray-600');
+            } else {
+                label.classList.remove('border-indigo-500', 'bg-indigo-50', 'text-indigo-700');
+                label.classList.add('border-gray-300', 'text-gray-600');
+            }
+        });
     });
+});
 })();
 </script>

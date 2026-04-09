@@ -18,6 +18,8 @@ class Client extends Model
         'entrega_calle','entrega_numero','entrega_colonia',
         'entrega_ciudad','entrega_estado','entrega_cp',
         'entrega_igual_fiscal',
+         'dias_pedido',
+         'pedido_periodicidad',
     ];
 
     protected $casts = [
@@ -25,6 +27,8 @@ class Client extends Model
         'credito_limite'       => 'decimal:2',
         'credito_dias'         => 'integer',
         'entrega_igual_fiscal' => 'boolean',
+        'dias_pedido' => 'array',
+        'pedido_periodicidad' => 'integer',
     ];
 
     public function shippingRoute() { return $this->belongsTo(ShippingRoute::class); }
@@ -32,6 +36,16 @@ class Client extends Model
     public function priceList()     { return $this->belongsTo(PriceList::class); }
     public function priceOverrides(){ return $this->hasMany(ClientPriceOverride::class); }
 
+
+        public function salesOrders()
+    {
+        return $this->hasMany(\App\Models\SalesOrder::class);
+    }
+
+    public function ultimaOrden()
+    {
+        return $this->hasOne(\App\Models\SalesOrder::class)->latestOfMany('created_at');
+    }
     /**
      * Devuelve la dirección de entrega efectiva:
      * si entrega_igual_fiscal, usa la fiscal; si no, la de entrega.
