@@ -13,18 +13,20 @@
         .meta strong { color: #111; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
         th { background: #f3f4f6; text-align: left; padding: 6px 8px; font-size: 11px; border-bottom: 1px solid #ddd; }
-        td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+        td { padding: 5px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
         .text-right { text-align: right; }
         .text-center { text-align: center; }
-        .badge { display: inline-block; padding: 2px 6px; border-radius: 9999px; font-size: 10px; border: 1px solid #ccc; }
         .total-row td { font-weight: bold; border-top: 2px solid #ccc; background: #f9fafb; }
         .firma { margin-top: 40px; border-top: 1px solid #333; width: 220px; text-align: center; padding-top: 6px; font-size: 11px; }
         .notas-box { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 8px 12px; font-size: 11px; margin-bottom: 12px; }
-        .direccion { font-size: 10px; color: #555; }
         .section-num { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #1a1a1a; color: #fff; font-size: 10px; font-weight: bold; margin-right: 4px; }
-        /* Traspasos */
-        .traspaso-origen { color: #4f46e5; font-weight: bold; }
-        .traspaso-destino { color: #059669; font-weight: bold; }
+        .traspaso-origen  { color: #4f46e5; font-weight: bold; font-size: 11px; }
+        .traspaso-destino { color: #059669; font-weight: bold; font-size: 11px; }
+        .folio  { font-size: 10px; color: #6b7280; font-family: monospace; }
+        .cliente { font-weight: bold; font-size: 11px; }
+        .tel    { font-size: 10px; color: #6b7280; }
+        .dir    { font-size: 10px; color: #555; }
+        .prods  { font-size: 10px; color: #374151; }
 
         @media print {
             body.ticket .page { max-width: 72mm; padding: 4mm; font-size: 10px; }
@@ -79,31 +81,29 @@
     <table>
         <thead>
             <tr>
-                <th>#</th>
+                <th style="width:24px;">#</th>
                 <th>Folio</th>
                 <th>Origen</th>
                 <th>Destino</th>
                 <th class="no-ticket">Productos</th>
-                <th class="text-center no-ticket">Entregado</th>
+                <th class="text-center no-ticket" style="width:60px;">✓</th>
             </tr>
         </thead>
         <tbody>
             @foreach($dispatch->transferAssignments as $i => $ta)
             @php $t = $ta->stockTransfer; @endphp
             <tr>
-                <td>{{ $i + 1 }}</td>
-                <td><strong>{{ $t?->folio ?? '—' }}</strong></td>
+                <td style="font-weight:bold;color:#555;">{{ $i + 1 }}</td>
+                <td><strong style="font-size:11px;">{{ $t?->folio ?? '—' }}</strong></td>
                 <td class="traspaso-origen">{{ $t?->fromWarehouse?->nombre ?? '—' }}</td>
                 <td class="traspaso-destino">{{ $t?->toWarehouse?->nombre ?? '—' }}</td>
-                <td class="no-ticket">
+                <td class="no-ticket prods">
                     @if($t)
-                        @foreach($t->items as $it)
-                            <div style="font-size:10px;">{{ $it->product?->nombre ?? '—' }} — {{ number_format($it->qty, 3) }} {{ $it->product?->unidad }}</div>
-                        @endforeach
+                        {{ $t->items->map(fn($it) => ($it->product?->nombre ?? '—') . ' × ' . number_format($it->qty, 3) . ' ' . ($it->product?->unidad ?? ''))->implode(' · ') }}
                     @else —
                     @endif
                 </td>
-                <td class="text-center no-ticket">☐</td>
+                <td class="text-center no-ticket" style="font-size:18px;">☐</td>
             </tr>
             @endforeach
         </tbody>
@@ -118,12 +118,14 @@
     <table>
         <thead>
             <tr>
-                <th>#</th>
-                <th>Folio / Cliente</th>
+                <th style="width:24px;">#</th>
+               <th style="width:100px;">Folio</th>
+                <th style="width:140px;">Cliente</th>
                 <th class="no-ticket">Dirección</th>
-                <th class="text-right">Total</th>
-                <th>Pago</th>
-                <th class="text-center no-ticket">Entregado</th>
+                <th>Productos</th>
+                <th class="text-right" style="width:70px;">Total</th>
+                <th style="width:70px;">Pago</th>
+                <th class="text-center no-ticket" style="width:30px;">✓</th>
             </tr>
         </thead>
         <tbody>
@@ -139,23 +141,23 @@
                         $o->entrega_colonia ?? '',
                         $o->entrega_ciudad  ?? '',
                     ])->filter()->implode(', ');
+                    $productosResumen = $o->items->map(fn($it) =>
+                        ($it->product?->nombre ?? $it->descripcion)
+                        . ' × ' . number_format((float)$it->cantidad, 2)
+                        . ' ' . ($it->product?->unidad ?? '')
+                    )->implode(' · ');
                 @endphp
-                {{-- Fila principal del pedido --}}
-                <tr style="background:#f8fafc;">
-                    <td rowspan="{{ $o->items->count() + 1 }}" style="vertical-align:top;font-weight:bold;font-size:13px;color:#555;">
-                        {{ $i + 1 }}
+                <tr>
+                    <td style="font-weight:bold;color:#555;">{{ $i + 1 }}</td>
+                   <td>
+                        <div class="folio">{{ $o->folio }}</div>
                     </td>
                     <td>
-                        <strong style="font-size:11px;">{{ $o->folio }}</strong><br>
-                        <span style="font-weight:bold;">{{ $o->client?->nombre ?? '—' }}</span>
-                        @if($o->entrega_nombre)
-                            <br><span class="direccion">Recibe: {{ $o->entrega_nombre }}</span>
-                        @endif
-                        @if($o->entrega_telefono)
-                            <br><span class="direccion">Tel: {{ $o->entrega_telefono }}</span>
-                        @endif
+                        <div class="cliente">{{ $o->client?->nombre ?? '—' }}</div>
+                      
                     </td>
-                    <td class="no-ticket direccion">{{ $dir ?: '—' }}</td>
+                    <td class="no-ticket dir">{{ $dir ?: '—' }}</td>
+                    <td class="prods">{{ $productosResumen }}</td>
                     <td class="text-right"><strong>${{ number_format($o->total, 2) }}</strong></td>
                     <td>
                         <span style="font-size:10px;padding:1px 5px;border-radius:9999px;border:1px solid #ccc;
@@ -163,31 +165,14 @@
                             {{ $o->payment_method }}
                         </span>
                     </td>
-                    <td class="text-center no-ticket" rowspan="{{ $o->items->count() + 1 }}" style="vertical-align:middle;font-size:18px;">☐</td>
+                    <td class="text-center no-ticket" style="font-size:18px;">☐</td>
                 </tr>
-                {{-- Filas de productos del pedido --}}
-                @foreach($o->items as $it)
-                <tr style="background:#fff;">
-                    <td colspan="3" style="padding-left:20px;font-size:10px;color:#374151;border-bottom:{{ $loop->last ? '2px solid #d1d5db' : '1px solid #f3f4f6' }};">
-                        <span style="color:#6b7280;margin-right:4px;">↳</span>
-                        <strong>{{ $it->product?->nombre ?? $it->descripcion }}</strong>
-                        &nbsp;
-                        <span style="color:#6b7280;">{{ number_format((float)$it->cantidad, 3) }} {{ $it->product?->unidad ?? '' }}</span>
-                        @if($it->descuento > 0)
-                            <span style="color:#dc2626;margin-left:4px;">-${{ number_format($it->descuento, 2) }}</span>
-                        @endif
-                    </td>
-                    <td class="text-right no-ticket" style="font-size:10px;color:#374151;border-bottom:{{ $loop->last ? '2px solid #d1d5db' : '1px solid #f3f4f6' }};">
-                        ${{ number_format((float)$it->total, 2) }}
-                    </td>
-                </tr>
-                @endforeach
             @endforeach
-            <tr class="total-row">
-                <td colspan="3" class="text-right">Total pedidos:</td>
-                <td class="text-right">${{ number_format($totalPedidos, 2) }}</td>
-                <td colspan="2"></td>
-            </tr>
+           <tr class="total-row">
+            <td colspan="5" class="text-right">Total pedidos:</td>
+            <td class="text-right">${{ number_format($totalPedidos, 2) }}</td>
+            <td colspan="2"></td>
+        </tr>
         </tbody>
     </table>
 

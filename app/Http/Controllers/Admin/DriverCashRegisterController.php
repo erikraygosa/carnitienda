@@ -7,15 +7,49 @@ use App\Models\Driver;
 use App\Models\DriverCashRegister;
 use App\Services\DriverCashService;
 use Illuminate\Http\Request;
+use App\Models\Dispatch;
 
 class DriverCashRegisterController extends Controller
 {
     public function __construct(private DriverCashService $cash) {}
 
-    public function index()
-    {
-        return view('admin.driver-cash.index');
-    }
+   public function index(Request $request)
+{
+    $desde = $request->get('desde', now()->startOfMonth()->toDateString());
+    $hasta = $request->get('hasta', now()->toDateString());
+
+    $resumen = Driver::orderBy('nombre')
+        ->get()
+        ->map(function ($driver) use ($desde, $hasta) {
+            $dispatches = Dispatch::with([
+                    'items.salesOrder',
+                    'arAssignments',
+                ])
+                ->where('driver_id', $driver->id)
+                ->whereIn('status', ['CERRADO', 'EN_RUTA', 'ENTREGADO'])
+                ->whereBetween('fecha', [$desde, $hasta . ' 23:59:59'])
+                ->orderBy('fecha', 'desc')
+                ->get();
+
+            if ($dispatches->isEmpty()) return null;
+
+            $driver->despachos       = $dispatches;
+            $driver->total_despachos = $dispatches->count();
+            $driver->cerrados        = $dispatches->where('status', 'CERRADO')->count();
+            $driver->total_liquidado = $dispatches->sum('monto_liquidado');
+            $driver->total_pedidos   = $dispatches->flatMap(fn($d) => $d->items)
+                ->filter(fn($i) => $i->salesOrder?->status === 'ENTREGADO')
+                ->sum(fn($i) => $i->salesOrder?->total ?? 0);
+            $driver->total_cxc       = $dispatches->flatMap(fn($d) => $d->arAssignments)
+                ->where('status', 'COBRADO')
+                ->sum('monto_cobrado');
+
+            return $driver;
+        })
+        ->filter();
+
+    return view('admin.driver-cash.index', compact('resumen', 'desde', 'hasta'));
+}
 
     public function create()
     {

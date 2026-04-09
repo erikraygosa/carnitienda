@@ -34,7 +34,16 @@ class DispatchController extends Controller
 
     public function index()
     {
-        return view('admin.dispatches.index');
+        $dispatches = \App\Models\Dispatch::with(['driver', 'route', 'warehouse'])
+            ->withCount([
+                'items',
+                'items as items_entregados'    => fn($q) => $q->where('status', 'ENTREGADO'),
+                'items as items_no_entregados' => fn($q) => $q->where('status', 'NO_ENTREGADO'),
+            ])
+            ->orderBy('fecha', 'desc')
+            ->get();
+
+        return view('admin.dispatches.index', compact('dispatches'));
     }
 
     // ── Create ────────────────────────────────────────────────────────────────

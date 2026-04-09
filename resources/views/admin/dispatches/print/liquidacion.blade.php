@@ -127,49 +127,38 @@
     @endif
 
     {{-- ══ 2. PEDIDOS ENTREGADOS ══ --}}
-    <h2><span class="section-num">{{ $traspasosCount > 0 ? '2' : '1' }}</span> Pedidos entregados ({{ $entregados->count() }})</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Folio / Cliente</th>
-                <th class="text-right">Total</th>
-                <th>Pago</th>
+<h2><span class="section-num">{{ $traspasosCount > 0 ? '2' : '1' }}</span> Pedidos entregados ({{ $entregados->count() }})</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Folio</th>
+            <th>Cliente</th>
+            <th class="text-right">Total</th>
+            <th>Pago</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($entregados as $item)
+            @php $o = $item->salesOrder; @endphp
+            <tr style="background:#f0fdf4;">
+                <td class="folio">{{ $o?->folio }}</td>
+                <td class="cliente">{{ $o?->client?->nombre ?? '—' }}</td>
+                <td class="text-right"><strong>${{ number_format($o?->total ?? 0, 2) }}</strong></td>
+                <td>
+                    <span style="font-size:10px;padding:1px 5px;border-radius:9999px;border:1px solid #ccc;
+                        {{ ($o?->payment_method === 'CREDITO') ? 'background:#dbeafe;color:#1d4ed8;' : 'background:#f3f4f6;' }}">
+                        {{ $o?->payment_method }}
+                    </span>
+                </td>
             </tr>
-        </thead>
-        <tbody>
-            @foreach($entregados as $item)
-                @php $o = $item->salesOrder; @endphp
-                {{-- Fila principal --}}
-                <tr class="highlight" style="background:#f0fdf4;">
-                    <td>
-                        <strong>{{ $o?->folio }}</strong> —
-                        {{ $o?->client?->nombre ?? '—' }}
-                    </td>
-                    <td class="text-right"><strong>${{ number_format($o?->total ?? 0, 2) }}</strong></td>
-                    <td>{{ $o?->payment_method }}</td>
-                </tr>
-                {{-- Productos --}}
-                @foreach($o?->items ?? [] as $it)
-                <tr>
-                    <td style="padding-left:18px;font-size:10px;color:#374151;background:#f9fffe;border-bottom:{{ $loop->last ? '2px solid #bbf7d0' : '1px solid #f0fdf4' }};">
-                        <span style="color:#9ca3af;">↳</span>
-                        <strong>{{ $it->product?->nombre ?? $it->descripcion }}</strong>
-                        <span style="color:#6b7280;margin-left:4px;">{{ number_format((float)$it->cantidad, 3) }} {{ $it->product?->unidad ?? '' }}</span>
-                    </td>
-                    <td class="text-right" style="font-size:10px;color:#374151;background:#f9fffe;border-bottom:{{ $loop->last ? '2px solid #bbf7d0' : '1px solid #f0fdf4' }};">
-                        ${{ number_format((float)$it->total, 2) }}
-                    </td>
-                    <td style="background:#f9fffe;border-bottom:{{ $loop->last ? '2px solid #bbf7d0' : '1px solid #f0fdf4' }};"></td>
-                </tr>
-                @endforeach
-            @endforeach
-            <tr class="total-row">
-                <td class="text-right">Subtotal entregados:</td>
-                <td class="text-right">${{ number_format($entregados->sum(fn($i) => $i->salesOrder?->total ?? 0), 2) }}</td>
-                <td></td>
-            </tr>
-        </tbody>
-    </table>
+        @endforeach
+        <tr class="total-row">
+            <td colspan="2" class="text-right">Subtotal entregados:</td>
+            <td class="text-right">${{ number_format($entregados->sum(fn($i) => $i->salesOrder?->total ?? 0), 2) }}</td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
 
     @if($noEntregados->count() > 0)
     <h2><span class="section-num">{{ $traspasosCount > 0 ? '3' : '2' }}</span> Pedidos no entregados ({{ $noEntregados->count() }})</h2>
