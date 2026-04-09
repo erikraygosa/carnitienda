@@ -8,9 +8,10 @@ use Illuminate\Http\Request;
 
 class WarehouseController extends Controller
 {
-    public function index()
+        public function index()
     {
-        return view('admin.warehouses.index');
+        $warehouses = \App\Models\Warehouse::orderBy('nombre')->get();
+        return view('admin.warehouses.index', compact('warehouses'));
     }
 
     public function create()

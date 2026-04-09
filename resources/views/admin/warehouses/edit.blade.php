@@ -26,17 +26,14 @@
             <x-wire-input label="Nombre" name="nombre" required :value="old('nombre',$warehouse->nombre)" />
             <x-wire-input label="Dirección" name="direccion" :value="old('direccion',$warehouse->direccion)" />
 
-            <x-wire-select
-                label="Estatus"
-                name="activo"
-                :options="[
-                    ['name' => 'Activo', 'id' => 1],
-                    ['name' => 'Inactivo', 'id' => 0],
-                ]"
-                :option-label="'name'"
-                :option-value="'id'"
-                :selected="old('activo',(int)$warehouse->activo)"
-            />
+         <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Estatus</label>
+            <select name="activo"
+                class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200">
+                <option value="1" {{ old('activo', $warehouse->activo) == '1' ? 'selected' : '' }}>Activo</option>
+                <option value="0" {{ old('activo', $warehouse->activo) == '0' ? 'selected' : '' }}>Inactivo</option>
+            </select>
+        </div>
         </form>
     </x-wire-card>
 </x-admin-layout>
