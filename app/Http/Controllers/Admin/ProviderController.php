@@ -10,7 +10,8 @@ class ProviderController extends Controller
 {
     public function index()
     {
-        return view('admin.providers.index');
+        $providers = \App\Models\Provider::orderBy('nombre')->get();
+        return view('admin.providers.index', compact('providers'));
     }
 
     public function create()
