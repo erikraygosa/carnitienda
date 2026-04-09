@@ -41,7 +41,7 @@ class SalesOrder extends Model
         // liquidación chofer
         'driver_settlement_status','driver_settlement_at','pos_register_id',
         // auditoría
-        'created_by','owner_id',
+        'created_by','owner_id','saldo_pendiente',
     ];
 
     protected $casts = [
@@ -61,6 +61,8 @@ class SalesOrder extends Model
         'contraentrega_total'    => 'decimal:2',
         'cobrado_efectivo'       => 'decimal:2',
         'delivery_attempts'      => 'integer',
+        'cobrado_at' => 'datetime',
+       'saldo_pendiente' => 'decimal:2',
     ];
 
     // === Relaciones ===
@@ -179,6 +181,20 @@ class SalesOrder extends Model
         if ($posRegisterId) $data['pos_register_id'] = $posRegisterId;
         $this->update($data);
     }
+    protected static function booted(): void
+{
+    // Al marcar como entregada una orden de crédito, inicializar saldo
+    static::updated(function (SalesOrder $order) {
+        if (
+            $order->isDirty('status') &&
+            $order->status === 'ENTREGADO' &&
+            $order->payment_method === 'CREDITO' &&
+            is_null($order->saldo_pendiente)
+        ) {
+            $order->updateQuietly(['saldo_pendiente' => $order->total]);
+        }
+    });
+}
 
     
 }

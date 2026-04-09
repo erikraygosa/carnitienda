@@ -203,10 +203,10 @@ Route::prefix('ar')->name('ar.')->group(function () {
     Route::get('/cliente/{client}',[AccountsReceivableController::class,'show'])->name('show');
     Route::post('/cliente/{client}/cargo',[AccountsReceivableController::class,'charge'])->name('charge'); // opcional
 });
-
 Route::prefix('ar-payments')->name('ar-payments.')->group(function () {
-    Route::get('/create', [ArPaymentsController::class,'create'])->name('create');
-    Route::post('/',       [ArPaymentsController::class,'store'])->name('store');
+    Route::get('/notas',  [ArPaymentsController::class, 'notas'])->name('notas');
+    Route::get('/create', [ArPaymentsController::class, 'create'])->name('create');
+    Route::post('/',      [ArPaymentsController::class, 'store'])->name('store');
 });
 
 Route::prefix('cash')->name('cash.')->group(function () {

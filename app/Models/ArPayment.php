@@ -8,6 +8,11 @@ class ArPayment extends Model
 {
     protected $table = 'ar_payments';
 
+        protected $casts = [
+        'fecha'     => 'date',
+        'order_ids' => 'array',
+    ];
+
     protected $fillable = [
         'accounts_receivable_id', // FK al movimiento AR
         'fecha',
@@ -19,9 +24,7 @@ class ArPayment extends Model
         'nota',                   // << en DB es "nota", no "notes"
     ];
 
-    protected $casts = [
-        'fecha' => 'date',
-    ];
+   
 
     public function accountReceivable() {
         return $this->belongsTo(\App\Models\AccountReceivable::class, 'accounts_receivable_id');
