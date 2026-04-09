@@ -63,7 +63,7 @@ class PurchaseController extends Controller
             'currency'           => ['required','string','max:10'],
             'notas'              => ['nullable','string'],
             'folio'              => ['nullable','string','max:50','unique:purchases,folio'],
-
+            'payment_method' => $request->payment_method,
             'items'                   => ['required','array','min:1'],
             'items.*.product_id'      => ['required','exists:products,id'],
             'items.*.qty_received'    => ['required','numeric','min:0.001'],

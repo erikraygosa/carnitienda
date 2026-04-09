@@ -12,19 +12,39 @@
     </x-slot>
 
     <x-wire-card>
-        <form id="po-form" method="POST" action="{{ route('admin.purchase-orders.store') }}" class="space-y-6" x-data="poForm()">
+        <form id="po-form" method="POST" action="{{ route('admin.purchase-orders.store') }}" class="space-y-6">
             @csrf
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div class="md:col-span-2">
-                    <x-wire-select label="Proveedor" name="provider_id"
-                        :options="$providers->map(fn($p)=>['id'=>$p->id,'name'=>$p->nombre])"
-                        :option-label="'name'" :option-value="'id'" required />
+                <div class="md:col-span-2 space-y-1">
+                    <label for="provider_id" class="block text-sm font-medium text-gray-700">Proveedor <span class="text-red-500">*</span></label>
+                    <select name="provider_id" id="provider_id" required
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="">-- seleccionar --</option>
+                        @foreach($providers as $p)
+                            <option value="{{ $p->id }}" {{ old('provider_id') == $p->id ? 'selected' : '' }}>
+                                {{ $p->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('provider_id')
+                        <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
+                    @enderror
                 </div>
-                <div>
-                    <x-wire-select label="Almacén" name="warehouse_id"
-                        :options="$warehouses->map(fn($w)=>['id'=>$w->id,'name'=>$w->nombre])"
-                        :option-label="'name'" :option-value="'id'" required />
+                <div class="space-y-1">
+                    <label for="warehouse_id" class="block text-sm font-medium text-gray-700">Almacén <span class="text-red-500">*</span></label>
+                    <select name="warehouse_id" id="warehouse_id" required
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="">-- seleccionar --</option>
+                        @foreach($warehouses as $w)
+                            <option value="{{ $w->id }}" {{ old('warehouse_id') == $w->id ? 'selected' : '' }}>
+                                {{ $w->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('warehouse_id')
+                        <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
+                    @enderror
                 </div>
                 <div>
                     <x-wire-input label="Fecha" name="fecha" type="date" :value="now()->toDateString()" required />
@@ -35,16 +55,14 @@
                 <div>
                     <x-wire-input label="Moneda" name="currency" :value="old('currency','MXN')" />
                 </div>
-                  {{-- Método de pago + días crédito --}}
                 <div class="space-y-2 w-full">
                     <label for="payment_method" class="block text-sm font-medium text-gray-700">Método de pago</label>
                     <select name="payment_method" id="payment_method"
-                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        x-model="payment_method">
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                         <option value="EFECTIVO">Efectivo</option>
-                        <option value="TRANSFERENCIA" >Transferencia</option>
-                        <option value="CONTRAENTREGA" >Contraentrega</option>
-                        <option value="CREDITO" >Crédito</option>
+                        <option value="TRANSFERENCIA">Transferencia</option>
+                        <option value="CONTRAENTREGA">Contraentrega</option>
+                        <option value="CREDITO">Crédito</option>
                     </select>
                 </div>
                 <div class="md:col-span-4">
@@ -53,7 +71,7 @@
             </div>
 
             <div class="overflow-auto">
-                <table class="min-w-full text-sm">
+                <table class="min-w-full text-sm" id="items-table">
                     <thead class="border-b">
                         <tr>
                             <th class="text-left p-2">Producto</th>
@@ -65,71 +83,200 @@
                             <th class="p-2"></th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <template x-for="(it, i) in items" :key="i">
-                            <tr class="border-b">
-                                <td class="p-2">
-                                    <select class="w-full border rounded p-1" :name="`items[${i}][product_id]`" x-model="it.product_id" required>
-                                        <option value="">-- seleccionar --</option>
-                                        @foreach($products as $p)
-                                            <option value="{{ $p->id }}">{{ $p->nombre }}</option>
-                                        @endforeach
-                                    </select>
-                                </td>
-                                <td class="p-2 text-right"><input type="number" min="0.001" step="0.001" class="w-28 border rounded p-1 text-right" :name="`items[${i}][qty_ordered]`" x-model.number="it.qty" @input="recalc(i)" required></td>
-                                <td class="p-2 text-right"><input type="number" min="0" step="0.01" class="w-28 border rounded p-1 text-right" :name="`items[${i}][price]`" x-model.number="it.price" @input="recalc(i)" required></td>
-                                <td class="p-2 text-right"><input type="number" min="0" step="0.01" class="w-24 border rounded p-1 text-right" :name="`items[${i}][discount]`" x-model.number="it.discount" @input="recalc(i)"></td>
-                                <td class="p-2 text-right"><input type="number" min="0" step="0.01" class="w-20 border rounded p-1 text-right" :name="`items[${i}][tax_rate]`" x-model.number="it.tax_rate" @input="recalc(i)"></td>
-                                <td class="p-2 text-right" x-text="fmt(it.total)"></td>
-                                <td class="p-2"><button type="button" class="text-red-600" @click="remove(i)">Eliminar</button></td>
-                            </tr>
-                        </template>
+                    <tbody id="items-body">
+                        {{-- Las filas se generan con JS --}}
                     </tbody>
                 </table>
                 <div class="mt-2">
-                    <x-wire-button type="button" gray @click="add()">Agregar partida</x-wire-button>
+                    <x-wire-button type="button" gray id="btn-add-item">Agregar partida</x-wire-button>
                 </div>
             </div>
 
             <div class="text-right space-y-1">
-                <div>Subtotal: <span x-text="fmt(subtotal)"></span></div>
-                <div>Descuento: <span x-text="fmt(discount_total)"></span></div>
-                <div>Impuestos: <span x-text="fmt(tax_total)"></span></div>
-                <div class="font-semibold text-lg">Total: <span x-text="fmt(grand)"></span></div>
+                <div>Subtotal: <span id="lbl-subtotal">0.00</span></div>
+                <div>Descuento: <span id="lbl-discount">0.00</span></div>
+                <div>Impuestos: <span id="lbl-tax">0.00</span></div>
+                <div class="font-semibold text-lg">Total: <span id="lbl-grand">0.00</span></div>
             </div>
         </form>
     </x-wire-card>
 
+    {{-- Productos disponibles para el select --}}
     <script>
-        function poForm(){
-            return {
-                items: [{product_id:'', qty:1, price:0, discount:0, tax_rate:0, total:0}],
-                subtotal:0, discount_total:0, tax_total:0, grand:0,
-                add(){ this.items.push({product_id:'', qty:1, price:0, discount:0, tax_rate:0, total:0}); },
-                remove(i){ this.items.splice(i,1); this.sum(); },
-                recalc(i){
-                    const it = this.items[i];
-                    const line_sub = (it.qty||0)*(it.price||0);
-                    const disc = it.discount||0;
-                    const base = Math.max(line_sub - disc, 0);
-                    const tax = (it.tax_rate||0)*0.01*base;
-                    it.total = base + tax;
-                    this.sum();
-                },
-                sum(){
-                    let s=0,d=0,t=0,g=0;
-                    this.items.forEach(it=>{
-                        const line_sub=(it.qty||0)*(it.price||0);
-                        const disc=it.discount||0;
-                        const base=Math.max(line_sub-disc,0);
-                        const tax=(it.tax_rate||0)*0.01*base;
-                        const tot=base+tax;
-                        s+=line_sub; d+=disc; t+=tax; g+=tot;
-                    });
-                    this.subtotal=s; this.discount_total=d; this.tax_total=t; this.grand=g;
-                },
-                fmt(n){ return Number(n||0).toFixed(2); }
+        const PRODUCTS = @json($products->map(fn($p) => ['id' => $p->id, 'nombre' => $p->nombre]));
+    </script>
+
+    <script>
+        (() => {
+            /* ─── Estado ─── */
+            let items = [];
+
+            /* ─── Referencias DOM ─── */
+            const tbody      = document.getElementById('items-body');
+            const btnAdd     = document.getElementById('btn-add-item');
+            const lblSub     = document.getElementById('lbl-subtotal');
+            const lblDisc    = document.getElementById('lbl-discount');
+            const lblTax     = document.getElementById('lbl-tax');
+            const lblGrand   = document.getElementById('lbl-grand');
+
+            /* ─── Helpers ─── */
+            const fmt  = n  => Number(n || 0).toFixed(2);
+            const num  = v  => parseFloat(v) || 0;
+
+            function calcLine(item) {
+                const lineSub = num(item.qty)   * num(item.price);
+                const disc    = num(item.discount);
+                const base    = Math.max(lineSub - disc, 0);
+                const tax     = num(item.tax_rate) * 0.01 * base;
+                item.total    = base + tax;
             }
-        }
+
+            function updateTotals() {
+                let subtotal = 0, discountTotal = 0, taxTotal = 0, grand = 0;
+                items.forEach(it => {
+                    const lineSub = num(it.qty) * num(it.price);
+                    const disc    = num(it.discount);
+                    const base    = Math.max(lineSub - disc, 0);
+                    const tax     = num(it.tax_rate) * 0.01 * base;
+                    subtotal      += lineSub;
+                    discountTotal += disc;
+                    taxTotal      += tax;
+                    grand         += base + tax;
+                });
+                lblSub.textContent   = fmt(subtotal);
+                lblDisc.textContent  = fmt(discountTotal);
+                lblTax.textContent   = fmt(taxTotal);
+                lblGrand.textContent = fmt(grand);
+            }
+
+            /* ─── Opciones de productos ─── */
+            function buildProductOptions(selectedId) {
+                return PRODUCTS.map(p => {
+                    const sel = String(p.id) === String(selectedId) ? 'selected' : '';
+                    return `<option value="${p.id}" ${sel}>${p.nombre}</option>`;
+                }).join('');
+            }
+
+            /* ─── Render de una fila ─── */
+            function renderRow(i, item) {
+                const tr = document.createElement('tr');
+                tr.className   = 'border-b';
+                tr.dataset.idx = i;
+
+                tr.innerHTML = `
+                    <td class="p-2">
+                        <select class="w-full border rounded p-1" name="items[${i}][product_id]" required>
+                            <option value="">-- seleccionar --</option>
+                            ${buildProductOptions(item.product_id)}
+                        </select>
+                    </td>
+                    <td class="p-2 text-right">
+                        <input type="number" min="0.001" step="0.001"
+                            class="w-28 border rounded p-1 text-right"
+                            name="items[${i}][qty_ordered]"
+                            value="${item.qty}" required>
+                    </td>
+                    <td class="p-2 text-right">
+                        <input type="number" min="0" step="0.01"
+                            class="w-28 border rounded p-1 text-right"
+                            name="items[${i}][price]"
+                            value="${item.price}" required>
+                    </td>
+                    <td class="p-2 text-right">
+                        <input type="number" min="0" step="0.01"
+                            class="w-24 border rounded p-1 text-right"
+                            name="items[${i}][discount]"
+                            value="${item.discount}">
+                    </td>
+                    <td class="p-2 text-right">
+                        <input type="number" min="0" step="0.01"
+                            class="w-20 border rounded p-1 text-right"
+                            name="items[${i}][tax_rate]"
+                            value="${item.tax_rate}">
+                    </td>
+                    <td class="p-2 text-right item-total">${fmt(item.total)}</td>
+                    <td class="p-2">
+                        <button type="button" class="text-red-600 btn-remove">Eliminar</button>
+                    </td>
+                `;
+
+                /* Guardar product_id al cambiar el select */
+                tr.querySelector('select').addEventListener('change', function() {
+                    items[parseInt(tr.dataset.idx)].product_id = this.value;
+                });
+
+                /* Eventos de inputs numéricos */
+                tr.querySelectorAll('input').forEach(input => {
+                    input.addEventListener('input', () => syncRow(tr));
+                });
+
+                /* Evento eliminar */
+                tr.querySelector('.btn-remove').addEventListener('click', () => {
+                    removeRow(parseInt(tr.dataset.idx));
+                });
+
+                return tr;
+            }
+
+            /* Sincroniza inputs numéricos DOM → items[] y recalcula */
+            function syncRow(tr) {
+                const i    = parseInt(tr.dataset.idx);
+                const item = items[i];
+                if (!item) return;
+
+                const inputs  = tr.querySelectorAll('input');
+                item.qty      = num(inputs[0].value);
+                item.price    = num(inputs[1].value);
+                item.discount = num(inputs[2].value);
+                item.tax_rate = num(inputs[3].value);
+
+                calcLine(item);
+                tr.querySelector('.item-total').textContent = fmt(item.total);
+                updateTotals();
+            }
+
+            /* Guarda el estado actual del DOM en items[] antes de re-renderizar */
+            function snapshotDOM() {
+                tbody.querySelectorAll('tr[data-idx]').forEach(tr => {
+                    const i    = parseInt(tr.dataset.idx);
+                    const item = items[i];
+                    if (!item) return;
+                    item.product_id = tr.querySelector('select').value;
+                    const inputs    = tr.querySelectorAll('input');
+                    item.qty        = num(inputs[0].value);
+                    item.price      = num(inputs[1].value);
+                    item.discount   = num(inputs[2].value);
+                    item.tax_rate   = num(inputs[3].value);
+                    calcLine(item);
+                });
+            }
+
+            /* ─── Re-render completo del tbody ─── */
+            function renderAll() {
+                snapshotDOM();
+                tbody.innerHTML = '';
+                items.forEach((item, i) => {
+                    tbody.appendChild(renderRow(i, item));
+                });
+                updateTotals();
+            }
+
+            /* ─── Acciones ─── */
+            function addItem() {
+                snapshotDOM();
+                items.push({ product_id: '', qty: 1, price: 0, discount: 0, tax_rate: 0, total: 0 });
+                renderAll();
+            }
+
+            function removeRow(i) {
+                snapshotDOM();
+                items.splice(i, 1);
+                renderAll();
+            }
+
+            /* ─── Init ─── */
+            btnAdd.addEventListener('click', addItem);
+            addItem(); // Fila inicial
+        })();
     </script>
 </x-admin-layout>

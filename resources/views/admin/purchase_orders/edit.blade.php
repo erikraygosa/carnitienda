@@ -23,7 +23,6 @@
     </x-slot>
 
     @php
-        // Selects (nativos) con old()
         $selProvider   = (string) old('provider_id',  $order->provider_id);
         $selWarehouse  = (string) old('warehouse_id', $order->warehouse_id);
         $isLocked      = $order->status !== 'draft';
@@ -33,7 +32,6 @@
         $valueCurrency  = old('currency',   $order->currency);
         $valueObs       = old('observaciones', $order->observaciones);
 
-        // Mapeo de estatus a español
         $statusMap = [
             'draft'               => 'Borrador',
             'approved'            => 'Aprobada',
@@ -52,7 +50,6 @@
         ];
         $statusClass = $statusClasses[$order->status] ?? 'bg-slate-100 text-slate-700';
 
-        // Seed para Alpine (partidas)
         $itemsSeed = $order->items->map(function ($i) {
             return [
                 'product_id' => $i->product_id,
@@ -63,31 +60,26 @@
                 'total'      => (float) $i->total,
             ];
         })->values()->toArray();
-        $lockedFlag = $isLocked;
     @endphp
 
     <x-wire-card>
-        {{-- 🔹 x-init="init()" para calcular totales al montar --}}
         <form id="po-edit-form"
               method="POST"
               action="{{ route('admin.purchase-orders.update',$order) }}"
-              class="space-y-6"
-              x-data="poFormEdit()"
-              x-init="init()">
+              class="space-y-6">
             @csrf
             @method('PUT')
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+
                 {{-- Proveedor --}}
-                <div class="md:col-span-2 space-y-2 w-full">
-                    <label for="provider_id" class="block text-sm font-medium text-gray-700">Proveedor</label>
-                    <select
-                        name="provider_id"
-                        id="provider_id"
-                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                <div class="md:col-span-2 space-y-1">
+                    <label for="provider_id" class="block text-sm font-medium text-gray-700">
+                        Proveedor @if(!$isLocked)<span class="text-red-500">*</span>@endif
+                    </label>
+                    <select name="provider_id" id="provider_id" required
                         {{ $isLocked ? 'disabled' : '' }}
-                        required
-                    >
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 {{ $isLocked ? 'bg-gray-100 cursor-not-allowed' : '' }}">
                         <option value="">-- seleccionar --</option>
                         @foreach($providers as $p)
                             <option value="{{ $p->id }}" {{ $selProvider === (string)$p->id ? 'selected' : '' }}>
@@ -95,18 +87,19 @@
                             </option>
                         @endforeach
                     </select>
+                    @error('provider_id')
+                        <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
+                    @enderror
                 </div>
 
                 {{-- Almacén --}}
-                <div class="space-y-2 w-full">
-                    <label for="warehouse_id" class="block text-sm font-medium text-gray-700">Almacén</label>
-                    <select
-                        name="warehouse_id"
-                        id="warehouse_id"
-                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                <div class="space-y-1">
+                    <label for="warehouse_id" class="block text-sm font-medium text-gray-700">
+                        Almacén @if(!$isLocked)<span class="text-red-500">*</span>@endif
+                    </label>
+                    <select name="warehouse_id" id="warehouse_id" required
                         {{ $isLocked ? 'disabled' : '' }}
-                        required
-                    >
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 {{ $isLocked ? 'bg-gray-100 cursor-not-allowed' : '' }}">
                         <option value="">-- seleccionar --</option>
                         @foreach($warehouses as $w)
                             <option value="{{ $w->id }}" {{ $selWarehouse === (string)$w->id ? 'selected' : '' }}>
@@ -114,6 +107,9 @@
                             </option>
                         @endforeach
                     </select>
+                    @error('warehouse_id')
+                        <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
+                    @enderror
                 </div>
 
                 {{-- Fecha --}}
@@ -152,13 +148,15 @@
 
                 {{-- Observaciones --}}
                 <div class="md:col-span-4">
-                    <x-wire-textarea label="Observaciones" name="observaciones" :disabled="$isLocked">{{ $valueObs }}</x-wire-textarea>
+                    <x-wire-textarea label="Observaciones" name="observaciones" :disabled="$isLocked">
+                        {{ $valueObs }}
+                    </x-wire-textarea>
                 </div>
             </div>
 
             {{-- Partidas --}}
             <div class="overflow-auto">
-                <table class="min-w-full text-sm">
+                <table class="min-w-full text-sm" id="items-table">
                     <thead class="border-b">
                         <tr>
                             <th class="text-left p-2">Producto</th>
@@ -170,70 +168,24 @@
                             <th class="p-2"></th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <template x-for="(it, i) in items" :key="i">
-                            <tr class="border-b">
-                                <td class="p-2">
-                                    <select class="w-full border rounded p-1"
-                                            x-bind:name="'items[' + i + '][product_id]'"
-                                            x-model="it.product_id"
-                                            :disabled="locked" required>
-                                        <option value="">-- seleccionar --</option>
-                                        @foreach($products as $p)
-                                            <option value="{{ $p->id }}">{{ $p->nombre }}</option>
-                                        @endforeach
-                                    </select>
-                                </td>
-
-                                <td class="p-2 text-right">
-                                    <input type="number" min="0.001" step="0.001" class="w-28 border rounded p-1 text-right"
-                                           x-bind:name="'items[' + i + '][qty_ordered]'"
-                                           x-model.number="it.qty"
-                                           @input="recalc(i)" :disabled="locked" required>
-                                </td>
-
-                                <td class="p-2 text-right">
-                                    <input type="number" min="0" step="0.01" class="w-28 border rounded p-1 text-right"
-                                           x-bind:name="'items[' + i + '][price]'"
-                                           x-model.number="it.price"
-                                           @input="recalc(i)" :disabled="locked" required>
-                                </td>
-
-                                <td class="p-2 text-right">
-                                    <input type="number" min="0" step="0.01" class="w-24 border rounded p-1 text-right"
-                                           x-bind:name="'items[' + i + '][discount]'"
-                                           x-model.number="it.discount"
-                                           @input="recalc(i)" :disabled="locked">
-                                </td>
-
-                                <td class="p-2 text-right">
-                                    <input type="number" min="0" step="0.01" class="w-20 border rounded p-1 text-right"
-                                           x-bind:name="'items[' + i + '][tax_rate]'"
-                                           x-model.number="it.tax_rate"
-                                           @input="recalc(i)" :disabled="locked">
-                                </td>
-
-                                <td class="p-2 text-right" x-text="fmt(it.total)"></td>
-
-                                <td class="p-2" x-show="!locked">
-                                    <button type="button" class="text-red-600" @click="remove(i)">Eliminar</button>
-                                </td>
-                            </tr>
-                        </template>
+                    <tbody id="items-body">
+                        {{-- Filas generadas por JS --}}
                     </tbody>
                 </table>
 
-                <div class="mt-2" x-show="!locked">
-                    <x-wire-button type="button" gray @click="add()">Agregar partida</x-wire-button>
-                </div>
+                @if(!$isLocked)
+                    <div class="mt-2">
+                        <x-wire-button type="button" gray id="btn-add-item">Agregar partida</x-wire-button>
+                    </div>
+                @endif
             </div>
 
             {{-- Totales --}}
             <div class="text-right space-y-1">
-                <div>Subtotal: <span x-text="fmt(subtotal)"></span></div>
-                <div>Descuento: <span x-text="fmt(discount_total)"></span></div>
-                <div>Impuestos: <span x-text="fmt(tax_total)"></span></div>
-                <div class="font-semibold text-lg">Total: <span x-text="fmt(grand)"></span></div>
+                <div>Subtotal: <span id="lbl-subtotal">0.00</span></div>
+                <div>Descuento: <span id="lbl-discount">0.00</span></div>
+                <div>Impuestos: <span id="lbl-tax">0.00</span></div>
+                <div class="font-semibold text-lg">Total: <span id="lbl-grand">0.00</span></div>
             </div>
         </form>
     </x-wire-card>
@@ -250,11 +202,11 @@
                 @if($order->status === 'draft')
                     <form method="POST" action="{{ route('admin.purchase-orders.approve',$order) }}">
                         @csrf
-                        <x-wire-button type="submit" green> Aprobar </x-wire-button>
+                        <x-wire-button type="submit" green>Aprobar</x-wire-button>
                     </form>
                     <form method="POST" action="{{ route('admin.purchase-orders.cancel',$order) }}">
                         @csrf
-                        <x-wire-button type="submit" red> Cancelar </x-wire-button>
+                        <x-wire-button type="submit" red>Cancelar</x-wire-button>
                     </form>
                 @endif
                 @if($order->status === 'approved')
@@ -266,54 +218,193 @@
         </div>
     </x-wire-card>
 
+    {{-- Datos para JS --}}
     <script>
-        function poFormEdit(){
-            const seed   = @json($itemsSeed);
-            const locked = @json($lockedFlag);
+        const PRODUCTS  = @json($products->map(fn($p) => ['id' => $p->id, 'nombre' => $p->nombre]));
+        const ITEMS_SEED = @json($itemsSeed);
+        const IS_LOCKED  = @json($isLocked);
+    </script>
 
-            return {
-                items: (seed && seed.length) ? seed : [{product_id:'',qty:1,price:0,discount:0,tax_rate:0,total:0}],
-                locked,
-                subtotal: 0,
-                discount_total: 0,
-                tax_total: 0,
-                grand: 0,
+    <script>
+        (() => {
+            /* ─── Estado ─── */
+            let items = (ITEMS_SEED && ITEMS_SEED.length)
+                ? ITEMS_SEED.map(s => ({ ...s }))
+                : [{ product_id: '', qty: 1, price: 0, discount: 0, tax_rate: 0, total: 0 }];
 
-                // 🔹 Se ejecuta al montar el componente
-                init(){ this.sum(); },
+            const locked = IS_LOCKED;
 
-                add(){
-                    if(this.locked) return;
-                    this.items.push({product_id:'',qty:1,price:0,discount:0,tax_rate:0,total:0});
-                },
-                remove(i){
-                    if(this.locked) return;
-                    this.items.splice(i,1);
-                    this.sum();
-                },
-                recalc(i){
-                    const it = this.items[i];
-                    const line_sub = (+it.qty || 0) * (+it.price || 0);
-                    const disc     = +it.discount || 0;
-                    const base     = Math.max(line_sub - disc, 0);
-                    const tax      = ((+it.tax_rate || 0) * 0.01) * base;
-                    it.total = base + tax;
-                    this.sum();
-                },
-                sum(){
-                    let s=0,d=0,t=0,g=0;
-                    this.items.forEach(it=>{
-                        const line_sub=(+it.qty||0)*(+it.price||0);
-                        const disc=+it.discount||0;
-                        const base=Math.max(line_sub-disc,0);
-                        const tax=((+it.tax_rate||0)*0.01)*base;
-                        const tot=base+tax;
-                        s+=line_sub; d+=disc; t+=tax; g+=tot;
-                    });
-                    this.subtotal=s; this.discount_total=d; this.tax_total=t; this.grand=g;
-                },
-                fmt(n){ return Number(n||0).toFixed(2); }
+            /* ─── Referencias DOM ─── */
+            const tbody   = document.getElementById('items-body');
+            const btnAdd  = document.getElementById('btn-add-item');
+            const lblSub  = document.getElementById('lbl-subtotal');
+            const lblDisc = document.getElementById('lbl-discount');
+            const lblTax  = document.getElementById('lbl-tax');
+            const lblGrand= document.getElementById('lbl-grand');
+
+            /* ─── Helpers ─── */
+            const fmt = n => Number(n || 0).toFixed(2);
+            const num = v => parseFloat(v) || 0;
+
+            function calcLine(item) {
+                const lineSub = num(item.qty) * num(item.price);
+                const disc    = num(item.discount);
+                const base    = Math.max(lineSub - disc, 0);
+                const tax     = num(item.tax_rate) * 0.01 * base;
+                item.total    = base + tax;
             }
-        }
+
+            function updateTotals() {
+                let subtotal = 0, discountTotal = 0, taxTotal = 0, grand = 0;
+                items.forEach(it => {
+                    const lineSub = num(it.qty) * num(it.price);
+                    const disc    = num(it.discount);
+                    const base    = Math.max(lineSub - disc, 0);
+                    const tax     = num(it.tax_rate) * 0.01 * base;
+                    subtotal      += lineSub;
+                    discountTotal += disc;
+                    taxTotal      += tax;
+                    grand         += base + tax;
+                });
+                lblSub.textContent    = fmt(subtotal);
+                lblDisc.textContent   = fmt(discountTotal);
+                lblTax.textContent    = fmt(taxTotal);
+                lblGrand.textContent  = fmt(grand);
+            }
+
+            /* ─── Opciones de productos ─── */
+            function buildProductOptions(selectedId) {
+                return PRODUCTS.map(p => {
+                    const sel = String(p.id) === String(selectedId) ? 'selected' : '';
+                    return `<option value="${p.id}" ${sel}>${p.nombre}</option>`;
+                }).join('');
+            }
+
+            /* ─── Render de una fila ─── */
+            function renderRow(i, item) {
+                const tr = document.createElement('tr');
+                tr.className   = 'border-b';
+                tr.dataset.idx = i;
+
+                const disabledAttr = locked ? 'disabled' : '';
+                const disabledCls  = locked ? 'bg-gray-100 cursor-not-allowed' : '';
+
+                tr.innerHTML = `
+                    <td class="p-2">
+                        <select class="w-full border rounded p-1 ${disabledCls}"
+                                name="items[${i}][product_id]"
+                                ${disabledAttr} required>
+                            <option value="">-- seleccionar --</option>
+                            ${buildProductOptions(item.product_id)}
+                        </select>
+                    </td>
+                    <td class="p-2 text-right">
+                        <input type="number" min="0.001" step="0.001"
+                               class="w-28 border rounded p-1 text-right ${disabledCls}"
+                               name="items[${i}][qty_ordered]"
+                               value="${item.qty}"
+                               ${disabledAttr} required>
+                    </td>
+                    <td class="p-2 text-right">
+                        <input type="number" min="0" step="0.01"
+                               class="w-28 border rounded p-1 text-right ${disabledCls}"
+                               name="items[${i}][price]"
+                               value="${item.price}"
+                               ${disabledAttr} required>
+                    </td>
+                    <td class="p-2 text-right">
+                        <input type="number" min="0" step="0.01"
+                               class="w-24 border rounded p-1 text-right ${disabledCls}"
+                               name="items[${i}][discount]"
+                               value="${item.discount}"
+                               ${disabledAttr}>
+                    </td>
+                    <td class="p-2 text-right">
+                        <input type="number" min="0" step="0.01"
+                               class="w-20 border rounded p-1 text-right ${disabledCls}"
+                               name="items[${i}][tax_rate]"
+                               value="${item.tax_rate}"
+                               ${disabledAttr}>
+                    </td>
+                    <td class="p-2 text-right item-total">${fmt(item.total)}</td>
+                    <td class="p-2">
+                        ${!locked ? `<button type="button" class="text-red-600 btn-remove">Eliminar</button>` : ''}
+                    </td>
+                `;
+
+                /* Eventos en inputs (solo si no está bloqueado) */
+                if (!locked) {
+                    tr.querySelectorAll('input').forEach(input => {
+                        input.addEventListener('input', () => syncRow(tr));
+                    });
+
+                    tr.querySelector('.btn-remove')?.addEventListener('click', () => {
+                        removeRow(parseInt(tr.dataset.idx));
+                    });
+                }
+
+                return tr;
+            }
+
+            /* ─── Sincroniza DOM → items[] ─── */
+            function syncRow(tr) {
+                const i    = parseInt(tr.dataset.idx);
+                const item = items[i];
+                if (!item) return;
+
+                const inputs  = tr.querySelectorAll('input');
+                item.qty      = num(inputs[0].value);
+                item.price    = num(inputs[1].value);
+                item.discount = num(inputs[2].value);
+                item.tax_rate = num(inputs[3].value);
+
+                calcLine(item);
+                tr.querySelector('.item-total').textContent = fmt(item.total);
+                updateTotals();
+            }
+
+            /* Guarda el estado actual del DOM en items[] antes de re-renderizar */
+            function snapshotDOM() {
+                tbody.querySelectorAll('tr[data-idx]').forEach(tr => {
+                    const i    = parseInt(tr.dataset.idx);
+                    const item = items[i];
+                    if (!item) return;
+                    item.product_id = tr.querySelector('select').value;
+                    const inputs    = tr.querySelectorAll('input');
+                    item.qty_received = num(inputs[0].value);
+                    item.price        = num(inputs[1].value);
+                    item.discount     = num(inputs[2].value);
+                    item.tax_rate     = num(inputs[3].value);
+                    calcLine(item);
+                });
+            }
+
+            /* ─── Re-render completo ─── */
+            function renderAll() {
+                snapshotDOM();
+                tbody.innerHTML = '';
+                items.forEach((item, i) => {
+                    tbody.appendChild(renderRow(i, item));
+                });
+                updateTotals();
+            }
+
+            /* ─── Acciones ─── */
+            function addItem() {
+                if (locked) return;
+                items.push({ product_id: '', qty: 1, price: 0, discount: 0, tax_rate: 0, total: 0 });
+                renderAll();
+            }
+
+            function removeRow(i) {
+                if (locked) return;
+                items.splice(i, 1);
+                renderAll();
+            }
+
+            /* ─── Init ─── */
+            if (btnAdd) btnAdd.addEventListener('click', addItem);
+            renderAll(); // Carga inicial con seed
+        })();
     </script>
 </x-admin-layout>
