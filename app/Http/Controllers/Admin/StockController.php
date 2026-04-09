@@ -11,19 +11,55 @@ use Illuminate\Support\Facades\DB;
 
 class StockController extends Controller
 {
-    public function index()
-    {
-        $warehouses = Warehouse::orderBy('nombre')->get();
-        $products   = Product::where('maneja_inventario', 1)
-            ->where('activo', 1)
-            ->orderBy('nombre')
-            ->get(['id','nombre','sku']);
+   public function index()
+{
+    $warehouses      = Warehouse::orderBy('nombre')->get();
+    $products        = Product::where('maneja_inventario', 1)
+        ->where('activo', 1)
+        ->orderBy('nombre')
+        ->get(['id','nombre','sku']);
 
-        // Almacén principal por defecto
-        $mainWarehouseId = $this->getMainWarehouseId();
+    $mainWarehouseId = $this->getMainWarehouseId();
+    $warehouseId     = request('warehouse_id', $mainWarehouseId);
+    $productId       = request('product_id');
 
-        return view('admin.stock.index', compact('warehouses', 'products', 'mainWarehouseId'));
+    $stock = [];
+
+    if ($warehouseId) {
+        $sumExpr = "COALESCE(SUM(CASE
+            WHEN sm.tipo = 'IN'  THEN sm.cantidad
+            WHEN sm.tipo = 'OUT' THEN -sm.cantidad
+            ELSE 0 END), 0)";
+
+        $stock = Product::query()
+            ->where('products.maneja_inventario', 1)
+            ->where('products.activo', 1)
+            ->select([
+                'products.id as product_id',
+                'products.sku',
+                'products.nombre',
+                'products.unidad',
+                'products.stock_min',
+                'products.costo_promedio',
+                DB::raw("({$sumExpr}) as existencia"),
+            ])
+            ->leftJoin('stock_movements as sm', function($join) use ($warehouseId) {
+                $join->on('sm.product_id', '=', 'products.id')
+                     ->where('sm.warehouse_id', '=', $warehouseId);
+            })
+            ->when($productId, fn($q) => $q->where('products.id', $productId))
+            ->groupBy(
+                'products.id','products.sku','products.nombre',
+                'products.unidad','products.stock_min','products.costo_promedio'
+            )
+            ->orderBy('products.nombre')
+            ->get();
     }
+
+    return view('admin.stock.index', compact(
+        'warehouses','products','mainWarehouseId','warehouseId','productId','stock'
+    ));
+}
 
     public function costs()
     {
