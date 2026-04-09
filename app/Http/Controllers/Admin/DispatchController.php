@@ -90,18 +90,18 @@ class DispatchController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'warehouse_id'      => ['nullable', 'exists:warehouses,id'],
-            'shipping_route_id' => ['nullable', 'exists:shipping_routes,id'],
-            'driver_id'         => ['nullable', 'exists:drivers,id'],
-            'vehicle'           => ['nullable', 'string', 'max:50'],
-            'fecha'             => ['required', 'date'],
-            'notas'             => ['nullable', 'string'],
-            'transfers'         => ['nullable', 'array'],
-            'transfers.*'       => ['integer', 'exists:stock_transfers,id'],
-            'orders'            => ['nullable', 'array'],
-            'orders.*'          => ['integer', 'exists:sales_orders,id'],
-            'clientes_ar'       => ['nullable', 'array'],
-            'clientes_ar.*'     => ['integer', 'exists:clients,id'],
+               'warehouse_id'      => ['required', 'exists:warehouses,id'],
+        'shipping_route_id' => ['required', 'exists:shipping_routes,id'],
+        'driver_id'         => ['required', 'exists:drivers,id'],
+        'vehicle'           => ['nullable', 'string', 'max:50'],
+        'fecha'             => ['required', 'date'],
+        'notas'             => ['nullable', 'string'],
+        'transfers'         => ['nullable', 'array'],
+        'transfers.*'       => ['integer', 'exists:stock_transfers,id'],
+        'orders'            => ['nullable', 'array'],
+        'orders.*'          => ['integer', 'exists:sales_orders,id'],
+        'clientes_ar'       => ['nullable', 'array'],
+        'clientes_ar.*'     => ['integer', 'exists:clients,id'],
         ]);
 
         // Debe tener al menos algo asignado
@@ -418,36 +418,67 @@ class DispatchController extends Controller
     }
 
     // ── CxC asignadas ─────────────────────────────────────────────────────────
+    // ── CxC asignadas ─────────────────────────────────────────────────────────
 
-    public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssignment $assignment)
-    {
-        $request->validate([
-            'monto'           => 'required|numeric|min:0.01',
-            'payment_type_id' => 'required|exists:payment_types,id',
-            'referencia'      => 'nullable|string|max:255',
+public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssignment $assignment)
+{
+    $request->validate([
+        'monto'           => 'required|numeric|min:0.01',
+        'payment_type_id' => 'required|exists:payment_types,id',
+        'referencia'      => 'nullable|string|max:255',
+        'order_ids'       => 'nullable|array',
+        'order_ids.*'     => 'integer|exists:sales_orders,id',
+    ]);
+
+    DB::transaction(function () use ($assignment, $request, $dispatch) {
+        $monto = (float) $request->monto;
+
+        $this->ar->payment(
+            clientId:      $assignment->client_id,
+            amount:        $monto,
+            paymentTypeId: (int) $request->payment_type_id,
+            reference:     $request->referencia,
+            notes:         "Cobro en ruta — despacho #{$dispatch->id}",
+            fecha:         now()->toDateString(),
+            driverId:      $dispatch->driver_id,
+        );
+
+        $nuevoCobrado  = round((float)$assignment->monto_cobrado + $monto, 2);
+        $saldoAsignado = (float) $assignment->saldo_asignado;
+        $nuevoStatus   = $nuevoCobrado >= $saldoAsignado ? 'COBRADO' : 'PARCIAL';
+
+        $assignment->update([
+            'monto_cobrado' => $nuevoCobrado,
+            'status'        => $nuevoStatus,
         ]);
 
-        DB::transaction(function () use ($assignment, $request, $dispatch) {
-            $monto = (float) $request->monto;
+        if ($request->filled('order_ids')) {
+            $restante = $monto;
+            $ordenes  = SalesOrder::whereIn('id', $request->order_ids)->orderBy('fecha')->get();
 
-            $this->ar->payment(
-                clientId:      $assignment->client_id,
-                amount:        $monto,
-                paymentTypeId: (int) $request->payment_type_id,
-                reference:     $request->referencia,
-                notes:         "Cobro en ruta — despacho #{$dispatch->id}",
-                fecha:         now()->toDateString(),
-                driverId:      $dispatch->driver_id,
-            );
+            foreach ($ordenes as $orden) {
+                if ($restante <= 0) break;
 
-            $assignment->update([
-                'monto_cobrado' => round($assignment->monto_cobrado + $monto, 2),
-                'status'        => 'COBRADO',
-            ]);
-        });
+                $saldo = ($orden->saldo_pendiente !== null && (float)$orden->saldo_pendiente > 0)
+                    ? (float) $orden->saldo_pendiente
+                    : (float) $orden->total;
 
-        return back()->with('swal', ['icon' => 'success', 'title' => 'CxC cobrada', 'text' => 'Abono registrado.']);
-    }
+                $abono      = min($restante, $saldo);
+                $nuevoSaldo = round($saldo - $abono, 2);
+
+                $updateData = ['saldo_pendiente' => $nuevoSaldo];
+                if ($nuevoSaldo <= 0) {
+                    $updateData['cobrado_at'] = now();
+                }
+
+                $orden->update($updateData);
+                $restante = round($restante - $abono, 2);
+            }
+        }
+    });
+
+    return back()->with('swal', ['icon' => 'success', 'title' => 'CxC cobrada', 'text' => 'Abono registrado.']);
+}
 
     public function noCobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssignment $assignment)
     {
