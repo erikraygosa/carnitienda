@@ -13,7 +13,23 @@ class CashRegisterController extends Controller
 {
   public function __construct(private CashService $cash) {}
 
-  public function index(){ return view('admin.cash.index'); }
+  public function index()
+{
+    $search = request('search');
+
+    $registers = CashRegister::with(['warehouse:id,nombre', 'user:id,name'])
+        ->when($search, function($q) use ($search) {
+            $q->where('fecha', 'like', "%{$search}%")
+              ->orWhereHas('warehouse', fn($q) => $q->where('nombre', 'like', "%{$search}%"))
+              ->orWhereHas('user', fn($q) => $q->where('name', 'like', "%{$search}%"))
+              ->orWhere('estatus', 'like', "%{$search}%");
+        })
+        ->orderByDesc('fecha')
+        ->paginate(15)
+        ->withQueryString();
+
+    return view('admin.cash.index', compact('registers'));
+}
 
   public function create(){
     $warehouses = Warehouse::orderBy('nombre')->get();
@@ -42,10 +58,10 @@ class CashRegisterController extends Controller
     session()->flash('swal',['icon'=>'success','title'=>'Caja cerrada','text'=>'Se cerró correctamente.']);
     return redirect()->route('admin.cash.index');
   }
-  public function ticket(\App\Models\CashRegister $cash)
+public function ticket(\App\Models\CashRegister $cash)
 {
-    // Carga relaciones necesarias
     $cash->load(['user:id,name', 'warehouse:id,nombre', 'movements']);
-    return view('admin.cash.ticket', ['register' => $cash]);
+    $company = \App\Models\Company::first();
+    return view('admin.cash.ticket', ['register' => $cash, 'company' => $company]);
 }
 }

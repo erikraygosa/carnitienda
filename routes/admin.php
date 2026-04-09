@@ -219,17 +219,12 @@ Route::prefix('cash')->name('cash.')->group(function () {
 
   Route::post('/{cashRegister}/movement', [CashMovementController::class,'store'])->name('movement.store');
 });
-
 Route::prefix('pos')->name('pos.')->group(function () {
-  Route::get('/create', [POSController::class,'create'])->name('create');
-  Route::post('/', [POSController::class,'store'])->name('store');
-  Route::get('/ticket/{sale}', [POSController::class,'ticket'])->name('ticket');
-   Route::get('/ticket/{sale}/pdf', [POSController::class,'ticketPdf'])->name('ticket.pdf');
-
-
-
-
-
+    Route::get('/create',              [POSController::class, 'create'])->name('create');
+    Route::post('/',                   [POSController::class, 'store'])->name('store');
+    Route::get('/ticket/{sale}',       [POSController::class, 'ticket'])->name('ticket');
+    Route::get('/ticket/{sale}/pdf',   [POSController::class, 'ticketPdf'])->name('ticket.pdf');
+    Route::post('/ticket/{sale}/whatsapp', [POSController::class, 'sendWhatsapp'])->name('ticket.whatsapp');
 });
 
 // Dentro del grupo admin, junto a las otras rutas de stock:

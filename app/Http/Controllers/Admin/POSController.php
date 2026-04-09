@@ -16,13 +16,32 @@ class POSController extends Controller
 {
   public function __construct(private PosService $pos) {}
 
-  public function create(){
-    $reg = CashRegister::where('user_id', auth()->id())->where('fecha', now()->toDateString())->where('estatus','ABIERTO')->latest('id')->first();
-    if (!$reg) { session()->flash('swal',['icon'=>'warning','title'=>'Sin caja abierta','text'=>'Abre tu caja antes de vender.']); return redirect()->route('admin.cash.create'); }
-    $clients = Client::where('activo',1)->orderBy('nombre')->get();
-    $products = Product::orderBy('nombre')->limit(50)->get();
-    return view('admin.pos.create', compact('reg','clients','products'));
-  }
+ public function create(){
+    $reg = CashRegister::where('user_id', auth()->id())
+        ->where('fecha', now()->toDateString())
+        ->where('estatus','ABIERTO')
+        ->latest('id')
+        ->first();
+
+    if (!$reg) {
+        session()->flash('swal',['icon'=>'warning','title'=>'Sin caja abierta','text'=>'Abre tu caja antes de vender.']);
+        return redirect()->route('admin.cash.create');
+    }
+
+    $clients  = Client::where('activo', 1)->orderBy('nombre')->get();
+    $products = Product::where('activo', 1)->orderBy('nombre')->get(['id','nombre','sku','precio_base','tasa_iva','unidad']);
+
+    $productsJson = $products->map(fn($p) => [
+        'id'       => $p->id,
+        'nombre'   => $p->nombre,
+        'sku'      => $p->sku ?? '',
+        'precio'   => (float) $p->precio_base,
+        'tasa_iva' => (float) $p->tasa_iva,
+        'unidad'   => $p->unidad,
+    ]);
+
+    return view('admin.pos.create', compact('reg', 'clients', 'products', 'productsJson'));
+}
 
   public function store(Request $r){
     $data = $r->validate([
@@ -45,27 +64,65 @@ class POSController extends Controller
     session()->flash('swal',['icon'=>'success','title'=>'Venta registrada','text'=>'La venta fue generada.']);
     return redirect()->route('admin.pos.ticket', $sale);
   }
-
-  public function ticket(\App\Models\PosSale $sale){
-    $sale->load('items','client');
-    return view('admin.pos.ticket', compact('sale'));
-  }
-  public function ticketPdf(\App\Models\PosSale $sale)
+  public function ticket(\App\Models\PosSale $sale)
 {
-    $sale->load('items.product','client');
+    $sale->load('items.product', 'client');
+    $company = \App\Models\Company::first();
+    return view('admin.pos.ticket', compact('sale', 'company'));
+}
 
-    // 80mm de ancho = 226.77pt; alto flexible (aumenta si hay más partidas)
-    // Definimos un alto suficientemente grande; Dompdf corta el sobrante.
-    $ancho = 226.77;      // 80 mm
-    $alto  = 1200;        // ajustable
 
-    $pdf = Pdf::loadView('admin.pos.ticket-pdf', compact('sale'))
-        ->setPaper([0, 0, $ancho, $alto], 'portrait'); // custom size
+ public function ticketPdf(\App\Models\PosSale $sale)
+{
+    $sale->load('items.product', 'client');
+    $company = \App\Models\Company::first();
 
-    // Para ver en navegador:
+    $ancho = 226.77;
+    $alto  = 1200;
+
+    $pdf = Pdf::loadView('admin.pos.ticket-pdf', compact('sale', 'company'))
+        ->setPaper([0, 0, $ancho, $alto], 'portrait');
+
     return $pdf->stream("ticket-pos-{$sale->id}.pdf");
+}
 
-    // Para descargar automáticamente:
-    // return $pdf->download("ticket-pos-{$sale->id}.pdf");
+public function sendWhatsapp(\App\Models\PosSale $sale, \Illuminate\Http\Request $request)
+{
+    try {
+        $sale->load('items.product', 'client');
+        $company = \App\Models\Company::first();
+
+        $telefono = $request->input('telefono');
+        $nombre   = $sale->client?->nombre ?? 'Cliente';
+        $total    = number_format($sale->total, 2);
+        $pdfUrl   = route('admin.pos.ticket.pdf', $sale);
+
+        $mensaje = "Hola {$nombre}, gracias por tu compra en "
+            . ($company?->nombre_comercial ?? 'nuestra tienda') . ".\n"
+            . "Ticket #{$sale->id} por \${$total}.\n"
+            . "Descarga tu ticket aquí: {$pdfUrl}";
+$pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.pos.ticket-pdf', compact('sale', 'company'));
+        $pdfRaw = $pdf->output();
+
+        $sender = new \App\Services\WhatsappSender();
+        $result = $sender->sendPdf(
+            telefono: $telefono,
+            mensaje:  $mensaje,
+            filename: 'ticket-' . $sale->id . '.pdf',
+            pdfRaw:   $pdfRaw,
+        );
+
+        return response()->json([
+            'ok'      => $result['ok'],
+            'message' => $result['ok'] ? 'Enviado correctamente' : 'Error al enviar',
+            'body'    => $result['body'],
+        ]);
+
+    } catch (\Throwable $e) {
+        return response()->json([
+            'ok'      => false,
+            'message' => $e->getMessage(),
+        ], 500);
+    }
 }
 }
