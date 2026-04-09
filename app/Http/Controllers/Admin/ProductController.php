@@ -10,10 +10,12 @@ use Illuminate\Validation\Rule;
 class ProductController extends Controller
 {
     /** Listado */
-    public function index()
-    {
-        return view('admin.products.index');
-    }
+        public function index()
+{
+    $products   = Product::with('category')->orderBy('id', 'desc')->get();
+    $categories = \App\Models\Category::orderBy('nombre')->get();
+    return view('admin.products.index', compact('products', 'categories'));
+}
 
     /** Form creación */
     public function create()

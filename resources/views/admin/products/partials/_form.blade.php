@@ -1,9 +1,6 @@
 @php
-    // Cargar categorías si no vinieron del controlador
     $categories = $categories
         ?? \App\Models\Category::query()->orderBy('nombre')->get(['id','nombre']);
-
-    $categoryOptions = $categories->map(fn($c) => ['id' => $c->id, 'name' => $c->nombre])->toArray();
 
     $isEdit = isset($product) && $product;
 
@@ -15,7 +12,6 @@
         ['id' => 'ML',  'name' => 'Mililitro (ML)'],
     ];
 
-    // Opciones SAT
     $objetoImpOpts = [
         ['id' => '01', 'name' => '01 – No objeto de impuesto'],
         ['id' => '02', 'name' => '02 – Sí objeto de impuesto'],
@@ -28,7 +24,6 @@
     ];
 @endphp
 
-{{-- Errores de validación --}}
 @if ($errors->any())
     <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
         <strong class="block mb-2">Revisa los siguientes errores:</strong>
@@ -63,23 +58,38 @@
             :value="old('barcode', $isEdit ? $product->barcode : '')"
         />
 
-        <x-wire-select
-            name="unidad" label="Unidad"
-            :options="$unidades"
-            :option-label="'name'" :option-value="'id'"
-            placeholder="Seleccione unidad"
-            :selected="old('unidad', $isEdit ? $product->unidad : 'PZA')"
-            required
-        />
+        {{-- Unidad --}}
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Unidad <span class="text-red-500">*</span>
+            </label>
+            <select name="unidad"
+                class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200">
+                @foreach($unidades as $u)
+                    <option value="{{ $u['id'] }}"
+                        {{ old('unidad', $isEdit ? $product->unidad : 'PZA') === $u['id'] ? 'selected' : '' }}>
+                        {{ $u['name'] }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
 
-        <x-wire-select
-            name="category_id" label="Categoría"
-            :options="$categoryOptions"
-            :option-label="'name'" :option-value="'id'"
-            placeholder="Seleccione una categoría"
-            :selected="old('category_id', $isEdit ? $product->category_id : null)"
-            required searchable
-        />
+        {{-- Categoría --}}
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Categoría <span class="text-red-500">*</span>
+            </label>
+            <select name="category_id"
+                class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200">
+                <option value="">-- Seleccione una categoría --</option>
+                @foreach($categories as $cat)
+                    <option value="{{ $cat->id }}"
+                        {{ old('category_id', $isEdit ? $product->category_id : null) == $cat->id ? 'selected' : '' }}>
+                        {{ $cat->nombre }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
 
         <x-wire-input
             type="number" step="0.0001" min="0"
@@ -154,7 +164,6 @@
             </div>
         </div>
 
-        {{-- Notas --}}
         <x-wire-textarea
             name="notas" label="Notas"
             placeholder="Notas internas del producto"
@@ -164,62 +173,49 @@
 </div>
 
 {{-- ====== DATOS SAT / CFDI 4.0 ====== --}}
-<div class="mt-8 border-t pt-6" x-data="{ tipoFactor: '{{ old('sat_tipo_factor', $isEdit ? ($product->sat_tipo_factor ?? 'Tasa') : 'Tasa') }}' }">
+<div class="mt-8 border-t pt-6">
     <h3 class="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">SAT</span>
         Datos para facturación CFDI 4.0
-        <span class="text-xs text-gray-400 font-normal"></span>
     </h3>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-        {{-- Clave Prod/Serv SAT --}}
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
                 Clave SAT <span class="text-red-500">*</span>
-               
             </label>
-            <input type="text"
-                   name="sat_clave_prod_serv"
-                   placeholder="Ej. 50202306"
-                   maxlength="20"
+            <input type="text" name="sat_clave_prod_serv"
+                   placeholder="Ej. 50202306" maxlength="20"
                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
                    value="{{ old('sat_clave_prod_serv', $isEdit ? $product->sat_clave_prod_serv : '') }}">
             <p class="mt-1 text-xs text-gray-400">c_ClaveProdServ del catálogo SAT</p>
         </div>
 
-        {{-- Clave Unidad SAT --}}
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
                 Clave unidad SAT <span class="text-red-500">*</span>
-               
             </label>
-            <input type="text"
-                   name="sat_clave_unidad"
-                   placeholder="Ej. KGM, H87, LTR"
-                   maxlength="10"
+            <input type="text" name="sat_clave_unidad"
+                   placeholder="Ej. KGM, H87, LTR" maxlength="10"
                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm uppercase"
                    value="{{ old('sat_clave_unidad', $isEdit ? $product->sat_clave_unidad : '') }}">
             <p class="mt-1 text-xs text-gray-400">c_ClaveUnidad — KGM=kg · H87=pieza · LTR=litro</p>
         </div>
 
-        {{-- No Identificación --}}
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">NoIdentificacion</label>
-            <input type="text"
-                   name="sat_no_identificacion"
-                   placeholder="Dejar vacío = usa SKU"
-                   maxlength="100"
+            <input type="text" name="sat_no_identificacion"
+                   placeholder="Dejar vacío = usa SKU" maxlength="100"
                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
                    value="{{ old('sat_no_identificacion', $isEdit ? $product->sat_no_identificacion : '') }}">
             <p class="mt-1 text-xs text-gray-400">Si se deja vacío se usa el SKU o ID del producto</p>
         </div>
 
-        {{-- Objeto de Impuesto --}}
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Objeto de impuesto</label>
             <select name="sat_objeto_imp"
-                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200">
                 @foreach($objetoImpOpts as $opt)
                     <option value="{{ $opt['id'] }}"
                         {{ old('sat_objeto_imp', $isEdit ? ($product->sat_objeto_imp ?? '02') : '02') === $opt['id'] ? 'selected' : '' }}>
@@ -230,12 +226,10 @@
             <p class="mt-1 text-xs text-gray-400">c_ObjetoImp — casi siempre "02"</p>
         </div>
 
-        {{-- Tipo Factor --}}
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de factor IVA</label>
-            <select name="sat_tipo_factor"
-                    x-model="tipoFactor"
-                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+            <select name="sat_tipo_factor" id="sat_tipo_factor"
+                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200">
                 @foreach($tipoFactorOpts as $opt)
                     <option value="{{ $opt['id'] }}"
                         {{ old('sat_tipo_factor', $isEdit ? ($product->sat_tipo_factor ?? 'Tasa') : 'Tasa') === $opt['id'] ? 'selected' : '' }}>
@@ -247,13 +241,12 @@
         </div>
 
         {{-- Tasa IVA decimal — oculto si Exento --}}
-        <div x-show="tipoFactor !== 'Exento'" x-transition>
+        <div id="sat-tasa-wrap">
             <label class="block text-sm font-medium text-gray-700 mb-1">
                 Tasa IVA CFDI
                 <span class="text-xs text-gray-400 font-normal">(decimal, ej. 0.160000)</span>
             </label>
-            <input type="number"
-                   name="sat_tasa_iva"
+            <input type="number" name="sat_tasa_iva"
                    step="0.000001" min="0" max="1"
                    placeholder="0.160000"
                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
@@ -261,14 +254,12 @@
             <p class="mt-1 text-xs text-gray-400">Dejar vacío = se calcula de Tasa IVA % automáticamente</p>
         </div>
 
-        {{-- Tasa IEPS --}}
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
                 Tasa IEPS CFDI
                 <span class="text-xs text-gray-400 font-normal">(decimal, opcional)</span>
             </label>
-            <input type="number"
-                   name="sat_tasa_ieps"
+            <input type="number" name="sat_tasa_ieps"
                    step="0.000001" min="0" max="1"
                    placeholder="Ej. 0.265000 — dejar vacío si no aplica"
                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
@@ -292,26 +283,37 @@ document.addEventListener('DOMContentLoaded', () => {
         c.addEventListener('change', sync);
         sync();
     };
-    bindToggle('es_compuesto',    'es_compuesto_hidden');
-    bindToggle('es_subproducto',  'es_subproducto_hidden');
+    bindToggle('es_compuesto',     'es_compuesto_hidden');
+    bindToggle('es_subproducto',   'es_subproducto_hidden');
     bindToggle('maneja_inventario','maneja_inventario_hidden');
-    bindToggle('activo_toggle',   'activo_hidden');
+    bindToggle('activo_toggle',    'activo_hidden');
 
     // Exclusivos: compuesto y subproducto no pueden ser ambos true
-    const linkExclusive = (aId, aHidId, bId, bHidId) => {
-        const a = document.getElementById(aId);
-        const b = document.getElementById(bId);
-        const ah = document.getElementById(aHidId);
-        const bh = document.getElementById(bHidId);
-        if (!a || !b || !ah || !bh) return;
-        const sync = () => { ah.value = a.checked ? 1 : 0; bh.value = b.checked ? 1 : 0; };
-        a.addEventListener('change', () => { if (a.checked) b.checked = false; sync(); });
-        b.addEventListener('change', () => { if (b.checked) a.checked = false; sync(); });
-        sync();
-    };
-    linkExclusive('es_compuesto', 'es_compuesto_hidden', 'es_subproducto', 'es_subproducto_hidden');
+    const a  = document.getElementById('es_compuesto');
+    const b  = document.getElementById('es_subproducto');
+    const ah = document.getElementById('es_compuesto_hidden');
+    const bh = document.getElementById('es_subproducto_hidden');
+    if (a && b && ah && bh) {
+        a.addEventListener('change', () => { if (a.checked) { b.checked = false; bh.value = 0; } });
+        b.addEventListener('change', () => { if (b.checked) { a.checked = false; ah.value = 0; } });
+    }
 
-    // Clave unidad SAT → forzar mayúsculas al escribir
+    // Tipo factor → mostrar/ocultar tasa IVA CFDI
+    const tipoFactor  = document.getElementById('sat_tipo_factor');
+    const tasaWrap    = document.getElementById('sat-tasa-wrap');
+    const toggleTasa  = () => {
+        if (tipoFactor.value === 'Exento') {
+            tasaWrap.style.display = 'none';
+        } else {
+            tasaWrap.style.display = '';
+        }
+    };
+    if (tipoFactor && tasaWrap) {
+        tipoFactor.addEventListener('change', toggleTasa);
+        toggleTasa(); // estado inicial
+    }
+
+    // Clave unidad SAT → forzar mayúsculas
     const claveUnidad = document.querySelector('[name="sat_clave_unidad"]');
     if (claveUnidad) {
         claveUnidad.addEventListener('input', () => {

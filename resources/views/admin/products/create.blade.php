@@ -10,20 +10,17 @@
         <form method="POST" action="{{ route('admin.products.store') }}" class="space-y-6">
             @csrf
 
-            @include('admin.products.partials._form', [
-                'product' => null,
-                // Puedes pasar $categories desde el controlador;
-                // si no, el parcial hará un pluck directo.
-            ])
+            @include('admin.products.partials._form', ['product' => null])
 
             <div class="flex items-center justify-end gap-3">
-                <x-wire-button href="{{ route('admin.products.index') }}" gray outline>
+                <a href="{{ route('admin.products.index') }}"
+                   class="inline-flex px-4 py-2 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50">
                     Cancelar
-                </x-wire-button>
-
-                <x-wire-button type="submit" blue>
+                </a>
+                <button type="submit"
+                        class="inline-flex px-4 py-2 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
                     Guardar
-                </x-wire-button>
+                </button>
             </div>
         </form>
     </div>
