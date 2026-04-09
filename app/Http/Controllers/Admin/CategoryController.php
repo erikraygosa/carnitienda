@@ -9,11 +9,11 @@ use Illuminate\Http\Request;
 class CategoryController extends Controller
 {
    
-    public function index()
+        public function index()
     {
-        return view('admin.categories.index');
+        $categories = Category::orderBy('id', 'desc')->get();
+        return view('admin.categories.index', compact('categories'));
     }
-
     
     public function create()
     {
