@@ -23,11 +23,12 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->group(base_path('routes/superadmin.php'));
         }
     )
-    ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias([
-            'superadmin' => \App\Http\Middleware\SuperAdminMiddleware::class,
-        ]);
-    })
+  ->withMiddleware(function (Middleware $middleware): void {
+    $middleware->trustProxies(at: '*');
+    $middleware->alias([
+        'superadmin' => \App\Http\Middleware\SuperAdminMiddleware::class,
+    ]);
+})
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();
