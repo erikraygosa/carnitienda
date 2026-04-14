@@ -57,8 +57,8 @@ class DispatchController extends Controller
         $drivers    = Driver::orderBy('nombre')->get(['id', 'nombre']);
 
         // Pedidos PROCESADOS listos para salir
-       $orders = SalesOrder::whereIn('status', ['PROCESADO'])
-    ->with(['client:id,nombre', 'route:id,nombre'])  // ← agregar route
+      $orders = SalesOrder::whereIn('status', ['PROCESADO', 'DESPACHADO'])
+    ->with(['client:id,nombre', 'route:id,nombre'])
     ->latest()
     ->limit(200)
     ->get(['id','folio','client_id','shipping_route_id','status','total','programado_para','payment_method']);
@@ -267,7 +267,7 @@ class DispatchController extends Controller
             $dispatch->load('items.salesOrder');
             foreach ($dispatch->items as $item) {
                 $order = $item->salesOrder;
-                if ($order && $order->status === 'PROCESADO') {
+                if ($order && in_array($order->status, ['PROCESADO', 'DESPACHADO'])) {
                     $order->update([
                         'status'     => 'EN_RUTA',
                         'en_ruta_at' => now(),
@@ -502,7 +502,7 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
 
         $dispatch->load('items.salesOrder');
         $pendientes = $dispatch->items->filter(
-            fn($i) => $i->salesOrder && in_array($i->salesOrder->status, ['EN_RUTA', 'PROCESADO'])
+            fn($i) => $i->salesOrder && in_array($i->salesOrder->status, ['EN_RUTA', 'PROCESADO', 'DESPACHADO'])
         );
 
         if ($pendientes->count() > 0) {

@@ -117,6 +117,10 @@ $links = [
     'children' => [
       ['name'=>'Cuentas','icon'=>'fa-solid fa-file-invoice-dollar','href'=>route('admin.ar.index'),          'active'=>request()->routeIs('admin.ar.*'),          'can'=>$user->hasPermissionTo('ver cxc')],
       ['name'=>'Cobros', 'icon'=>'fa-solid fa-cash-register',      'href'=>route('admin.ar-payments.create'),'active'=>request()->routeIs('admin.ar-payments.*'), 'can'=>$user->hasPermissionTo('registrar cobros')],
+      ['name'=>'Notas de crédito', 'icon'=>'fa-solid fa-file-invoice-dollar',
+     'href' => route('admin.ar-payments.notas.index'),
+'active' => request()->routeIs('admin.ar-payments.notas.index'),
+      'can'=>$user->hasPermissionTo('ver cxc')],
     ],
   ],
 

@@ -206,9 +206,10 @@ Route::prefix('ar')->name('ar.')->group(function () {
     Route::post('/cliente/{client}/cargo',[AccountsReceivableController::class,'charge'])->name('charge'); // opcional
 });
 Route::prefix('ar-payments')->name('ar-payments.')->group(function () {
-    Route::get('/notas',  [ArPaymentsController::class, 'notas'])->name('notas');
-    Route::get('/create', [ArPaymentsController::class, 'create'])->name('create');
-    Route::post('/',      [ArPaymentsController::class, 'store'])->name('store');
+    Route::get('/notas',        [ArPaymentsController::class, 'notas'])->name('notas');
+    Route::get('/notas-index',  [ArPaymentsController::class, 'notasIndex'])->name('notas.index');
+    Route::get('/create',       [ArPaymentsController::class, 'create'])->name('create');
+    Route::post('/',            [ArPaymentsController::class, 'store'])->name('store');
 });
 
 Route::prefix('cash')->name('cash.')->group(function () {
@@ -319,3 +320,4 @@ Route::prefix('despacho')->name('despacho.')->middleware(['can:salida de product
     Route::get('/pedido/{order}',          [DispatchPanelController::class, 'show'])->name('show');
     Route::post('/pedido/{order}/guardar', [DispatchPanelController::class, 'saveDespacho'])->name('guardar');
 });
+
