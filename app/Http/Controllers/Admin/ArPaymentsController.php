@@ -66,51 +66,49 @@ class ArPaymentsController extends Controller
         return response()->json($orders);
     }
 
-   public function store(Request $request)
-{
-    $data = $request->validate([
-        'client_id'       => 'required|exists:clients,id',
-        'fecha'           => 'required|date',
-        'amount'          => 'required|numeric|min:0.01',
-        'payment_type_id' => 'required|exists:payment_types,id',
-        'reference'       => 'nullable|string|max:255',
-        'notes'           => 'nullable|string',
-        'order_ids'       => 'nullable|array',
-        'order_ids.*'     => 'integer|exists:sales_orders,id',
-    ]);
-
-    // ← validación: debe seleccionar al menos una nota
-    if (empty($data['order_ids'])) {
-        return back()
-            ->withInput()
-            ->withErrors(['order_ids' => 'Debes seleccionar al menos una nota a cubrir.']);
-    }
-
-    DB::transaction(function () use ($data) {
-        $mov = ArMovement::create([
-            'client_id'   => $data['client_id'],
-            'fecha'       => $data['fecha'],
-            'tipo'        => 'ABONO',
-            'monto'       => $data['amount'],
-            'descripcion' => 'Cobro' . (!empty($data['notes']) ? ': '.$data['notes'] : ''),
-            'created_by'  => auth()->id(),
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'client_id'       => 'required|exists:clients,id',
+            'fecha'           => 'required|date',
+            'amount'          => 'required|numeric|min:0.01',
+            'payment_type_id' => 'required|exists:payment_types,id',
+            'reference'       => 'nullable|string|max:255',
+            'notes'           => 'nullable|string',
+            'order_ids'       => 'nullable|array',
+            'order_ids.*'     => 'integer|exists:sales_orders,id',
         ]);
 
-        $payment = ArPayment::create([
-            'fecha'           => $data['fecha'],
-            'payment_type_id' => $data['payment_type_id'],
-            'monto'           => $data['amount'],
-            'referencia'      => $data['reference'] ?? null,
-            'nota'            => $data['notes'] ?? null,
-            'recibido_por'    => auth()->id(),
-            'order_ids'       => $data['order_ids'] ?? [],
-        ]);
+        if (empty($data['order_ids'])) {
+            return back()
+                ->withInput()
+                ->withErrors(['order_ids' => 'Debes seleccionar al menos una nota a cubrir.']);
+        }
 
-        $mov->source_type = ArPayment::class;
-        $mov->source_id   = $payment->id;
-        $mov->save();
+        DB::transaction(function () use ($data) {
+            $mov = ArMovement::create([
+                'client_id'   => $data['client_id'],
+                'fecha'       => $data['fecha'],
+                'tipo'        => 'ABONO',
+                'monto'       => $data['amount'],
+                'descripcion' => 'Cobro' . (!empty($data['notes']) ? ': '.$data['notes'] : ''),
+                'created_by'  => auth()->id(),
+            ]);
 
-        if (!empty($data['order_ids'])) {
+            $payment = ArPayment::create([
+                'fecha'           => $data['fecha'],
+                'payment_type_id' => $data['payment_type_id'],
+                'monto'           => $data['amount'],
+                'referencia'      => $data['reference'] ?? null,
+                'nota'            => $data['notes'] ?? null,
+                'recibido_por'    => auth()->id(),
+                'order_ids'       => $data['order_ids'] ?? [],
+            ]);
+
+            $mov->source_type = ArPayment::class;
+            $mov->source_id   = $payment->id;
+            $mov->save();
+
             $restante = (float) $data['amount'];
 
             $ordenes = SalesOrder::whereIn('id', $data['order_ids'])
@@ -127,8 +125,14 @@ class ArPaymentsController extends Controller
                 $abono      = min($restante, $saldo);
                 $nuevoSaldo = round($saldo - $abono, 2);
 
-                $updateData = ['saldo_pendiente' => $nuevoSaldo];
+                // ← Guardar exactamente cuánto se aplicó a esta nota
+                \App\Models\ArPaymentItem::create([
+                    'ar_payment_id'  => $payment->id,
+                    'sales_order_id' => $orden->id,
+                    'monto_aplicado' => $abono,
+                ]);
 
+                $updateData = ['saldo_pendiente' => $nuevoSaldo];
                 if ($nuevoSaldo <= 0) {
                     $updateData['cobrado_at'] = now();
                 }
@@ -136,68 +140,57 @@ class ArPaymentsController extends Controller
                 $orden->update($updateData);
                 $restante = round($restante - $abono, 2);
             }
-        }
-    });
+        });
 
-    session()->flash('swal', ['icon'=>'success','title'=>'Cobro registrado','text'=>'El pago se aplicó correctamente.']);
-    return redirect()->route('admin.ar.index');
-}
-    public function notasIndex(Request $request)
-{
-    $search     = $request->get('search', '');
-    $estado     = $request->get('estado', '');   // pendiente | pagado | parcial
-    $clientId   = $request->get('client_id', '');
-
-    $clients = Client::where('activo', 1)->orderBy('nombre')->get(['id','nombre']);
-
-    $query = SalesOrder::with(['client'])
-        ->where('payment_method', 'CREDITO')
-        ->whereIn('status', ['ENTREGADO', 'EN_RUTA', 'DESPACHADO'])
-        ->when($search, fn($q) =>
-            $q->where('folio', 'like', "%$search%")
-              ->orWhereHas('client', fn($c) => $c->where('nombre', 'like', "%$search%"))
-        )
-        ->when($clientId, fn($q) => $q->where('client_id', $clientId))
-        ->when($estado === 'pagado',   fn($q) => $q->whereNotNull('cobrado_at'))
-        ->when($estado === 'pendiente', fn($q) =>
-            $q->whereNull('cobrado_at')
-              ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
-        )
-        ->when($estado === 'parcial', fn($q) =>
-            $q->whereNull('cobrado_at')
-              ->whereNotNull('saldo_pendiente')
-              ->whereRaw('saldo_pendiente < total')
-              ->where('saldo_pendiente', '>', 0)
-        )
-        ->orderByDesc('fecha')
-        ->paginate(25)
-        ->withQueryString();
-
-    // Para cada nota, buscar su(s) pago(s) via order_ids JSON
-    $orderIds = $query->pluck('id')->toArray();
-
-    // ArPayments que contienen cada order_id
-    $pagos = ArPayment::with(['accountReceivable'])
-        ->whereNotNull('order_ids')
-        ->get()
-        ->filter(fn($p) => !empty(array_intersect($p->order_ids ?? [], $orderIds)));
-
-    // Agrupar pagos por order_id
-    $pagosPorNota = [];
-    foreach ($pagos as $pago) {
-        foreach (($pago->order_ids ?? []) as $oid) {
-            if (in_array($oid, $orderIds)) {
-                $pagosPorNota[$oid][] = $pago;
-            }
-        }
+        session()->flash('swal', ['icon'=>'success','title'=>'Cobro registrado','text'=>'El pago se aplicó correctamente.']);
+        return redirect()->route('admin.ar.index');
     }
+        public function notasIndex(Request $request)
+    {
+        $search     = $request->get('search', '');
+        $estado     = $request->get('estado', '');   // pendiente | pagado | parcial
+        $clientId   = $request->get('client_id', '');
 
-    // PaymentTypes para mostrar forma de pago
-    $paymentTypes = \App\Models\PaymentType::pluck('descripcion', 'id');
+        $clients = Client::where('activo', 1)->orderBy('nombre')->get(['id','nombre']);
 
-    return view('admin.ar.notas_index', compact(
-        'query', 'clients', 'search', 'estado', 'clientId',
-        'pagosPorNota', 'paymentTypes'
-    ));
-}
+        $query = SalesOrder::with(['client'])
+            ->where('payment_method', 'CREDITO')
+            ->whereIn('status', ['ENTREGADO', 'EN_RUTA', 'DESPACHADO'])
+            ->when($search, fn($q) =>
+                $q->where('folio', 'like', "%$search%")
+                ->orWhereHas('client', fn($c) => $c->where('nombre', 'like', "%$search%"))
+            )
+            ->when($clientId, fn($q) => $q->where('client_id', $clientId))
+            ->when($estado === 'pagado',   fn($q) => $q->whereNotNull('cobrado_at'))
+            ->when($estado === 'pendiente', fn($q) =>
+                $q->whereNull('cobrado_at')
+                ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
+            )
+            ->when($estado === 'parcial', fn($q) =>
+                $q->whereNull('cobrado_at')
+                ->whereNotNull('saldo_pendiente')
+                ->whereRaw('saldo_pendiente < total')
+                ->where('saldo_pendiente', '>', 0)
+            )
+            ->orderByDesc('fecha')
+            ->paginate(25)
+            ->withQueryString();
+
+        // Para cada nota, buscar su(s) pago(s) via order_ids JSON
+        $orderIds = $query->pluck('id')->toArray();
+
+    $pagos = \App\Models\ArPaymentItem::with(['payment.paymentType'])
+        ->whereIn('sales_order_id', $orderIds)
+        ->get();
+
+    $pagosPorNota = $pagos->groupBy(fn($item) => (string) $item->sales_order_id);
+
+        // PaymentTypes para mostrar forma de pago
+    
+
+        return view('admin.ar.notas_index', compact(
+            'query', 'clients', 'search', 'estado', 'clientId',
+            'pagosPorNota',
+        ));
+    }
 }

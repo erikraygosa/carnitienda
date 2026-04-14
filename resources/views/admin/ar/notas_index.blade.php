@@ -64,6 +64,8 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
+                 
+
                     @forelse($query as $orden)
                     @php
                         $saldo     = (float)($orden->saldo_pendiente ?? $orden->total);
@@ -77,7 +79,7 @@
                                 ? ['Pago parcial', 'bg-amber-100 text-amber-700']
                                 : ['Pendiente',    'bg-rose-100 text-rose-600']);
 
-                        $pagosNota = $pagosPorNota[$orden->id] ?? [];
+                        $pagosNota = $pagosPorNota[(string)$orden->id] ?? collect();
                     @endphp
                     <tr class="hover:bg-gray-50">
                         {{-- Folio --}}
@@ -120,38 +122,39 @@
                                 </div>
                             @endif
                         </td>
-
-                        {{-- Pagos aplicados --}}
-                        <td class="px-4 py-3">
-                            @if(empty($pagosNota))
-                                <span class="text-xs text-gray-400">Sin pagos registrados</span>
-                            @else
-                                <div class="space-y-1.5">
-                                    @foreach($pagosNota as $pago)
-                                    <div class="flex flex-wrap items-center gap-1.5 text-xs bg-gray-50 rounded px-2 py-1">
-                                        <span class="font-mono font-semibold text-gray-800">
-                                            ${{ number_format($pago->monto, 2) }}
-                                        </span>
-                                        <span class="text-gray-300">·</span>
-                                        <span class="text-gray-600">
-                                            {{ $paymentTypes[$pago->payment_type_id] ?? 'N/D' }}
-                                        </span>
-                                        <span class="text-gray-300">·</span>
-                                        <span class="text-gray-500">
-                                            {{ \Carbon\Carbon::parse($pago->fecha)->format('d/m/Y') }}
-                                        </span>
-                                        @if($pago->referencia)
-                                            <span class="text-gray-300">·</span>
-                                            <span class="text-indigo-500 italic">{{ $pago->referencia }}</span>
-                                        @endif
-                                        @if($pago->nota)
-                                            <span class="text-gray-400 italic">— {{ $pago->nota }}</span>
-                                        @endif
-                                    </div>
-                                    @endforeach
-                                </div>
-                            @endif
-                        </td>
+{{-- Pagos aplicados --}}
+<td class="px-4 py-3">
+    @if($pagosNota->isEmpty())
+        <span class="text-xs text-gray-400">Sin pagos registrados</span>
+    @else
+        <div class="space-y-1.5">
+            @foreach($pagosNota as $pago)
+            <div class="flex flex-wrap items-center gap-1.5 text-xs bg-gray-50 rounded px-2 py-1">
+                <span class="font-mono font-semibold text-gray-800">
+                    ${{ number_format((float)$pago->monto_aplicado, 2) }}
+                </span>
+                <span class="text-gray-300">·</span>
+                <span class="text-gray-600">
+                    {{ $pago->payment?->paymentType?->descripcion ?? 'N/D' }}
+                </span>
+                <span class="text-gray-300">·</span>
+                <span class="text-gray-500">
+                    {{ $pago->payment?->fecha
+                        ? \Carbon\Carbon::parse($pago->payment->fecha)->format('d/m/Y')
+                        : '—' }}
+                </span>
+                @if($pago->payment?->referencia)
+                    <span class="text-gray-300">·</span>
+                    <span class="text-indigo-500 italic">{{ $pago->payment->referencia }}</span>
+                @endif
+                @if($pago->payment?->nota)
+                    <span class="text-gray-400 italic">— {{ $pago->payment->nota }}</span>
+                @endif
+            </div>
+            @endforeach
+        </div>
+    @endif
+</td>
                     </tr>
                     @empty
                     <tr>

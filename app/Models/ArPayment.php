@@ -29,4 +29,14 @@ class ArPayment extends Model
     public function accountReceivable() {
         return $this->belongsTo(\App\Models\AccountReceivable::class, 'accounts_receivable_id');
     }
+
+    public function items()
+    {
+        return $this->hasMany(ArPaymentItem::class, 'ar_payment_id');
+    }
+    // En app/Models/ArPayment.php
+    public function paymentType()
+    {
+        return $this->belongsTo(PaymentType::class, 'payment_type_id');
+    }
 }
