@@ -429,6 +429,8 @@ public function approve(SalesOrder $order)
 
     public function process(SalesOrder $order, InventoryService $inv)
     {
+         $this->authorize('procesar pedidos');
+         
         if (!in_array($order->status, ['APROBADO','PREPARANDO'])) {
             return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Debe estar APROBADO o PREPARANDO.']);
         }

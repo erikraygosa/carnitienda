@@ -27,6 +27,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\CompanyController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\DispatchPanelController;
 
 
 Route::get('/', [DashboardController::class, 'index'])
@@ -311,4 +312,10 @@ Route::prefix('roles')->name('roles.')->group(function () {
     Route::delete('/{role}',               [RoleController::class, 'destroy'])->name('destroy');
     Route::post('/permissions',            [RoleController::class, 'storePermission'])->name('permissions.store');
     Route::delete('/permissions/{permission}', [RoleController::class, 'destroyPermission'])->name('permissions.destroy');
+});
+
+Route::prefix('despacho')->name('despacho.')->middleware(['can:salida de producto'])->group(function () {
+    Route::get('/',                        [DispatchPanelController::class, 'index'])->name('panel');
+    Route::get('/pedido/{order}',          [DispatchPanelController::class, 'show'])->name('show');
+    Route::post('/pedido/{order}/guardar', [DispatchPanelController::class, 'saveDespacho'])->name('guardar');
 });

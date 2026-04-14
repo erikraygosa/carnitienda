@@ -44,13 +44,16 @@
         </form>
 
     @elseif($order->status === 'APROBADO')
-        <form action="{{ route('admin.sales-orders.process', $order) }}" method="POST" class="inline">
-            @csrf
-            <button type="submit"
-                    class="inline-flex px-2 py-1 text-xs rounded border border-amber-300 text-amber-700 bg-white hover:bg-amber-50">
-                Procesar
-            </button>
-        </form>
+        {{-- Solo admin puede procesar --}}
+        @can('procesar pedidos')
+            <form action="{{ route('admin.sales-orders.process', $order) }}" method="POST" class="inline">
+                @csrf
+                <button type="submit"
+                        class="inline-flex px-2 py-1 text-xs rounded border border-amber-300 text-amber-700 bg-white hover:bg-amber-50">
+                    Procesar
+                </button>
+            </form>
+        @endcan
         <form action="{{ route('admin.sales-orders.cancel', $order) }}" method="POST" class="inline">
             @csrf
             <button type="submit"
@@ -58,6 +61,18 @@
                 Cancelar
             </button>
         </form>
+
+    @elseif($order->status === 'PREPARANDO')
+        {{-- Solo admin puede procesar --}}
+        @can('procesar pedidos')
+            <form action="{{ route('admin.sales-orders.process', $order) }}" method="POST" class="inline">
+                @csrf
+                <button type="submit"
+                        class="inline-flex px-2 py-1 text-xs rounded border border-amber-300 text-amber-700 bg-white hover:bg-amber-50">
+                    Procesar
+                </button>
+            </form>
+        @endcan
 
     @elseif($order->status === 'PROCESADO')
         <form action="{{ route('admin.sales-orders.en-ruta', $order) }}" method="POST" class="inline">

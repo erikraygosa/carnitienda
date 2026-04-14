@@ -23,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests; 
 
 class DispatchController extends Controller
 {
@@ -34,6 +35,7 @@ class DispatchController extends Controller
 
     public function index()
     {
+        
         $dispatches = \App\Models\Dispatch::with(['driver', 'route', 'warehouse'])
             ->withCount([
                 'items',

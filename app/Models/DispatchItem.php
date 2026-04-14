@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DispatchItem extends Model
 {
@@ -25,4 +26,10 @@ class DispatchItem extends Model
     {
         return $this->belongsTo(SalesOrder::class, 'sales_order_id');
     }
+
+            public function lines(): HasMany
+        {
+            return $this->hasMany(DispatchItemLine::class);
+        }
+    
 }
