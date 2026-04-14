@@ -255,27 +255,38 @@ class ProductController extends Controller
         return $data;
     }
     public function subproductsData(Product $product)
-{
-    $rules = \App\Models\ProductSubproductRule::with('subproduct')
-        ->where('main_product_id', $product->id)
-        ->orderBy('id','desc')
-        ->get()
-        ->map(fn($r) => [
-            'id'            => $r->id,
-            'sub_product_id'=> $r->sub_product_id,
-            'nombre'        => $r->subproduct?->nombre ?? '—',
-            'rendimiento'   => round(((float)($r->ratio ?? 0)) * 100, 3),
-            'merma'         => round((float)($r->merma_porcent ?? 0), 3),
-        ]);
+    {
+        $rules = \App\Models\ProductSubproductRule::with('subproduct')
+            ->where('main_product_id', $product->id)
+            ->orderBy('id','desc')
+            ->get()
+            ->map(fn($r) => [
+                'id'            => $r->id,
+                'sub_product_id'=> $r->sub_product_id,
+                'nombre'        => $r->subproduct?->nombre ?? '—',
+                'rendimiento'   => round(((float)($r->ratio ?? 0)) * 100, 3),
+                'merma'         => round((float)($r->merma_porcent ?? 0), 3),
+            ]);
 
-    $options = Product::where('es_subproducto', 1)
-        ->where('id', '!=', $product->id)
-        ->where('activo', 1)
-        ->orderBy('nombre')
-        ->get(['id','nombre']);
+        // IDs ya asignados en CUALQUIER regla (de cualquier producto principal)
+        $assignedIds = \App\Models\ProductSubproductRule::pluck('sub_product_id')->unique();
 
-    return response()->json(['rules' => $rules, 'options' => $options]);
-}
+        // Los del producto actual se pueden seguir mostrando (ya están en la tabla, 
+        // solo bloqueamos los asignados a OTROS productos)
+        $currentIds = \App\Models\ProductSubproductRule::where('main_product_id', $product->id)
+            ->pluck('sub_product_id');
+
+        $excludeIds = $assignedIds->diff($currentIds); // asignados a otro producto
+
+        $options = Product::where('es_subproducto', 1)
+            ->where('id', '!=', $product->id)
+            ->where('activo', 1)
+            ->whereNotIn('id', $excludeIds)
+            ->orderBy('nombre')
+            ->get(['id','nombre']);
+
+        return response()->json(['rules' => $rules, 'options' => $options]);
+    }
 
 public function subproductsStore(Request $request, Product $product)
 {
