@@ -24,7 +24,7 @@
         $seedItems    = $seedItems ?? [];
         $initialItems = (is_array($seedItems) && count($seedItems))
             ? $seedItems
-            : [['product_id'=>'','descripcion'=>'','cantidad'=>1,'precio'=>0,'descuento'=>0,'iva_pct'=>0,'impuesto'=>0,'total'=>0]];
+            : [['product_id'=>'','_productoNombre'=>'','descripcion'=>'','cantidad'=>1,'precio'=>0,'descuento'=>0,'iva_pct'=>0,'impuesto'=>0,'total'=>0]];
 
         $JS_OVERRIDES       = json_encode($overrides   ?? [], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
         $JS_LISTPRICES      = json_encode($listItems   ?? [], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
@@ -248,14 +248,13 @@
 
     <script>
     (function(){
-        const CLIENTS_OVERRIDES  = {!! $JS_OVERRIDES !!};
-        const LISTS_PRICES       = {!! $JS_LISTPRICES !!};
-        const INITIAL_ITEMS      = {!! $JS_INITIALITEMS !!};
-        const CLIENT_DEFAULTS    = {!! $JS_CLIENT_DEFAULTS !!};
-        const DEFAULT_CLIENT_ID  = {!! $JS_SELCLIENT !!};
-        const CLIENTS_EDIT_BASE  = '{{ url('admin/clients') }}';
-
-        const PRODUCTS_OPTIONS = `@foreach($products as $p)<option value="{{ $p->id }}">{{ $p->nombre }}</option>@endforeach`;
+        const CLIENTS_OVERRIDES = {!! $JS_OVERRIDES !!};
+        const LISTS_PRICES      = {!! $JS_LISTPRICES !!};
+        const INITIAL_ITEMS     = {!! $JS_INITIALITEMS !!};
+        const CLIENT_DEFAULTS   = {!! $JS_CLIENT_DEFAULTS !!};
+        const DEFAULT_CLIENT_ID = {!! $JS_SELCLIENT !!};
+        const CLIENTS_EDIT_BASE = '{{ url('admin/clients') }}';
+        const PRODUCTS          = @json($productsJson);
 
         let state = {
             items: [],
@@ -263,16 +262,21 @@
             priceList: 'client',
         };
 
-        const fmt  = n => Number(n||0).toFixed(2);
-        const $    = id => document.getElementById(id);
-        const set  = (id, val) => { const el = $(id); if(el) el.value = val; };
+        const fmt = n => Number(n||0).toFixed(2);
+        const $   = id => document.getElementById(id);
+        const set = (id, val) => { const el = $(id); if(el) el.value = val; };
+
+        function escHtml(str) {
+            return String(str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
 
         function getPrice(productId) {
             if (!productId) return 0;
+            const pid = String(productId);
             if (state.priceList === 'client') {
-                return parseFloat((CLIENTS_OVERRIDES[state.clientId]||{})[productId] ?? 0) || 0;
+                return parseFloat((CLIENTS_OVERRIDES[state.clientId]||{})[pid] ?? 0) || 0;
             }
-            return parseFloat((LISTS_PRICES[state.priceList]||{})[productId] ?? 0) || 0;
+            return parseFloat((LISTS_PRICES[state.priceList]||{})[pid] ?? 0) || 0;
         }
 
         function recalcRow(i) {
@@ -285,8 +289,8 @@
             it.total    = base + tax;
             const row = document.querySelector(`#items-body tr[data-idx="${i}"]`);
             if (row) {
-                row.querySelector('.td-total').textContent  = fmt(it.total);
-                row.querySelector('.hid-impuesto').value    = it.impuesto;
+                row.querySelector('.td-total').textContent = fmt(it.total);
+                row.querySelector('.hid-impuesto').value   = it.impuesto;
             }
             updateTotals();
         }
@@ -309,27 +313,95 @@
             set('h-descuento', fmt(d));
             set('h-impuestos', fmt(t));
             set('h-total',     fmt(g));
-            const alert = $('zero-price-alert');
-            if (alert) alert.classList.toggle('hidden', !hasZero || !state.clientId);
+            const alertEl = $('zero-price-alert');
+            if (alertEl) alertEl.classList.toggle('hidden', !hasZero || !state.clientId);
             const link = $('zero-price-link');
             if (link && state.clientId) link.href = `${CLIENTS_EDIT_BASE}/${state.clientId}/edit`;
         }
 
-        function escHtml(str) {
-            return String(str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        // ── Autocomplete de producto ─────────────────────────────────────
+        function attachProductSearch(tr, i) {
+            const input    = tr.querySelector('.inp-product-search');
+            const hidden   = tr.querySelector('.hid-product-id');
+            const dropdown = tr.querySelector('.product-dropdown');
+
+            function showDropdown(term) {
+                const t = term.toLowerCase().trim();
+                const matches = t.length === 0 ? [] : PRODUCTS.filter(p =>
+                    p.nombre.toLowerCase().includes(t) ||
+                    (p.sku && p.sku.toLowerCase().includes(t))
+                ).slice(0, 10);
+
+                dropdown.innerHTML = '';
+                if (matches.length === 0) { dropdown.classList.add('hidden'); return; }
+
+                matches.forEach(p => {
+                    const li = document.createElement('li');
+                    li.className = 'px-3 py-1.5 hover:bg-indigo-50 cursor-pointer flex justify-between items-center';
+                    li.innerHTML = `<span>${escHtml(p.nombre)}</span>`
+                                 + (p.sku ? `<span class="text-xs text-gray-400 ml-2">${escHtml(p.sku)}</span>` : '');
+                    li.addEventListener('mousedown', function(e) {
+                        e.preventDefault();
+                        selectProduct(p);
+                    });
+                    dropdown.appendChild(li);
+                });
+                dropdown.classList.remove('hidden');
+            }
+
+            function selectProduct(p) {
+                hidden.value = p.id;
+                input.value  = p.nombre;
+
+                // ← clave: guardar el nombre en state para que renderAll() lo recupere
+                state.items[i].product_id      = p.id;
+                state.items[i]._productoNombre = p.nombre;
+
+                if (!state.items[i].descripcion) {
+                    state.items[i].descripcion = p.nombre;
+                    tr.querySelector('.inp-desc').value = p.nombre;
+                }
+
+                state.items[i].precio = getPrice(p.id);
+                tr.querySelector('.inp-precio').value = state.items[i].precio;
+
+                recalcRow(i);
+                dropdown.classList.add('hidden');
+            }
+
+            input.addEventListener('input', function() {
+                if (!this.value.trim()) {
+                    hidden.value = '';
+                    state.items[i].product_id      = '';
+                    state.items[i]._productoNombre = '';
+                }
+                showDropdown(this.value);
+            });
+
+            input.addEventListener('focus', function() {
+                if (this.value.trim()) showDropdown(this.value);
+            });
+
+            input.addEventListener('blur', function() {
+                setTimeout(() => dropdown.classList.add('hidden'), 150);
+            });
         }
 
+        // ── Render de fila ───────────────────────────────────────────────
         function renderRow(i) {
             const it = state.items[i];
             const tr = document.createElement('tr');
             tr.className   = 'border-b';
             tr.dataset.idx = i;
             tr.innerHTML = `
-                <td class="p-2">
-                    <select class="w-48 border rounded p-1 text-sm sel-product" name="items[${i}][product_id]">
-                        <option value="">—</option>
-                        ${PRODUCTS_OPTIONS}
-                    </select>
+                <td class="p-2 relative">
+                    <input type="hidden" class="hid-product-id" name="items[${i}][product_id]" value="${escHtml(String(it.product_id || ''))}">
+                    <input type="text"
+                           class="w-52 border rounded p-1 text-sm inp-product-search"
+                           placeholder="Buscar por nombre o SKU..."
+                           autocomplete="off"
+                           value="${escHtml(it._productoNombre || '')}">
+                    <ul class="product-dropdown absolute z-50 bg-white border border-gray-200 rounded shadow-md w-64 mt-1 hidden max-h-48 overflow-y-auto text-sm list-none"></ul>
                 </td>
                 <td class="p-2">
                     <input type="text" class="w-64 border rounded p-1 text-sm inp-desc"
@@ -362,20 +434,9 @@
                 </td>
             `;
 
-            const sel = tr.querySelector('.sel-product');
-            if (it.product_id) sel.value = it.product_id;
+            // Adjuntar autocomplete (reemplaza el sel.addEventListener anterior)
+            attachProductSearch(tr, i);
 
-            sel.addEventListener('change', function() {
-                state.items[i].product_id = this.value;
-                const txt = this.options[this.selectedIndex]?.text || '';
-                if (!state.items[i].descripcion) {
-                    state.items[i].descripcion = txt;
-                    tr.querySelector('.inp-desc').value = txt;
-                }
-                state.items[i].precio = getPrice(this.value);
-                tr.querySelector('.inp-precio').value = state.items[i].precio;
-                recalcRow(i);
-            });
             tr.querySelector('.inp-cantidad').addEventListener('input', function() {
                 state.items[i].cantidad = parseFloat(this.value)||0; recalcRow(i);
             });
@@ -405,48 +466,52 @@
             updateTotals();
         }
 
+        // ── API pública ──────────────────────────────────────────────────
         window.SOF = {
             addRow() {
-                state.items.push({product_id:'',descripcion:'',cantidad:1,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0});
+                state.items.push({
+                    product_id: '', _productoNombre: '',
+                    descripcion: '', cantidad: 1,
+                    precio: 0, descuento: 0, iva_pct: 0, impuesto: 0, total: 0
+                });
                 renderAll();
             },
 
             onClientChange(clientId) {
-                    state.clientId = clientId;
-                    state.priceList = 'client';
+                state.clientId  = clientId;
+                state.priceList = 'client';
 
-                    const d = CLIENT_DEFAULTS[clientId];
-                    if (d) {
-                        if (d.shipping_route_id) set('shipping_route_id', d.shipping_route_id);
-                        if (d.credito_dias > 0) {
-                            set('payment_method', 'CREDITO');
-                            set('credit_days', d.credito_dias);
-                            SOF.onPaymentChange('CREDITO');
-                        }
-                        if (d.credito_limite > 0) {
-                            const info = $('credito-info');
-                            if (info) {
-                                info.textContent = `Límite: $${fmt(d.credito_limite)} · Días: ${d.credito_dias}d`;
-                                info.classList.remove('hidden');
-                            }
-                        }
-                        const fields = {
-                            entrega_telefono: d.telefono,
-                            entrega_calle:    d.entrega_calle,
-                            entrega_numero:   d.entrega_numero,
-                            entrega_colonia:  d.entrega_colonia,
-                            entrega_ciudad:   d.entrega_ciudad,
-                            entrega_estado:   d.entrega_estado,
-                            entrega_cp:       d.entrega_cp,
-                        };
-                        Object.entries(fields).forEach(([id, val]) => { if(val) set(id, val); });
-                    } else {
-                        const info = $('credito-info');
-                        if (info) info.classList.add('hidden');
+                const d = CLIENT_DEFAULTS[clientId];
+                if (d) {
+                    if (d.shipping_route_id) set('shipping_route_id', d.shipping_route_id);
+                    if (d.credito_dias > 0) {
+                        set('payment_method', 'CREDITO');
+                        set('credit_days', d.credito_dias);
+                        SOF.onPaymentChange('CREDITO');
                     }
-
-                    SOF.repriceAll();
-                },
+                    if (d.credito_limite > 0) {
+                        const info = $('credito-info');
+                        if (info) {
+                            info.textContent = `Límite: $${fmt(d.credito_limite)} · Días: ${d.credito_dias}d`;
+                            info.classList.remove('hidden');
+                        }
+                    }
+                    const fields = {
+                        entrega_telefono: d.telefono,
+                        entrega_calle:    d.entrega_calle,
+                        entrega_numero:   d.entrega_numero,
+                        entrega_colonia:  d.entrega_colonia,
+                        entrega_ciudad:   d.entrega_ciudad,
+                        entrega_estado:   d.entrega_estado,
+                        entrega_cp:       d.entrega_cp,
+                    };
+                    Object.entries(fields).forEach(([id, val]) => { if(val) set(id, val); });
+                } else {
+                    const info = $('credito-info');
+                    if (info) info.classList.add('hidden');
+                }
+                SOF.repriceAll();
+            },
 
             onPriceListChange(val) {
                 state.priceList = val;
@@ -463,11 +528,9 @@
             },
 
             repriceAll() {
-                // Actualiza precio en state Y en el input visible
                 state.items.forEach((it, i) => {
                     if (it.product_id) {
                         it.precio = getPrice(it.product_id);
-                        // Actualizar el input visible en el DOM
                         const row = document.querySelector(`#items-body tr[data-idx="${i}"]`);
                         if (row) {
                             const inp = row.querySelector('.inp-precio');
@@ -479,10 +542,14 @@
             },
         };
 
-        // Init
+        // ── Init ─────────────────────────────────────────────────────────
         state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
         if (!state.items.length) {
-            state.items = [{product_id:'',descripcion:'',cantidad:1,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}];
+            state.items = [{
+                product_id: '', _productoNombre: '',
+                descripcion: '', cantidad: 1,
+                precio: 0, descuento: 0, iva_pct: 0, impuesto: 0, total: 0
+            }];
         }
         if (DEFAULT_CLIENT_ID) SOF.onClientChange(DEFAULT_CLIENT_ID);
         SOF.onDeliveryChange('{{ $deliveryType }}');

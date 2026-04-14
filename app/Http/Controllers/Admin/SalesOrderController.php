@@ -103,19 +103,24 @@ public function data(Request $request)
     ]);
 }
 
-    public function create(Request $request)
+   public function create(Request $request)
 {
-    $clients    = Client::orderBy('nombre')->get();  // necesitamos todos los campos
+    $clients    = Client::orderBy('nombre')->get();
     $priceLists = PriceList::orderBy('nombre')->get(['id','nombre']);
-    $products   = Product::orderBy('nombre')->get(['id','nombre','precio_base']);
+    $products   = Product::where('activo', 1)->orderBy('nombre')->get(['id','nombre','precio_base','sku','barcode']); // ← primero
+    $productsJson = $products->map(fn($p) => [
+        'id'     => $p->id,
+        'nombre' => $p->nombre,
+        'sku'    => $p->sku ?? '',
+        'precio' => (float) $p->precio_base,
+    ])->values();
     $warehouses = Warehouse::orderBy('nombre')->get(['id','nombre']);
     $drivers    = Driver::orderBy('nombre')->get(['id','nombre']);
     $routes     = ShippingRoute::orderBy('nombre')->get(['id','nombre']);
- 
+
     $mainWarehouseId = DB::table('warehouses')->where('is_primary', 1)->value('id')
         ?? DB::table('warehouses')->orderBy('id')->value('id');
- 
-    // Overrides de precios por cliente
+
     $overrides = DB::table('client_price_overrides')
         ->select('client_id','product_id','precio')
         ->whereIn('client_id', $clients->pluck('id'))
@@ -123,8 +128,7 @@ public function data(Request $request)
         ->groupBy('client_id')
         ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
         ->toArray();
- 
-    // Items de listas de precios
+
     $listItems = DB::table('price_list_items')
         ->select('price_list_id','product_id','precio')
         ->whereIn('price_list_id', $priceLists->pluck('id'))
@@ -132,15 +136,13 @@ public function data(Request $request)
         ->groupBy('price_list_id')
         ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
         ->toArray();
- 
-    // Defaults por cliente para Alpine (ruta, pago, crédito, dirección de entrega)
+
     $clientDefaults = $clients->mapWithKeys(fn($c) => [(string)$c->id => [
         'shipping_route_id' => (string) ($c->shipping_route_id ?? ''),
         'price_list_id'     => (string) ($c->price_list_id ?? ''),
         'credito_dias'      => (int)   ($c->credito_dias ?? 0),
         'credito_limite'    => (float) ($c->credito_limite ?? 0),
         'telefono'          => $c->telefono ?? '',
-        // Dirección de entrega efectiva (si igual_fiscal, usa la fiscal)
         'entrega_calle'    => $c->entrega_igual_fiscal ? ($c->fiscal_calle   ?? '') : ($c->entrega_calle   ?? ''),
         'entrega_numero'   => $c->entrega_igual_fiscal ? ($c->fiscal_numero  ?? '') : ($c->entrega_numero  ?? ''),
         'entrega_colonia'  => $c->entrega_igual_fiscal ? ($c->fiscal_colonia ?? '') : ($c->entrega_colonia ?? ''),
@@ -148,13 +150,13 @@ public function data(Request $request)
         'entrega_estado'   => $c->entrega_igual_fiscal ? ($c->fiscal_estado  ?? '') : ($c->entrega_estado  ?? ''),
         'entrega_cp'       => $c->entrega_igual_fiscal ? ($c->fiscal_cp      ?? '') : ($c->entrega_cp      ?? ''),
     ]])->toArray();
- 
+
     return view('admin.sales_orders.create', compact(
         'clients','priceLists','products','warehouses',
         'drivers','routes','overrides','listItems',
-        'mainWarehouseId','clientDefaults'
+        'mainWarehouseId','clientDefaults','productsJson'
     ));
-    }
+}
 
     public function store(Request $request)
     {
