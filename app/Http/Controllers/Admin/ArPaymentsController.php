@@ -67,81 +67,81 @@ class ArPaymentsController extends Controller
     }
 
    public function store(Request $request)
-    {
-        $data = $request->validate([
-            'client_id'       => 'required|exists:clients,id',
-            'fecha'           => 'required|date',
-            'amount'          => 'required|numeric|min:0.01',
-            'payment_type_id' => 'required|exists:payment_types,id',
-            'reference'       => 'nullable|string|max:255',
-            'notes'           => 'nullable|string',
-            'order_ids'       => 'nullable|array',
-            'order_ids.*'     => 'integer|exists:sales_orders,id',
+{
+    $data = $request->validate([
+        'client_id'       => 'required|exists:clients,id',
+        'fecha'           => 'required|date',
+        'amount'          => 'required|numeric|min:0.01',
+        'payment_type_id' => 'required|exists:payment_types,id',
+        'reference'       => 'nullable|string|max:255',
+        'notes'           => 'nullable|string',
+        'order_ids'       => 'nullable|array',
+        'order_ids.*'     => 'integer|exists:sales_orders,id',
+    ]);
+
+    // ← validación: debe seleccionar al menos una nota
+    if (empty($data['order_ids'])) {
+        return back()
+            ->withInput()
+            ->withErrors(['order_ids' => 'Debes seleccionar al menos una nota a cubrir.']);
+    }
+
+    DB::transaction(function () use ($data) {
+        $mov = ArMovement::create([
+            'client_id'   => $data['client_id'],
+            'fecha'       => $data['fecha'],
+            'tipo'        => 'ABONO',
+            'monto'       => $data['amount'],
+            'descripcion' => 'Cobro' . (!empty($data['notes']) ? ': '.$data['notes'] : ''),
+            'created_by'  => auth()->id(),
         ]);
 
-        // ← validación: debe seleccionar al menos una nota
-        if (empty($data['order_ids'])) {
-            return back()
-                ->withInput()
-                ->withErrors(['order_ids' => 'Debes seleccionar al menos una nota a cubrir.']);
-        }
+        $payment = ArPayment::create([
+            'fecha'           => $data['fecha'],
+            'payment_type_id' => $data['payment_type_id'],
+            'monto'           => $data['amount'],
+            'referencia'      => $data['reference'] ?? null,
+            'nota'            => $data['notes'] ?? null,
+            'recibido_por'    => auth()->id(),
+            'order_ids'       => $data['order_ids'] ?? [],
+        ]);
 
-        DB::transaction(function () use ($data) {
-            $mov = ArMovement::create([
-                'client_id'   => $data['client_id'],
-                'fecha'       => $data['fecha'],
-                'tipo'        => 'ABONO',
-                'monto'       => $data['amount'],
-                'descripcion' => 'Cobro' . (!empty($data['notes']) ? ': '.$data['notes'] : ''),
-                'created_by'  => auth()->id(),
-            ]);
+        $mov->source_type = ArPayment::class;
+        $mov->source_id   = $payment->id;
+        $mov->save();
 
-            $payment = ArPayment::create([
-                'fecha'           => $data['fecha'],
-                'payment_type_id' => $data['payment_type_id'],
-                'monto'           => $data['amount'],
-                'referencia'      => $data['reference'] ?? null,
-                'nota'            => $data['notes'] ?? null,
-                'recibido_por'    => auth()->id(),
-                'order_ids'       => $data['order_ids'] ?? [],
-            ]);
+        if (!empty($data['order_ids'])) {
+            $restante = (float) $data['amount'];
 
-            $mov->source_type = ArPayment::class;
-            $mov->source_id   = $payment->id;
-            $mov->save();
+            $ordenes = SalesOrder::whereIn('id', $data['order_ids'])
+                ->orderBy('fecha')
+                ->get();
 
-            if (!empty($data['order_ids'])) {
-                $restante = (float) $data['amount'];
+            foreach ($ordenes as $orden) {
+                if ($restante <= 0) break;
 
-                $ordenes = SalesOrder::whereIn('id', $data['order_ids'])
-                    ->orderBy('fecha')
-                    ->get();
+                $saldo = ($orden->saldo_pendiente !== null && (float)$orden->saldo_pendiente > 0)
+                    ? (float) $orden->saldo_pendiente
+                    : (float) $orden->total;
 
-                foreach ($ordenes as $orden) {
-                    if ($restante <= 0) break;
+                $abono      = min($restante, $saldo);
+                $nuevoSaldo = round($saldo - $abono, 2);
 
-                    $saldo = ($orden->saldo_pendiente !== null && (float)$orden->saldo_pendiente > 0)
-                        ? (float) $orden->saldo_pendiente
-                        : (float) $orden->total;
+                $updateData = ['saldo_pendiente' => $nuevoSaldo];
 
-                    $abono      = min($restante, $saldo);
-                    $nuevoSaldo = round($saldo - $abono, 2);
-
-                    $updateData = ['saldo_pendiente' => $nuevoSaldo];
-
-                    if ($nuevoSaldo <= 0) {
-                        $updateData['cobrado_at'] = now();
-                    }
-
-                    $orden->update($updateData);
-                    $restante = round($restante - $abono, 2);
+                if ($nuevoSaldo <= 0) {
+                    $updateData['cobrado_at'] = now();
                 }
-            }
-        });
 
-        session()->flash('swal', ['icon'=>'success','title'=>'Cobro registrado','text'=>'El pago se aplicó correctamente.']);
-        return redirect()->route('admin.ar.index');
-    }
+                $orden->update($updateData);
+                $restante = round($restante - $abono, 2);
+            }
+        }
+    });
+
+    session()->flash('swal', ['icon'=>'success','title'=>'Cobro registrado','text'=>'El pago se aplicó correctamente.']);
+    return redirect()->route('admin.ar.index');
+}
     public function notasIndex(Request $request)
 {
     $search     = $request->get('search', '');
