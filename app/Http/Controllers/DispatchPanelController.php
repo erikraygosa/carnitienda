@@ -2,43 +2,46 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Support\Facades\DB;
 use App\Models\SalesOrder;
+use App\Models\SalesOrderItem;
 use App\Models\DispatchItem;
 use App\Models\DispatchItemLine;
 use App\Models\DocumentActivityLog;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests; 
+use App\Services\InventoryService;
 
 class DispatchPanelController extends Controller
 {
-
     use AuthorizesRequests;
-    // Lista pedidos PROCESADOS
+
+    // ── 1. Lista pedidos PROCESADOS ──────────────────────────────────
     public function index(Request $request)
     {
-         $this->authorize('salida de producto');
+        $this->authorize('salida de producto');
 
         $pedidos = SalesOrder::with(['client'])
-        ->withCount('items')
-        ->where('status', SalesOrder::S_PROCESADO)
-        ->orderByDesc('fecha')
-        ->paginate(50);
+            ->withCount('items')
+            ->where('status', SalesOrder::S_PROCESADO)
+            ->orderByDesc('fecha')
+            ->paginate(50);
 
         return view('admin.dispatch_panel.index', compact('pedidos'));
     }
 
-    // Carga líneas de un pedido para el modal/panel lateral
+    // ── 2. Carga líneas de un pedido para el panel lateral ───────────
     public function show(SalesOrder $order)
     {
+        $this->authorize('salida de producto');
+
         $order->load(['items.product', 'client']);
 
-        // Buscar si ya existe un dispatch_item para este pedido
         $dispatchItem = DispatchItem::with('lines')
             ->where('sales_order_id', $order->id)
             ->latest()
             ->first();
 
         $lines = $order->items->map(function ($item) use ($dispatchItem) {
-            // Si ya hay línea guardada, cargarla
             $line = $dispatchItem?->lines
                 ->firstWhere('sales_order_item_id', $item->id);
 
@@ -54,7 +57,7 @@ class DispatchPanelController extends Controller
         });
 
         return response()->json([
-            'order'  => [
+            'order' => [
                 'id'     => $order->id,
                 'folio'  => $order->folio,
                 'client' => $order->client?->nombre,
@@ -65,10 +68,10 @@ class DispatchPanelController extends Controller
         ]);
     }
 
-    // Guarda el despacho real
-    public function saveDespacho(Request $request, SalesOrder $order)
+    // ── 3. Guarda despacho real, descuenta inventario y recalcula ────
+    public function saveDespacho(Request $request, SalesOrder $order, InventoryService $inv)
     {
-         $this->authorize('salida de producto');
+        $this->authorize('salida de producto');
 
         $request->validate([
             'lines'                       => 'required|array|min:1',
@@ -77,55 +80,104 @@ class DispatchPanelController extends Controller
             'lines.*.nota'                => 'nullable|string|max:255',
         ]);
 
-        // Buscar o crear dispatch_item para este pedido
-        // (asume que ya existe un dispatch, si no, créalo mínimo)
-        $dispatchItem = DispatchItem::firstOrCreate(
-            ['sales_order_id' => $order->id],
-            [
-                'dispatch_id' => $this->getOrCreateDispatch(),
-                'referencia'  => $order->folio,
-                'status'      => 'ASIGNADO',
-            ]
-        );
+        DB::transaction(function () use ($request, $order, $inv) {
 
-        foreach ($request->lines as $lineData) {
-            DispatchItemLine::updateOrCreate(
+            $dispatchItem = DispatchItem::firstOrCreate(
+                ['sales_order_id' => $order->id],
                 [
-                    'dispatch_item_id'    => $dispatchItem->id,
-                    'sales_order_item_id' => $lineData['sales_order_item_id'],
-                ],
-                [
-                    'qty_solicitada' => collect($order->items)
-                        ->firstWhere('id', $lineData['sales_order_item_id'])
-                        ?->cantidad ?? 0,
-                    'qty_despachada' => $lineData['qty_despachada'],
-                    'nota'           => $lineData['nota'] ?? null,
+                    'dispatch_id' => $this->getOrCreateDispatch(),
+                    'referencia'  => $order->folio,
+                    'status'      => 'ASIGNADO',
                 ]
             );
-        }
 
-        // Cambiar status del pedido
-        $oldStatus = $order->status;
-        $order->update([
-            'status'        => SalesOrder::S_DESPACHADO,
-            'despachado_at' => now(),
-        ]);
+            $nuevoSubtotal  = 0;
+            $nuevoDescuento = 0;
+            $nuevoImpuestos = 0;
+            $nuevoTotal     = 0;
 
-        // Log
-        DocumentActivityLog::create([
-            'document_type' => SalesOrder::class,
-            'document_id'   => $order->id,
-            'action'        => 'despacho_guardado',
-            'old_status'    => $oldStatus,
-            'new_status'    => SalesOrder::S_DESPACHADO,
-            'user_id'       => auth()->id(),
-            'nota'          => 'Despacho real registrado con ' . count($request->lines) . ' líneas.',
-        ]);
+            foreach ($request->lines as $lineData) {
+                $orderItem     = SalesOrderItem::findOrFail($lineData['sales_order_item_id']);
+                $qtyReal       = (float) $lineData['qty_despachada'];
+                $qtySolicitada = (float) $orderItem->cantidad;
 
-        return response()->json(['ok' => true, 'message' => 'Despacho guardado correctamente.']);
+                // 1. Guardar línea de despacho
+                DispatchItemLine::updateOrCreate(
+                    [
+                        'dispatch_item_id'    => $dispatchItem->id,
+                        'sales_order_item_id' => $orderItem->id,
+                    ],
+                    [
+                        'qty_solicitada' => $qtySolicitada,
+                        'qty_despachada' => $qtyReal,
+                        'nota'           => $lineData['nota'] ?? null,
+                    ]
+                );
+
+                // 2. Descontar inventario con qty REAL
+                if ($qtyReal > 0) {
+                    $itemReal = (object)[
+                        'product_id' => $orderItem->product_id,
+                        'cantidad'   => $qtyReal,
+                    ];
+                    $inv->consumeForOrderItem(
+                        $itemReal,
+                        $order->warehouse_id,
+                        $order,
+                        auth()->id()
+                    );
+                }
+
+                // 3. Recalcular línea proporcionalmente a qty real
+                $ratioQty      = $qtySolicitada > 0 ? ($qtyReal / $qtySolicitada) : 0;
+                $lineSubtotal  = round($qtyReal * (float) $orderItem->precio, 2);
+                $lineDescuento = round((float) $orderItem->descuento * $ratioQty, 2);
+                $lineImpuesto  = round((float) $orderItem->impuesto  * $ratioQty, 2);
+                $lineTotal     = round(max($lineSubtotal - $lineDescuento, 0) + $lineImpuesto, 2);
+
+                // 4. Actualizar la línea del pedido con valores reales
+                $orderItem->update([
+                    'cantidad'  => $qtyReal,
+                    'descuento' => $lineDescuento,
+                    'impuesto'  => $lineImpuesto,
+                    'total'     => $lineTotal,
+                ]);
+
+                $nuevoSubtotal  += $lineSubtotal;
+                $nuevoDescuento += $lineDescuento;
+                $nuevoImpuestos += $lineImpuesto;
+                $nuevoTotal     += $lineTotal;
+            }
+
+            // 5. Recalcular totales del pedido
+            $order->update([
+                'subtotal'            => round($nuevoSubtotal, 2),
+                'descuento'           => round($nuevoDescuento, 2),
+                'impuestos'           => round($nuevoImpuestos, 2),
+                'total'               => round($nuevoTotal, 2),
+                'contraentrega_total' => $order->payment_method === 'CONTRAENTREGA'
+                                            ? round($nuevoTotal, 2)
+                                            : $order->contraentrega_total,
+                'status'              => SalesOrder::S_DESPACHADO,
+                'despachado_at'       => now(),
+            ]);
+
+            // 6. Log
+            DocumentActivityLog::create([
+                'document_type' => SalesOrder::class,
+                'document_id'   => $order->id,
+                'action'        => 'salida_de_producto',
+                'old_status'    => SalesOrder::S_PROCESADO,
+                'new_status'    => SalesOrder::S_DESPACHADO,
+                'user_id'       => auth()->id(),
+                'nota'          => 'Salida de producto registrada. Total real: $' . number_format($nuevoTotal, 2),
+            ]);
+        });
+
+        return response()->json(['ok' => true, 'message' => 'Salida de producto guardada correctamente.']);
     }
 
-    // Helper: obtiene un dispatch genérico del día o crea uno
+    // ── Helper: obtiene o crea un dispatch del día ───────────────────
     private function getOrCreateDispatch(): int
     {
         $dispatch = \App\Models\Dispatch::whereDate('fecha', today())

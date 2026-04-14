@@ -75,6 +75,16 @@ $links = [
   ],
 
   // ===== LOGÍSTICA =====
+
+  ['header' => 'Almacén', 'can' => $user->hasPermissionTo('salida de producto')],
+[
+  'name'   => 'Salida de Producto',
+  'icon'   => 'fa-solid fa-box-open',
+  'can'    => $user->hasPermissionTo('salida de producto'),
+  'active' => request()->routeIs('admin.despacho.*'),
+  'href'   => route('admin.despacho.panel'),
+],
+
   ['header' => 'Logística', 'can' => $user->hasPermissionTo('ver despachos')],
   [
     'name'     => 'Despacho',

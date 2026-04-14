@@ -22,9 +22,12 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\SalesOrderDeliveryNoteMailable;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class SalesOrderController extends Controller
 {
+
+    use AuthorizesRequests;
     public function index()
 {
     return view('admin.sales_orders.index');
@@ -429,25 +432,17 @@ public function approve(SalesOrder $order)
 
     public function process(SalesOrder $order, InventoryService $inv)
     {
-         $this->authorize('procesar pedidos');
-         
+        $this->authorize('procesar pedidos');
+
         if (!in_array($order->status, ['APROBADO','PREPARANDO'])) {
             return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Debe estar APROBADO o PREPARANDO.']);
         }
 
-        DB::transaction(function () use ($order, $inv) {
-            foreach ($order->items as $it) {
-                if (!$it->product_id || $it->cantidad <= 0) continue;
+        // ⚠️ Ya NO descuenta inventario aquí
+        // El descuento real ocurre en Panel de Salida de Producto
+        $order->update(['status' => 'PROCESADO', 'despachado_at' => now()]);
 
-                // 🔑 Aquí se resuelve: si es subproducto con regla -> descuenta PADRE,
-                // si es padre compuesto -> descuenta padre + BOM, si es simple -> descuenta él mismo.
-                $inv->consumeForOrderItem($it, $order->warehouse_id, $order, auth()->id());
-            }
-
-            $order->update(['status' => 'PROCESADO', 'despachado_at' => now()]);
-        });
-
-        return back()->with('swal', ['icon'=>'success','title'=>'Procesado','text'=>'Stock descontado y pedido PROCESADO.']);
+        return back()->with('swal', ['icon'=>'success','title'=>'Procesado','text'=>'Pedido PROCESADO. Pendiente de salida de almacén.']);
     }
 
 
