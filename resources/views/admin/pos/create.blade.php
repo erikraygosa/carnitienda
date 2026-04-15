@@ -14,44 +14,92 @@
     </x-slot>
 
     <style>
-        /* ── Orientación portrait (vertical) ── */
+        /* ── Portrait ── */
         @media (orientation: portrait) {
-            .pos-grid { display: flex; flex-direction: column; gap: 1rem; }
+            .pos-grid  { display: flex; flex-direction: column; gap: 1rem; }
             .pos-left  { order: 1; }
             .pos-right { order: 2; }
             .pos-cobrar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; padding: 12px 16px; background: white; border-top: 1px solid #e5e7eb; }
             .pos-cobrar-spacer { height: 80px; }
         }
-        /* ── Orientación landscape (horizontal) ── */
+
+        /* ── Landscape ──
+           ┌─────────────┬──────────┐
+           │             │ CLIENTE  │
+           │  PARTIDAS   ├──────────┤
+           │             │ RESUMEN  │
+           ├─────────────┴──────────┤
+           │         COBRO          │
+           └────────────────────────┘
+        */
         @media (orientation: landscape) {
-            .pos-grid { display: grid; grid-template-columns: 1fr 320px; gap: 1rem; align-items: start; }
-            .pos-left  { order: 1; }
-            .pos-right { order: 2; }
-            .pos-cobrar { display: block; }
-            .pos-cobrar-spacer { display: none; }
+            .pos-grid {
+                display: grid;
+                grid-template-columns: 1fr 340px;
+                grid-template-rows: 1fr auto;
+                grid-template-areas:
+                    "partidas derecha"
+                    "cobro    cobro";
+                gap: 0.75rem;
+                height: calc(100vh - 7rem);
+            }
+            .pos-left {
+                grid-area: partidas;
+                display: flex;
+                flex-direction: column;
+                gap: 0.75rem;
+                overflow: hidden;
+            }
+            .pos-left .partidas-card {
+                flex: 1;
+                overflow-y: auto;
+                min-height: 0;
+            }
+            .pos-right {
+                grid-area: derecha;
+                display: flex;
+                flex-direction: column;
+                gap: 0.75rem;
+                overflow-y: auto;
+            }
+            .pos-cobrar-wrap   { grid-area: cobro; }
+            .pos-cobrar        { display: block; }
+            .pos-cobrar-spacer { display: none;  }
         }
-        /* Touch: botones más grandes */
-        .btn-touch {
-            min-height: 44px;
-            min-width: 44px;
-        }
-        /* Inputs grandes para touch */
-        .input-touch {
-            font-size: 16px !important; /* evita zoom en iOS */
-            padding: 10px 12px !important;
-        }
-        /* Resaltar fila al tocar */
+
+        .btn-touch   { min-height: 44px; min-width: 44px; }
+        .input-touch { font-size: 16px !important; padding: 10px 12px !important; }
         .item-row:active { background: #eff6ff; }
+
+        /* Precio bloqueado para no-admin */
+        .precio-readonly {
+            background: #f9fafb;
+            color: #374151;
+            cursor: not-allowed;
+        }
+        /* Fila con precio en 0: resaltar en rojo suave */
+        .item-row.precio-cero td { background: #fef2f2; }
+        .precio-cero-badge {
+            display: inline-block;
+            font-size: 10px;
+            background: #fee2e2;
+            color: #dc2626;
+            border-radius: 4px;
+            padding: 1px 4px;
+            margin-left: 4px;
+        }
     </style>
 
     <form id="pos-form" action="{{ route('admin.pos.store') }}" method="POST">
         @csrf
         <input type="hidden" name="cash_register_id" value="{{ $reg->id }}">
+        {{-- Indicar si el usuario es admin para que el JS sepa si puede editar precio --}}
+        <input type="hidden" id="is-admin" value="{{ auth()->user()->hasRole('admin') ? '1' : '0' }}">
 
         <div class="pos-grid">
 
             {{-- ===== IZQUIERDA: buscador + partidas ===== --}}
-            <div class="pos-left space-y-3">
+            <div class="pos-left">
 
                 {{-- Buscador --}}
                 <x-wire-card>
@@ -68,23 +116,22 @@
                     </div>
                 </x-wire-card>
 
-                {{-- Partidas --}}
-                <x-wire-card>
-                    <div class="overflow-x-auto">
+                {{-- Partidas (sin columna Desc.) --}}
+                <x-wire-card class="partidas-card">
+                    <div class="overflow-x-auto h-full">
                         <table class="min-w-full text-sm">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-3 py-2 text-left font-medium text-gray-500">Producto</th>
                                     <th class="px-3 py-2 text-center font-medium text-gray-500 w-36">Cant.</th>
                                     <th class="px-3 py-2 text-right font-medium text-gray-500 w-28">Precio</th>
-                                    <th class="px-3 py-2 text-right font-medium text-gray-500 w-24">Desc.</th>
                                     <th class="px-3 py-2 text-right font-medium text-gray-500 w-28">Importe</th>
                                     <th class="px-3 py-2 w-10"></th>
                                 </tr>
                             </thead>
                             <tbody id="items-body">
                                 <tr id="empty-row">
-                                    <td colspan="6" class="px-3 py-10 text-center text-gray-400 text-sm">
+                                    <td colspan="5" class="px-3 py-10 text-center text-gray-400 text-sm">
                                         Busca un producto para agregarlo
                                     </td>
                                 </tr>
@@ -95,38 +142,34 @@
 
             </div>
 
-            {{-- ===== DERECHA: cliente + resumen + cobro ===== --}}
-            <div class="pos-right space-y-3">
+            {{-- ===== DERECHA: cliente + resumen ===== --}}
+            <div class="pos-right">
 
                 {{-- Cliente + Fecha --}}
                 <x-wire-card>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                    <label class="block text-xs font-medium text-gray-600 mb-0.5">Cliente</label>
                     <select name="client_id"
-                        class="input-touch w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                        class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
                         <option value="">Público en general</option>
                         @foreach($clients as $c)
                             <option value="{{ $c->id }}">{{ $c->nombre }}</option>
                         @endforeach
                     </select>
 
-                    <label class="block text-sm font-medium text-gray-700 mb-1 mt-3">Fecha</label>
+                    <label class="block text-xs font-medium text-gray-600 mb-0.5 mt-2">Fecha</label>
                     <input type="datetime-local" name="fecha"
                         value="{{ now()->format('Y-m-d\TH:i') }}"
-                        class="input-touch w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     />
                 </x-wire-card>
 
-                {{-- Resumen --}}
+                {{-- Resumen (sin descuento) --}}
                 <x-wire-card>
                     <h3 class="font-semibold mb-3 text-gray-700">Resumen</h3>
                     <div class="space-y-2 text-sm">
                         <div class="flex justify-between text-gray-600">
                             <span>Subtotal</span>
                             <span id="sum-subtotal" class="font-mono">$0.00</span>
-                        </div>
-                        <div class="flex justify-between text-gray-600">
-                            <span>Descuento</span>
-                            <span id="sum-descuento" class="font-mono">$0.00</span>
                         </div>
                         <div class="flex justify-between text-gray-600">
                             <span>Impuestos</span>
@@ -139,65 +182,77 @@
                     </div>
                 </x-wire-card>
 
-                {{-- Cobro --}}
+            </div>
+
+            {{-- ===== COBRO: ancho completo abajo en landscape ===== --}}
+            <div class="pos-cobrar-wrap">
                 <x-wire-card>
-                    <h3 class="font-semibold mb-3 text-gray-700">Cobro</h3>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
 
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Método de pago</label>
-                    <select name="metodo_pago" id="metodo_pago"
-                        class="input-touch w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 mb-3">
-                        @foreach(['EFECTIVO','TARJETA','TRANSFERENCIA','MIXTO','OTRO'] as $opt)
-                            <option value="{{ $opt }}">{{ $opt }}</option>
-                        @endforeach
-                    </select>
-
-                    <div class="grid grid-cols-2 gap-3">
+                        {{-- Método de pago --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Efectivo recibido</label>
-                            <input type="number" name="efectivo" id="efectivo"
-                                step="0.01" value="0" inputmode="decimal"
-                                class="input-touch w-full rounded-md border border-gray-300 text-right font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            />
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Método de pago</label>
+                            <select name="metodo_pago" id="metodo_pago"
+                                class="input-touch w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                                @foreach(['EFECTIVO','TARJETA','TRANSFERENCIA','MIXTO','OTRO'] as $opt)
+                                    <option value="{{ $opt }}">{{ $opt }}</option>
+                                @endforeach
+                            </select>
                         </div>
+
+                        {{-- Efectivo + Cambio --}}
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Efectivo recibido</label>
+                                <input type="number" name="efectivo" id="efectivo"
+                                    step="0.01" value="0" inputmode="decimal"
+                                    class="input-touch w-full rounded-md border border-gray-300 text-right font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Cambio</label>
+                                <input type="number" name="cambio" id="cambio"
+                                    step="0.01" value="0" readonly
+                                    class="input-touch w-full rounded-md border border-gray-200 bg-gray-50 text-right font-mono"
+                                />
+                            </div>
+                        </div>
+
+                        {{-- Referencia + Billetes rápidos --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Cambio</label>
-                            <input type="number" name="cambio" id="cambio"
-                                step="0.01" value="0" readonly
-                                class="input-touch w-full rounded-md border border-gray-200 bg-gray-50 text-right font-mono"
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Referencia</label>
+                            <input type="text" name="referencia"
+                                class="input-touch w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 mb-2"
                             />
+                            <div class="flex flex-wrap gap-1">
+                                @foreach([50, 100, 200, 500, 1000] as $bill)
+                                <button type="button" data-bill="{{ $bill }}"
+                                    class="btn-bill btn-touch px-2 py-1 text-xs font-medium rounded-md border border-gray-300 hover:bg-indigo-50 hover:border-indigo-400 hover:text-indigo-700 active:bg-indigo-100">
+                                    ${{ number_format($bill) }}
+                                </button>
+                                @endforeach
+                                <button type="button" id="btn-exact"
+                                    class="btn-touch px-2 py-1 text-xs font-medium rounded-md border border-gray-300 hover:bg-gray-50">
+                                    Exacto
+                                </button>
+                            </div>
                         </div>
-                    </div>
 
-                    <label class="block text-sm font-medium text-gray-700 mb-1 mt-3">Referencia</label>
-                    <input type="text" name="referencia"
-                        class="input-touch w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
+                        {{-- Botón cobrar --}}
+                        <div>
+                            <button type="submit" id="btn-cobrar" disabled
+                                class="btn-touch w-full py-3 text-lg font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                                💳 Cobrar
+                            </button>
+                        </div>
 
-                    {{-- Botones rápidos de billete --}}
-                    <div class="grid grid-cols-3 gap-2 mt-3">
-                        @foreach([50, 100, 200, 500, 1000] as $bill)
-                        <button type="button" data-bill="{{ $bill }}"
-                            class="btn-bill btn-touch px-2 py-2 text-sm font-medium rounded-md border border-gray-300 hover:bg-indigo-50 hover:border-indigo-400 hover:text-indigo-700 active:bg-indigo-100 transition-colors">
-                            ${{ number_format($bill) }}
-                        </button>
-                        @endforeach
-                        <button type="button" id="btn-exact"
-                            class="btn-touch px-2 py-2 text-sm font-medium rounded-md border border-gray-300 hover:bg-gray-50 active:bg-gray-100">
-                            Exacto
-                        </button>
                     </div>
                 </x-wire-card>
-
-                {{-- Botón cobrar --}}
-                <div class="pos-cobrar">
-                    <button type="submit" id="btn-cobrar" disabled
-                        class="btn-touch w-full py-4 text-lg font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                        💳 Cobrar
-                    </button>
-                </div>
-                <div class="pos-cobrar-spacer"></div>
-
             </div>
+
+            {{-- Spacer portrait --}}
+            <div class="pos-cobrar-spacer"></div>
+
         </div>
     </form>
 
@@ -206,22 +261,21 @@
     (function () {
         var PRODUCTS = {!! json_encode($productsJson) !!};
         var rowCount  = 0;
+        var IS_ADMIN  = document.getElementById('is-admin').value === '1';
 
-        // ── Utilidades ────────────────────────────────────────────────────
         function money(n) {
             return '$' + Number(n || 0).toLocaleString('es-MX', {
                 minimumFractionDigits: 2, maximumFractionDigits: 2
             });
         }
         function toNum(v) { return parseFloat(v) || 0; }
-
         function fmtMono(n) {
             return Number(n || 0).toLocaleString('es-MX', {
                 minimumFractionDigits: 2, maximumFractionDigits: 2
             });
         }
 
-        // ── Buscador ──────────────────────────────────────────────────────
+        // ── Buscador ──
         var searchInput   = document.getElementById('product-search');
         var searchResults = document.getElementById('search-results');
 
@@ -240,13 +294,17 @@
             }
 
             searchResults.innerHTML = matches.map(function(p) {
-                return '<div class="search-item px-4 py-4 cursor-pointer hover:bg-indigo-50 active:bg-indigo-100 border-b last:border-0 flex justify-between items-center"'
+                var sinPrecio = toNum(p.precio) === 0;
+                return '<div class="search-item px-4 py-4 cursor-pointer hover:bg-indigo-50 active:bg-indigo-100 border-b last:border-0 flex justify-between items-center'
+                    + (sinPrecio ? ' opacity-60' : '') + '"'
                     + ' data-id="' + p.id + '">'
                     + '<div>'
-                    + '<div class="font-medium text-sm text-gray-900">' + p.nombre + '</div>'
+                    + '<div class="font-medium text-sm text-gray-900">' + p.nombre
+                    + (sinPrecio ? '<span class="precio-cero-badge">Sin precio</span>' : '')
+                    + '</div>'
                     + '<div class="text-xs text-gray-400">' + (p.sku || '—') + ' · ' + p.unidad + '</div>'
                     + '</div>'
-                    + '<div class="text-sm font-mono font-semibold text-indigo-600">$' + fmtMono(p.precio) + '</div>'
+                    + '<div class="text-sm font-mono font-semibold ' + (sinPrecio ? 'text-red-400' : 'text-indigo-600') + '">$' + fmtMono(p.precio) + '</div>'
                     + '</div>';
             }).join('');
 
@@ -255,7 +313,20 @@
             searchResults.querySelectorAll('.search-item').forEach(function(el) {
                 el.addEventListener('click', function() {
                     var product = PRODUCTS.find(function(p) { return p.id == el.dataset.id; });
-                    if (product) addRow(product);
+                    if (!product) return;
+
+                    // Bloquear venta si precio es 0
+                    if (toNum(product.precio) === 0) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Sin precio',
+                            text: '"' + product.nombre + '" no tiene precio asignado y no puede venderse.',
+                            confirmButtonText: 'Entendido'
+                        });
+                        return;
+                    }
+
+                    addRow(product);
                     searchInput.value = '';
                     searchResults.classList.add('hidden');
                     searchInput.focus();
@@ -269,12 +340,11 @@
             }
         });
 
-        // ── Agregar fila ──────────────────────────────────────────────────
+        // ── Agregar fila ──
         function addRow(product) {
             var emptyRow = document.getElementById('empty-row');
             if (emptyRow) emptyRow.remove();
 
-            // Si ya existe, incrementar cantidad
             var existing = document.querySelector('[data-product-id="' + product.id + '"]');
             if (existing) {
                 var cantInput = existing.querySelector('.item-cant');
@@ -288,6 +358,11 @@
             var tr  = document.createElement('tr');
             tr.className = 'border-b item-row';
             tr.dataset.productId = product.id;
+
+            // Precio: editable solo para admin
+            var precioAttrs = IS_ADMIN
+                ? 'class="item-precio w-full text-right rounded-md border border-gray-300 py-1 text-sm font-mono"'
+                : 'class="item-precio w-full text-right rounded-md border border-gray-200 py-1 text-sm font-mono precio-readonly" readonly tabindex="-1"';
 
             tr.innerHTML =
                 '<input type="hidden" name="items[' + idx + '][product_id]" value="' + product.id + '">'
@@ -307,13 +382,7 @@
                 + '</td>'
                 + '<td class="px-2 py-2">'
                 +   '<input name="items[' + idx + '][precio_unitario]" type="number" step="0.01" value="' + product.precio.toFixed(2) + '"'
-                +     ' inputmode="decimal"'
-                +     ' class="item-precio w-full text-right rounded-md border border-gray-300 py-1 text-sm font-mono">'
-                + '</td>'
-                + '<td class="px-2 py-2">'
-                +   '<input name="items[' + idx + '][descuento]" type="number" step="0.01" value="0"'
-                +     ' inputmode="decimal"'
-                +     ' class="item-desc w-full text-right rounded-md border border-gray-300 py-1 text-sm font-mono">'
+                +     ' inputmode="decimal" ' + precioAttrs + '>'
                 + '</td>'
                 + '<td class="px-3 py-2 text-right font-mono text-sm font-semibold">'
                 +   '<span class="item-importe">0.00</span>'
@@ -328,12 +397,11 @@
             recalcTotals();
         }
 
-        // ── Bind eventos de fila ──────────────────────────────────────────
+        // ── Bind fila ──
         function bindRow(tr) {
-            var cantInp  = tr.querySelector('.item-cant');
+            var cantInp   = tr.querySelector('.item-cant');
             var precioInp = tr.querySelector('.item-precio');
 
-            // Botones +/−
             tr.querySelector('.btn-minus').addEventListener('click', function() {
                 cantInp.value = Math.max(0.001, toNum(cantInp.value) - 1).toFixed(3);
                 recalcRow(tr); recalcTotals();
@@ -343,7 +411,6 @@
                 recalcRow(tr); recalcTotals();
             });
 
-            // Cantidad: al perder foco interpretar entero >= 100 como gramos
             cantInp.addEventListener('blur', function() {
                 var val = this.value.trim();
                 if (val && !val.includes('.') && parseInt(val) >= 100) {
@@ -356,58 +423,66 @@
             cantInp.addEventListener('focus', function() { this.select(); });
             cantInp.addEventListener('input', function() { recalcRow(tr); recalcTotals(); });
 
-            // Precio: seleccionar al foco
-            precioInp.addEventListener('focus', function() { this.select(); });
-            precioInp.addEventListener('input', function() { recalcRow(tr); recalcTotals(); });
+            if (IS_ADMIN) {
+                precioInp.addEventListener('focus', function() { this.select(); });
+                precioInp.addEventListener('input', function() {
+                    // Advertir si admin pone precio en 0
+                    if (toNum(this.value) === 0) {
+                        tr.classList.add('precio-cero');
+                    } else {
+                        tr.classList.remove('precio-cero');
+                    }
+                    recalcRow(tr); recalcTotals();
+                });
+            }
 
-            // Descuento
-            tr.querySelector('.item-desc').addEventListener('input', function() { recalcRow(tr); recalcTotals(); });
-
-            // Eliminar
             tr.querySelector('.btn-del').addEventListener('click', function() {
                 tr.remove();
                 if (!document.querySelector('.item-row')) {
                     document.getElementById('items-body').innerHTML =
-                        '<tr id="empty-row"><td colspan="6" class="px-3 py-10 text-center text-gray-400 text-sm">Busca un producto para agregarlo</td></tr>';
+                        '<tr id="empty-row"><td colspan="5" class="px-3 py-10 text-center text-gray-400 text-sm">Busca un producto para agregarlo</td></tr>';
                 }
                 recalcTotals();
             });
         }
 
-        // ── Recalcular fila ───────────────────────────────────────────────
+        // ── Recalcular fila ──
         function recalcRow(tr) {
             var cant    = toNum(tr.querySelector('.item-cant').value);
             var precio  = toNum(tr.querySelector('.item-precio').value);
-            var desc    = toNum(tr.querySelector('.item-desc').value);
-            var importe = (cant * precio) - desc;
+            var importe = cant * precio;
             tr.querySelector('.item-importe').textContent = fmtMono(importe);
         }
 
-        // ── Recalcular totales ────────────────────────────────────────────
+        // ── Recalcular totales ──
         function recalcTotals() {
-            var sub = 0, des = 0, imp = 0;
+            var sub = 0, imp = 0;
+            var hayPrecioCero = false;
+
             document.querySelectorAll('.item-row').forEach(function(tr) {
-                var cant     = toNum(tr.querySelector('.item-cant').value);
-                var precio   = toNum(tr.querySelector('.item-precio').value);
-                var desc     = toNum(tr.querySelector('.item-desc').value);
-                var tasaIva  = toNum(tr.querySelector('.item-imp').value);
-                var lineaSub = cant * precio;
-                sub += lineaSub;
-                des += desc;
-                imp += lineaSub * (tasaIva / 100);
+                var cant    = toNum(tr.querySelector('.item-cant').value);
+                var precio  = toNum(tr.querySelector('.item-precio').value);
+                var tasaIva = toNum(tr.querySelector('.item-imp').value);
+                var linea   = cant * precio;
+                sub += linea;
+                imp += linea * (tasaIva / 100);
+                if (precio === 0) hayPrecioCero = true;
             });
-            var total = sub - des + imp;
+
+            var total = sub + imp;
             document.getElementById('sum-subtotal').textContent  = money(sub);
-            document.getElementById('sum-descuento').textContent = money(des);
             document.getElementById('sum-impuestos').textContent = money(imp);
             document.getElementById('sum-total').textContent     = money(total);
 
             var efectivo = toNum(document.getElementById('efectivo').value);
             document.getElementById('cambio').value = Math.max(0, efectivo - total).toFixed(2);
-            document.getElementById('btn-cobrar').disabled = !document.querySelector('.item-row');
+
+            // Deshabilitar cobrar si: no hay items, o hay algún precio en 0
+            var tieneItems = !!document.querySelector('.item-row');
+            document.getElementById('btn-cobrar').disabled = !tieneItems || hayPrecioCero;
         }
 
-        // ── Botones de billete ────────────────────────────────────────────
+        // ── Billetes ──
         document.querySelectorAll('.btn-bill').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 document.getElementById('efectivo').value = this.dataset.bill;
