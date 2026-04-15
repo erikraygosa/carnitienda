@@ -151,7 +151,6 @@ Route::post('dispatches/{dispatch}/cxc/bulk',       [DispatchController::class, 
     Route::post('sales/{sale}/cancelar',              [SaleController::class,'cancel'])->name('sales.cancel');
 
     Route::post('sales/{sale}/close', [SaleController::class, 'close'])->name('sales.close');
-Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel'])->name('sales.cancel');
 
 Route::resource('invoices', InvoiceController::class)->except(['destroy'])->names('invoices');
 
