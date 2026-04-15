@@ -38,7 +38,7 @@
 
     @include('layouts.includes.admin.sidebar')
 
-    <div class="p-4 sm:ml-64">
+   <div id="main-content" class="p-4 transition-[margin] duration-300 ease-in-out">
 
         <div class="mt-14 flex items-center">
 
