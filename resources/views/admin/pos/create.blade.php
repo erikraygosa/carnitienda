@@ -184,74 +184,76 @@
 
             </div>
 
-            {{-- ===== COBRO: ancho completo abajo en landscape ===== --}}
-            <div class="pos-cobrar-wrap">
-                <x-wire-card>
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
+         {{-- ===== COBRO ===== --}}
+<div class="pos-cobrar-wrap">
+    <x-wire-card class="!py-2">
+        <div class="flex items-center gap-2 flex-wrap">
 
-                        {{-- Método de pago --}}
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Método de pago</label>
-                            <select name="metodo_pago" id="metodo_pago"
-                                class="input-touch w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500">
-                                @foreach(['EFECTIVO','TARJETA','TRANSFERENCIA','MIXTO','OTRO'] as $opt)
-                                    <option value="{{ $opt }}">{{ $opt }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        {{-- Efectivo + Cambio --}}
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Efectivo recibido</label>
-                                <input type="number" name="efectivo" id="efectivo"
-                                    step="0.01" value="0" inputmode="decimal"
-                                    class="input-touch w-full rounded-md border border-gray-300 text-right font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Cambio</label>
-                                <input type="number" name="cambio" id="cambio"
-                                    step="0.01" value="0" readonly
-                                    class="input-touch w-full rounded-md border border-gray-200 bg-gray-50 text-right font-mono"
-                                />
-                            </div>
-                        </div>
-
-                        {{-- Referencia + Billetes rápidos --}}
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Referencia</label>
-                            <input type="text" name="referencia"
-                                class="input-touch w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 mb-2"
-                            />
-                            <div class="flex flex-wrap gap-1">
-                                @foreach([50, 100, 200, 500, 1000] as $bill)
-                                <button type="button" data-bill="{{ $bill }}"
-                                    class="btn-bill btn-touch px-2 py-1 text-xs font-medium rounded-md border border-gray-300 hover:bg-indigo-50 hover:border-indigo-400 hover:text-indigo-700 active:bg-indigo-100">
-                                    ${{ number_format($bill) }}
-                                </button>
-                                @endforeach
-                                <button type="button" id="btn-exact"
-                                    class="btn-touch px-2 py-1 text-xs font-medium rounded-md border border-gray-300 hover:bg-gray-50">
-                                    Exacto
-                                </button>
-                            </div>
-                        </div>
-
-                        {{-- Botón cobrar --}}
-                        <div>
-                            <button type="submit" id="btn-cobrar" disabled
-                                class="btn-touch w-full py-3 text-lg font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                                💳 Cobrar
-                            </button>
-                        </div>
-
-                    </div>
-                </x-wire-card>
+            {{-- Método de pago --}}
+            <div class="min-w-[120px]">
+                <label class="block text-xs text-gray-500 mb-0.5">Método</label>
+                <select name="metodo_pago" id="metodo_pago"
+                    class="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    @foreach(['EFECTIVO','TARJETA','TRANSFERENCIA','MIXTO','OTRO'] as $opt)
+                        <option value="{{ $opt }}">{{ $opt }}</option>
+                    @endforeach
+                </select>
             </div>
 
-            {{-- Spacer portrait --}}
-            <div class="pos-cobrar-spacer"></div>
+            {{-- Efectivo --}}
+            <div class="w-[100px]">
+                <label class="block text-xs text-gray-500 mb-0.5">Efectivo</label>
+                <input type="number" name="efectivo" id="efectivo"
+                    step="0.01" value="0" inputmode="decimal"
+                    class="w-full rounded border border-gray-300 px-2 py-1 text-xs text-right font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+            </div>
+
+            {{-- Cambio --}}
+            <div class="w-[90px]">
+                <label class="block text-xs text-gray-500 mb-0.5">Cambio</label>
+                <input type="number" name="cambio" id="cambio"
+                    step="0.01" value="0" readonly
+                    class="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-right font-mono"
+                />
+            </div>
+
+            {{-- Referencia --}}
+            <div class="w-[110px]">
+                <label class="block text-xs text-gray-500 mb-0.5">Referencia</label>
+                <input type="text" name="referencia"
+                    class="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+            </div>
+
+            {{-- Billetes: todos en una línea --}}
+            <div class="flex items-center gap-1 flex-nowrap">
+                @foreach([50, 100, 200, 500, 1000] as $bill)
+                <button type="button" data-bill="{{ $bill }}"
+                    class="btn-bill px-1.5 py-1 text-xs rounded border border-gray-300 hover:bg-indigo-50 hover:border-indigo-400 hover:text-indigo-700 whitespace-nowrap">
+                    ${{ number_format($bill) }}
+                </button>
+                @endforeach
+                <button type="button" id="btn-exact"
+                    class="px-1.5 py-1 text-xs rounded border border-gray-300 hover:bg-gray-50 whitespace-nowrap">
+                    Exacto
+                </button>
+            </div>
+
+            {{-- Botón cobrar --}}
+            <div class="ml-auto">
+                <button type="submit" id="btn-cobrar" disabled
+                    class="px-4 py-1 text-sm font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap">
+                    💳 Cobrar
+                </button>
+            </div>
+
+        </div>
+    </x-wire-card>
+</div>
+
+{{-- Spacer portrait --}}
+<div class="pos-cobrar-spacer"></div>
 
         </div>
     </form>
