@@ -18,9 +18,10 @@ class InvoiceController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('can:ver facturas', only: ['index', 'edit', 'pdf', 'pdfDownload', 'sendForm', 'send']),
-            new Middleware('can:crear facturas', only: ['create', 'store']),
+            new Middleware('can:crear facturas', only: ['create', 'store', 'update', 'fromSalesOrder', 'fromSale']),
             new Middleware('can:timbrar facturas', only: ['stamp']),
             new Middleware('can:cancelar facturas', only: ['cancel']),
+            new Middleware('can:ver facturas', only: ['download']),
         ];
     }
 
@@ -219,21 +220,17 @@ public function store(Request $request)
             'total'     => $total,
         ]);
 
-        
-
-    
-    });
-    $series = \App\Models\InvoiceSeries::where('es_default', 1)
-    ->where('tipo_comprobante', 'I')
-    ->first();
-    if ($series && $data['folio']) {
-        // Solo actualizar si el folio guardado es mayor al actual
-        $folioGuardado = (int) $data['folio'];
-        if ($folioGuardado > $series->folio_actual) {
-            $series->update(['folio_actual' => $folioGuardado]);
+        if ($data['folio'] ?? null) {
+            $folioGuardado = (int) $data['folio'];
+            $series = \App\Models\InvoiceSeries::where('es_default', 1)
+                ->where('tipo_comprobante', 'I')
+                ->lockForUpdate()
+                ->first();
+            if ($series && $folioGuardado > $series->folio_actual) {
+                $series->update(['folio_actual' => $folioGuardado]);
+            }
         }
-    }
-
+    });
 
     return redirect()->route('admin.invoices.edit', $invoice)
         ->with('swal', ['icon' => 'success', 'title' => 'Creada', 'text' => 'Factura en borrador creada.']);
@@ -398,7 +395,7 @@ public function pdfDownload(Invoice $invoice)
                     'valor_unitario'  => (float)$it->precio,
                     'descuento'       => (float)$it->descuento,
                     'objeto_imp'      => '02',
-                    'iva_pct'         => 0,     // ajústalo si aplicas IVA por producto
+                    'iva_pct'         => (float)($p?->tasa_iva ?? 0),
                     'ieps_pct'        => 0,
                 ];
             })->values()->toArray(),
@@ -422,11 +419,135 @@ public function pdfDownload(Invoice $invoice)
                     'valor_unitario'  => (float)$it->precio,
                     'descuento'       => (float)$it->descuento,
                     'objeto_imp'      => '02',
-                    'iva_pct'         => 0,
+                    'iva_pct'         => (float)($p?->tasa_iva ?? 0),
                     'ieps_pct'        => 0,
                 ];
             })->values()->toArray(),
         ];
+    }
+
+    public function fromSalesOrder(\App\Models\SalesOrder $order)
+    {
+        return redirect()->route('admin.invoices.create', ['order_id' => $order->id]);
+    }
+
+    public function fromSale(\App\Models\Sale $sale)
+    {
+        return redirect()->route('admin.invoices.create', ['sale_id' => $sale->id]);
+    }
+
+    public function download(Invoice $invoice)
+    {
+        return $this->pdfDownload($invoice);
+    }
+
+    public function update(Request $request, Invoice $invoice)
+    {
+        if (!$invoice->isDraft()) {
+            return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR puede editarse.']);
+        }
+
+        $data = $request->validate([
+            'client_id'               => ['required', 'exists:clients,id'],
+            'sales_order_id'          => ['nullable', 'exists:sales_orders,id'],
+            'sale_id'                 => ['nullable', 'exists:sales,id'],
+            'serie'                   => ['nullable', 'string', 'max:10'],
+            'folio'                   => ['nullable', 'string', 'max:20'],
+            'fecha'                   => ['required', 'date'],
+            'tipo_comprobante'        => ['required', 'in:I,E,P,N'],
+            'moneda'                  => ['required', 'string', 'max:5'],
+            'uso_cfdi'                => ['required', 'string', 'max:5'],
+            'forma_pago'              => ['nullable', 'string', 'max:3'],
+            'metodo_pago'             => ['nullable', 'string', 'max:3'],
+            'lugar_expedicion'        => ['required', 'string', 'max:10'],
+            'regimen_fiscal_emisor'   => ['required', 'string', 'max:3'],
+            'regimen_fiscal_receptor' => ['required', 'string', 'max:3'],
+            'items'                   => ['required', 'array', 'min:1'],
+            'items.*.product_id'      => ['nullable', 'exists:products,id'],
+            'items.*.descripcion'     => ['required', 'string', 'max:255'],
+            'items.*.clave_prod_serv' => ['nullable', 'string', 'max:8'],
+            'items.*.clave_unidad'    => ['nullable', 'string', 'max:3'],
+            'items.*.unidad'          => ['nullable', 'string', 'max:20'],
+            'items.*.cantidad'        => ['required', 'numeric', 'gt:0'],
+            'items.*.valor_unitario'  => ['required', 'numeric', 'gte:0'],
+            'items.*.descuento'       => ['nullable', 'numeric', 'gte:0'],
+            'items.*.objeto_imp'      => ['required', 'in:01,02,03'],
+            'items.*.iva_pct'         => ['nullable', 'numeric', 'gte:0'],
+            'items.*.ieps_pct'        => ['nullable', 'numeric', 'gte:0'],
+        ]);
+
+        DB::transaction(function () use (&$invoice, $data) {
+            $subtotal  = 0;
+            $iva       = 0;
+            $ieps      = 0;
+            $total     = 0;
+
+            $invoice->items()->delete();
+
+            foreach ($data['items'] as $row) {
+                $cantidad = (float) $row['cantidad'];
+                $vu       = (float) $row['valor_unitario'];
+                $desc     = (float) ($row['descuento'] ?? 0);
+
+                $linea    = $cantidad * $vu;
+                $base     = max($linea - $desc, 0);
+                $iva_pct  = (float) ($row['iva_pct']  ?? 0) / 100;
+                $ieps_pct = (float) ($row['ieps_pct'] ?? 0) / 100;
+
+                $iva_imp  = round($base * $iva_pct,  6);
+                $ieps_imp = round($base * $ieps_pct, 6);
+                $importe  = $base + $iva_imp + $ieps_imp;
+
+                InvoiceItem::create([
+                    'invoice_id'          => $invoice->id,
+                    'product_id'          => $row['product_id'] ?? null,
+                    'clave_prod_serv'     => $row['clave_prod_serv'] ?? null,
+                    'clave_unidad'        => $row['clave_unidad'] ?? null,
+                    'unidad'              => $row['unidad'] ?? null,
+                    'descripcion'         => $row['descripcion'],
+                    'cantidad'            => $cantidad,
+                    'valor_unitario'      => $vu,
+                    'precio_unitario'     => $vu,
+                    'descuento'           => $desc,
+                    'objeto_imp'          => $row['objeto_imp'],
+                    'base'                => $base,
+                    'iva_pct'             => (float) ($row['iva_pct']  ?? 0),
+                    'iva_importe'         => $iva_imp,
+                    'ieps_pct'            => (float) ($row['ieps_pct'] ?? 0),
+                    'ieps_importe'        => $ieps_imp,
+                    'importe'             => $importe,
+                    'impuesto_trasladado' => $iva_imp,
+                    'total'               => $importe,
+                ]);
+
+                $subtotal += $linea;
+                $iva      += $iva_imp;
+                $ieps     += $ieps_imp;
+                $total    += $importe;
+            }
+
+            $invoice->update([
+                'client_id'               => $data['client_id'],
+                'sales_order_id'          => $data['sales_order_id'] ?? null,
+                'sale_id'                 => $data['sale_id'] ?? null,
+                'serie'                   => $data['serie'] ?? null,
+                'folio'                   => $data['folio'] ?? null,
+                'fecha'                   => $data['fecha'],
+                'tipo_comprobante'        => $data['tipo_comprobante'],
+                'moneda'                  => $data['moneda'],
+                'uso_cfdi'                => $data['uso_cfdi'],
+                'forma_pago'              => $data['forma_pago'] ?? null,
+                'metodo_pago'             => $data['metodo_pago'] ?? null,
+                'lugar_expedicion'        => $data['lugar_expedicion'],
+                'regimen_fiscal_emisor'   => $data['regimen_fiscal_emisor'],
+                'regimen_fiscal_receptor' => $data['regimen_fiscal_receptor'],
+                'subtotal'                => $subtotal,
+                'impuestos'               => $iva + $ieps,
+                'total'                   => $total,
+            ]);
+        });
+
+        return back()->with('swal', ['icon'=>'success','title'=>'Actualizada','text'=>'Factura en borrador actualizada.']);
     }
 
     public function sendForm(Invoice $invoice)
