@@ -18,22 +18,19 @@ class RoleController extends Controller implements HasMiddleware
         ];
     }
 
-    public function index()
-{
-    $roles = Role::with('permissions')->orderBy('name')->get();
-    $permissions = Permission::orderBy('name')->get()->groupBy(function($p) {
-        return explode(' ', $p->name)[1] ?? 'general';
-    });
+    public function index(Request $request)
+    {
+        $roles = Role::with('permissions')->orderBy('name')->get();
+        $permissions = Permission::orderBy('name')->get()->groupBy(function ($p) {
+            return explode(' ', $p->name)[1] ?? 'general';
+        });
 
-    // Preparar datos para JS — usar ->all() para garantizar array PHP secuencial
-    $rolesJson = $roles->map(fn($r) => [
-        'id'          => $r->id,
-        'name'        => $r->name,
-        'permissions' => $r->permissions->pluck('name')->values()->all(),
-    ])->values()->all();
+        $selectedRole = $request->filled('role')
+            ? $roles->firstWhere('id', (int) $request->input('role'))
+            : null;
 
-    return view('admin.roles.index', compact('roles', 'permissions', 'rolesJson'));
-}
+        return view('admin.roles.index', compact('roles', 'permissions', 'selectedRole'));
+    }
 
     public function store(Request $request)
     {

@@ -31,6 +31,7 @@
                 <div class="space-y-2">
                     @foreach($roles as $role)
                     @php
+                        $isSelected = $selectedRole && $selectedRole->id === $role->id;
                         $colorClass = match($role->name) {
                             'admin'     => 'bg-indigo-100 text-indigo-700 border-indigo-200',
                             'ventas'    => 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -41,17 +42,16 @@
                             default     => 'bg-gray-100 text-gray-700 border-gray-200',
                         };
                     @endphp
-                    <div class="flex items-center justify-between px-3 py-2 rounded-lg border {{ $colorClass }}">
+                    <div class="flex items-center justify-between px-3 py-2 rounded-lg border {{ $colorClass }} {{ $isSelected ? 'ring-2 ring-indigo-400' : '' }}">
                         <div>
                             <div class="font-medium text-sm">{{ ucfirst($role->name) }}</div>
                             <div class="text-xs opacity-70">{{ $role->permissions->count() }} permiso(s)</div>
                         </div>
                         <div class="flex gap-1">
-                            <button type="button"
-                                    onclick="rolesSelectRole('{{ $role->name }}', {{ $role->id }})"
-                                    class="px-2 py-1 text-xs rounded border border-current hover:opacity-70">
+                            <a href="{{ route('admin.roles.index', ['role' => $role->id]) }}"
+                               class="px-2 py-1 text-xs rounded border border-current hover:opacity-70">
                                 Editar
-                            </button>
+                            </a>
                             @if(!in_array($role->name, ['admin','superadmin']))
                             <form action="{{ route('admin.roles.destroy', $role) }}" method="POST"
                                   onsubmit="return confirm('¿Eliminar rol {{ $role->name }}?')">
@@ -90,32 +90,34 @@
             <x-wire-card>
                 <div class="flex items-center gap-2 mb-4">
                     <h3 class="font-semibold text-gray-800">Permisos del rol:</h3>
-                    <span id="role-title" class="px-2 py-0.5 rounded-full text-sm font-medium bg-indigo-100 text-indigo-700">
-                        — selecciona un rol —
+                    <span class="px-2 py-0.5 rounded-full text-sm font-medium bg-indigo-100 text-indigo-700">
+                        {{ $selectedRole ? ucfirst($selectedRole->name) : '— selecciona un rol —' }}
                     </span>
                 </div>
 
-                <div id="role-editor" class="hidden">
-                    <form id="role-perm-form" method="POST" class="space-y-4">
+                @if($selectedRole)
+                    <form action="{{ route('admin.roles.update', $selectedRole) }}" method="POST" class="space-y-4">
                         @csrf @method('PUT')
 
                         @foreach($permissions as $modulo => $perms)
+                        @php $modulePerms = $perms->pluck('name')->all(); @endphp
                         <div class="border rounded-lg overflow-hidden">
                             <div class="px-3 py-2 bg-gray-50 border-b flex items-center justify-between">
                                 <span class="text-xs font-semibold text-gray-600 uppercase">{{ $modulo }}</span>
                                 <button type="button"
-                                        onclick="rolesToggleModule(this, '{{ $modulo }}')"
+                                        onclick="toggleModule(this)"
                                         class="text-xs text-indigo-600 hover:underline">
                                     Seleccionar todos
                                 </button>
                             </div>
                             <div class="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">
                                 @foreach($perms as $perm)
-                                <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5 perm-label" data-modulo="{{ $modulo }}">
+                                <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
                                     <input type="checkbox"
                                            name="permissions[]"
                                            value="{{ $perm->name }}"
-                                           class="perm-chk rounded border-gray-300 text-indigo-600">
+                                           class="perm-chk rounded border-gray-300 text-indigo-600"
+                                           {{ $selectedRole->permissions->contains('name', $perm->name) ? 'checked' : '' }}>
                                     <span class="text-gray-700">{{ $perm->name }}</span>
                                     <form action="{{ route('admin.roles.permissions.destroy', $perm) }}" method="POST"
                                           class="ml-auto"
@@ -136,40 +138,21 @@
                             </button>
                         </div>
                     </form>
-                </div>
-
-                <div id="role-empty" class="py-12 text-center text-gray-400 text-sm">
-                    Selecciona un rol de la lista para editar sus permisos.
-                </div>
+                @else
+                    <div class="py-12 text-center text-gray-400 text-sm">
+                        Selecciona un rol de la lista para editar sus permisos.
+                    </div>
+                @endif
             </x-wire-card>
         </div>
     </div>
 
     <script>
-    var __rolesData = @json($rolesJson);
-
-    function rolesSelectRole(roleName, roleId) {
-        var role = __rolesData.find(function(r) { return r.name === roleName; });
-        if (!role) return;
-
-        document.getElementById('role-title').textContent =
-            roleName.charAt(0).toUpperCase() + roleName.slice(1);
-
-        document.getElementById('role-perm-form').action = '/admin/roles/' + roleId;
-
-        document.querySelectorAll('.perm-chk').forEach(function(chk) {
-            chk.checked = role.permissions.indexOf(chk.value) !== -1;
-        });
-
-        document.getElementById('role-editor').classList.remove('hidden');
-        document.getElementById('role-empty').classList.add('hidden');
-    }
-
-    function rolesToggleModule(btn, modulo) {
-        var chks = Array.from(
-            document.querySelectorAll('.perm-label[data-modulo="' + modulo + '"] .perm-chk')
-        );
-        var allChecked = chks.every(function(c) { return c.checked; });
+    function toggleModule(btn) {
+        var section = btn.closest('.border.rounded-lg');
+        var chks = section.querySelectorAll('.perm-chk');
+        var allChecked = true;
+        chks.forEach(function(c) { if (!c.checked) allChecked = false; });
         chks.forEach(function(c) { c.checked = !allChecked; });
         btn.textContent = allChecked ? 'Seleccionar todos' : 'Deseleccionar todos';
     }
