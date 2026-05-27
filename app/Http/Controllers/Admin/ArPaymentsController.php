@@ -12,9 +12,19 @@ use App\Models\SalesOrder;
 use App\Models\ArMovement;
 use App\Models\ArPayment;
 
-class ArPaymentsController extends Controller
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+
+class ArPaymentsController extends Controller implements HasMiddleware
 {
     public function __construct(private ArService $ar) {}
+
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:registrar cobros'),
+        ];
+    }
 
     public function create()
     {

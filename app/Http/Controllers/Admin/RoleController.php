@@ -6,24 +6,31 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class RoleController extends Controller
+class RoleController extends Controller implements HasMiddleware
 {
-  public function index()
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:gestionar roles'),
+        ];
+    }
+
+    public function index()
 {
     $roles = Role::with('permissions')->orderBy('name')->get();
     $permissions = Permission::orderBy('name')->get()->groupBy(function($p) {
         return explode(' ', $p->name)[1] ?? 'general';
     });
 
-    // Preparar datos para JS
-    $rolesJson = $roles->map(function($r) {
-        return [
-            'id'          => $r->id,
-            'name'        => $r->name,
-            'permissions' => $r->permissions->pluck('name')->values(),
-        ];
-    });
+    // Preparar datos para JS — usar ->all() para garantizar array PHP secuencial
+    $rolesJson = $roles->map(fn($r) => [
+        'id'          => $r->id,
+        'name'        => $r->name,
+        'permissions' => $r->permissions->pluck('name')->values()->all(),
+    ])->values()->all();
 
     return view('admin.roles.index', compact('roles', 'permissions', 'rolesJson'));
 }

@@ -8,10 +8,19 @@ use App\Models\Warehouse;
 use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class StockController extends Controller
+class StockController extends Controller implements HasMiddleware
 {
-        public function index()
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver stock'),
+        ];
+    }
+
+    public function index()
     {
         $warehouses      = Warehouse::orderBy('nombre')->get();
         $products        = Product::where('maneja_inventario', 1)

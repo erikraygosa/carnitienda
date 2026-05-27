@@ -20,9 +20,21 @@ use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class QuoteController extends Controller
+class QuoteController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver cotizaciones', only: ['index']),
+            new Middleware('can:crear cotizaciones', only: ['create', 'store']),
+            new Middleware('can:editar cotizaciones', only: ['edit', 'update', 'sendForm', 'send', 'pdf', 'pdfDownload', 'reject', 'cancel', 'destroy']),
+            new Middleware('can:aprobar cotizaciones', only: ['approve']),
+        ];
+    }
+
     public function index()
     {
         return view('admin.quotes.index');

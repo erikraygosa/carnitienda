@@ -5,11 +5,20 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class CategoryController extends Controller
+class CategoryController extends Controller implements HasMiddleware
 {
-   
-        public function index()
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver productos', only: ['index']),
+            new Middleware('can:gestionar categorias', only: ['create', 'store', 'edit', 'update', 'destroy']),
+        ];
+    }
+
+    public function index()
     {
         $categories = Category::orderBy('id', 'desc')->get();
         return view('admin.categories.index', compact('categories'));

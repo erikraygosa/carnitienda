@@ -9,9 +9,21 @@ use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\PacCfdiService;
 use App\Services\CompanyService;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class InvoiceController extends Controller
+class InvoiceController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver facturas', only: ['index', 'edit', 'pdf', 'pdfDownload', 'sendForm', 'send']),
+            new Middleware('can:crear facturas', only: ['create', 'store']),
+            new Middleware('can:timbrar facturas', only: ['stamp']),
+            new Middleware('can:cancelar facturas', only: ['cancel']),
+        ];
+    }
+
     public function index()
     {
            $invoices = Invoice::with('client')

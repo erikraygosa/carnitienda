@@ -22,8 +22,21 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\SaleNoteMailable;
 use App\Services\WhatsappSender;
 
-class SaleController extends Controller
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+
+class SaleController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver pedidos', only: ['index', 'create']),
+            new Middleware('can:crear pedidos', only: ['store']),
+            new Middleware('can:editar pedidos', only: ['edit', 'update', 'approve', 'startPreparing', 'process', 'dispatchToRoute', 'deliver', 'notDelivered', 'recordCash', 'settleDriver', 'sendForm', 'send', 'pdf', 'pdfDownload']),
+            new Middleware('can:cancelar pedidos', only: ['cancel', 'destroy']),
+        ];
+    }
+
     public function index()
     {
         return view('admin.sales.index');

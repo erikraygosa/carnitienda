@@ -12,9 +12,19 @@ use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf; // arriba
 use Dompdf\Options;
 
-class POSController extends Controller
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+
+class POSController extends Controller implements HasMiddleware
 {
-  public function __construct(private PosService $pos) {}
+    public function __construct(private PosService $pos) {}
+
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:usar pos'),
+        ];
+    }
 
  public function create(){
     $reg = CashRegister::where('user_id', auth()->id())

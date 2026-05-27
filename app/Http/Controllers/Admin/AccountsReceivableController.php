@@ -7,9 +7,20 @@ use App\Models\Client;
 use App\Services\ArService;
 use Illuminate\Http\Request;
 
-class AccountsReceivableController extends Controller
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+
+class AccountsReceivableController extends Controller implements HasMiddleware
 {
     public function __construct(private ArService $ar) {}
+
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver cxc', only: ['index', 'show']),
+            new Middleware('can:registrar cobros', only: ['charge']),
+        ];
+    }
 
    public function index(Request $request)
 {

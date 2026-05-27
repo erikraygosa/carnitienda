@@ -146,16 +146,19 @@
         </div>
     </div>
 
+
+</x-admin-layout>
+
+@push('js')
 <script>
 (function() {
-    var rolesData = {!! json_encode($rolesJson) !!};
+    var rolesData = @json($rolesJson);
 
-    var editor    = document.getElementById('role-editor');
-    var empty     = document.getElementById('role-empty');
-    var title     = document.getElementById('role-title');
-    var form      = document.getElementById('role-perm-form');
+    var editor = document.getElementById('role-editor');
+    var empty  = document.getElementById('role-empty');
+    var title  = document.getElementById('role-title');
+    var form   = document.getElementById('role-perm-form');
 
-    // Botones editar rol
     document.querySelectorAll('.btn-edit-role').forEach(function(btn) {
         btn.addEventListener('click', function() {
             var roleName = this.dataset.role;
@@ -163,13 +166,9 @@
             var role     = rolesData.find(function(r) { return r.name === roleName; });
             if (!role) return;
 
-            // Actualizar título
             title.textContent = roleName.charAt(0).toUpperCase() + roleName.slice(1);
-
-            // Actualizar action del form
             form.action = '/admin/roles/' + roleId;
 
-            // Marcar permisos
             document.querySelectorAll('.perm-chk').forEach(function(chk) {
                 chk.checked = role.permissions.indexOf(chk.value) !== -1;
             });
@@ -179,17 +178,12 @@
         });
     });
 
-    // Seleccionar todos por módulo
     document.querySelectorAll('.btn-check-all').forEach(function(btn) {
         btn.addEventListener('click', function() {
             var modulo = this.dataset.modulo;
-            var labels = document.querySelectorAll('.perm-label[data-modulo="' + modulo + '"]');
-            var chks   = [];
-            labels.forEach(function(l) {
-                var c = l.querySelector('.perm-chk');
-                if (c) chks.push(c);
-            });
-
+            var chks = Array.from(
+                document.querySelectorAll('.perm-label[data-modulo="' + modulo + '"] .perm-chk')
+            );
             var allChecked = chks.every(function(c) { return c.checked; });
             chks.forEach(function(c) { c.checked = !allChecked; });
             this.textContent = allChecked ? 'Seleccionar todos' : 'Deseleccionar todos';
@@ -197,5 +191,4 @@
     });
 })();
 </script>
-
-</x-admin-layout>
+@endpush

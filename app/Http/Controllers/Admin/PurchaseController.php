@@ -11,10 +11,21 @@ use App\Models\PurchaseOrder;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class PurchaseController extends Controller
+class PurchaseController extends Controller implements HasMiddleware
 {
-        public function index()
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver compras', only: ['index', 'edit']),
+            new Middleware('can:recibir compras', only: ['create', 'store', 'update', 'receive']),
+            new Middleware('can:cancelar ordenes de compra', only: ['cancel', 'destroy']),
+        ];
+    }
+
+    public function index()
     {
         $purchases = \App\Models\Purchase::with(['provider', 'warehouse'])
             ->orderBy('id', 'desc')

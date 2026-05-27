@@ -5,9 +5,21 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Provider;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class ProviderController extends Controller
+class ProviderController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver proveedores', only: ['index']),
+            new Middleware('can:crear proveedores', only: ['create', 'store']),
+            new Middleware('can:editar proveedores', only: ['edit', 'update']),
+            new Middleware('can:eliminar proveedores', only: ['destroy']),
+        ];
+    }
+
     public function index()
     {
         $providers = \App\Models\Provider::orderBy('nombre')->get();

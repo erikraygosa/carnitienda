@@ -5,10 +5,19 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class WarehouseController extends Controller
+class WarehouseController extends Controller implements HasMiddleware
 {
-        public function index()
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:gestionar almacenes'),
+        ];
+    }
+
+    public function index()
     {
         $warehouses = \App\Models\Warehouse::orderBy('nombre')->get();
         return view('admin.warehouses.index', compact('warehouses'));

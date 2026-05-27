@@ -9,10 +9,21 @@ use App\Models\Warehouse;
 use App\Services\CashService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class CashRegisterController extends Controller
+class CashRegisterController extends Controller implements HasMiddleware
 {
     public function __construct(private CashService $cash) {}
+
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver cajas', only: ['index', 'show', 'ticket', 'ticketPdf']),
+            new Middleware('can:abrir cajas', only: ['create', 'store']),
+            new Middleware('can:cerrar cajas', only: ['close']),
+        ];
+    }
 
     public function index()
     {

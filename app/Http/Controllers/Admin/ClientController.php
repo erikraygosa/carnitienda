@@ -12,9 +12,21 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class ClientController extends Controller
+class ClientController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver clientes', only: ['index', 'pricesData']),
+            new Middleware('can:crear clientes', only: ['create', 'store']),
+            new Middleware('can:editar clientes', only: ['edit', 'update', 'pricesSave']),
+            new Middleware('can:eliminar clientes', only: ['destroy']),
+        ];
+    }
+
     public function index()
 {
     $diasSemana = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'];

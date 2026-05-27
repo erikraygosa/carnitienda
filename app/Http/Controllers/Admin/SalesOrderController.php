@@ -23,11 +23,25 @@ use App\Mail\SalesOrderDeliveryNoteMailable;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class SalesOrderController extends Controller
+class SalesOrderController extends Controller implements HasMiddleware
 {
 
     use AuthorizesRequests;
+
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver pedidos', only: ['index', 'data']),
+            new Middleware('can:crear pedidos', only: ['create', 'store']),
+            new Middleware('can:editar pedidos', only: ['edit', 'update', 'approve', 'startPreparing', 'dispatchToRoute', 'deliver', 'notDelivered', 'recordCash', 'settleDriver', 'sendForm', 'send', 'pdf', 'pdfDownload']),
+            new Middleware('can:cancelar pedidos', only: ['cancel']),
+            // process() is gated by $this->authorize('procesar pedidos') inline
+        ];
+    }
+
     public function index()
 {
     return view('admin.sales_orders.index');

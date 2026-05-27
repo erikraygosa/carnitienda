@@ -8,9 +8,21 @@ use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class UserController extends Controller
+class UserController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver usuarios', only: ['index']),
+            new Middleware('can:crear usuarios', only: ['create', 'store']),
+            new Middleware('can:editar usuarios', only: ['edit', 'update']),
+            new Middleware('can:eliminar usuarios', only: ['destroy']),
+        ];
+    }
+
     public function index()
     {
         $users = User::with(['roles', 'warehouse'])

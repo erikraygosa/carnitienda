@@ -23,26 +23,43 @@ class RolesAndPermissionsSeeder extends Seeder
             // Productos
             'ver productos', 'crear productos', 'editar productos', 'eliminar productos',
 
+            // Categorías
+            'gestionar categorias',
+
             // Clientes
             'ver clientes', 'crear clientes', 'editar clientes', 'eliminar clientes',
 
             // Proveedores
             'ver proveedores', 'crear proveedores', 'editar proveedores', 'eliminar proveedores',
 
+            // Almacenes
+            'gestionar almacenes',
+
+            // Órdenes de compra / Compras
+            'ver ordenes de compra', 'crear ordenes de compra', 'editar ordenes de compra', 'cancelar ordenes de compra',
+            'ver compras', 'recibir compras',
+
+            // Stock / Inventario
+            'ver stock', 'gestionar traspasos',
+
+            // Cotizaciones
+            'ver cotizaciones', 'crear cotizaciones', 'editar cotizaciones', 'aprobar cotizaciones',
+
             // Pedidos
-            'ver pedidos', 'crear pedidos', 'editar pedidos', 'cancelar pedidos',
+            'ver pedidos', 'crear pedidos', 'editar pedidos', 'cancelar pedidos', 'procesar pedidos',
 
             // Despachos / Logística
             'ver despachos', 'crear despachos', 'editar despachos', 'cerrar despachos',
+            'salida de producto',
+
+            // Facturas
+            'ver facturas', 'crear facturas', 'timbrar facturas', 'cancelar facturas',
 
             // CxC
             'ver cxc', 'registrar cobros', 'ver reportes cxc',
 
             // POS
             'usar pos',
-
-            // Stock
-            'ver stock', 'gestionar traspasos',
 
             // Cajas
             'ver cajas', 'abrir cajas', 'cerrar cajas',
@@ -51,7 +68,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver reportes',
 
             // Configuración
-            'ver configuracion', 'editar configuracion',
+            'ver configuracion', 'editar configuracion', 'gestionar roles',
         ];
 
         foreach ($permisos as $permiso) {
@@ -65,8 +82,12 @@ class RolesAndPermissionsSeeder extends Seeder
         $ventas = Role::firstOrCreate(['name' => 'ventas']);
         $ventas->syncPermissions([
             'ver dashboard',
-            'ver productos', 'ver clientes',
+            'ver productos',
+            'ver clientes', 'crear clientes', 'editar clientes',
+            'ver cotizaciones', 'crear cotizaciones', 'editar cotizaciones', 'aprobar cotizaciones',
             'ver pedidos', 'crear pedidos', 'editar pedidos',
+            'procesar pedidos',
+            'ver facturas', 'crear facturas',
             'usar pos',
             'ver stock',
         ]);
@@ -74,9 +95,14 @@ class RolesAndPermissionsSeeder extends Seeder
         $logistica = Role::firstOrCreate(['name' => 'logistica']);
         $logistica->syncPermissions([
             'ver dashboard',
-            'ver pedidos',
-            'ver despachos', 'crear despachos', 'editar despachos', 'cerrar despachos',
+            'gestionar almacenes',
+            'ver ordenes de compra', 'crear ordenes de compra', 'editar ordenes de compra',
+            'ver compras', 'recibir compras',
             'ver stock', 'gestionar traspasos',
+            'ver pedidos',
+            'procesar pedidos',
+            'salida de producto',
+            'ver despachos', 'crear despachos', 'editar despachos', 'cerrar despachos',
         ]);
 
         $cxc = Role::firstOrCreate(['name' => 'cxc']);
@@ -84,6 +110,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver dashboard',
             'ver clientes',
             'ver pedidos',
+            'ver facturas',
             'ver cxc', 'registrar cobros', 'ver reportes cxc',
             'ver reportes',
         ]);

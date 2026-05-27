@@ -23,15 +23,33 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests; 
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class DispatchController extends Controller
+class DispatchController extends Controller implements HasMiddleware
 {
     public function __construct(
         private ArService        $ar,
         private InventoryService $inv,
         private CashService      $cash,
     ) {}
+
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver despachos', only: ['index', 'edit', 'printRuta', 'printLiquidacion']),
+            new Middleware('can:crear despachos', only: ['create', 'store']),
+            new Middleware('can:editar despachos', only: [
+                'update', 'preparar', 'cargar', 'enRuta', 'entregar', 'cancelar', 'destroy',
+                'entregarPedido', 'noEntregarPedido',
+                'completarTraspaso', 'noCompletarTraspaso',
+                'cobrarCxc', 'noCobrarCxc',
+                'bulkTraspasos', 'bulkPedidos', 'bulkCxc',
+            ]),
+            new Middleware('can:cerrar despachos', only: ['cerrar']),
+        ];
+    }
 
     public function index()
     {

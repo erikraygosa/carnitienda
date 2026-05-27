@@ -6,11 +6,22 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class ProductController extends Controller
+class ProductController extends Controller implements HasMiddleware
 {
-    /** Listado */
-        public function index()
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:ver productos', only: ['index', 'show']),
+            new Middleware('can:crear productos', only: ['create', 'store']),
+            new Middleware('can:editar productos', only: ['edit', 'update', 'despiece', 'subproductsData', 'subproductsStore', 'subproductsUpdate', 'subproductsDelete']),
+            new Middleware('can:eliminar productos', only: ['destroy']),
+        ];
+    }
+
+    public function index()
 {
     $products   = Product::with('category')->orderBy('id', 'desc')->get();
     $categories = \App\Models\Category::orderBy('nombre')->get();
