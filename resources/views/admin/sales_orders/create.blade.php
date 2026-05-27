@@ -319,41 +319,37 @@
             if (link && state.clientId) link.href = `${CLIENTS_EDIT_BASE}/${state.clientId}/edit`;
         }
 
+        // ── Portal global para el autocomplete (escapa overflow-auto) ───
+        const PROD_PORTAL = document.createElement('ul');
+        PROD_PORTAL.id = 'product-dropdown-portal';
+        PROD_PORTAL.className = 'fixed z-[9999] bg-white border border-gray-200 rounded shadow-md hidden max-h-48 overflow-y-auto text-sm list-none py-1';
+        document.body.appendChild(PROD_PORTAL);
+
+        let portalSelectFn = null;
+
+        function hidePortal() { PROD_PORTAL.classList.add('hidden'); portalSelectFn = null; }
+
+        function positionPortal(input) {
+            const r = input.getBoundingClientRect();
+            PROD_PORTAL.style.left  = r.left + 'px';
+            PROD_PORTAL.style.top   = (r.bottom + 2) + 'px';
+            PROD_PORTAL.style.width = Math.max(r.width, 240) + 'px';
+        }
+
+        document.addEventListener('scroll', hidePortal, true);
+        document.addEventListener('click', function(e) {
+            if (!PROD_PORTAL.contains(e.target)) hidePortal();
+        });
+
         // ── Autocomplete de producto ─────────────────────────────────────
         function attachProductSearch(tr, i) {
-            const input    = tr.querySelector('.inp-product-search');
-            const hidden   = tr.querySelector('.hid-product-id');
-            const dropdown = tr.querySelector('.product-dropdown');
-
-            function showDropdown(term) {
-                const t = term.toLowerCase().trim();
-                const matches = t.length === 0 ? [] : PRODUCTS.filter(p =>
-                    p.nombre.toLowerCase().includes(t) ||
-                    (p.sku && p.sku.toLowerCase().includes(t))
-                ).slice(0, 10);
-
-                dropdown.innerHTML = '';
-                if (matches.length === 0) { dropdown.classList.add('hidden'); return; }
-
-                matches.forEach(p => {
-                    const li = document.createElement('li');
-                    li.className = 'px-3 py-1.5 hover:bg-indigo-50 cursor-pointer flex justify-between items-center';
-                    li.innerHTML = `<span>${escHtml(p.nombre)}</span>`
-                                 + (p.sku ? `<span class="text-xs text-gray-400 ml-2">${escHtml(p.sku)}</span>` : '');
-                    li.addEventListener('mousedown', function(e) {
-                        e.preventDefault();
-                        selectProduct(p);
-                    });
-                    dropdown.appendChild(li);
-                });
-                dropdown.classList.remove('hidden');
-            }
+            const input  = tr.querySelector('.inp-product-search');
+            const hidden = tr.querySelector('.hid-product-id');
 
             function selectProduct(p) {
                 hidden.value = p.id;
                 input.value  = p.nombre;
 
-                // ← clave: guardar el nombre en state para que renderAll() lo recupere
                 state.items[i].product_id      = p.id;
                 state.items[i]._productoNombre = p.nombre;
 
@@ -366,7 +362,36 @@
                 tr.querySelector('.inp-precio').value = state.items[i].precio;
 
                 recalcRow(i);
-                dropdown.classList.add('hidden');
+                hidePortal();
+                input.focus();
+            }
+
+            function showDropdown(term) {
+                const t = term.toLowerCase().trim();
+                const matches = t.length === 0 ? [] : PRODUCTS.filter(p =>
+                    p.nombre.toLowerCase().includes(t) ||
+                    (p.sku && p.sku.toLowerCase().includes(t))
+                ).slice(0, 12);
+
+                PROD_PORTAL.innerHTML = '';
+                if (matches.length === 0) { hidePortal(); return; }
+
+                portalSelectFn = selectProduct;
+
+                matches.forEach(p => {
+                    const li = document.createElement('li');
+                    li.className = 'px-3 py-1.5 hover:bg-indigo-50 cursor-pointer flex justify-between items-center';
+                    li.innerHTML = `<span class="truncate">${escHtml(p.nombre)}</span>`
+                                 + (p.sku ? `<span class="text-xs text-gray-400 ml-2 shrink-0">${escHtml(p.sku)}</span>` : '');
+                    li.addEventListener('mousedown', function(e) {
+                        e.preventDefault();
+                        selectProduct(p);
+                    });
+                    PROD_PORTAL.appendChild(li);
+                });
+
+                positionPortal(input);
+                PROD_PORTAL.classList.remove('hidden');
             }
 
             input.addEventListener('input', function() {
@@ -383,7 +408,7 @@
             });
 
             input.addEventListener('blur', function() {
-                setTimeout(() => dropdown.classList.add('hidden'), 150);
+                setTimeout(hidePortal, 150);
             });
         }
 
@@ -394,14 +419,13 @@
             tr.className   = 'border-b';
             tr.dataset.idx = i;
             tr.innerHTML = `
-                <td class="p-2 relative">
+                <td class="p-2">
                     <input type="hidden" class="hid-product-id" name="items[${i}][product_id]" value="${escHtml(String(it.product_id || ''))}">
                     <input type="text"
                            class="w-52 border rounded p-1 text-sm inp-product-search"
                            placeholder="Buscar por nombre o SKU..."
                            autocomplete="off"
                            value="${escHtml(it._productoNombre || '')}">
-                    <ul class="product-dropdown absolute z-50 bg-white border border-gray-200 rounded shadow-md w-64 mt-1 hidden max-h-48 overflow-y-auto text-sm list-none"></ul>
                 </td>
                 <td class="p-2">
                     <input type="text" class="w-64 border rounded p-1 text-sm inp-desc"
