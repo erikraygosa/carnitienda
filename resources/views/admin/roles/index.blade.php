@@ -48,9 +48,8 @@
                         </div>
                         <div class="flex gap-1">
                             <button type="button"
-                                    data-role="{{ $role->name }}"
-                                    data-role-id="{{ $role->id }}"
-                                    class="btn-edit-role px-2 py-1 text-xs rounded border border-current hover:opacity-70">
+                                    onclick="rolesSelectRole('{{ $role->name }}', {{ $role->id }})"
+                                    class="px-2 py-1 text-xs rounded border border-current hover:opacity-70">
                                 Editar
                             </button>
                             @if(!in_array($role->name, ['admin','superadmin']))
@@ -105,8 +104,8 @@
                             <div class="px-3 py-2 bg-gray-50 border-b flex items-center justify-between">
                                 <span class="text-xs font-semibold text-gray-600 uppercase">{{ $modulo }}</span>
                                 <button type="button"
-                                        class="btn-check-all text-xs text-indigo-600 hover:underline"
-                                        data-modulo="{{ $modulo }}">
+                                        onclick="rolesToggleModule(this, '{{ $modulo }}')"
+                                        class="text-xs text-indigo-600 hover:underline">
                                     Seleccionar todos
                                 </button>
                             </div>
@@ -146,49 +145,34 @@
         </div>
     </div>
 
+    <script>
+    var __rolesData = @json($rolesJson);
+
+    function rolesSelectRole(roleName, roleId) {
+        var role = __rolesData.find(function(r) { return r.name === roleName; });
+        if (!role) return;
+
+        document.getElementById('role-title').textContent =
+            roleName.charAt(0).toUpperCase() + roleName.slice(1);
+
+        document.getElementById('role-perm-form').action = '/admin/roles/' + roleId;
+
+        document.querySelectorAll('.perm-chk').forEach(function(chk) {
+            chk.checked = role.permissions.indexOf(chk.value) !== -1;
+        });
+
+        document.getElementById('role-editor').classList.remove('hidden');
+        document.getElementById('role-empty').classList.add('hidden');
+    }
+
+    function rolesToggleModule(btn, modulo) {
+        var chks = Array.from(
+            document.querySelectorAll('.perm-label[data-modulo="' + modulo + '"] .perm-chk')
+        );
+        var allChecked = chks.every(function(c) { return c.checked; });
+        chks.forEach(function(c) { c.checked = !allChecked; });
+        btn.textContent = allChecked ? 'Seleccionar todos' : 'Deseleccionar todos';
+    }
+    </script>
 
 </x-admin-layout>
-
-@push('js')
-<script>
-(function() {
-    var rolesData = @json($rolesJson);
-
-    var editor = document.getElementById('role-editor');
-    var empty  = document.getElementById('role-empty');
-    var title  = document.getElementById('role-title');
-    var form   = document.getElementById('role-perm-form');
-
-    document.querySelectorAll('.btn-edit-role').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var roleName = this.dataset.role;
-            var roleId   = this.dataset.roleId;
-            var role     = rolesData.find(function(r) { return r.name === roleName; });
-            if (!role) return;
-
-            title.textContent = roleName.charAt(0).toUpperCase() + roleName.slice(1);
-            form.action = '/admin/roles/' + roleId;
-
-            document.querySelectorAll('.perm-chk').forEach(function(chk) {
-                chk.checked = role.permissions.indexOf(chk.value) !== -1;
-            });
-
-            editor.classList.remove('hidden');
-            empty.classList.add('hidden');
-        });
-    });
-
-    document.querySelectorAll('.btn-check-all').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var modulo = this.dataset.modulo;
-            var chks = Array.from(
-                document.querySelectorAll('.perm-label[data-modulo="' + modulo + '"] .perm-chk')
-            );
-            var allChecked = chks.every(function(c) { return c.checked; });
-            chks.forEach(function(c) { c.checked = !allChecked; });
-            this.textContent = allChecked ? 'Seleccionar todos' : 'Deseleccionar todos';
-        });
-    });
-})();
-</script>
-@endpush
