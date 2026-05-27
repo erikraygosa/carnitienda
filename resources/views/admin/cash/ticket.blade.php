@@ -143,6 +143,40 @@
             </tbody>
         </table>
 
+        @if($register->posSales->isNotEmpty())
+        <hr class="mt-2">
+        <div class="center small bold">Notas de venta POS ({{ $register->posSales->count() }})</div>
+        <table>
+            <thead>
+                <tr>
+                    <th class="left xs">#</th>
+                    <th class="left xs">Hora</th>
+                    <th class="left xs">Método</th>
+                    <th class="right xs">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($register->posSales as $venta)
+                <tr>
+                    <td class="xs">{{ $venta->id }}</td>
+                    <td class="xs">{{ $venta->created_at->format('H:i') }}</td>
+                    <td class="xs">{{ $venta->metodo_pago }}</td>
+                    <td class="xs right">${{ number_format($venta->total, 2) }}</td>
+                </tr>
+                @foreach($venta->items as $item)
+                <tr>
+                    <td class="xs" colspan="2" style="padding-left:8px;">
+                        {{ \Illuminate\Support\Str::limit($item->product?->nombre ?? 'Producto', 20) }}
+                    </td>
+                    <td class="xs">x{{ $item->cantidad }}</td>
+                    <td class="xs right">${{ number_format($item->subtotal, 2) }}</td>
+                </tr>
+                @endforeach
+                @endforeach
+            </tbody>
+        </table>
+        @endif
+
         <hr class="mt-2">
         <div class="center xs">¡Gracias!</div>
         @if($company?->sitio_web)

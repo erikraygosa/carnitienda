@@ -70,6 +70,8 @@ class POSController extends Controller implements HasMiddleware
       'items.*.impuestos'=>'nullable|numeric|min:0',
     ]);
     $reg = CashRegister::findOrFail($data['cash_register_id']);
+    abort_if($reg->user_id !== auth()->id(), 403, 'No puedes usar esta caja.');
+    abort_if($reg->estatus !== 'ABIERTO', 422, 'La caja no está abierta.');
     $sale = $this->pos->createSale($reg, $data, $data['items']);
     session()->flash('swal',['icon'=>'success','title'=>'Venta registrada','text'=>'La venta fue generada.']);
     return redirect()->route('admin.pos.ticket', $sale);

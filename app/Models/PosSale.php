@@ -11,4 +11,5 @@ class PosSale extends Model {
   public function warehouse(){ return $this->belongsTo(Warehouse::class); }
   public function user(){ return $this->belongsTo(User::class); }
   public function client(){ return $this->belongsTo(Client::class); }
+  public function cashRegister(){ return $this->belongsTo(CashRegister::class); }
 }

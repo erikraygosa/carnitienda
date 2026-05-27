@@ -85,14 +85,14 @@ class CashRegisterController extends Controller implements HasMiddleware
 
     public function ticket(CashRegister $cash)
     {
-        $cash->load(['user:id,name', 'warehouse:id,nombre', 'movements']);
+        $cash->load(['user:id,name', 'warehouse:id,nombre', 'movements', 'posSales.items.product']);
         $company = Company::first();
         return view('admin.cash.ticket', ['register' => $cash, 'company' => $company]);
     }
 
     public function ticketPdf(CashRegister $cash)
     {
-        $cash->load(['movements', 'user', 'warehouse']);
+        $cash->load(['movements', 'user', 'warehouse', 'posSales.items.product']);
         $company  = Company::first();
         $register = $cash;
 
