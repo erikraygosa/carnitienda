@@ -225,13 +225,11 @@ public function data(Request $request)
                 $subtotal += $line_sub; $descuento += $line_desc; $impuestos += $line_tax; $total += $line_tot;
             }
 
-            $nextId = (SalesOrder::max('id') ?? 0) + 1;
-
             $order = SalesOrder::create([
                 'client_id'      => $data['client_id'] ?? null,
                 'warehouse_id'   => $data['warehouse_id'],
                 'price_list_id'  => $data['price_list_id'] ?? null,
-                'folio'          => 'SO-'.now()->format('Ymd').'-'.Str::padLeft((string)$nextId, 4, '0'),
+                'folio'          => 'TEMP-' . uniqid(),
                 'fecha'          => $data['fecha'],
                 'programado_para'=> $data['programado_para'] ?? null,
 
@@ -262,6 +260,10 @@ public function data(Request $request)
 
                 // Contraentrega: se espera cobrar "total" salvo que manejes redondeos/comisiones
                 'contraentrega_total' => $data['payment_method'] === 'CONTRAENTREGA' ? $total : 0,
+            ]);
+
+            $order->updateQuietly([
+                'folio' => 'SO-' . now()->format('Ymd') . '-' . Str::padLeft((string) $order->id, 4, '0'),
             ]);
 
             foreach ($data['items'] as $it) {
@@ -305,8 +307,8 @@ public function data(Request $request)
 
     public function update(Request $request, SalesOrder $sales_order)
     {
-        if ($sales_order->status !== 'BORRADOR') {
-            return back()->with('swal',['icon'=>'error','title'=>'Error','text'=>'Solo borrador puede editarse.']);
+        if (!in_array($sales_order->status, ['BORRADOR', 'PREPARANDO'])) {
+            return back()->with('swal',['icon'=>'error','title'=>'Error','text'=>'Solo BORRADOR o PREPARANDO puede editarse.']);
         }
 
         $data = $request->validate([
@@ -466,8 +468,8 @@ public function approve(SalesOrder $order)
 
     public function dispatchToRoute(SalesOrder $order)
     {
-        if ($order->status !== 'PROCESADO') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo PROCESADO puede salir a ruta.']);
+        if (!in_array($order->status, ['PROCESADO', 'NO_ENTREGADO'])) {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Debe estar PROCESADO o NO_ENTREGADO para salir a ruta.']);
         }
         if (!$order->driver_id) {
             return back()->with('swal',['icon'=>'warning','title'=>'Sin chofer','text'=>'Asigna un chofer antes de salir a ruta.']);
@@ -559,6 +561,10 @@ public function approve(SalesOrder $order)
     \App\Services\ArService $ar,
     \App\Services\CashService $cash
 ) {
+    if ($order->payment_method === 'CREDITO') {
+        return back()->with('swal',['icon'=>'error','title'=>'Error','text'=>'Los pedidos a crédito no se liquidan aquí — ver CxC.']);
+    }
+
     $request->validate([
         'monto_entregado' => 'required|numeric|min:0',
         'payment_type_id' => 'required|exists:payment_types,id',

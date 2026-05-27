@@ -347,7 +347,10 @@
                     <form action="{{ route('admin.sales-orders.deliver',$order) }}" method="POST">@csrf
                         <x-wire-button type="submit" emerald xs>Entregar</x-wire-button>
                     </form>
-                    <form action="{{ route('admin.sales-orders.not-delivered',$order) }}" method="POST">@csrf
+                    <form action="{{ route('admin.sales-orders.not-delivered',$order) }}" method="POST" class="inline-flex items-center gap-1">
+                        @csrf
+                        <input type="text" name="nota" placeholder="Motivo (opcional)"
+                               class="w-36 border rounded px-2 py-1 text-xs text-gray-700">
                         <x-wire-button type="submit" gray xs>No entregado</x-wire-button>
                     </form>
                     @if($order->payment_method === 'CONTRAENTREGA')
@@ -370,7 +373,7 @@
         </div>
 
         {{-- Liquidación chofer --}}
-        @if(in_array($order->status, ['ENTREGADO','NO_ENTREGADO']) && ($order->driver_settlement_status ?? '') !== 'LIQUIDADO')
+        @if(in_array($order->status, ['ENTREGADO','NO_ENTREGADO']) && $order->payment_method !== 'CREDITO' && ($order->driver_settlement_status ?? '') !== 'LIQUIDADO')
         <div class="mt-4 border-t pt-4">
             <p class="text-sm font-medium text-gray-700 mb-3">Liquidar cobro del chofer</p>
             <form method="POST" action="{{ route('admin.sales-orders.liquidar',$order) }}">
