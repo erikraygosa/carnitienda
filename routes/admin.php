@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\DispatchController;
 use App\Http\Controllers\Admin\DriverCashRegisterController;
 use App\Http\Controllers\Admin\AccountsReceivableController;
 use App\Http\Controllers\Admin\ArPaymentsController;
+use App\Http\Controllers\Admin\ArComplementosController;
 use App\Http\Controllers\Admin\CashRegisterController;
 use App\Http\Controllers\Admin\CashMovementController;
 use App\Http\Controllers\Admin\POSController;
@@ -28,6 +29,8 @@ use App\Http\Controllers\Admin\CompanyController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\DispatchPanelController;
+use App\Http\Controllers\Admin\ReportesController;
+use App\Http\Controllers\Admin\AuditoriaController;
 
 
 Route::get('/', [DashboardController::class, 'index'])
@@ -202,7 +205,13 @@ Route::post('dispatches/{dispatch}/cxc/{assignment}/cobrar', [DispatchController
 Route::prefix('ar')->name('ar.')->group(function () {
     Route::get('/',                [AccountsReceivableController::class,'index'])->name('index');
     Route::get('/cliente/{client}',[AccountsReceivableController::class,'show'])->name('show');
-    Route::post('/cliente/{client}/cargo',[AccountsReceivableController::class,'charge'])->name('charge'); // opcional
+    Route::post('/cliente/{client}/cargo',[AccountsReceivableController::class,'charge'])->name('charge');
+
+    Route::prefix('complementos')->name('complementos.')->group(function () {
+        Route::get('/',       [ArComplementosController::class, 'index'])->name('index');
+        Route::get('/create', [ArComplementosController::class, 'create'])->name('create');
+        Route::post('/',      [ArComplementosController::class, 'store'])->name('store');
+    });
 });
 Route::prefix('ar-payments')->name('ar-payments.')->group(function () {
     Route::get('/notas',        [ArPaymentsController::class, 'notas'])->name('notas');
@@ -311,6 +320,20 @@ Route::prefix('roles')->name('roles.')->group(function () {
     Route::post('/permissions',            [RoleController::class, 'storePermission'])->name('permissions.store');
     Route::delete('/permissions/{permission}', [RoleController::class, 'destroyPermission'])->name('permissions.destroy');
 });
+
+Route::prefix('reportes')->name('reportes.')->group(function () {
+    Route::get('notas-de-venta',              [ReportesController::class, 'notasDeVenta'])->name('notas-de-venta');
+    Route::get('notas-de-venta/data',         [ReportesController::class, 'notasDeVentaData'])->name('notas-de-venta.data');
+    Route::get('notas-de-venta/export',       [ReportesController::class, 'notasDeVentaExport'])->name('notas-de-venta.export');
+    Route::get('ventas-por-producto',         [ReportesController::class, 'ventasPorProducto'])->name('ventas-por-producto');
+    Route::get('ventas-por-producto/data',    [ReportesController::class, 'ventasPorProductoData'])->name('ventas-por-producto.data');
+    Route::get('ventas-por-producto/export',  [ReportesController::class, 'ventasPorProductoExport'])->name('ventas-por-producto.export');
+    Route::get('liquidaciones',               [ReportesController::class, 'liquidaciones'])->name('liquidaciones');
+    Route::get('liquidaciones/data',          [ReportesController::class, 'liquidacionesData'])->name('liquidaciones.data');
+    Route::get('liquidaciones/export',        [ReportesController::class, 'liquidacionesExport'])->name('liquidaciones.export');
+});
+
+Route::get('auditoria', [AuditoriaController::class, 'index'])->name('auditoria.index');
 
 Route::prefix('despacho')->name('despacho.')->middleware(['can:salida de producto'])->group(function () {
     Route::get('/',                        [DispatchPanelController::class, 'index'])->name('panel');

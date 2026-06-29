@@ -18,18 +18,102 @@ class RoleController extends Controller implements HasMiddleware
         ];
     }
 
+    // Orden y etiquetas de los grupos en la UI
+    protected const GRUPOS = [
+        'dashboard'      => 'Dashboard',
+        'usuarios'       => 'Usuarios',
+        'productos'      => 'Productos & Catálogo',
+        'clientes'       => 'Clientes',
+        'proveedores'    => 'Proveedores',
+        'compras'        => 'Compras',
+        'inventario'     => 'Inventario & Stock',
+        'ventas'         => 'Ventas & Pedidos',
+        'despachos'      => 'Logística & Despacho',
+        'facturas'       => 'Facturación',
+        'cxc'            => 'Cuentas por Cobrar',
+        'pos'            => 'Punto de Venta',
+        'cajas'          => 'Cajas',
+        'reportes'       => 'Reportes',
+        'auditoria'      => 'Auditoría',
+        'configuracion'  => 'Configuración',
+        'otros'          => 'Otros',
+    ];
+
+    protected function grupoDePermiso(string $name): string
+    {
+        // Reportes (cualquier variante)
+        if ($name === 'ver reportes' || str_starts_with($name, 'ver reporte ') || str_starts_with($name, 'ver reportes')) {
+            return 'reportes';
+        }
+        // CxC
+        if (in_array($name, ['ver cxc', 'registrar cobros', 'ver reportes cxc', 'crear facturas'])) {
+            return 'cxc';
+        }
+        // Inventario
+        if (in_array($name, ['ver stock', 'gestionar traspasos', 'gestionar almacenes'])) {
+            return 'inventario';
+        }
+        // Logística / Despacho
+        if (str_starts_with($name, 'ver despacho') || str_starts_with($name, 'crear despacho') ||
+            str_starts_with($name, 'editar despacho') || str_starts_with($name, 'cerrar despacho') ||
+            $name === 'salida de producto') {
+            return 'despachos';
+        }
+        // Ventas & Pedidos
+        if (in_array($name, ['procesar pedidos', 'cancelar pedidos']) ||
+            str_starts_with($name, 'ver pedido') || str_starts_with($name, 'crear pedido') ||
+            str_starts_with($name, 'editar pedido') || str_starts_with($name, 'aprobar ') ||
+            str_starts_with($name, 'ver cotizaci') || str_starts_with($name, 'crear cotizaci') ||
+            str_starts_with($name, 'editar cotizaci')) {
+            return 'ventas';
+        }
+        // Compras
+        if (str_starts_with($name, 'ver orden') || str_starts_with($name, 'crear orden') ||
+            str_starts_with($name, 'editar orden') || str_starts_with($name, 'cancelar orden') ||
+            str_starts_with($name, 'ver compra') || $name === 'recibir compras') {
+            return 'compras';
+        }
+        // Productos
+        if (str_starts_with($name, 'gestionar categ') || str_starts_with($name, 'ver producto') ||
+            str_starts_with($name, 'crear producto') || str_starts_with($name, 'editar producto') ||
+            str_starts_with($name, 'eliminar producto')) {
+            return 'productos';
+        }
+        // Facturas
+        if (str_starts_with($name, 'ver factura') || str_starts_with($name, 'timbrar') ||
+            str_starts_with($name, 'cancelar factura')) {
+            return 'facturas';
+        }
+        // Configuración (gestionar roles no cae por segunda palabra)
+        if ($name === 'gestionar roles') return 'configuracion';
+        // Default: segunda palabra del nombre
+        $segunda = explode(' ', $name)[1] ?? 'otros';
+        return array_key_exists($segunda, self::GRUPOS) ? $segunda : 'otros';
+    }
+
     public function index(Request $request)
     {
         $roles = Role::with('permissions')->orderBy('name')->get();
-        $permissions = Permission::orderBy('name')->get()->groupBy(function ($p) {
-            return explode(' ', $p->name)[1] ?? 'general';
-        });
+
+        $allPerms = Permission::orderBy('name')->get();
+
+        // Agrupar con lógica semántica
+        $grouped = $allPerms->groupBy(fn($p) => $this->grupoDePermiso($p->name));
+
+        // Ordenar grupos según el orden definido en GRUPOS
+        $grupoOrder = array_keys(self::GRUPOS);
+        $permissions = collect(self::GRUPOS)
+            ->keys()
+            ->mapWithKeys(fn($key) => [$key => $grouped->get($key, collect())])
+            ->filter(fn($g) => $g->isNotEmpty());
 
         $selectedRole = $request->filled('role')
             ? $roles->firstWhere('id', (int) $request->input('role'))
             : null;
 
-        return view('admin.roles.index', compact('roles', 'permissions', 'selectedRole'));
+        $grupoLabels = self::GRUPOS;
+
+        return view('admin.roles.index', compact('roles', 'permissions', 'selectedRole', 'grupoLabels'));
     }
 
     public function store(Request $request)

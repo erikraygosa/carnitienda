@@ -103,7 +103,7 @@
                         @php $modulePerms = $perms->pluck('name')->all(); @endphp
                         <div class="border rounded-lg overflow-hidden">
                             <div class="px-3 py-2 bg-gray-50 border-b flex items-center justify-between">
-                                <span class="text-xs font-semibold text-gray-600 uppercase">{{ $modulo }}</span>
+                                <span class="text-xs font-semibold text-gray-600 uppercase">{{ $grupoLabels[$modulo] ?? $modulo }}</span>
                                 <button type="button"
                                         onclick="toggleModule(this)"
                                         class="text-xs text-indigo-600 hover:underline">

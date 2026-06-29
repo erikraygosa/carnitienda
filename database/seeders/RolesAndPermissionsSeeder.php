@@ -66,6 +66,12 @@ class RolesAndPermissionsSeeder extends Seeder
 
             // Reportes
             'ver reportes',
+            'ver reporte notas de venta',
+            'ver reporte ventas por producto',
+            'ver reporte liquidaciones',
+
+            // Auditoría
+            'ver auditoria',
 
             // Configuración
             'ver configuracion', 'editar configuracion', 'gestionar roles',
@@ -90,6 +96,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver facturas', 'crear facturas',
             'usar pos',
             'ver stock',
+            'ver reporte notas de venta',
+            'ver reporte ventas por producto',
         ]);
 
         $logistica = Role::firstOrCreate(['name' => 'logistica']);
@@ -103,6 +111,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'procesar pedidos',
             'salida de producto',
             'ver despachos', 'crear despachos', 'editar despachos', 'cerrar despachos',
+            'ver reporte liquidaciones',
         ]);
 
         $cxc = Role::firstOrCreate(['name' => 'cxc']);
@@ -113,6 +122,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver facturas',
             'ver cxc', 'registrar cobros', 'ver reportes cxc',
             'ver reportes',
+            'ver reporte notas de venta',
+            'ver reporte ventas por producto',
+            'ver reporte liquidaciones',
         ]);
 
         $pos = Role::firstOrCreate(['name' => 'pos']);
@@ -126,7 +138,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver dashboard',
             'ver cajas', 'abrir cajas', 'cerrar cajas',
             'usar pos',
-            'ver reportes',
+            'ver reporte notas de venta',
         ]);
     }
 }
