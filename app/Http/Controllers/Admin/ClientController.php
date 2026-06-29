@@ -264,6 +264,7 @@ class ClientController extends Controller implements HasMiddleware
     $page    = (int) $request->get('page', 1);
 
     $q = \App\Models\Product::select('id','sku','nombre','precio_base')
+        ->active()
         ->orderBy('nombre')
         ->when($search, fn($q) => $q->where(fn($q) =>
             $q->where('nombre','like',"%$search%")
