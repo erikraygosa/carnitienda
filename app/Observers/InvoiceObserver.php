@@ -14,10 +14,16 @@ class InvoiceObserver
 
     public function updated(Invoice $i): void
     {
+        $svc = app(DocumentLogService::class);
+        $userId = auth()->id() ?? $i->owner_id;
+
         if ($i->wasChanged('estatus')) {
-            $old = $i->getOriginal('estatus');
-            $new = $i->estatus;
-            app(DocumentLogService::class)->log($i, 'STATUS_CHANGED', $old, $new, $i->owner_id);
+            $svc->log($i, 'STATUS_CHANGED', $i->getOriginal('estatus'), $i->estatus, $userId);
+        }
+
+        $changes = $svc->diff($i, ['estatus']);
+        if ($changes) {
+            $svc->log($i, 'UPDATED', null, null, $userId, null, $changes);
         }
     }
 }
