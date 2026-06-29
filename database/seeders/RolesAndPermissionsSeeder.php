@@ -64,6 +64,9 @@ class RolesAndPermissionsSeeder extends Seeder
             // Cajas
             'ver cajas', 'abrir cajas', 'cerrar cajas',
 
+            // Caja de repartidores / liquidaciones
+            'gestionar liquidaciones repartidores',
+
             // Reportes
             'ver reportes',
             'ver reporte notas de venta',
@@ -112,6 +115,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'salida de producto',
             'ver despachos', 'crear despachos', 'editar despachos', 'cerrar despachos',
             'ver reporte liquidaciones',
+            'gestionar liquidaciones repartidores',
         ]);
 
         $cxc = Role::firstOrCreate(['name' => 'cxc']);
@@ -125,6 +129,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver reporte notas de venta',
             'ver reporte ventas por producto',
             'ver reporte liquidaciones',
+            'gestionar liquidaciones repartidores',
         ]);
 
         $pos = Role::firstOrCreate(['name' => 'pos']);

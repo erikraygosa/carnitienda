@@ -144,7 +144,7 @@ return [
     */
 
     'features' => [
-        Features::registration(),
+        // Features::registration(), // deshabilitado: las cuentas se crean solo desde el panel admin
         Features::resetPasswords(),
         // Features::emailVerification(),
         Features::updateProfileInformation(),

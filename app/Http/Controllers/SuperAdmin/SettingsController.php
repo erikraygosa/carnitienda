@@ -23,6 +23,7 @@ class SettingsController extends Controller
         $data = $request->validate([
             'app.nombre'                 => ['nullable', 'string', 'max:100'],
             'app.timezone'               => ['nullable', 'string', 'max:50'],
+            'app.logo'                   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'facturacion.version_cfdi'   => ['nullable', 'string', 'max:5'],
             'facturacion.exportacion'    => ['nullable', 'string', 'max:2'],
             'facturacion.alerta_timbres' => ['nullable', 'integer', 'min:1'],
@@ -31,7 +32,7 @@ class SettingsController extends Controller
         ]);
 
         foreach ($data as $clave => $valor) {
-            if ($valor !== null) {
+            if ($valor !== null && !($valor instanceof \Illuminate\Http\UploadedFile)) {
                 SystemSetting::set($clave, $valor, is_int($valor) ? 'integer' : 'string');
             }
         }

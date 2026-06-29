@@ -8,9 +8,18 @@ use App\Models\DriverCashRegister;
 use App\Services\DriverCashService;
 use Illuminate\Http\Request;
 use App\Models\Dispatch;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class DriverCashRegisterController extends Controller
+class DriverCashRegisterController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:gestionar liquidaciones repartidores'),
+        ];
+    }
+
     public function __construct(private DriverCashService $cash) {}
 
    public function index(Request $request)
