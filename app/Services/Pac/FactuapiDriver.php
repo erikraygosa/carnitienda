@@ -4,6 +4,7 @@ namespace App\Services\Pac;
 
 use App\Models\Company;
 use App\Models\Invoice;
+use App\Models\InvoiceComplementDoc;
 use App\Models\InvoiceSeries;
 use App\Models\PacConfiguration;
 use Illuminate\Support\Facades\Http;
@@ -162,8 +163,91 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
     // ------------------------------------------------------------------
     // Construir payload para Factuapi
     // ------------------------------------------------------------------
-        protected function buildPayload(Invoice $invoice, Company $company): array
-{
+    protected function buildPayload(Invoice $invoice, Company $company): array
+    {
+        if ($invoice->tipo_comprobante === 'P') {
+            return $this->buildPaymentComplementPayload($invoice, $company);
+        }
+
+        return $this->buildIngresoPayload($invoice, $company);
+    }
+
+    protected function buildPaymentComplementPayload(Invoice $invoice, Company $company): array
+    {
+        $cliente = $invoice->client;
+        $payment = $invoice->arPayment?->load('paymentType');
+        $docs    = $invoice->complementDocs()->with('relatedInvoice.items')->get();
+
+        $relatedDocuments = $docs->map(function (InvoiceComplementDoc $doc) {
+            $ri = $doc->relatedInvoice;
+
+            // Tasa IVA promedio de los conceptos de la factura original
+            $tasaIva  = (float) ($ri->items->avg('iva_pct')  ?? 16);
+            $tasaIeps = (float) ($ri->items->avg('ieps_pct') ?? 0);
+            $tasaIvaDecimal  = round($tasaIva  / 100, 4);
+            $tasaIepsDecimal = round($tasaIeps / 100, 4);
+
+            $base = $tasaIva > 0
+                ? round((float) $doc->imp_pagado / (1 + $tasaIvaDecimal), 2)
+                : (float) $doc->imp_pagado;
+
+            $taxes = [];
+            if ($tasaIva > 0) {
+                $taxes[] = [
+                    'base'   => $base,
+                    'type'   => 'IVA',
+                    'rate'   => $tasaIvaDecimal,
+                    'factor' => 'Tasa',
+                ];
+            }
+            if ($tasaIeps > 0) {
+                $taxes[] = [
+                    'base'   => $base,
+                    'type'   => 'IEPS',
+                    'rate'   => $tasaIepsDecimal,
+                    'factor' => 'Tasa',
+                ];
+            }
+
+            return [
+                'tax_object'   => '02',
+                'uuid'         => $ri->uuid,
+                'installment'  => $doc->num_parcialidad,
+                'last_balance' => (float) $doc->imp_saldo_anterior,
+                'amount_paid'  => (float) $doc->imp_pagado,
+                'taxes'        => $taxes,
+            ];
+        })->values()->toArray();
+
+        $paymentDate = $payment?->fecha
+            ? \Carbon\Carbon::parse($payment->fecha)->startOfDay()->toIso8601String()
+            : now()->toIso8601String();
+
+        return [
+            'type'     => 'P',
+            'customer' => [
+                'legal_name' => $cliente?->razon_social ?? $cliente?->nombre ?? 'PÚBLICO EN GENERAL',
+                'tax_id'     => $cliente?->rfc ?? 'XAXX010101000',
+                'tax_system' => $invoice->regimen_fiscal_receptor ?? '616',
+                'address'    => [
+                    'zip' => $cliente?->fiscal_cp ?? $cliente?->cp ?? '06600',
+                ],
+            ],
+            'complements' => [[
+                'type' => 'pago',
+                'data' => [[
+                    'payment_form' => $payment?->paymentType?->clave ?? '99',
+                    'currency'     => 'MXN',
+                    'amount'       => (float) ($payment?->monto ?? 0),
+                    'date'         => $paymentDate,
+                    'related_documents' => $relatedDocuments,
+                ]],
+            ]],
+        ];
+    }
+
+    protected function buildIngresoPayload(Invoice $invoice, Company $company): array
+    {
     $fiscalData = $company->fiscalData;
     $cliente    = $invoice->client;
 

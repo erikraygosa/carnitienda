@@ -39,4 +39,9 @@ class ArPayment extends Model
     {
         return $this->belongsTo(PaymentType::class, 'payment_type_id');
     }
+
+    public function complementInvoice()
+    {
+        return $this->hasOne(Invoice::class, 'ar_payment_id');
+    }
 }

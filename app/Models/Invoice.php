@@ -9,7 +9,7 @@ class Invoice extends Model
 {
      use BelongsToCompany;
     protected $fillable = [
-        'client_id','sales_order_id','sale_id',
+        'client_id','sales_order_id','sale_id','ar_payment_id',
         'serie','folio','fecha','tipo_comprobante',
         'lugar_expedicion','exportacion',
         'regimen_fiscal_emisor','regimen_fiscal_receptor',
@@ -28,10 +28,12 @@ class Invoice extends Model
     ];
 
     // Relaciones
-    public function items()       { return $this->hasMany(InvoiceItem::class); }
-    public function client()      { return $this->belongsTo(Client::class); }
-    public function salesOrder()  { return $this->belongsTo(SalesOrder::class); }
-    public function sale()        { return $this->belongsTo(Sale::class); }
+    public function items()          { return $this->hasMany(InvoiceItem::class); }
+    public function client()         { return $this->belongsTo(Client::class); }
+    public function salesOrder()     { return $this->belongsTo(SalesOrder::class); }
+    public function sale()           { return $this->belongsTo(Sale::class); }
+    public function arPayment()      { return $this->belongsTo(ArPayment::class); }
+    public function complementDocs() { return $this->hasMany(InvoiceComplementDoc::class); }
 
     // Helpers de estado
     public function isDraft()     { return $this->estatus === 'BORRADOR'; }
