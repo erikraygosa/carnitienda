@@ -20,6 +20,8 @@ class Product extends Model
         'sat_tasa_iva',          // Tasa IVA decimal  — 0.160000, 0.080000, 0.000000
         'sat_tasa_ieps',         // Tasa IEPS decimal — null si no aplica
         'sat_no_identificacion', // NoIdentificacion  — null = usa SKU o ID
+
+        'created_by', 'updated_by',
     ];
 
     protected $casts = [

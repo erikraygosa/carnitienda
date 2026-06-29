@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Traits\BelongsToCompany;
 
@@ -75,6 +76,7 @@ class SalesOrder extends Model
     public function items(): HasMany            { return $this->hasMany(SalesOrderItem::class); }
     public function cobradoConfirmadoPor(): BelongsTo { return $this->belongsTo(User::class,'cobrado_confirmado_por'); }
     public function posRegister(): BelongsTo    { return $this->belongsTo(PosRegister::class,'pos_register_id'); }
+    public function invoice(): HasOne           { return $this->hasOne(Invoice::class)->whereIn('tipo_comprobante', ['I','E']); }
 
     // === Etiquetas de estado ===
     public function getStatusLabelAttribute(): string
