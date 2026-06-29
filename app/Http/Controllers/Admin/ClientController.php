@@ -28,36 +28,82 @@ class ClientController extends Controller implements HasMiddleware
     }
 
     public function index()
-{
-    $diasSemana = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'];
-    $hoy = now()->locale('es')->dayName; // nombre del día en español
+    {
+        return view('admin.clients.index');
+    }
 
-    $clients = Client::with(['shippingRoute', 'priceList', 'ultimaOrden'])
-    ->orderBy('nombre')
-    ->get()
-    ->map(function ($client) {
-        $ultimaOrden  = $client->ultimaOrden?->created_at;
-        $diasPedido   = $client->dias_pedido ?? [];
-        $periodicidad = $client->pedido_periodicidad ?? 7;
+    public function data(Request $request)
+    {
+        $search  = (string) $request->get('search', '');
+        $activo  = $request->get('activo', '');
+        $alerta  = $request->get('alerta', '');
+        $perPage = (int) $request->get('per_page', 15);
+        $page    = (int) $request->get('page', 1);
 
-        $diasSinPedido = $ultimaOrden
-            ? (int) $ultimaOrden->diffInDays(now())
-            : null;
+        $q = Client::query()
+            ->select('clients.*')
+            ->selectSub(
+                DB::table('sales_orders')
+                    ->selectRaw('MAX(created_at)')
+                    ->whereColumn('sales_orders.client_id', 'clients.id'),
+                'ultima_orden_at'
+            )
+            ->with(['shippingRoute', 'priceList'])
+            ->when($search !== '', fn ($q) => $q->where(fn ($q) => $q
+                ->where('nombre', 'like', "%$search%")
+                ->orWhere('email', 'like', "%$search%")
+                ->orWhere('telefono', 'like', "%$search%")))
+            ->when($activo !== '', fn ($q) => $q->where('activo', $activo))
+            ->orderBy('nombre');
 
-        $alerta = 0;
-        if ($diasSinPedido !== null && count($diasPedido) > 0) {
-            if ($diasSinPedido > $periodicidad * 2)        $alerta = 3;
-            elseif ($diasSinPedido > $periodicidad * 1.5)  $alerta = 2;
-            elseif ($diasSinPedido > $periodicidad)        $alerta = 1;
+        if ($alerta !== '') {
+            $q->havingRaw($this->alertaHavingSql((int) $alerta));
         }
 
-        $client->dias_sin_pedido = $diasSinPedido;
-        $client->alerta_nivel    = $alerta;
-        return $client;
-    });
+        $paginator = $q->paginate($perPage, ['*'], 'page', $page);
 
-    return view('admin.clients.index', compact('clients'));
-}
+        $paginator->getCollection()->transform(function ($client) {
+            $diasSinPedido = $client->ultima_orden_at
+                ? (int) now()->diffInDays($client->ultima_orden_at)
+                : null;
+
+            $client->dias_sin_pedido = $diasSinPedido;
+            $client->alerta_nivel    = $this->calcAlerta($diasSinPedido, $client->pedido_periodicidad, $client->dias_pedido);
+            $client->edit_url        = route('admin.clients.edit', $client);
+            $client->destroy_url     = route('admin.clients.destroy', $client);
+
+            return $client;
+        });
+
+        return response()->json($paginator);
+    }
+
+    private function calcAlerta(?int $diasSinPedido, ?int $periodicidad, ?array $diasPedido): int
+    {
+        $periodicidad = $periodicidad ?? 7;
+
+        if ($diasSinPedido === null || empty($diasPedido)) {
+            return 0;
+        }
+
+        if ($diasSinPedido > $periodicidad * 2)        return 3;
+        if ($diasSinPedido > $periodicidad * 1.5)       return 2;
+        if ($diasSinPedido > $periodicidad)             return 1;
+
+        return 0;
+    }
+
+    private function alertaHavingSql(int $alerta): string
+    {
+        $diasExpr = 'DATEDIFF(NOW(), ultima_orden_at)';
+
+        return match ($alerta) {
+            3 => "ultima_orden_at IS NOT NULL AND JSON_LENGTH(COALESCE(dias_pedido, '[]')) > 0 AND $diasExpr > pedido_periodicidad * 2",
+            2 => "ultima_orden_at IS NOT NULL AND JSON_LENGTH(COALESCE(dias_pedido, '[]')) > 0 AND $diasExpr > pedido_periodicidad * 1.5 AND $diasExpr <= pedido_periodicidad * 2",
+            1 => "ultima_orden_at IS NOT NULL AND JSON_LENGTH(COALESCE(dias_pedido, '[]')) > 0 AND $diasExpr > pedido_periodicidad AND $diasExpr <= pedido_periodicidad * 1.5",
+            default => "(ultima_orden_at IS NULL OR JSON_LENGTH(COALESCE(dias_pedido, '[]')) = 0 OR $diasExpr <= pedido_periodicidad)",
+        };
+    }
 
     public function create()
     {

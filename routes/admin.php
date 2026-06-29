@@ -42,6 +42,7 @@ Route::resource('products', ProductController::class)->except(['show']);
 Route::post('products/{product}/despiece', [ProductController::class, 'despiece'])
     ->name('products.despiece');
 
+Route::get('clients/data', [ClientController::class, 'data'])->name('clients.data')->middleware('can:ver clientes');
 Route::resource('clients', ClientController::class)->names('clients');
 Route::resource('providers', ProviderController::class)->names('providers');
 Route::resource('warehouses', WarehouseController::class)->names('warehouses');

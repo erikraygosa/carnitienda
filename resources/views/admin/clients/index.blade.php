@@ -61,62 +61,10 @@
                     </tr>
                 </thead>
                 <tbody id="client-tbody" class="divide-y divide-gray-200 dark:divide-gray-700">
-                    @foreach($clients as $client)
-                    @php
-                        $alertColors = [
-                            0 => 'bg-green-400',
-                            1 => 'bg-yellow-300',
-                            2 => 'bg-orange-400',
-                            3 => 'bg-red-500',
-                        ];
-                        $rowColors = [
-                            0 => '',
-                            1 => 'bg-yellow-50',
-                            2 => 'bg-orange-50',
-                            3 => 'bg-red-50',
-                        ];
-                        $color = $alertColors[$client->alerta_nivel];
-                        $rowBg = $rowColors[$client->alerta_nivel];
-                        $diasPedido = $client->dias_pedido
-                            ? implode(', ', array_map(fn($d) => ucfirst($d), $client->dias_pedido))
-                            : '—';
-                    @endphp
-                    <tr class="{{ $rowBg }} hover:opacity-90 transition-colors"
-                        data-search="{{ strtolower($client->nombre . ' ' . $client->email . ' ' . $client->telefono) }}"
-                        data-activo="{{ $client->activo ? '1' : '0' }}"
-                        data-alerta="{{ $client->alerta_nivel }}"
-                    >
-                        <td class="px-2 py-3">
-                            <span class="block w-3 h-3 rounded-full {{ $color }}" title="Alerta nivel {{ $client->alerta_nivel }}"></span>
-                        </td>
-                        <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{{ $client->nombre }}</td>
-                        <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ $client->email ?: '—' }}</td>
-                        <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ $client->telefono ?: '—' }}</td>
-                        <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ $client->shippingRoute?->nombre ?? '—' }}</td>
-                        <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ $client->priceList?->nombre ?? '—' }}</td>
-                        <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{{ $diasPedido }}</td>
-                        <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">
-                            @if($client->dias_sin_pedido !== null)
-                                <span>Hace {{ $client->dias_sin_pedido }} día(s)</span>
-                            @else
-                                <span class="text-gray-400">Sin pedidos</span>
-                            @endif
-                        </td>
-                        <td class="px-4 py-3">
-                            @if($client->activo)
-                                <span class="px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700">Activo</span>
-                            @else
-                                <span class="px-2 py-0.5 text-xs rounded-full bg-rose-100 text-rose-700">Inactivo</span>
-                            @endif
-                        </td>
-                        <td class="px-4 py-3">
-                            @include('admin.clients.actions', ['client' => $client])
-                        </td>
-                    </tr>
-                    @endforeach
                 </tbody>
             </table>
 
+            <div id="loading" class="py-8 text-center text-sm text-gray-400">Cargando...</div>
             <div id="no-results" class="hidden py-8 text-center text-sm text-gray-400">
                 No se encontraron clientes.
             </div>
@@ -141,75 +89,138 @@
     <script>
     (function () {
         const tbody          = document.getElementById('client-tbody');
-        const noResults      = document.getElementById('no-results');
+        const loading        = document.getElementById('loading');
+        const noResults       = document.getElementById('no-results');
         const paginationInfo = document.getElementById('pagination-info');
         const btnPrev        = document.getElementById('btn-prev');
         const btnNext        = document.getElementById('btn-next');
         const fSearch        = document.getElementById('filter-search');
         const fActivo        = document.getElementById('filter-activo');
         const fAlerta        = document.getElementById('filter-alerta');
+        const csrfToken       = document.querySelector('meta[name="csrf-token"]').content;
 
+        const DATA_URL = "{{ route('admin.clients.data') }}";
         const PER_PAGE = 15;
-        let currentPage  = 1;
-        let filteredRows = [];
 
-        function applyFilters() {
-            const search = fSearch.value.toLowerCase().trim();
-            const activo = fActivo.value;
-            const alerta = fAlerta.value;
+        let currentPage   = 1;
+        let debounceTimer = null;
 
-            filteredRows = Array.from(tbody.querySelectorAll('tr')).filter(row => {
-                const matchSearch = row.dataset.search.includes(search);
-                const matchActivo = activo === '' || row.dataset.activo === activo;
-                const matchAlerta = alerta === '' || row.dataset.alerta === alerta;
-                return matchSearch && matchActivo && matchAlerta;
+        const alertColors = { 0: 'bg-green-400', 1: 'bg-yellow-300', 2: 'bg-orange-400', 3: 'bg-red-500' };
+        const rowColors    = { 0: '', 1: 'bg-yellow-50', 2: 'bg-orange-50', 3: 'bg-red-50' };
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str ?? '';
+            return div.innerHTML;
+        }
+
+        function renderRow(client) {
+            const color = alertColors[client.alerta_nivel] ?? 'bg-green-400';
+            const rowBg = rowColors[client.alerta_nivel] ?? '';
+            const diasPedido = (client.dias_pedido && client.dias_pedido.length)
+                ? client.dias_pedido.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')
+                : '—';
+            const ultimoPedido = client.dias_sin_pedido !== null
+                ? `<span>Hace ${client.dias_sin_pedido} día(s)</span>`
+                : '<span class="text-gray-400">Sin pedidos</span>';
+            const estatus = client.activo
+                ? '<span class="px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700">Activo</span>'
+                : '<span class="px-2 py-0.5 text-xs rounded-full bg-rose-100 text-rose-700">Inactivo</span>';
+
+            const tr = document.createElement('tr');
+            tr.className = `${rowBg} hover:opacity-90 transition-colors`;
+            tr.innerHTML = `
+                <td class="px-2 py-3"><span class="block w-3 h-3 rounded-full ${color}" title="Alerta nivel ${client.alerta_nivel}"></span></td>
+                <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">${escapeHtml(client.nombre)}</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">${escapeHtml(client.email) || '—'}</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">${escapeHtml(client.telefono) || '—'}</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">${escapeHtml(client.shipping_route?.nombre) || '—'}</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">${escapeHtml(client.price_list?.nombre) || '—'}</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">${diasPedido}</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">${ultimoPedido}</td>
+                <td class="px-4 py-3">${estatus}</td>
+                <td class="px-4 py-3">
+                    <div class="flex items-center space-x-2">
+                        <a href="${client.edit_url}" class="inline-flex items-center px-2.5 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700">Editar</a>
+                        <form action="${client.destroy_url}" method="POST" class="delete-form inline">
+                            <input type="hidden" name="_token" value="${csrfToken}">
+                            <input type="hidden" name="_method" value="DELETE">
+                            <button type="submit" class="inline-flex items-center px-2.5 py-1 text-xs rounded-md bg-red-600 text-white hover:bg-red-700">Desactivar</button>
+                        </form>
+                    </div>
+                </td>
+            `;
+            return tr;
+        }
+
+        function attachDeleteHandlers() {
+            tbody.querySelectorAll('.delete-form').forEach(form => {
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    Swal.fire({
+                        title: '¿Desactivar cliente?',
+                        text: 'Podrás activarlo luego.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, desactivar',
+                        cancelButtonText: 'Cancelar'
+                    }).then(r => { if (r.isConfirmed) form.submit(); });
+                });
+            });
+        }
+
+        function load() {
+            loading.classList.remove('hidden');
+            noResults.classList.add('hidden');
+
+            const params = new URLSearchParams({
+                search: fSearch.value.trim(),
+                activo: fActivo.value,
+                alerta: fAlerta.value,
+                per_page: PER_PAGE,
+                page: currentPage,
             });
 
+            fetch(`${DATA_URL}?${params.toString()}`, {
+                headers: { 'Accept': 'application/json' },
+            })
+                .then(res => res.json())
+                .then(data => {
+                    tbody.innerHTML = '';
+                    data.data.forEach(client => tbody.appendChild(renderRow(client)));
+                    attachDeleteHandlers();
+
+                    loading.classList.add('hidden');
+                    noResults.classList.toggle('hidden', data.total > 0);
+
+                    paginationInfo.textContent = data.total > 0
+                        ? `Mostrando ${data.from}–${data.to} de ${data.total} clientes`
+                        : '';
+
+                    btnPrev.disabled = data.current_page <= 1;
+                    btnNext.disabled = data.current_page >= data.last_page;
+                })
+                .catch(() => {
+                    loading.classList.add('hidden');
+                });
+        }
+
+        function applyFilters() {
             currentPage = 1;
-            renderPage();
+            load();
         }
 
-        function renderPage() {
-            Array.from(tbody.querySelectorAll('tr')).forEach(r => r.classList.add('hidden'));
+        btnPrev.addEventListener('click', () => { currentPage--; load(); });
+        btnNext.addEventListener('click', () => { currentPage++; load(); });
 
-            const start    = (currentPage - 1) * PER_PAGE;
-            const end      = start + PER_PAGE;
-            filteredRows.slice(start, end).forEach(r => r.classList.remove('hidden'));
-
-            const total      = filteredRows.length;
-            const totalPages = Math.ceil(total / PER_PAGE);
-
-            noResults.classList.toggle('hidden', total > 0);
-            paginationInfo.textContent = total > 0
-                ? `Mostrando ${start + 1}–${Math.min(end, total)} de ${total} clientes`
-                : '';
-
-            btnPrev.disabled = currentPage <= 1;
-            btnNext.disabled = currentPage >= totalPages;
-        }
-
-        btnPrev.addEventListener('click', () => { currentPage--; renderPage(); });
-        btnNext.addEventListener('click', () => { currentPage++; renderPage(); });
-        fSearch.addEventListener('input', applyFilters);
+        fSearch.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(applyFilters, 300);
+        });
         fActivo.addEventListener('change', applyFilters);
         fAlerta.addEventListener('change', applyFilters);
 
-        // SweetAlert para desactivar
-        document.querySelectorAll('.delete-form').forEach(form => {
-            form.addEventListener('submit', function (e) {
-                e.preventDefault();
-                Swal.fire({
-                    title: '¿Desactivar cliente?',
-                    text: 'Podrás activarlo luego.',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonText: 'Sí, desactivar',
-                    cancelButtonText: 'Cancelar'
-                }).then(r => { if (r.isConfirmed) form.submit(); });
-            });
-        });
-
-        applyFilters();
+        load();
     })();
     </script>
 
