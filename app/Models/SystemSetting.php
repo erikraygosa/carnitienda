@@ -87,6 +87,10 @@ class SystemSetting extends Model
             // Correo
             ['clave' => 'correo.from_name',    'valor' => config('app.name'), 'tipo' => 'string', 'grupo' => 'correo', 'descripcion' => 'Nombre del remitente'],
             ['clave' => 'correo.from_address', 'valor' => null, 'tipo' => 'string', 'grupo' => 'correo', 'descripcion' => 'Email del remitente'],
+
+            // Autenticación
+            ['clave' => 'auth.login_mode',        'valor' => 'email', 'tipo' => 'string', 'grupo' => 'auth', 'descripcion' => 'Modo de inicio de sesión: email o username'],
+            ['clave' => 'auth.username_domain',    'valor' => '',      'tipo' => 'string', 'grupo' => 'auth', 'descripcion' => 'Dominio que se agrega al nombre de usuario al iniciar sesión'],
         ];
 
         foreach ($defaults as $setting) {

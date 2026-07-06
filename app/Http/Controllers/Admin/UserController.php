@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
@@ -41,6 +42,15 @@ class UserController extends Controller implements HasMiddleware
 
     public function store(Request $request)
     {
+        // En modo usuario, el campo email llega como "juan" o "juan@empresa.com"
+        if (SystemSetting::get('auth.login_mode', 'email') === 'username') {
+            $domain = SystemSetting::get('auth.username_domain', '');
+            $email  = $request->input('email', '');
+            if ($domain !== '' && ! str_contains($email, '@')) {
+                $request->merge(['email' => $email . '@' . ltrim($domain, '@')]);
+            }
+        }
+
         $data = $request->validate([
             'name'         => 'required|string|max:255',
             'email'        => 'required|email|unique:users,email',

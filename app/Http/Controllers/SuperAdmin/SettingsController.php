@@ -14,8 +14,9 @@ class SettingsController extends Controller
         $general     = SystemSetting::where('grupo', 'general')->get()->keyBy('clave');
         $facturacion = SystemSetting::where('grupo', 'facturacion')->get()->keyBy('clave');
         $correo      = SystemSetting::where('grupo', 'correo')->get()->keyBy('clave');
+        $auth        = SystemSetting::where('grupo', 'auth')->get()->keyBy('clave');
 
-        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo'));
+        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth'));
     }
 
     public function update(Request $request)
@@ -29,6 +30,8 @@ class SettingsController extends Controller
             'facturacion.alerta_timbres' => ['nullable', 'integer', 'min:1'],
             'correo.from_name'           => ['nullable', 'string', 'max:100'],
             'correo.from_address'        => ['nullable', 'email', 'max:150'],
+            'auth.login_mode'            => ['nullable', 'string', 'in:email,username'],
+            'auth.username_domain'       => ['nullable', 'string', 'max:100'],
         ]);
 
         foreach ($data as $clave => $valor) {

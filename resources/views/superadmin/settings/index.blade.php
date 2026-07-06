@@ -81,6 +81,49 @@
         </div>
     </div>
 
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-white font-semibold mb-1">Autenticación</h3>
+        <p class="text-xs text-gray-500 mb-4">Define si los usuarios inician sesión con correo electrónico o solo con nombre de usuario.</p>
+
+        @php
+            $loginMode       = $auth['auth.login_mode']?->valor ?? 'email';
+            $usernameDomain  = $auth['auth.username_domain']?->valor ?? '';
+        @endphp
+
+        <div class="space-y-4">
+            <div class="flex gap-6">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="auth.login_mode" value="email"
+                           {{ $loginMode === 'email' ? 'checked' : '' }}
+                           id="mode_email"
+                           class="text-indigo-500 focus:ring-indigo-500">
+                    <span class="text-sm text-white">Correo electrónico <span class="text-gray-500">(default)</span></span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="auth.login_mode" value="username"
+                           {{ $loginMode === 'username' ? 'checked' : '' }}
+                           id="mode_username"
+                           class="text-indigo-500 focus:ring-indigo-500">
+                    <span class="text-sm text-white">Nombre de usuario</span>
+                </label>
+            </div>
+
+            <div id="domain-wrap" class="{{ $loginMode === 'username' ? '' : 'hidden' }}">
+                <label class="block text-xs text-gray-500 mb-1">Dominio a autocompletar</label>
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-400 text-sm">usuario @</span>
+                    <input type="text" name="auth.username_domain"
+                           value="{{ $usernameDomain }}"
+                           placeholder="empresa.com"
+                           class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none w-60">
+                </div>
+                <p class="mt-1 text-xs text-gray-600">
+                    Ejemplo: si el dominio es <em>empresa.com</em>, el usuario escribe <strong class="text-gray-400">juan</strong> y el sistema lo convierte a <strong class="text-gray-400">juan@empresa.com</strong>.
+                </p>
+            </div>
+        </div>
+    </div>
+
     <div class="flex justify-end">
         <button type="submit"
                 class="px-6 py-2.5 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium">
@@ -88,4 +131,17 @@
         </button>
     </div>
 </form>
+
+<script>
+(function () {
+    var radios      = document.querySelectorAll('input[name="auth.login_mode"]');
+    var domainWrap  = document.getElementById('domain-wrap');
+
+    radios.forEach(function (r) {
+        r.addEventListener('change', function () {
+            domainWrap.classList.toggle('hidden', r.value !== 'username' || !r.checked);
+        });
+    });
+})();
+</script>
 @endsection
