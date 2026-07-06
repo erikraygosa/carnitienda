@@ -52,7 +52,7 @@
                     @php
                         $loginMode      = \App\Models\SystemSetting::get('auth.login_mode', 'email');
                         $usernameDomain = \App\Models\SystemSetting::get('auth.username_domain', '');
-                        $isUsername     = $loginMode === 'username' && $usernameDomain !== '';
+                        $isUsername     = $loginMode === 'username';
                     @endphp
 
                     <form method="POST" action="{{ route('login') }}" class="space-y-4" id="login-form">

@@ -43,9 +43,7 @@ class FortifyServiceProvider extends ServiceProvider
 
             if (SystemSetting::get('auth.login_mode', 'email') === 'username' && ! str_contains($email, '@')) {
                 $domain = SystemSetting::get('auth.username_domain', '');
-                if ($domain !== '') {
-                    $email = $email . '@' . ltrim($domain, '@');
-                }
+                $email  = $domain !== '' ? $email . '@' . ltrim($domain, '@') : $email;
             }
 
             $user = User::where('email', $email)->first();
