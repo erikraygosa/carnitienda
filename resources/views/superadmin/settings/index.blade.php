@@ -93,14 +93,14 @@
         <div class="space-y-4">
             <div class="flex gap-6">
                 <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="auth.login_mode" value="email"
+                    <input type="radio" name="auth_login_mode" value="email"
                            {{ $loginMode === 'email' ? 'checked' : '' }}
                            id="mode_email"
                            class="text-indigo-500 focus:ring-indigo-500">
                     <span class="text-sm text-white">Correo electrónico <span class="text-gray-500">(default)</span></span>
                 </label>
                 <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="auth.login_mode" value="username"
+                    <input type="radio" name="auth_login_mode" value="username"
                            {{ $loginMode === 'username' ? 'checked' : '' }}
                            id="mode_username"
                            class="text-indigo-500 focus:ring-indigo-500">
@@ -112,7 +112,7 @@
                 <label class="block text-xs text-gray-500 mb-1">Dominio a autocompletar</label>
                 <div class="flex items-center gap-2">
                     <span class="text-gray-400 text-sm">usuario @</span>
-                    <input type="text" name="auth.username_domain"
+                    <input type="text" name="auth_username_domain"
                            value="{{ $usernameDomain }}"
                            placeholder="empresa.com"
                            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none w-60">
@@ -139,7 +139,7 @@
 
     radios.forEach(function (r) {
         r.addEventListener('change', function () {
-            domainWrap.classList.toggle('hidden', r.value !== 'username' || !r.checked);
+            domainWrap.classList.toggle('hidden', this.value !== 'username');
         });
     });
 })();

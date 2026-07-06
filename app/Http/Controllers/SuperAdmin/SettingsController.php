@@ -30,8 +30,8 @@ class SettingsController extends Controller
             'facturacion.alerta_timbres' => ['nullable', 'integer', 'min:1'],
             'correo.from_name'           => ['nullable', 'string', 'max:100'],
             'correo.from_address'        => ['nullable', 'email', 'max:150'],
-            'auth.login_mode'            => ['nullable', 'string', 'in:email,username'],
-            'auth.username_domain'       => ['nullable', 'string', 'max:100'],
+            'auth_login_mode'            => ['nullable', 'string', 'in:email,username'],
+            'auth_username_domain'       => ['nullable', 'string', 'max:100'],
         ]);
 
         foreach ($data as $clave => $valor) {
@@ -39,6 +39,10 @@ class SettingsController extends Controller
                 SystemSetting::set($clave, $valor, is_int($valor) ? 'integer' : 'string');
             }
         }
+
+        // Campos de autenticación usan guión bajo en el formulario pero se almacenan con punto
+        SystemSetting::set('auth.login_mode',       $request->input('auth_login_mode', 'email'), 'string');
+        SystemSetting::set('auth.username_domain',  $request->input('auth_username_domain', ''), 'string');
 
         if ($request->hasFile('app.logo')) {
             $path = $request->file('app.logo')->store('logos', 'public');
