@@ -101,6 +101,20 @@
                     @error('warehouse_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
             </div>
+
+            @if (auth()->user()->is_superadmin)
+            <div class="pt-2 border-t border-gray-100">
+                <label class="flex items-center gap-3 cursor-pointer select-none w-fit">
+                    <input type="checkbox" name="is_superadmin" value="1"
+                           {{ old('is_superadmin') ? 'checked' : '' }}
+                           class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                    <span class="text-sm font-medium text-gray-700">
+                        Superadministrador
+                        <span class="font-normal text-gray-400 text-xs">— acceso total al sistema, incluido panel de configuración</span>
+                    </span>
+                </label>
+            </div>
+            @endif
         </form>
     </x-wire-card>
 

@@ -52,18 +52,22 @@ class UserController extends Controller implements HasMiddleware
         }
 
         $data = $request->validate([
-            'name'         => 'required|string|max:255',
-            'email'        => 'required|email|unique:users,email',
-            'password'     => 'required|string|min:8|confirmed',
-            'role'         => 'required|exists:roles,name',
-            'warehouse_id' => 'nullable|exists:warehouses,id',
+            'name'          => 'required|string|max:255',
+            'email'         => 'required|email|unique:users,email',
+            'password'      => 'required|string|min:8|confirmed',
+            'role'          => 'required|exists:roles,name',
+            'warehouse_id'  => 'nullable|exists:warehouses,id',
+            'is_superadmin' => 'nullable|boolean',
         ]);
 
+        $isSuperadmin = auth()->user()->is_superadmin && ! empty($data['is_superadmin']);
+
         $user = User::create([
-            'name'         => $data['name'],
-            'email'        => $data['email'],
-            'password'     => Hash::make($data['password']),
-            'warehouse_id' => $data['warehouse_id'] ?? null,
+            'name'          => $data['name'],
+            'email'         => $data['email'],
+            'password'      => Hash::make($data['password']),
+            'warehouse_id'  => $data['warehouse_id'] ?? null,
+            'is_superadmin' => $isSuperadmin,
         ]);
 
         $user->assignRole($data['role']);
