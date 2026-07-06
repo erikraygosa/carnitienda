@@ -61,14 +61,10 @@
                         <div>
                             @if ($isUsername)
                                 <label for="email" class="block text-sm font-medium text-white">Usuario</label>
-                                <div class="mt-1 flex items-center rounded-lg bg-white/90 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500">
-                                    <input id="email" name="email" type="text" autocomplete="username" required autofocus
-                                           value="{{ old('email') }}"
-                                           placeholder="nombre.usuario"
-                                           class="flex-1 min-w-0 px-3 py-2 text-gray-800 bg-transparent border-0 focus:outline-none focus:ring-0">
-                                    <span class="pr-3 text-gray-500 text-sm select-none whitespace-nowrap">@{{ $usernameDomain }}</span>
-                                </div>
-                                <p class="mt-1 text-xs text-gray-300">Ingresa solo tu nombre de usuario, sin el dominio.</p>
+                                <input id="email" name="email" type="text" autocomplete="username" required autofocus
+                                       value="{{ old('email') }}"
+                                       placeholder="nombre.usuario"
+                                       class="mt-1 block w-full rounded-lg border-gray-300 bg-white/90 text-gray-800 focus:ring-indigo-500 focus:border-indigo-500">
                             @else
                                 <label for="email" class="block text-sm font-medium text-white">Correo electrónico</label>
                                 <input id="email" name="email" type="email" autocomplete="username" required autofocus
