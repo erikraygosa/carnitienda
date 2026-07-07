@@ -624,6 +624,15 @@ public function approve(SalesOrder $order)
         return back()->with('swal',['icon'=>'success','title'=>'Cancelado','text'=>'Pedido cancelado']);
     }
 
+    // ========= TICKET TÉRMICO =========
+    public function ticket(SalesOrder $order)
+    {
+        $order->load('client', 'items.product', 'warehouse');
+        $empresa = app(\App\Services\CompanyService::class)->activa();
+
+        return view('admin.sales_orders.ticket', compact('order', 'empresa'));
+    }
+
     // ========= PDF =========
         public function pdf(SalesOrder $order)
 {

@@ -96,7 +96,8 @@ Route::get ('quotes/{quote}/pdf/download',  [QuoteController::class, 'pdfDownloa
 Route::get('sales-orders/data', [SalesOrderController::class, 'data'])->name('sales-orders.data');
 Route::resource('sales-orders', SalesOrderController::class)->except(['show']);
 
-    // PDF
+    // Ticket térmico + PDF
+    Route::get ('sales-orders/{order}/ticket',        [SalesOrderController::class,'ticket'])->name('sales-orders.ticket');
     Route::get ('sales-orders/{order}/pdf',           [SalesOrderController::class,'pdf'])->name('sales-orders.pdf');
     Route::get ('sales-orders/{order}/pdf/download',  [SalesOrderController::class,'pdfDownload'])->name('sales-orders.pdf.download');
 

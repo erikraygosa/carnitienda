@@ -314,6 +314,7 @@
             <x-wire-button href="{{ route('admin.sales-orders.edit',$order) }}" blue xs>Editar</x-wire-button>
             <x-wire-button href="{{ route('admin.sales-orders.pdf',$order) }}" gray outline xs target="_blank">Ver PDF</x-wire-button>
             <x-wire-button href="{{ route('admin.sales-orders.pdf.download',$order) }}" gray xs>Descargar PDF</x-wire-button>
+            <x-wire-button href="{{ route('admin.sales-orders.ticket',$order) }}" gray outline xs target="_blank">Imprimir</x-wire-button>
             <x-wire-button href="{{ route('admin.sales-orders.send.form',$order) }}" violet xs>Enviar</x-wire-button>
 
             <span class="ml-2 px-2 py-1 text-xs rounded-full {{ $statusClass }}">
