@@ -120,6 +120,7 @@
                                 <th class="px-2 py-2 text-left text-xs text-gray-500">Producto</th>
                                 <th class="px-2 py-2 text-center text-xs text-gray-500">Solicitado</th>
                                 <th class="px-2 py-2 text-center text-xs text-gray-500">Despachado</th>
+                                <th class="px-2 py-2 text-center text-xs text-gray-500">Cajas</th>
                                 <th class="px-2 py-2 text-center text-xs text-gray-500">Dif.</th>
                             </tr>
                         </thead>
@@ -216,11 +217,10 @@
                 var difColor = dif > 0 ? 'text-amber-600' : dif < 0 ? 'text-red-600' : 'text-gray-400';
                 var difStr   = dif === 0 ? '—' : (dif > 0 ? '+' : '') + dif.toFixed(3);
 
-                var cajasLabel = line.num_cajas ? '<span class="ml-1 text-xs text-indigo-600 font-medium">(' + line.num_cajas + ' caj.)</span>' : '';
                 var tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML =
-                    '<td class="px-2 py-2 text-gray-700">' + escHtml(line.producto) + cajasLabel + '</td>' +
+                    '<td class="px-2 py-2 text-gray-700">' + escHtml(line.producto) + '</td>' +
                     '<td class="px-2 py-2 text-center text-gray-600">' + line.qty_solicitada.toFixed(3) + '</td>' +
                     '<td class="px-2 py-1 text-center">' +
                         '<input type="number" step="0.001" min="0"' +
@@ -230,12 +230,25 @@
                         '   onchange="actualizarDif(this, ' + idx + ')"' +
                         '/>' +
                     '</td>' +
+                    '<td class="px-2 py-1 text-center">' +
+                        '<input type="number" step="1" min="0"' +
+                        '   class="w-16 text-center rounded border border-gray-300 px-1 py-0.5 text-sm focus:ring-1 focus:ring-indigo-400"' +
+                        '   value="' + (line.num_cajas || '') + '"' +
+                        '   placeholder="—"' +
+                        '   data-cajas-idx="' + idx + '"' +
+                        '   onchange="actualizarCajas(this, ' + idx + ')"' +
+                        '/>' +
+                    '</td>' +
                     '<td class="px-2 py-2 text-center font-mono text-xs ' + difColor + '" id="dif-' + idx + '">' +
                         difStr +
                     '</td>';
                 tbody.appendChild(tr);
             });
         }
+
+        window.actualizarCajas = function(input, idx) {
+            linesData[idx].num_cajas = input.value !== '' ? parseInt(input.value) : null;
+        };
 
         window.actualizarDif = function(input, idx) {
             var qty = parseFloat(input.value) || 0;
@@ -262,6 +275,7 @@
                 return {
                     sales_order_item_id: line.sales_order_item_id,
                     qty_despachada:      parseFloat(inputs[idx]?.value) || 0,
+                    num_cajas:           line.num_cajas != null ? line.num_cajas : null,
                     nota:                document.getElementById('panel-nota-global').value.trim() || null,
                 };
             });

@@ -78,6 +78,7 @@ class DispatchPanelController extends Controller
             'lines'                       => 'required|array|min:1',
             'lines.*.sales_order_item_id' => 'required|integer|exists:sales_order_items,id',
             'lines.*.qty_despachada'      => 'required|numeric|min:0',
+            'lines.*.num_cajas'           => 'nullable|integer|min:0',
             'lines.*.nota'                => 'nullable|string|max:255',
         ]);
 
@@ -137,12 +138,16 @@ class DispatchPanelController extends Controller
                 $lineTotal     = round(max($lineSubtotal - $lineDescuento, 0) + $lineImpuesto, 2);
 
                 // 4. Actualizar la línea del pedido con valores reales
-                $orderItem->update([
+                $updateData = [
                     'cantidad'  => $qtyReal,
                     'descuento' => $lineDescuento,
                     'impuesto'  => $lineImpuesto,
                     'total'     => $lineTotal,
-                ]);
+                ];
+                if (array_key_exists('num_cajas', $lineData)) {
+                    $updateData['num_cajas'] = $lineData['num_cajas'] !== null ? (int) $lineData['num_cajas'] : null;
+                }
+                $orderItem->update($updateData);
 
                 $nuevoSubtotal  += $lineSubtotal;
                 $nuevoDescuento += $lineDescuento;
