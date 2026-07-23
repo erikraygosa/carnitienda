@@ -16,7 +16,7 @@
         $selWarehouse  = (string) old('warehouse_id', $mainWarehouseId ?? '');
         $selRoute      = (string) old('shipping_route_id', '');
         $valueFecha    = old('fecha', now()->format('Y-m-d\TH:i'));
-        $valueProg     = old('programado_para', '');
+        $valueProg     = old('programado_para', now()->format('Y-m-d'));
         $valueMoneda   = old('moneda', 'MXN');
         $deliveryType  = old('delivery_type', 'ENVIO');
         $paymentMethod = old('payment_method', 'EFECTIVO');
@@ -269,8 +269,9 @@
         const INITIAL_ITEMS     = {!! $JS_INITIALITEMS !!};
         const CLIENT_DEFAULTS   = {!! $JS_CLIENT_DEFAULTS !!};
         const DEFAULT_CLIENT_ID = {!! $JS_SELCLIENT !!};
-        const CLIENTS_EDIT_BASE = '{{ url('admin/clients') }}';
-        const PRODUCTS          = @json($productsJson);
+        const CLIENTS_EDIT_BASE    = '{{ url('admin/clients') }}';
+        const CLIENT_PRICES_BASE   = '{{ url('admin/sales-orders/client-prices') }}';
+        const PRODUCTS             = @json($productsJson);
 
         let state = {
             items: [],
@@ -601,6 +602,24 @@
         SOF.onDeliveryChange('{{ $deliveryType }}');
         SOF.onPaymentChange('{{ $paymentMethod }}');
         renderAll();
+
+        // Cuando el usuario regresa a esta pestaña (ej. después de editar precios),
+        // refresca los overrides del cliente y vuelve a calcular precios.
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState !== 'visible' || !state.clientId) return;
+            fetch(`${CLIENT_PRICES_BASE}/${state.clientId}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.ok ? r.json() : null)
+                .then(prices => {
+                    if (!prices) return;
+                    const cid = String(state.clientId);
+                    CLIENTS_OVERRIDES[cid] = {};
+                    Object.entries(prices).forEach(([pid, p]) => {
+                        CLIENTS_OVERRIDES[cid][String(pid)] = parseFloat(p) || 0;
+                    });
+                    SOF.repriceAll();
+                })
+                .catch(() => {});
+        });
     })();
     </script>
 

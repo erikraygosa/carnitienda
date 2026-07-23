@@ -119,6 +119,16 @@ public function data(Request $request)
     ]);
 }
 
+    public function clientPrices(Client $client)
+    {
+        $this->authorize('ver pedidos');
+        $prices = DB::table('client_price_overrides')
+            ->where('client_id', $client->id)
+            ->pluck('precio', 'product_id')
+            ->map(fn($v) => (float) $v);
+        return response()->json($prices);
+    }
+
    public function create(Request $request)
 {
     $clients    = Client::orderBy('nombre')->get();
