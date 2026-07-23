@@ -319,8 +319,6 @@
                         + Agregar partida
                     </button>
                 </div>
-                @elseif($canEditQty)
-                <p class="mt-2 text-xs text-gray-500">Pedido en preparación: solo puedes ajustar las cantidades.</p>
                 @endif
             </div>
 
@@ -572,7 +570,7 @@
                     <input type="number" min="1" step="1"
                            class="w-16 border rounded p-1 text-center text-sm inp-cajas"
                            name="items[${i}][num_cajas]" value="${it.num_cajas || ''}"
-                           placeholder="—" title="Cajas aprox." ${dis} ${roItems}>
+                           placeholder="—" title="Cajas aprox." ${dis}>
                 </td>
                 <td class="p-2 text-right">
                     <input type="number" min="0" step="0.0001"
