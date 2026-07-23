@@ -439,6 +439,8 @@
             input.addEventListener('blur', function() {
                 setTimeout(hidePortal, 150);
             });
+
+            tr.querySelector('.btn-clear-product').addEventListener('click', clearProduct);
         }
 
         // ── Render de fila ───────────────────────────────────────────────
@@ -498,8 +500,6 @@
 
             // Adjuntar autocomplete (reemplaza el sel.addEventListener anterior)
             attachProductSearch(tr, i);
-
-            tr.querySelector('.btn-clear-product').addEventListener('click', clearProduct);
 
             tr.querySelector('.inp-cantidad').addEventListener('input', function() {
                 state.items[i].cantidad = parseFloat(this.value)||0; recalcRow(i);
