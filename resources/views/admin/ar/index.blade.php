@@ -7,6 +7,10 @@
     ]"
 >
     <x-slot name="action">
+        <a href="{{ route('admin.ar.cobranza') }}"
+           class="inline-flex px-3 py-1.5 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 mr-2">
+            Reporte cobranza
+        </a>
         <a href="{{ route('admin.ar-payments.create') }}"
            class="inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
             Registrar cobro

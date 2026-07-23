@@ -21,6 +21,7 @@ use App\Http\Controllers\Admin\DriverCashRegisterController;
 use App\Http\Controllers\Admin\AccountsReceivableController;
 use App\Http\Controllers\Admin\ArPaymentsController;
 use App\Http\Controllers\Admin\ArComplementosController;
+use App\Http\Controllers\Admin\ArCobranzaController;
 use App\Http\Controllers\Admin\CashRegisterController;
 use App\Http\Controllers\Admin\CashMovementController;
 use App\Http\Controllers\Admin\POSController;
@@ -206,6 +207,9 @@ Route::post('dispatches/{dispatch}/cxc/{assignment}/cobrar', [DispatchController
 
 Route::prefix('ar')->name('ar.')->group(function () {
     Route::get('/',                [AccountsReceivableController::class,'index'])->name('index');
+    Route::get('/cobranza',        [ArCobranzaController::class,'index'])->name('cobranza');
+    Route::get('/cobranza/excel',  [ArCobranzaController::class,'exportExcel'])->name('cobranza.excel');
+    Route::get('/cobranza/pdf',    [ArCobranzaController::class,'exportPdf'])->name('cobranza.pdf');
     Route::get('/cliente/{client}',[AccountsReceivableController::class,'show'])->name('show');
     Route::post('/cliente/{client}/cargo',[AccountsReceivableController::class,'charge'])->name('charge');
 
