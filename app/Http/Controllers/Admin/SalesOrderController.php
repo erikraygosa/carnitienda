@@ -210,6 +210,7 @@ public function data(Request $request)
             'items.*.precio'       => ['required','numeric','gte:0'],
             'items.*.descuento'    => ['nullable','numeric','gte:0'],
             'items.*.impuesto'     => ['nullable','numeric','gte:0'],
+            'items.*.num_cajas'    => ['nullable','integer','min:0'],
         ]);
 
         $order = null;
@@ -277,6 +278,7 @@ public function data(Request $request)
                     'product_id'    => $it['product_id'] ?? null,
                     'descripcion'   => $it['descripcion'],
                     'cantidad'      => $it['cantidad'],
+                    'num_cajas'     => isset($it['num_cajas']) && $it['num_cajas'] !== '' ? (int)$it['num_cajas'] : null,
                     'precio'        => $it['precio'],
                     'descuento'     => $line_desc,
                     'impuesto'      => $line_tax,
@@ -300,8 +302,32 @@ public function data(Request $request)
         $drivers    = Driver::orderBy('nombre')->get(['id','nombre']);
         $routes     = ShippingRoute::orderBy('nombre')->get(['id','nombre']);
 
+        $productsJson = $products->map(fn($p) => [
+            'id'     => $p->id,
+            'nombre' => $p->nombre,
+            'sku'    => $p->sku ?? '',
+            'precio' => (float) $p->precio_base,
+        ])->values();
+
+        $overrides = DB::table('client_price_overrides')
+            ->select('client_id','product_id','precio')
+            ->whereIn('client_id', $clients->pluck('id'))
+            ->get()
+            ->groupBy('client_id')
+            ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
+            ->toArray();
+
+        $listItems = DB::table('price_list_items')
+            ->select('price_list_id','product_id','precio')
+            ->whereIn('price_list_id', $priceLists->pluck('id'))
+            ->get()
+            ->groupBy('price_list_id')
+            ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
+            ->toArray();
+
         return view('admin.sales_orders.edit', compact(
-            'order','clients','priceLists','products','warehouses','drivers','routes'
+            'order','clients','priceLists','products','warehouses','drivers','routes',
+            'productsJson','overrides','listItems'
         ));
     }
 
@@ -309,6 +335,10 @@ public function data(Request $request)
     {
         if (!in_array($sales_order->status, ['BORRADOR', 'PREPARANDO'])) {
             return back()->with('swal',['icon'=>'error','title'=>'Error','text'=>'Solo BORRADOR o PREPARANDO puede editarse.']);
+        }
+
+        if ($request->input('price_list_id') === 'client') {
+            $request->merge(['price_list_id' => null]);
         }
 
         $data = $request->validate([
@@ -343,6 +373,7 @@ public function data(Request $request)
             'items.*.precio'       => ['required','numeric','gte:0'],
             'items.*.descuento'    => ['nullable','numeric','gte:0'],
             'items.*.impuesto'     => ['nullable','numeric','gte:0'],
+            'items.*.num_cajas'    => ['nullable','integer','min:0'],
         ]);
 
         DB::transaction(function () use ($sales_order, $data) {
@@ -364,6 +395,7 @@ public function data(Request $request)
                     'product_id'    => $it['product_id'] ?? null,
                     'descripcion'   => $it['descripcion'],
                     'cantidad'      => $it['cantidad'],
+                    'num_cajas'     => isset($it['num_cajas']) && $it['num_cajas'] !== '' ? (int)$it['num_cajas'] : null,
                     'precio'        => $it['precio'],
                     'descuento'     => $line_desc,
                     'impuesto'      => $line_tax,

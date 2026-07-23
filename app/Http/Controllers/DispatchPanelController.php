@@ -49,6 +49,7 @@ class DispatchPanelController extends Controller
                 'sales_order_item_id' => $item->id,
                 'producto'            => $item->product?->nombre ?? $item->descripcion,
                 'qty_solicitada'      => (float) $item->cantidad,
+                'num_cajas'           => $item->num_cajas,
                 'qty_despachada'      => $line ? (float) $line->qty_despachada : null,
                 'nota'                => $line?->nota,
                 'precio'              => (float) $item->precio,

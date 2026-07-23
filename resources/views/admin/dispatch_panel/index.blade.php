@@ -216,10 +216,11 @@
                 var difColor = dif > 0 ? 'text-amber-600' : dif < 0 ? 'text-red-600' : 'text-gray-400';
                 var difStr   = dif === 0 ? '—' : (dif > 0 ? '+' : '') + dif.toFixed(3);
 
+                var cajasLabel = line.num_cajas ? '<span class="ml-1 text-xs text-indigo-600 font-medium">(' + line.num_cajas + ' caj.)</span>' : '';
                 var tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML =
-                    '<td class="px-2 py-2 text-gray-700">' + escHtml(line.producto) + '</td>' +
+                    '<td class="px-2 py-2 text-gray-700">' + escHtml(line.producto) + cajasLabel + '</td>' +
                     '<td class="px-2 py-2 text-center text-gray-600">' + line.qty_solicitada.toFixed(3) + '</td>' +
                     '<td class="px-2 py-1 text-center">' +
                         '<input type="number" step="0.001" min="0"' +

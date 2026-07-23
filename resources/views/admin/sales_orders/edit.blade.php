@@ -23,8 +23,9 @@
     </x-slot>
 
     @php
-        $isLocked   = !in_array($order->status, ['BORRADOR','PREPARANDO']);
-        $canEditQty = in_array($order->status, ['BORRADOR','PREPARANDO']);
+        $isLocked     = !in_array($order->status, ['BORRADOR','PREPARANDO']);
+        $canEditQty   = in_array($order->status, ['BORRADOR','PREPARANDO']);
+        $canEditItems = $order->status === 'BORRADOR';
 
         $selClient    = (string) old('client_id',         $order->client_id);
         $selWarehouse = (string) old('warehouse_id',       $order->warehouse_id);
@@ -54,6 +55,7 @@
             'product_id'  => $i->product_id,
             'descripcion' => $i->descripcion,
             'cantidad'    => (float)$i->cantidad,
+            'num_cajas'   => $i->num_cajas,
             'precio'      => (float)$i->precio,
             'descuento'   => (float)$i->descuento,
             'iva_pct'     => 0,
@@ -96,6 +98,17 @@
               class="space-y-6">
             @csrf @method('PUT')
 
+            @if ($errors->any())
+                <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    <p class="font-medium">No se guardó el pedido:</p>
+                    <ul class="list-disc list-inside">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             {{-- ====== ENCABEZADO ====== --}}
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
 
@@ -134,10 +147,11 @@
                 {{-- Lista de precios --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Lista de precios</label>
-                    <select name="price_list_id"
+                    <select id="price_list_sel"
                             class="w-full rounded-md border-gray-300 shadow-sm"
+                            onchange="SOE.onPriceListChange(this.value)"
                             {{ $isLocked ? 'disabled' : '' }}>
-                        <option value="client">Personalizada del cliente</option>
+                        <option value="client" {{ !$order->price_list_id ? 'selected' : '' }}>Personalizada del cliente</option>
                         @foreach($priceLists as $pl)
                             <option value="{{ $pl->id }}"
                                 {{ old('price_list_id', $order->price_list_id) == $pl->id ? 'selected' : '' }}>
@@ -145,6 +159,8 @@
                             </option>
                         @endforeach
                     </select>
+                    <input type="hidden" name="price_list_id" id="price_list_id"
+                           value="{{ old('price_list_id', $order->price_list_id) }}">
                 </div>
 
                 {{-- Fecha --}}
@@ -273,22 +289,25 @@
                             <th class="p-2 text-left">Producto</th>
                             <th class="p-2 text-left">Descripción</th>
                             <th class="p-2 text-right">Cantidad</th>
+                            <th class="p-2 text-center" title="Número aproximado de cajas">Cajas</th>
                             <th class="p-2 text-right">Precio</th>
                             <th class="p-2 text-right">Desc.</th>
                             <th class="p-2 text-right">% IVA</th>
                             <th class="p-2 text-right">Total</th>
-                            @if(!$isLocked)<th class="p-2 w-8"></th>@endif
+                            @if($canEditItems)<th class="p-2 w-8"></th>@endif
                         </tr>
                     </thead>
                     <tbody id="items-body"></tbody>
                 </table>
-                @if(!$isLocked)
+                @if($canEditItems)
                 <div class="mt-3">
                     <button type="button" onclick="SOE.addRow()"
                             class="inline-flex px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50">
                         + Agregar partida
                     </button>
                 </div>
+                @elseif($canEditQty)
+                <p class="mt-2 text-xs text-gray-500">Pedido en preparación: solo puedes ajustar las cantidades.</p>
                 @endif
             </div>
 
@@ -435,19 +454,34 @@
 
     <script>
     (function(){
-        const LOCKED         = {{ $isLocked ? 'true' : 'false' }};
-        const CAN_EDIT_QTY   = {{ $canEditQty ? 'true' : 'false' }};
-        const CLIENT_DEFAULTS= {!! $JS_CLIENT_DEFAULTS !!};
-        const DEFAULT_CLIENT = {!! $JS_SELCLIENT !!};
-        const INITIAL_ITEMS  = {!! $JS_ITEMS !!};
+        const LOCKED          = {{ $isLocked ? 'true' : 'false' }};
+        const CAN_EDIT_QTY    = {{ $canEditQty ? 'true' : 'false' }};
+        const CAN_EDIT_ITEMS  = {{ $canEditItems ? 'true' : 'false' }};
+        const CLIENT_DEFAULTS = {!! $JS_CLIENT_DEFAULTS !!};
+        const DEFAULT_CLIENT  = {!! $JS_SELCLIENT !!};
+        const INITIAL_ITEMS   = {!! $JS_ITEMS !!};
         const CLIENTS_EDIT_BASE = '{{ url('admin/clients') }}';
 
-        const PRODUCTS_OPTIONS = `@foreach($products as $p)<option value="{{ $p->id }}" data-precio="{{ $p->precio_base }}">{{ $p->nombre }}</option>@endforeach`;
+        const CLIENTS_OVERRIDES = @json($overrides ?? []);
+        const LISTS_PRICES      = @json($listItems ?? []);
+        const INITIAL_PRICE_LIST = @json((string) ($order->price_list_id ?: 'client'));
+
+        const PRODUCTS_OPTIONS = `@foreach($products as $p)<option value="{{ $p->id }}">{{ $p->nombre }}</option>@endforeach`;
 
         let state = {
             items: [],
             clientId: DEFAULT_CLIENT || '',
+            priceList: INITIAL_PRICE_LIST,
         };
+
+        function getPrice(productId) {
+            if (!productId) return 0;
+            const pid = String(productId);
+            if (state.priceList === 'client') {
+                return parseFloat((CLIENTS_OVERRIDES[state.clientId]||{})[pid] ?? 0) || 0;
+            }
+            return parseFloat((LISTS_PRICES[state.priceList]||{})[pid] ?? 0) || 0;
+        }
 
         const fmt = n => Number(n||0).toFixed(2);
         const $   = id => document.getElementById(id);
@@ -494,8 +528,13 @@
 
         function renderRow(i) {
             const it  = state.items[i];
-            const dis = LOCKED ? 'disabled' : '';
-            const disQty = CAN_EDIT_QTY ? '' : 'disabled';
+            const dis      = LOCKED ? 'disabled' : '';       // pedido totalmente bloqueado
+            const disQty   = CAN_EDIT_QTY   ? '' : 'disabled';
+            // Producto/descripción/descuento/IVA solo se pueden tocar en BORRADOR.
+            // En PREPARANDO se muestran de solo lectura (pero deben seguir enviándose en el POST).
+            const roItems  = (!LOCKED && !CAN_EDIT_ITEMS) ? 'readonly' : '';
+            const selDis   = LOCKED || !CAN_EDIT_ITEMS ? 'disabled' : '';
+            const needsProductShadow = selDis && !LOCKED; // PREPARANDO: el <select> disabled no se envía, replicamos su valor
             const tr  = document.createElement('tr');
             tr.className   = 'border-b';
             tr.dataset.idx = i;
@@ -503,15 +542,16 @@
                 <input type="hidden" name="items[${i}][id]" value="${it.id || ''}">
                 <td class="p-2">
                     <select class="w-48 border rounded p-1 text-sm sel-product"
-                            name="items[${i}][product_id]" ${dis}>
+                            ${needsProductShadow ? '' : `name="items[${i}][product_id]"`} ${selDis}>
                         <option value="">—</option>
                         ${PRODUCTS_OPTIONS}
                     </select>
+                    ${needsProductShadow ? `<input type="hidden" name="items[${i}][product_id]" value="${escHtml(String(it.product_id||''))}">` : ''}
                 </td>
                 <td class="p-2">
                     <input type="text" class="w-64 border rounded p-1 text-sm inp-desc"
                            name="items[${i}][descripcion]" value="${escHtml(it.descripcion)}"
-                           ${dis} required>
+                           ${dis} ${roItems} required>
                 </td>
                 <td class="p-2 text-right">
                     <input type="number" min="0.001" step="0.001"
@@ -519,32 +559,38 @@
                            name="items[${i}][cantidad]" value="${it.cantidad}"
                            ${disQty} required>
                 </td>
+                <td class="p-2 text-center">
+                    <input type="number" min="1" step="1"
+                           class="w-16 border rounded p-1 text-center text-sm inp-cajas"
+                           name="items[${i}][num_cajas]" value="${it.num_cajas || ''}"
+                           placeholder="—" title="Cajas aprox." ${dis} ${roItems}>
+                </td>
                 <td class="p-2 text-right">
                     <input type="number" min="0" step="0.0001"
-                           class="w-28 border rounded p-1 text-right text-sm inp-precio"
+                           class="w-28 border rounded p-1 text-right text-sm bg-gray-50 inp-precio"
                            name="items[${i}][precio]" value="${it.precio}"
-                           ${dis} required>
+                           ${dis} ${LOCKED ? '' : 'readonly'} required>
                 </td>
                 <td class="p-2 text-right">
                     <input type="number" min="0" step="0.01"
                            class="w-24 border rounded p-1 text-right text-sm inp-descuento"
-                           name="items[${i}][descuento]" value="${it.descuento}" ${dis}>
+                           name="items[${i}][descuento]" value="${it.descuento}" ${dis} ${roItems}>
                 </td>
                 <td class="p-2 text-right">
                     <input type="number" min="0" step="0.01"
                            class="w-20 border rounded p-1 text-right text-sm inp-iva"
-                           value="${it.iva_pct}" ${dis}>
+                           value="${it.iva_pct}" ${dis} ${roItems}>
                     <input type="hidden" class="hid-impuesto"
                            name="items[${i}][impuesto]" value="${it.impuesto}">
                 </td>
                 <td class="p-2 text-right font-medium td-total">${fmt(it.total)}</td>
-                ${!LOCKED ? `<td class="p-2 text-center"><button type="button" class="text-red-500 hover:text-red-700 text-xs btn-remove">✕</button></td>` : ''}
+                ${CAN_EDIT_ITEMS ? `<td class="p-2 text-center"><button type="button" class="text-red-500 hover:text-red-700 text-xs btn-remove">✕</button></td>` : ''}
             `;
 
             const sel = tr.querySelector('.sel-product');
             if (it.product_id) sel.value = it.product_id;
 
-            if (!LOCKED) {
+            if (CAN_EDIT_ITEMS) {
                 sel.addEventListener('change', function() {
                     state.items[i].product_id = this.value;
                     const opt = this.options[this.selectedIndex];
@@ -552,14 +598,9 @@
                         state.items[i].descripcion = opt?.text || '';
                         tr.querySelector('.inp-desc').value = state.items[i].descripcion;
                     }
-                    if (!state.items[i].precio) {
-                        state.items[i].precio = parseFloat(opt?.dataset?.precio || 0) || 0;
-                        tr.querySelector('.inp-precio').value = state.items[i].precio;
-                    }
+                    state.items[i].precio = getPrice(this.value);
+                    tr.querySelector('.inp-precio').value = state.items[i].precio;
                     recalcRow(i);
-                });
-                tr.querySelector('.inp-precio').addEventListener('input', function() {
-                    state.items[i].precio = parseFloat(this.value)||0; recalcRow(i);
                 });
                 tr.querySelector('.inp-descuento').addEventListener('input', function() {
                     state.items[i].descuento = parseFloat(this.value)||0; recalcRow(i);
@@ -593,32 +634,39 @@
 
         window.SOE = {
             addRow() {
-                if (LOCKED) return;
-                state.items.push({id:null,product_id:'',descripcion:'',cantidad:1,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0});
+                if (!CAN_EDIT_ITEMS) return;
+                state.items.push({id:null,product_id:'',descripcion:'',cantidad:1,num_cajas:null,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0});
                 renderAll();
             },
             onClientChange(clientId) {
                 if (LOCKED) return;
                 state.clientId = clientId;
                 const d = CLIENT_DEFAULTS[clientId];
-                if (!d) return;
-                if (d.shipping_route_id) set('shipping_route_id', d.shipping_route_id);
-                set('credit_days', d.credito_dias || 0);
-                if (d.credito_dias > 0) { set('payment_method', 'CREDITO'); SOE.onPaymentChange('CREDITO'); }
-                if (d.credito_limite > 0) {
-                    const info = $('credito-info');
-                    if(info) { info.textContent = `Límite: $${fmt(d.credito_limite)} · Días: ${d.credito_dias}d`; info.classList.remove('hidden'); }
+                if (d) {
+                    if (d.shipping_route_id) set('shipping_route_id', d.shipping_route_id);
+                    set('credit_days', d.credito_dias || 0);
+                    if (d.credito_dias > 0) { set('payment_method', 'CREDITO'); SOE.onPaymentChange('CREDITO'); }
+                    if (d.credito_limite > 0) {
+                        const info = $('credito-info');
+                        if(info) { info.textContent = `Límite: $${fmt(d.credito_limite)} · Días: ${d.credito_dias}d`; info.classList.remove('hidden'); }
+                    }
+                    const fields = {
+                        entrega_telefono: d.telefono,
+                        entrega_calle:    d.entrega_calle,
+                        entrega_numero:   d.entrega_numero,
+                        entrega_colonia:  d.entrega_colonia,
+                        entrega_ciudad:   d.entrega_ciudad,
+                        entrega_estado:   d.entrega_estado,
+                        entrega_cp:       d.entrega_cp,
+                    };
+                    Object.entries(fields).forEach(([id, val]) => { if(val) set(id, val); });
                 }
-                const fields = {
-                    entrega_telefono: d.telefono,
-                    entrega_calle:    d.entrega_calle,
-                    entrega_numero:   d.entrega_numero,
-                    entrega_colonia:  d.entrega_colonia,
-                    entrega_ciudad:   d.entrega_ciudad,
-                    entrega_estado:   d.entrega_estado,
-                    entrega_cp:       d.entrega_cp,
-                };
-                Object.entries(fields).forEach(([id, val]) => { if(val) set(id, val); });
+                SOE.repriceAll();
+            },
+            onPriceListChange(val) {
+                state.priceList = val;
+                set('price_list_id', val === 'client' ? '' : val);
+                SOE.repriceAll();
             },
             onDeliveryChange(val) {
                 $('entrega-section').style.display = val === 'ENVIO' ? '' : 'none';
@@ -626,12 +674,25 @@
             onPaymentChange(val) {
                 $('credito-wrap').style.display = val === 'CREDITO' ? '' : 'none';
             },
+            repriceAll() {
+                if (!CAN_EDIT_ITEMS) return; // en PREPARANDO no se toca el precio ya facturable
+                state.items.forEach((it, i) => {
+                    if (!it.product_id) return;
+                    it.precio = getPrice(it.product_id);
+                    const row = document.querySelector(`#items-body tr[data-idx="${i}"]`);
+                    if (row) {
+                        const inp = row.querySelector('.inp-precio');
+                        if (inp) inp.value = it.precio;
+                    }
+                    recalcRow(i);
+                });
+            },
         };
 
         // Init
         state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
         if (!state.items.length) {
-            state.items = [{id:null,product_id:'',descripcion:'',cantidad:1,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}];
+            state.items = [{id:null,product_id:'',descripcion:'',cantidad:1,num_cajas:null,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}];
         }
         // Init crédito
         if (DEFAULT_CLIENT) {

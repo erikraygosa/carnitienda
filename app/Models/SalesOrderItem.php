@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class SalesOrderItem extends Model
 {
     protected $fillable = [
-        'sales_order_id','product_id','descripcion','cantidad','precio','descuento','impuesto','total'
+        'sales_order_id','product_id','descripcion','cantidad','num_cajas','precio','descuento','impuesto','total'
     ];
 
     protected $casts = [
