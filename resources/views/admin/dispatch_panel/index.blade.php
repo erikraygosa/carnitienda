@@ -45,42 +45,59 @@
             </div>
 
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead class="bg-gray-50">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 border-b border-gray-200">
                         <tr>
                             <th class="px-3 py-2 text-left font-medium text-gray-500">Folio</th>
                             <th class="px-3 py-2 text-left font-medium text-gray-500">Cliente</th>
                             <th class="px-3 py-2 text-left font-medium text-gray-500">Fecha</th>
-                            <th class="px-3 py-2 text-left font-medium text-gray-500">Items</th>
-                            <th class="px-3 py-2 text-left font-medium text-gray-500">Total</th>
+                            <th class="px-3 py-2 text-left font-medium text-gray-500">Producto</th>
+                            <th class="px-3 py-2 text-right font-medium text-gray-500">Cant.</th>
+                            <th class="px-3 py-2 text-center font-medium text-gray-500">Cajas</th>
                             <th class="px-3 py-2"></th>
                         </tr>
                     </thead>
-                    <tbody id="pedidos-tbody" class="divide-y divide-gray-100">
+                    <tbody id="pedidos-tbody">
                         @foreach($pedidos as $pedido)
-                        <tr
-                            data-search="{{ strtolower($pedido->folio . ' ' . ($pedido->client?->nombre ?? '')) }}"
-                            class="hover:bg-gray-50 transition"
-                        >
-                            <td class="px-3 py-2 font-mono text-indigo-700 font-semibold">
-                                {{ $pedido->folio }}
-                            </td>
-                            <td class="px-3 py-2 text-gray-700">{{ $pedido->client?->nombre ?? '—' }}</td>
-                            <td class="px-3 py-2 text-gray-500 text-xs">
-                                {{ $pedido->fecha ? $pedido->fecha->format('d/m/Y') : '—' }}
-                            </td>
-                            <td class="px-3 py-2 text-gray-600">{{ $pedido->items_count }}</td>
-                            <td class="px-3 py-2 font-semibold text-gray-800">
-                                ${{ number_format($pedido->total, 2) }}
-                            </td>
-                            <td class="px-3 py-2">
-                                <button
-                                    onclick="abrirDespacho({{ $pedido->id }}, '{{ $pedido->folio }}')"
-                                    class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">
-                                    Despachar
-                                </button>
-                            </td>
-                        </tr>
+                            @php $itemCount = $pedido->items->count(); @endphp
+                            @foreach($pedido->items as $itemIdx => $item)
+                            <tr
+                                data-order-id="{{ $pedido->id }}"
+                                data-search="{{ strtolower($pedido->folio . ' ' . ($pedido->client?->nombre ?? '') . ' ' . ($item->product?->nombre ?? $item->descripcion ?? '')) }}"
+                                class="hover:bg-indigo-50 transition {{ $itemIdx === 0 ? 'border-t-2 border-gray-300' : 'border-t border-gray-100' }}"
+                            >
+                                {{-- Folio solo en primera fila del pedido --}}
+                                <td class="px-3 py-2 font-mono text-indigo-700 font-semibold whitespace-nowrap">
+                                    {{ $itemIdx === 0 ? $pedido->folio : '' }}
+                                </td>
+                                {{-- Cliente solo en primera fila --}}
+                                <td class="px-3 py-2 text-gray-700 text-xs">
+                                    {{ $itemIdx === 0 ? ($pedido->client?->nombre ?? '—') : '' }}
+                                </td>
+                                {{-- Fecha solo en primera fila --}}
+                                <td class="px-3 py-2 text-gray-500 text-xs whitespace-nowrap">
+                                    {{ $itemIdx === 0 && $pedido->fecha ? $pedido->fecha->format('d/m/Y') : '' }}
+                                </td>
+                                <td class="px-3 py-2 text-gray-800">
+                                    {{ $item->product?->nombre ?? $item->descripcion ?? '—' }}
+                                </td>
+                                <td class="px-3 py-2 text-right text-gray-600 tabular-nums">
+                                    {{ number_format($item->cantidad, 3) }}
+                                </td>
+                                <td class="px-3 py-2 text-center text-gray-500">
+                                    {{ $item->num_cajas ?? '—' }}
+                                </td>
+                                <td class="px-3 py-2">
+                                    @if($itemIdx === 0)
+                                    <button
+                                        onclick="abrirDespacho({{ $pedido->id }}, '{{ $pedido->folio }}')"
+                                        class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700 whitespace-nowrap">
+                                        Despachar
+                                    </button>
+                                    @endif
+                                </td>
+                            </tr>
+                            @endforeach
                         @endforeach
                     </tbody>
                 </table>
@@ -325,14 +342,9 @@
                         timer: 2000,
                         showConfirmButton: false,
                     }).then(function() {
-                        // Quitar la fila del pedido despachado de la tabla
-                        var rows = Array.from(document.querySelectorAll('#pedidos-tbody tr'));
-                        rows.forEach(function(r) {
-                            var btn = r.querySelector('button');
-                            if (btn && btn.getAttribute('onclick').includes('(' + currentOrderId + ',')) {
-                                r.remove();
-                            }
-                        });
+                        // Quitar todas las filas del pedido despachado
+                        document.querySelectorAll('#pedidos-tbody tr[data-order-id="' + currentOrderId + '"]')
+                            .forEach(function(r) { r.remove(); });
                         cerrarPanel();
                         applyFilters();
                     });

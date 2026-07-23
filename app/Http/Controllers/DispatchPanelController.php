@@ -20,8 +20,7 @@ class DispatchPanelController extends Controller
     {
         $this->authorize('salida de producto');
 
-        $pedidos = SalesOrder::with(['client'])
-            ->withCount('items')
+        $pedidos = SalesOrder::with(['client', 'items.product'])
             ->where('status', SalesOrder::S_PROCESADO)
             ->orderByDesc('fecha')
             ->paginate(50);
