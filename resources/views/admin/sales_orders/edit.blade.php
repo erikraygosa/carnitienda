@@ -9,22 +9,17 @@
     <x-slot name="action">
         <a href="{{ route('admin.sales-orders.index') }}"
            class="inline-flex px-3 py-1.5 text-sm rounded-md border">Regresar</a>
-        @if($order->status === 'BORRADOR')
+        @if(!in_array($order->status, ['ENTREGADO','CANCELADO']))
             <button form="so-edit-form" type="submit"
                     class="ml-2 inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white">
-                Actualizar
-            </button>
-        @elseif($order->status === 'PREPARANDO')
-            <button form="so-edit-form" type="submit"
-                    class="ml-2 inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white">
-                Guardar cantidades
+                {{ $order->status === 'BORRADOR' ? 'Actualizar' : 'Guardar cambios' }}
             </button>
         @endif
     </x-slot>
 
     @php
-        $isLocked     = !in_array($order->status, ['BORRADOR','PREPARANDO']);
-        $canEditQty   = in_array($order->status, ['BORRADOR','PREPARANDO']);
+        $isLocked     = in_array($order->status, ['ENTREGADO','CANCELADO']);
+        $canEditQty   = !$isLocked;
         $canEditItems = $order->status === 'BORRADOR';
 
         $selClient    = (string) old('client_id',         $order->client_id);
@@ -117,7 +112,6 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
                     <select name="client_id" id="client_id"
                             class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            onchange="SOE.onClientChange(this.value)"
                             {{ $isLocked ? 'disabled' : '' }}>
                         <option value="">-- seleccionar --</option>
                         @foreach($clients as $c)
@@ -126,6 +120,9 @@
                             </option>
                         @endforeach
                     </select>
+                    @if($isLocked)
+                        <input type="hidden" name="client_id" value="{{ $selClient }}">
+                    @endif
                     <p id="credito-info" class="mt-1 text-xs text-gray-500 hidden"></p>
                 </div>
 
@@ -256,29 +253,45 @@
             </div>
 
             {{-- ====== DIRECCIÓN DE ENTREGA ====== --}}
-            <div id="entrega-section"
-                 class="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4"
-                 style="{{ $deliveryType==='ENVIO' ? '' : 'display:none' }}">
-                <div class="md:col-span-3">
-                    <p class="text-sm font-medium text-gray-700">Datos de entrega</p>
+            <div id="entrega-section" class="border-t pt-4" style="{{ $deliveryType==='ENVIO' ? '' : 'display:none' }}">
+                <button type="button" id="entrega-toggle"
+                        onclick="toggleEntrega()"
+                        class="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-indigo-600 w-full text-left mb-2">
+                    <svg id="entrega-chevron" class="w-4 h-4 transition-transform duration-200"
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                    Datos de entrega
+                </button>
+                <div id="entrega-fields" class="hidden grid grid-cols-1 md:grid-cols-3 gap-4">
+                    @foreach([
+                        ['entrega_nombre',   'Nombre quien recibe', $entregaNombre],
+                        ['entrega_telefono', 'Teléfono',            $entregaTel],
+                        ['entrega_calle',    'Calle',               $entregaCalle],
+                        ['entrega_numero',   'Número',              $entregaNumero],
+                        ['entrega_colonia',  'Colonia',             $entregaColonia],
+                        ['entrega_ciudad',   'Ciudad',              $entregaCiudad],
+                        ['entrega_estado',   'Estado',              $entregaEstado],
+                        ['entrega_cp',       'CP',                  $entregaCp],
+                    ] as [$fname, $flabel, $fval])
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ $flabel }}</label>
+                        <input type="text" name="{{ $fname }}" id="{{ $fname }}" value="{{ $fval }}"
+                               autocomplete="off"
+                               class="w-full rounded-md border-gray-300 shadow-sm text-sm"
+                               {{ $isLocked ? 'readonly' : '' }}>
+                    </div>
+                    @endforeach
                 </div>
-                @foreach([
-                    ['entrega_nombre',   'Nombre quien recibe', $entregaNombre],
-                    ['entrega_telefono', 'Teléfono',            $entregaTel],
-                    ['entrega_calle',    'Calle',               $entregaCalle],
-                    ['entrega_numero',   'Número',              $entregaNumero],
-                    ['entrega_colonia',  'Colonia',             $entregaColonia],
-                    ['entrega_ciudad',   'Ciudad',              $entregaCiudad],
-                    ['entrega_estado',   'Estado',              $entregaEstado],
-                    ['entrega_cp',       'CP',                  $entregaCp],
-                ] as [$fname, $flabel, $fval])
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ $flabel }}</label>
-                    <input type="text" name="{{ $fname }}" id="{{ $fname }}" value="{{ $fval }}"
-                           class="w-full rounded-md border-gray-300 shadow-sm text-sm"
-                           {{ $isLocked ? 'readonly' : '' }}>
-                </div>
-                @endforeach
+            </div>
+
+            {{-- ====== COMENTARIOS ====== --}}
+            <div class="border-t pt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Comentarios</label>
+                <textarea name="comentarios" rows="2" autocomplete="off"
+                          placeholder="Notas u observaciones del pedido..."
+                          class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                          {{ $isLocked ? 'readonly' : '' }}>{{ old('comentarios', $order->comentarios) }}</textarea>
             </div>
 
             {{-- ====== PARTIDAS ====== --}}
@@ -358,10 +371,6 @@
                 @elseif($order->status === 'PREPARANDO')
                     <form action="{{ route('admin.sales-orders.process',$order) }}" method="POST">@csrf
                         <x-wire-button type="submit" amber xs>Procesar</x-wire-button>
-                    </form>
-                @elseif($order->status === 'PROCESADO')
-                    <form action="{{ route('admin.sales-orders.en-ruta',$order) }}" method="POST">@csrf
-                        <x-wire-button type="submit" violet xs>Enviar a ruta</x-wire-button>
                     </form>
                 @elseif($order->status === 'EN_RUTA')
                     <form action="{{ route('admin.sales-orders.deliver',$order) }}" method="POST">@csrf
@@ -707,5 +716,50 @@
         renderAll();
     })();
     </script>
+
+@push('css')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<style>
+.select2-container .select2-selection--single { height: 38px !important; border-color: #d1d5db !important; border-radius: 6px !important; }
+.select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 36px !important; font-size: 0.875rem; color: #374151; padding-left: 10px; }
+.select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px !important; }
+.select2-dropdown { border-color: #d1d5db; border-radius: 6px; font-size: 0.875rem; }
+.select2-container--default .select2-search--dropdown .select2-search__field { border-color: #d1d5db; border-radius: 4px; padding: 4px 8px; }
+</style>
+@endpush
+
+@push('js')
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(function () {
+    @if(!$isLocked)
+    $('#client_id').select2({
+        placeholder: '-- seleccionar cliente --',
+        allowClear: true,
+        width: '100%',
+        language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
+    }).on('change', function () {
+        SOE.onClientChange(this.value);
+    });
+    @endif
+});
+
+function toggleEntrega() {
+    const fields  = document.getElementById('entrega-fields');
+    const chevron = document.getElementById('entrega-chevron');
+    const open    = !fields.classList.contains('hidden');
+    fields.classList.toggle('hidden', open);
+    chevron.style.transform = open ? '' : 'rotate(90deg)';
+}
+
+// Abrir automáticamente si hay datos de entrega
+(function(){
+    const vals = ['entrega_nombre','entrega_telefono','entrega_calle','entrega_numero','entrega_colonia','entrega_ciudad','entrega_estado','entrega_cp'];
+    const hasData = vals.some(id => { const el = document.getElementById(id); return el && el.value.trim(); });
+    if (hasData) toggleEntrega();
+})();
+</script>
+@endpush
 
 </x-admin-layout>

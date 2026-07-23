@@ -337,8 +337,8 @@ public function data(Request $request)
 
     public function update(Request $request, SalesOrder $sales_order)
     {
-        if (!in_array($sales_order->status, ['BORRADOR', 'PREPARANDO'])) {
-            return back()->with('swal',['icon'=>'error','title'=>'Error','text'=>'Solo BORRADOR o PREPARANDO puede editarse.']);
+        if (in_array($sales_order->status, ['ENTREGADO', 'CANCELADO'])) {
+            return back()->with('swal',['icon'=>'error','title'=>'Error','text'=>'Un pedido entregado o cancelado no puede editarse.']);
         }
 
         if ($request->input('price_list_id') === 'client') {
@@ -378,6 +378,7 @@ public function data(Request $request)
             'items.*.descuento'    => ['nullable','numeric','gte:0'],
             'items.*.impuesto'     => ['nullable','numeric','gte:0'],
             'items.*.num_cajas'    => ['nullable','integer','min:0'],
+            'comentarios'          => ['nullable','string','max:2000'],
         ]);
 
         DB::transaction(function () use ($sales_order, $data) {
@@ -435,6 +436,7 @@ public function data(Request $request)
                 'impuestos'        => $impuestos,
                 'descuento'        => $descuento,
                 'total'            => $total,
+                'comentarios'      => $data['comentarios'] ?? null,
 
                 'contraentrega_total' => $data['payment_method'] === 'CONTRAENTREGA' ? $total : 0,
             ]);
