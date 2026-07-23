@@ -344,6 +344,7 @@ Route::get('auditoria', [AuditoriaController::class, 'index'])->name('auditoria.
 Route::prefix('despacho')->name('despacho.')->middleware(['can:salida de producto'])->group(function () {
     Route::get('/',                        [DispatchPanelController::class, 'index'])->name('panel');
     Route::get('/imprimir',                [DispatchPanelController::class, 'printPendientes'])->name('print');
+    Route::get('/poll-count',              [DispatchPanelController::class, 'pollCount'])->name('poll-count');
     Route::get('/pedido/{order}',          [DispatchPanelController::class, 'show'])->name('show');
     Route::post('/pedido/{order}/guardar', [DispatchPanelController::class, 'saveDespacho'])->name('guardar');
 });

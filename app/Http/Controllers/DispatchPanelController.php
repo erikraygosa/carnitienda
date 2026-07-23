@@ -29,6 +29,15 @@ class DispatchPanelController extends Controller
         return view('admin.dispatch_panel.index', compact('pedidos'));
     }
 
+    // ── Polling: conteo de pedidos PROCESADOS para notificaciones ───
+    public function pollCount()
+    {
+        $this->authorize('salida de producto');
+        return response()->json([
+            'count' => SalesOrder::where('status', SalesOrder::S_PROCESADO)->count(),
+        ]);
+    }
+
     // ── Impresión de todos los pedidos pendientes ────────────────────
     public function printPendientes()
     {

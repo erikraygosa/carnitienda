@@ -151,6 +151,22 @@
         </div>
     </div>
 
+    {{-- Toast de notificación de nuevos pedidos --}}
+    <div id="poll-toast"
+         class="hidden fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-amber-500 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium max-w-xs">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 00-5-5.917V4a1 1 0 10-2 0v1.083A6 6 0 006 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+        </svg>
+        <span id="poll-toast-msg">Hay nuevos pedidos pendientes</span>
+        <button onclick="location.reload()"
+            class="ml-auto bg-white text-amber-600 font-semibold px-3 py-1 rounded-lg text-xs hover:bg-amber-50">
+            Recargar
+        </button>
+        <button onclick="document.getElementById('poll-toast').classList.add('hidden')"
+            class="text-white/70 hover:text-white text-lg leading-none">✕</button>
+    </div>
+
     <script>
     (function () {
         // ── Filtro + paginación ──────────────────────────────────────────
@@ -334,6 +350,36 @@
                 .replace(/&/g,'&amp;').replace(/</g,'&lt;')
                 .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
         }
+
+        // ── Polling: detectar nuevos pedidos PROCESADOS ──────────────
+        (function () {
+            var POLL_URL     = '{{ route('admin.despacho.poll-count') }}';
+            var knownCount   = null; // null = primera carga, no notificar
+            var toast        = document.getElementById('poll-toast');
+            var toastMsg     = document.getElementById('poll-toast-msg');
+
+            function poll() {
+                fetch(POLL_URL, { headers: { 'Accept': 'application/json' } })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var count = data.count;
+                        if (knownCount === null) {
+                            knownCount = count; // primer check: solo memorizar
+                        } else if (count > knownCount) {
+                            var nuevos = count - knownCount;
+                            toastMsg.textContent = nuevos === 1
+                                ? 'Hay 1 nuevo pedido pendiente de salida'
+                                : 'Hay ' + nuevos + ' nuevos pedidos pendientes de salida';
+                            toast.classList.remove('hidden');
+                            knownCount = count;
+                        }
+                    })
+                    .catch(function() {}); // silencioso si falla
+            }
+
+            setInterval(poll, 30000); // cada 30 segundos
+            poll(); // primera llamada inmediata para inicializar
+        })();
     })();
     </script>
 
