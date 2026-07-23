@@ -370,16 +370,28 @@
                 state.items[i].product_id      = p.id;
                 state.items[i]._productoNombre = p.nombre;
 
-                if (!state.items[i].descripcion) {
-                    state.items[i].descripcion = p.nombre;
-                    tr.querySelector('.inp-desc').value = p.nombre;
-                }
+                // Siempre actualiza la descripción al cambiar de producto
+                state.items[i].descripcion = p.nombre;
+                tr.querySelector('.inp-desc').value = p.nombre;
 
                 state.items[i].precio = getPrice(p.id);
                 tr.querySelector('.inp-precio').value = state.items[i].precio;
 
                 recalcRow(i);
                 hidePortal();
+                input.focus();
+            }
+
+            function clearProduct() {
+                hidden.value = '';
+                input.value  = '';
+                state.items[i].product_id      = '';
+                state.items[i]._productoNombre = '';
+                state.items[i].descripcion     = '';
+                state.items[i].precio          = 0;
+                tr.querySelector('.inp-desc').value   = '';
+                tr.querySelector('.inp-precio').value = 0;
+                recalcRow(i);
                 input.focus();
             }
 
@@ -438,11 +450,14 @@
             tr.innerHTML = `
                 <td class="p-2">
                     <input type="hidden" class="hid-product-id" name="items[${i}][product_id]" value="${escHtml(String(it.product_id || ''))}">
-                    <input type="text"
-                           class="w-52 border rounded p-1 text-sm inp-product-search"
-                           placeholder="Buscar por nombre o SKU..."
-                           autocomplete="off"
-                           value="${escHtml(it._productoNombre || '')}">
+                    <div class="flex items-center gap-1">
+                        <input type="text"
+                               class="w-52 border rounded p-1 text-sm inp-product-search"
+                               placeholder="Buscar por nombre o SKU..."
+                               autocomplete="off"
+                               value="${escHtml(it._productoNombre || '')}">
+                        <button type="button" class="btn-clear-product text-gray-400 hover:text-red-500 text-base leading-none px-1" title="Quitar producto">✕</button>
+                    </div>
                 </td>
                 <td class="p-2">
                     <input type="text" class="w-64 border rounded p-1 text-sm inp-desc"
@@ -483,6 +498,8 @@
 
             // Adjuntar autocomplete (reemplaza el sel.addEventListener anterior)
             attachProductSearch(tr, i);
+
+            tr.querySelector('.btn-clear-product').addEventListener('click', clearProduct);
 
             tr.querySelector('.inp-cantidad').addEventListener('input', function() {
                 state.items[i].cantidad = parseFloat(this.value)||0; recalcRow(i);
