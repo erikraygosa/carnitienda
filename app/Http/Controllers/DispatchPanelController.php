@@ -29,6 +29,21 @@ class DispatchPanelController extends Controller
         return view('admin.dispatch_panel.index', compact('pedidos'));
     }
 
+    // ── Impresión de todos los pedidos pendientes ────────────────────
+    public function printPendientes()
+    {
+        $this->authorize('salida de producto');
+
+        $pedidos = SalesOrder::with(['client', 'items.product'])
+            ->where('status', SalesOrder::S_PROCESADO)
+            ->orderBy('fecha')
+            ->get();
+
+        $empresa = app(\App\Services\CompanyService::class)->activa();
+
+        return view('admin.dispatch_panel.print', compact('pedidos', 'empresa'));
+    }
+
     // ── 2. Carga líneas de un pedido para el panel lateral ───────────
     public function show(SalesOrder $order)
     {
