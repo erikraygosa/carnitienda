@@ -2,9 +2,11 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
 <style>
 .select2-container .select2-selection--single { height: 34px !important; border-color: #d1d5db !important; border-radius: 6px !important; }
-.select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 32px !important; font-size: 0.875rem; }
+.select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 32px !important; font-size: 0.875rem; color: #374151; padding-left: 10px; }
 .select2-container--default .select2-selection--single .select2-selection__arrow { height: 32px !important; }
 .select2-dropdown { border-color: #d1d5db; border-radius: 6px; font-size: 0.875rem; }
+.select2-container--default .select2-search--dropdown .select2-search__field { border-color: #d1d5db; border-radius: 4px; padding: 4px 8px; }
+.select2-container { width: 100% !important; }
 </style>
 @endpush
 
@@ -219,13 +221,21 @@
 </x-wire-card>
 
 @push('js')
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    $('.select2-clientes').select2({
-        placeholder: '— Buscar cliente —',
+$(function () {
+    $('#sel-desde').select2({
+        placeholder: '— Todos —',
         allowClear: true,
         width: '100%',
+        language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
+    });
+    $('#sel-hasta').select2({
+        placeholder: '— Mismo que desde —',
+        allowClear: true,
+        width: '100%',
+        language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
     });
 });
 </script>
