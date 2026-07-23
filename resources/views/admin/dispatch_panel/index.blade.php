@@ -170,6 +170,7 @@
 
 
     <script>
+    var TICKET_BASE_URL = '{{ url('admin/sales-orders') }}';
     (function () {
         // ── Filtro + paginación ──────────────────────────────────────────
         var tbody     = document.getElementById('pedidos-tbody');
@@ -320,6 +321,9 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.ok) {
+                    // Abrir ticket en nueva pestaña automáticamente
+                    var ticketWin = window.open(TICKET_BASE_URL + '/' + currentOrderId + '/ticket', '_blank');
+
                     Swal.fire({
                         icon: 'success',
                         title: 'Despacho guardado',

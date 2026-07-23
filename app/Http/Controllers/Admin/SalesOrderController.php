@@ -679,6 +679,10 @@ public function approve(SalesOrder $order)
         $order->load('client', 'items.product', 'warehouse');
         $empresa = app(\App\Services\CompanyService::class)->activa();
 
+        if (!$order->ticket_impreso) {
+            $order->update(['ticket_impreso' => true]);
+        }
+
         return view('admin.sales_orders.ticket', compact('order', 'empresa'));
     }
 

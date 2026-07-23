@@ -191,6 +191,7 @@
                                 <th class="p-2 text-left">Pago</th>
                                 <th class="p-2 text-left">Ruta</th>
                                 <th class="p-2 text-left">Programado</th>
+                                <th class="p-2 text-center">Ticket</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -224,10 +225,17 @@
                                 <td class="p-2 text-gray-400 text-xs">
                                     {{ optional($o->programado_para)->format('d/m/Y') ?? '—' }}
                                 </td>
+                                <td class="p-2 text-center">
+                                    @if($o->ticket_impreso)
+                                        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 text-xs font-bold" title="Ticket impreso">✓</span>
+                                    @else
+                                        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 text-gray-400 text-xs" title="Sin imprimir">—</span>
+                                    @endif
+                                </td>
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="7" class="p-4 text-center text-gray-400">
+                                <td colspan="8" class="p-4 text-center text-gray-400">
                                     No hay pedidos PROCESADOS pendientes.
                                 </td>
                             </tr>

@@ -44,6 +44,7 @@ class SalesOrder extends Model
         // auditoría
         'created_by','owner_id','saldo_pendiente',
         'comentarios',
+        'ticket_impreso',
     ];
 
     protected $casts = [

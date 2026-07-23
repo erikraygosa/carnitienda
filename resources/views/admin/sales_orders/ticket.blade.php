@@ -244,5 +244,11 @@ td, th { vertical-align: top; }
     <div class="center bold" style="font-size:12px;margin-bottom:4mm;">Gracias por su compra!!!</div>
 
 </div>
+<script>
+// Auto-imprimir si se abrió desde el panel de despacho
+if (window.opener) {
+    window.addEventListener('load', function () { window.print(); });
+}
+</script>
 </body>
 </html>
