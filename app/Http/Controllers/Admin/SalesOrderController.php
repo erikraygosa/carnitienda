@@ -51,8 +51,10 @@ public function data(Request $request)
 {
     $search     = $request->get('search', '');
     $status     = $request->get('status', '');
-    $fechaDesde = $request->get('fecha_desde', '');
-    $fechaHasta = $request->get('fecha_hasta', '');
+    $defaultDesde = now()->startOfMonth()->format('Y-m-d');
+    $defaultHasta = now()->endOfMonth()->format('Y-m-d');
+    $fechaDesde = $request->get('fecha_desde', $defaultDesde);
+    $fechaHasta = $request->get('fecha_hasta', $defaultHasta);
     $sortBy     = in_array($request->get('sort_by'), ['folio','fecha','status','total']) ? $request->get('sort_by') : 'id';
     $sortDir    = $request->get('sort_dir', 'desc') === 'asc' ? 'asc' : 'desc';
     $perPage    = in_array((int)$request->get('per_page'), [10,15,25,50]) ? (int)$request->get('per_page') : 15;
@@ -211,6 +213,7 @@ public function data(Request $request)
             'items.*.descuento'    => ['nullable','numeric','gte:0'],
             'items.*.impuesto'     => ['nullable','numeric','gte:0'],
             'items.*.num_cajas'    => ['nullable','integer','min:0'],
+            'comentarios'          => ['nullable','string','max:2000'],
         ]);
 
         $order = null;
@@ -258,6 +261,7 @@ public function data(Request $request)
                 'status'         => 'BORRADOR',
                 'created_by'     => auth()->id(),
                 'owner_id'       => auth()->id(),
+                'comentarios'    => $data['comentarios'] ?? null,
 
                 // Contraentrega: se espera cobrar "total" salvo que manejes redondeos/comisiones
                 'contraentrega_total' => $data['payment_method'] === 'CONTRAENTREGA' ? $total : 0,

@@ -59,8 +59,7 @@
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
                     <select name="client_id" id="client_id"
-                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            onchange="SOF.onClientChange(this.value)">
+                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                         <option value="">-- seleccionar --</option>
                         @foreach($clients as $c)
                             <option value="{{ $c->id }}" {{ $selClient===(string)$c->id ? 'selected' : '' }}>
@@ -171,29 +170,45 @@
             </div>
 
             {{-- ====== DIRECCIÓN DE ENTREGA ====== --}}
-            <div id="entrega-section"
-                 class="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4"
-                 style="{{ $deliveryType==='ENVIO' ? '' : 'display:none' }}">
-                <div class="md:col-span-3">
-                    <p class="text-sm font-medium text-gray-700">Datos de entrega</p>
+            <div id="entrega-section" class="border-t pt-4" style="{{ $deliveryType==='ENVIO' ? '' : 'display:none' }}">
+                {{-- Toggle colapsable --}}
+                <button type="button" id="entrega-toggle"
+                        onclick="toggleEntrega()"
+                        class="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-indigo-600 w-full text-left mb-2">
+                    <svg id="entrega-chevron" class="w-4 h-4 transition-transform duration-200"
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                    Datos de entrega
+                </button>
+                <div id="entrega-fields" class="hidden grid grid-cols-1 md:grid-cols-3 gap-4">
+                    @foreach([
+                        ['entrega_nombre',   'Nombre quien recibe'],
+                        ['entrega_telefono', 'Teléfono'],
+                        ['entrega_calle',    'Calle'],
+                        ['entrega_numero',   'Número'],
+                        ['entrega_colonia',  'Colonia'],
+                        ['entrega_ciudad',   'Ciudad'],
+                        ['entrega_estado',   'Estado'],
+                        ['entrega_cp',       'CP'],
+                    ] as [$fname, $flabel])
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ $flabel }}</label>
+                        <input type="text" name="{{ $fname }}" id="{{ $fname }}"
+                               value="{{ old($fname) }}"
+                               autocomplete="off"
+                               class="w-full rounded-md border-gray-300 shadow-sm text-sm">
+                    </div>
+                    @endforeach
                 </div>
-                @foreach([
-                    ['entrega_nombre',   'Nombre quien recibe'],
-                    ['entrega_telefono', 'Teléfono'],
-                    ['entrega_calle',    'Calle'],
-                    ['entrega_numero',   'Número'],
-                    ['entrega_colonia',  'Colonia'],
-                    ['entrega_ciudad',   'Ciudad'],
-                    ['entrega_estado',   'Estado'],
-                    ['entrega_cp',       'CP'],
-                ] as [$fname, $flabel])
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ $flabel }}</label>
-                    <input type="text" name="{{ $fname }}" id="{{ $fname }}"
-                           value="{{ old($fname) }}"
-                           class="w-full rounded-md border-gray-300 shadow-sm text-sm">
-                </div>
-                @endforeach
+            </div>
+
+            {{-- ====== COMENTARIOS ====== --}}
+            <div class="border-t pt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Comentarios</label>
+                <textarea name="comentarios" rows="2" autocomplete="off"
+                          placeholder="Notas u observaciones del pedido..."
+                          class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">{{ old('comentarios') }}</textarea>
             </div>
 
             {{-- ====== ALERTA precio cero ====== --}}
@@ -588,5 +603,52 @@
         renderAll();
     })();
     </script>
+
+@push('css')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<style>
+.select2-container .select2-selection--single { height: 38px !important; border-color: #d1d5db !important; border-radius: 6px !important; }
+.select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 36px !important; font-size: 0.875rem; color: #374151; padding-left: 10px; }
+.select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px !important; }
+.select2-dropdown { border-color: #d1d5db; border-radius: 6px; font-size: 0.875rem; }
+.select2-container--default .select2-search--dropdown .select2-search__field { border-color: #d1d5db; border-radius: 4px; padding: 4px 8px; }
+</style>
+@endpush
+
+@push('js')
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(function () {
+    $('#client_id').select2({
+        placeholder: '-- seleccionar cliente --',
+        allowClear: true,
+        width: '100%',
+        language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
+    }).on('change', function () {
+        SOF.onClientChange(this.value);
+    });
+
+    @if($selClient)
+    $('#client_id').val('{{ $selClient }}').trigger('change.select2');
+    @endif
+});
+
+function toggleEntrega() {
+    const fields  = document.getElementById('entrega-fields');
+    const chevron = document.getElementById('entrega-chevron');
+    const open    = !fields.classList.contains('hidden');
+    fields.classList.toggle('hidden', open);
+    chevron.style.transform = open ? '' : 'rotate(90deg)';
+}
+
+// Abrir automáticamente si hay datos de entrega (por old() en caso de error)
+(function(){
+    const vals = ['entrega_nombre','entrega_telefono','entrega_calle','entrega_numero','entrega_colonia','entrega_ciudad','entrega_estado','entrega_cp'];
+    const hasData = vals.some(id => { const el = document.getElementById(id); return el && el.value.trim(); });
+    if (hasData) toggleEntrega();
+})();
+</script>
+@endpush
 
 </x-admin-layout>

@@ -43,6 +43,7 @@ class SalesOrder extends Model
         'driver_settlement_status','driver_settlement_at','pos_register_id',
         // auditoría
         'created_by','owner_id','saldo_pendiente',
+        'comentarios',
     ];
 
     protected $casts = [

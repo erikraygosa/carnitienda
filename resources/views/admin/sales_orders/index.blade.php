@@ -34,10 +34,12 @@
             </div>
             <div>
                 <input type="date" id="so-desde"
+                       value="{{ now()->startOfMonth()->format('Y-m-d') }}"
                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
             <div>
                 <input type="date" id="so-hasta"
+                       value="{{ now()->endOfMonth()->format('Y-m-d') }}"
                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
         </div>
@@ -105,8 +107,8 @@
         let state = {
             search:     '',
             status:     '',
-            fechaDesde: '',
-            fechaHasta: '',
+            fechaDesde: '{{ now()->startOfMonth()->format('Y-m-d') }}',
+            fechaHasta: '{{ now()->endOfMonth()->format('Y-m-d') }}',
             sortBy:     'id',
             sortDir:    'desc',
             perPage:    15,
@@ -290,13 +292,15 @@
         });
 
         $('so-clear').addEventListener('click', function() {
+            const mesDesde = '{{ now()->startOfMonth()->format('Y-m-d') }}';
+            const mesHasta = '{{ now()->endOfMonth()->format('Y-m-d') }}';
             state.search = ''; state.status = '';
-            state.fechaDesde = ''; state.fechaHasta = '';
+            state.fechaDesde = mesDesde; state.fechaHasta = mesHasta;
             state.page = 1;
             $('so-search').value = '';
             $('so-status').value = '';
-            $('so-desde').value  = '';
-            $('so-hasta').value  = '';
+            $('so-desde').value  = mesDesde;
+            $('so-hasta').value  = mesHasta;
             load();
         });
 
