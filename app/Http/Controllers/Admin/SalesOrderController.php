@@ -481,8 +481,9 @@ public function approve(SalesOrder $order)
         }
     }
 
-    $order->update(['status' => 'APROBADO']);
-    return back()->with('swal', ['icon'=>'success','title'=>'Aprobado','text'=>'Pedido aprobado.']);
+    // Aprobado + Procesado en un solo paso (no hay lógica intermedia en PREPARANDO)
+    $order->update(['status' => 'PROCESADO', 'despachado_at' => now()]);
+    return back()->with('swal', ['icon'=>'success','title'=>'Procesado','text'=>'Pedido aprobado y listo para salida de almacén.']);
 }
 
     public function startPreparing(SalesOrder $order)

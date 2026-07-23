@@ -354,19 +354,12 @@
             <div class="ml-auto flex items-center space-x-2">
                 @if($order->status === 'BORRADOR')
                     <form action="{{ route('admin.sales-orders.approve',$order) }}" method="POST">@csrf
-                        <x-wire-button type="submit" green xs>Aprobar</x-wire-button>
+                        <x-wire-button type="submit" green xs>Aprobar y procesar</x-wire-button>
                     </form>
                     <form action="{{ route('admin.sales-orders.cancel',$order) }}" method="POST">@csrf
                         <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
                     </form>
-                @elseif($order->status === 'APROBADO')
-                    <form action="{{ route('admin.sales-orders.prepare',$order) }}" method="POST">@csrf
-                        <x-wire-button type="submit" blue xs>Preparar</x-wire-button>
-                    </form>
-                    <form action="{{ route('admin.sales-orders.process',$order) }}" method="POST">@csrf
-                        <x-wire-button type="submit" amber xs>Procesar</x-wire-button>
-                    </form>
-                @elseif($order->status === 'PREPARANDO')
+                @elseif(in_array($order->status, ['APROBADO', 'PREPARANDO']))
                     <form action="{{ route('admin.sales-orders.process',$order) }}" method="POST">@csrf
                         <x-wire-button type="submit" amber xs>Procesar</x-wire-button>
                     </form>
