@@ -13,15 +13,25 @@
     <form method="GET" action="{{ route('admin.ar.cobranza') }}" id="form-filtros" class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Desde cliente</label>
-            <input type="text" name="cliente_desde" value="{{ request('cliente_desde') }}"
-                placeholder="Nombre inicial..."
-                class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <select name="cliente_desde" class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                <option value="">— Todos —</option>
+                @foreach($clientes as $c)
+                    <option value="{{ $c->nombre }}" {{ request('cliente_desde') === $c->nombre ? 'selected' : '' }}>
+                        {{ $c->nombre }}
+                    </option>
+                @endforeach
+            </select>
         </div>
         <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Hasta cliente</label>
-            <input type="text" name="cliente_hasta" value="{{ request('cliente_hasta') }}"
-                placeholder="Nombre final..."
-                class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <select name="cliente_hasta" class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                <option value="">— Todos —</option>
+                @foreach($clientes as $c)
+                    <option value="{{ $c->nombre }}" {{ request('cliente_hasta') === $c->nombre ? 'selected' : '' }}>
+                        {{ $c->nombre }}
+                    </option>
+                @endforeach
+            </select>
         </div>
         <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Fecha venc. desde</label>
