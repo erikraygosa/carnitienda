@@ -57,11 +57,12 @@ class ArCobranzaController extends Controller implements HasMiddleware
                       ->orWhere('sales_orders.saldo_pendiente', '>', 0);
                 })
             )
-            ->when($clienteDesde, fn($q) =>
-                $q->where('clients.nombre', '>=', $clienteDesde)
+            ->when($clienteDesde && !$clienteHasta, fn($q) =>
+                $q->where('clients.nombre', $clienteDesde)
             )
-            ->when($clienteHasta, fn($q) =>
-                $q->where('clients.nombre', '<=', $clienteHasta . 'zzz')
+            ->when($clienteDesde && $clienteHasta, fn($q) =>
+                $q->where('clients.nombre', '>=', $clienteDesde)
+                  ->where('clients.nombre', '<=', $clienteHasta . 'zzz')
             )
             ->when($fechaVencDesde, fn($q) =>
                 $q->havingRaw('fecha_vencimiento >= ?', [$fechaVencDesde])

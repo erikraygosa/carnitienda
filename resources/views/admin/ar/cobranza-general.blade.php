@@ -1,3 +1,13 @@
+@push('css')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<style>
+.select2-container .select2-selection--single { height: 34px !important; border-color: #d1d5db !important; border-radius: 6px !important; }
+.select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 32px !important; font-size: 0.875rem; }
+.select2-container--default .select2-selection--single .select2-selection__arrow { height: 32px !important; }
+.select2-dropdown { border-color: #d1d5db; border-radius: 6px; font-size: 0.875rem; }
+</style>
+@endpush
+
 <x-admin-layout
     title="Cobranza General"
     :breadcrumbs="[
@@ -13,7 +23,7 @@
     <form method="GET" action="{{ route('admin.ar.cobranza') }}" id="form-filtros" class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Desde cliente</label>
-            <select name="cliente_desde" class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <select name="cliente_desde" id="sel-desde" class="w-full select2-clientes">
                 <option value="">— Todos —</option>
                 @foreach($clientes as $c)
                     <option value="{{ $c->nombre }}" {{ request('cliente_desde') === $c->nombre ? 'selected' : '' }}>
@@ -23,9 +33,9 @@
             </select>
         </div>
         <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Hasta cliente</label>
-            <select name="cliente_hasta" class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
-                <option value="">— Todos —</option>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Hasta cliente <span class="text-gray-400 font-normal">(opcional)</span></label>
+            <select name="cliente_hasta" id="sel-hasta" class="w-full select2-clientes">
+                <option value="">— Mismo que desde —</option>
                 @foreach($clientes as $c)
                     <option value="{{ $c->nombre }}" {{ request('cliente_hasta') === $c->nombre ? 'selected' : '' }}>
                         {{ $c->nombre }}
@@ -207,5 +217,18 @@
         </div>
     @endif
 </x-wire-card>
+
+@push('js')
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    $('.select2-clientes').select2({
+        placeholder: '— Buscar cliente —',
+        allowClear: true,
+        width: '100%',
+    });
+});
+</script>
+@endpush
 
 </x-admin-layout>
