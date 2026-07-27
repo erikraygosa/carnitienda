@@ -228,7 +228,7 @@ class ArCobranzaController extends Controller implements HasMiddleware
         ];
 
         $empresa = app(\App\Services\CompanyService::class)->activa();
-        $filtros  = $request->only(['fecha_venc_desde', 'fecha_venc_hasta', 'status', 'solo_con_saldo']);
+        $filtros  = $request->only(['fecha_venc_desde', 'fecha_venc_hasta', 'status', 'solo_con_saldo', 'cliente_desde', 'cliente_hasta']);
 
         $html = view('admin.ar.cobranza-pdf', compact('porCliente', 'totales', 'empresa', 'filtros'))->render();
 
