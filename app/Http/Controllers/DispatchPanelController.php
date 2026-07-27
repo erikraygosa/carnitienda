@@ -9,6 +9,7 @@ use App\Models\SalesOrderItem;
 use App\Models\DispatchItem;
 use App\Models\DispatchItemLine;
 use App\Models\DocumentActivityLog;
+use App\Models\ShippingRoute;
 use App\Services\InventoryService;
 
 class DispatchPanelController extends Controller
@@ -20,12 +21,17 @@ class DispatchPanelController extends Controller
     {
         $this->authorize('salida de producto');
 
+        $rutas     = ShippingRoute::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
+        $rutaId    = $request->get('ruta_id');
+
         $pedidos = SalesOrder::with(['client', 'items.product'])
             ->where('status', SalesOrder::S_PROCESADO)
+            ->when($rutaId, fn($q) => $q->where('shipping_route_id', $rutaId))
             ->orderByDesc('fecha')
-            ->paginate(50);
+            ->paginate(50)
+            ->withQueryString();
 
-        return view('admin.dispatch_panel.index', compact('pedidos'));
+        return view('admin.dispatch_panel.index', compact('pedidos', 'rutas', 'rutaId'));
     }
 
     // ── Polling: conteo de pedidos PROCESADOS para notificaciones ───
@@ -38,12 +44,15 @@ class DispatchPanelController extends Controller
     }
 
     // ── Impresión de todos los pedidos pendientes ────────────────────
-    public function printPendientes()
+    public function printPendientes(Request $request)
     {
         $this->authorize('salida de producto');
 
+        $rutaId = $request->get('ruta_id');
+
         $pedidos = SalesOrder::with(['client', 'items.product'])
             ->where('status', SalesOrder::S_PROCESADO)
+            ->when($rutaId, fn($q) => $q->where('shipping_route_id', $rutaId))
             ->orderBy('fecha')
             ->get();
 

@@ -31,9 +31,25 @@
             <div class="flex items-center justify-between mb-3">
                 <h2 class="font-semibold text-gray-700">Pedidos procesados</h2>
                 <div class="flex items-center gap-2">
+                    {{-- Filtro por ruta --}}
+                    <form method="GET" action="{{ route('admin.despacho.panel') }}" class="flex items-center gap-2">
+                        <select name="ruta_id" onchange="this.form.submit()"
+                                class="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                            <option value="">Todas las rutas</option>
+                            @foreach($rutas as $r)
+                                <option value="{{ $r->id }}" {{ (string)$rutaId === (string)$r->id ? 'selected' : '' }}>
+                                    {{ $r->nombre }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @if($rutaId)
+                            <a href="{{ route('admin.despacho.panel') }}"
+                               class="text-xs text-gray-400 hover:text-red-500" title="Quitar filtro">✕</a>
+                        @endif
+                    </form>
                     <input id="filter-search" type="text" placeholder="Buscar folio / cliente..."
                         class="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 w-56"/>
-                    <a href="{{ route('admin.despacho.print') }}" target="_blank"
+                    <a href="{{ route('admin.despacho.print') }}{{ $rutaId ? '?ruta_id='.$rutaId : '' }}" target="_blank"
                         class="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-600 whitespace-nowrap">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
