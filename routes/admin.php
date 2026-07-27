@@ -33,6 +33,7 @@ use App\Http\Controllers\DispatchPanelController;
 use App\Http\Controllers\Admin\ReportesController;
 use App\Http\Controllers\Admin\AuditoriaController;
 use App\Http\Controllers\Admin\ShippingRouteController;
+use App\Http\Controllers\Admin\DriverController;
 
 
 Route::get('/', [DashboardController::class, 'index'])
@@ -49,6 +50,7 @@ Route::resource('clients', ClientController::class)->names('clients');
 Route::resource('providers', ProviderController::class)->names('providers');
 Route::resource('warehouses', WarehouseController::class)->names('warehouses');
 Route::resource('shipping-routes', ShippingRouteController::class)->except(['show'])->names('shipping-routes');
+Route::resource('drivers', DriverController::class)->except(['show'])->names('drivers');
 
 /* Órdenes de compra */
 Route::resource('purchase-orders', PurchaseOrderController::class)
