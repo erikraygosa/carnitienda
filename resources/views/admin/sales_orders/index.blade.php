@@ -139,6 +139,9 @@
                  </form>`;
 
             let html = btn(o.edit_url, 'Editar', 'border-indigo-300 text-indigo-700 hover:bg-indigo-50');
+            if (o.status !== 'CANCELADO') {
+                html += form(o.duplicate_url, 'Duplicar', 'border-gray-300 text-gray-600 hover:bg-gray-50');
+            }
 
             const withPdf = ['PROCESADO','EN_RUTA','ENTREGADO','DESPACHADO'];
             if (withPdf.includes(o.status)) {

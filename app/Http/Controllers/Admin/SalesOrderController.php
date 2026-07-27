@@ -107,7 +107,8 @@ public function data(Request $request)
     'cancel_url'    => route('admin.sales-orders.cancel',      $o),
     'enruta_url'    => route('admin.sales-orders.en-ruta',     $o),
     'deliver_url'   => route('admin.sales-orders.deliver',     $o),
-    'nodeliver_url' => route('admin.sales-orders.not-delivered',$o),
+    'nodeliver_url'   => route('admin.sales-orders.not-delivered',$o),
+    'duplicate_url'   => route('admin.sales-orders.duplicate',   $o),
 ]);
 
     return response()->json([
@@ -453,6 +454,72 @@ public function data(Request $request)
         });
 
         return back()->with('swal',['icon'=>'success','title'=>'Actualizado','text'=>'Pedido actualizado']);
+    }
+
+    // ======== Duplicar pedido ========
+
+    public function duplicate(SalesOrder $order)
+    {
+        $this->authorize('crear pedidos');
+
+        $order->load('items');
+
+        $nuevo = DB::transaction(function () use ($order) {
+            $nuevo = SalesOrder::create([
+                'client_id'           => $order->client_id,
+                'warehouse_id'        => $order->warehouse_id,
+                'price_list_id'       => $order->price_list_id,
+                'folio'               => 'TEMP-' . uniqid(),
+                'fecha'               => now(),
+                'programado_para'     => now()->format('Y-m-d'),
+                'delivery_type'       => $order->delivery_type,
+                'entrega_nombre'      => $order->entrega_nombre,
+                'entrega_telefono'    => $order->entrega_telefono,
+                'entrega_calle'       => $order->entrega_calle,
+                'entrega_numero'      => $order->entrega_numero,
+                'entrega_colonia'     => $order->entrega_colonia,
+                'entrega_ciudad'      => $order->entrega_ciudad,
+                'entrega_estado'      => $order->entrega_estado,
+                'entrega_cp'          => $order->entrega_cp,
+                'shipping_route_id'   => $order->shipping_route_id,
+                'driver_id'           => $order->driver_id,
+                'payment_method'      => $order->payment_method,
+                'credit_days'         => $order->credit_days,
+                'moneda'              => $order->moneda,
+                'subtotal'            => $order->subtotal,
+                'impuestos'           => $order->impuestos,
+                'descuento'           => $order->descuento,
+                'total'               => $order->total,
+                'contraentrega_total' => $order->contraentrega_total,
+                'comentarios'         => $order->comentarios,
+                'status'              => 'BORRADOR',
+                'created_by'          => auth()->id(),
+                'owner_id'            => auth()->id(),
+            ]);
+
+            $nuevo->updateQuietly([
+                'folio' => 'SO-' . now()->format('Ymd') . '-' . Str::padLeft((string) $nuevo->id, 4, '0'),
+            ]);
+
+            foreach ($order->items as $item) {
+                SalesOrderItem::create([
+                    'sales_order_id' => $nuevo->id,
+                    'product_id'     => $item->product_id,
+                    'descripcion'    => $item->descripcion,
+                    'cantidad'       => $item->cantidad,
+                    'num_cajas'      => $item->num_cajas,
+                    'precio'         => $item->precio,
+                    'descuento'      => $item->descuento,
+                    'impuesto'       => $item->impuesto,
+                    'total'          => $item->total,
+                ]);
+            }
+
+            return $nuevo;
+        });
+
+        return redirect()->route('admin.sales-orders.edit', $nuevo)
+            ->with('swal', ['icon' => 'success', 'title' => 'Duplicado', 'text' => "Pedido {$nuevo->folio} creado como copia. Revisa y guarda."]);
     }
 
     // ======== Transiciones de estado ========

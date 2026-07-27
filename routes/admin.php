@@ -110,6 +110,7 @@ Route::resource('sales-orders', SalesOrderController::class)->except(['show']);
     Route::post('sales-orders/{order}/send',          [SalesOrderController::class,'send'])->name('sales-orders.send');
 
     // Acciones de estado (flujo logístico)
+    Route::post('sales-orders/{order}/duplicate',     [SalesOrderController::class,'duplicate'])->name('sales-orders.duplicate');
     Route::post('sales-orders/{order}/approve',       [SalesOrderController::class,'approve'])->name('sales-orders.approve');
     Route::post('sales-orders/{order}/preparar',      [SalesOrderController::class,'startPreparing'])->name('sales-orders.prepare');
     Route::post('sales-orders/{order}/procesar',      [SalesOrderController::class,'process'])->name('sales-orders.process');
