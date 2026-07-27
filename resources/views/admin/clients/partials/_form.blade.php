@@ -175,11 +175,17 @@
             data-fiscal="any" id="uso_cfdi_default" />
 
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Ruta de reparto</label>
+            <div class="flex items-center justify-between mb-1">
+                <label class="block text-sm font-medium text-gray-700">Ruta de reparto</label>
+                @can('ver configuracion')
+                <a href="{{ route('admin.shipping-routes.index') }}" target="_blank"
+                   class="text-xs text-indigo-500 hover:underline">Administrar rutas →</a>
+                @endcan
+            </div>
             @php $selRoute = old('shipping_route_id', $isEdit ? $client->shipping_route_id : ''); @endphp
             <select name="shipping_route_id"
                     class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
-                <option value="">Seleccione ruta</option>
+                <option value="">Sin ruta</option>
                 @foreach ($routes as $id => $label)
                     <option value="{{ $id }}" {{ (string)$selRoute === (string)$id ? 'selected' : '' }}>
                         {{ $label }}

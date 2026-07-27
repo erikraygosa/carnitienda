@@ -32,6 +32,7 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\DispatchPanelController;
 use App\Http\Controllers\Admin\ReportesController;
 use App\Http\Controllers\Admin\AuditoriaController;
+use App\Http\Controllers\Admin\ShippingRouteController;
 
 
 Route::get('/', [DashboardController::class, 'index'])
@@ -47,6 +48,7 @@ Route::get('clients/data', [ClientController::class, 'data'])->name('clients.dat
 Route::resource('clients', ClientController::class)->names('clients');
 Route::resource('providers', ProviderController::class)->names('providers');
 Route::resource('warehouses', WarehouseController::class)->names('warehouses');
+Route::resource('shipping-routes', ShippingRouteController::class)->except(['show'])->names('shipping-routes');
 
 /* Órdenes de compra */
 Route::resource('purchase-orders', PurchaseOrderController::class)
