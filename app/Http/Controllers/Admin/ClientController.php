@@ -38,7 +38,7 @@ class ClientController extends Controller implements HasMiddleware
     public function data(Request $request)
     {
         $search  = (string) $request->get('search', '');
-        $activo  = $request->get('activo', '');
+        $activo  = $request->get('activo', '1');
         $alerta  = $request->get('alerta', '');
         $perPage = (int) $request->get('per_page', 15);
         $page    = (int) $request->get('page', 1);

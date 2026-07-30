@@ -22,7 +22,7 @@
             <select id="filter-activo"
                 class="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200">
                 <option value="">Todos los estatus</option>
-                <option value="1">Activos</option>
+                <option value="1" selected>Activos</option>
                 <option value="0">Inactivos</option>
             </select>
             <select id="filter-alerta"
