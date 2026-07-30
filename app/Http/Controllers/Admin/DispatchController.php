@@ -546,7 +546,7 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
     {
         $request->validate([
             'monto_entregado' => 'required|numeric|min:0',
-            'payment_type_id' => 'required|exists:payment_types,id',
+            'payment_type_id' => 'nullable|exists:payment_types,id',
             'pos_register_id' => 'nullable|exists:cash_registers,id',
             'referencia'      => 'nullable|string|max:255',
             'notas_cierre'    => 'nullable|string|max:500',

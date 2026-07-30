@@ -659,29 +659,6 @@
                     <input type="number" name="monto_entregado" min="0" step="0.01" value="{{ $montoSugerido }}"
                            class="w-full rounded-md border-gray-300 shadow-sm text-sm" required>
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">Forma de pago</label>
-                    <select name="payment_type_id" class="w-full rounded-md border-gray-300 shadow-sm text-sm" required>
-                        <option value="">-- seleccionar --</option>
-                        @foreach($paymentTypes as $pt)
-                            <option value="{{ $pt->id }}">{{ $pt->descripcion }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">Caja del día (opcional)</label>
-                    <select name="pos_register_id" class="w-full rounded-md border-gray-300 shadow-sm text-sm">
-                        <option value="">-- sin caja --</option>
-                        @foreach($cajasAbiertas as $cr)
-                            <option value="{{ $cr->id }}">{{ $cr->warehouse?->nombre ?? 'Sin almacén' }} — {{ $cr->fecha }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">Referencia (opcional)</label>
-                    <input type="text" name="referencia" maxlength="255" placeholder="Ej. número de sobre"
-                           class="w-full rounded-md border-gray-300 shadow-sm text-sm">
-                </div>
                 <div class="md:col-span-4">
                     <label class="block text-xs text-gray-500 mb-1">Notas de cierre (opcional)</label>
                     <input type="text" name="notas_cierre" maxlength="500"
