@@ -9,11 +9,14 @@ use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
+use App\Services\DocumentLogService;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 
 class UserController extends Controller implements HasMiddleware
 {
+    public function __construct(private DocumentLogService $log) {}
+
     public static function middleware(): array
     {
         return [
@@ -72,6 +75,7 @@ class UserController extends Controller implements HasMiddleware
 
         $user->assignRole($data['role']);
 
+        $this->log->log($user, 'CREADO', null, null, null, 'Rol: ' . $data['role']);
         session()->flash('swal', ['icon' => 'success', 'title' => 'Usuario creado', 'text' => 'El usuario fue creado correctamente.']);
         return redirect()->route('admin.users.index');
     }
@@ -105,6 +109,7 @@ class UserController extends Controller implements HasMiddleware
 
     $user->syncRoles($data['roles']);
 
+    $this->log->log($user, 'EDITADO', null, null, null, 'Roles: ' . implode(', ', $data['roles']));
     session()->flash('swal', ['icon' => 'success', 'title' => 'Usuario actualizado', 'text' => 'Los cambios fueron guardados.']);
     return redirect()->route('admin.users.index');
 }
@@ -116,6 +121,7 @@ class UserController extends Controller implements HasMiddleware
             return back();
         }
 
+        $this->log->log($user, 'ELIMINADO', null, null, null, 'Usuario: ' . $user->email);
         $user->delete();
         session()->flash('swal', ['icon' => 'success', 'title' => 'Eliminado', 'text' => 'Usuario eliminado.']);
         return redirect()->route('admin.users.index');

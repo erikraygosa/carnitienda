@@ -6,11 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use App\Services\DocumentLogService;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 
 class ProductController extends Controller implements HasMiddleware
 {
+    public function __construct(private DocumentLogService $log) {}
+
     public static function middleware(): array
     {
         return [
@@ -56,7 +59,7 @@ class ProductController extends Controller implements HasMiddleware
         $data = $this->syncSatTasa($data);
 
         $product = Product::create($data);
-
+        $this->log->log($product, 'CREADO', null, null);
         return redirect()
             ->route('admin.products.edit', $product)
             ->with('swal', ['icon' => 'success', 'title' => '¡Bien Hecho!', 'text' => 'Producto creado exitosamente.']);
@@ -96,7 +99,7 @@ class ProductController extends Controller implements HasMiddleware
         $data = $this->syncSatTasa($data);
 
         $product->update($data);
-
+        $this->log->log($product, 'EDITADO', null, null, null, 'Datos actualizados');
         return redirect()
             ->route('admin.products.edit', $product)
             ->with('swal', ['icon' => 'success', 'title' => '¡Bien Hecho!', 'text' => 'Producto actualizado exitosamente.']);
@@ -120,7 +123,7 @@ class ProductController extends Controller implements HasMiddleware
         }
 
         $product->update(['activo' => false]);
-
+        $this->log->log($product, 'DESACTIVADO', null, null);
         session()->flash('swal', [
             'icon'  => 'success',
             'title' => 'Producto desactivado',

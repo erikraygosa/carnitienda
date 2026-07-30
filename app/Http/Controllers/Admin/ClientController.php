@@ -12,11 +12,14 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use App\Services\DocumentLogService;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 
 class ClientController extends Controller implements HasMiddleware
 {
+    public function __construct(private DocumentLogService $log) {}
+
     public static function middleware(): array
     {
         return [
@@ -125,6 +128,7 @@ class ClientController extends Controller implements HasMiddleware
 
         $client = Client::create($data);
 
+        $this->log->log($client, 'CREADO', null, null);
         session()->flash('swal', ['icon'=>'success','title'=>'¡Bien Hecho!','text'=>'Cliente creado exitosamente.']);
         return redirect()->route('admin.clients.edit', $client);
     }
@@ -136,6 +140,7 @@ class ClientController extends Controller implements HasMiddleware
 
         $client->update($data);
 
+        $this->log->log($client, 'EDITADO', null, null, null, 'Datos actualizados');
         session()->flash('swal', ['icon'=>'success','title'=>'¡Bien Hecho!','text'=>'Cliente actualizado exitosamente.']);
         return redirect()->route('admin.clients.edit', $client);
     }
@@ -147,6 +152,7 @@ class ClientController extends Controller implements HasMiddleware
             return redirect()->route('admin.clients.index');
         }
         $client->update(['activo' => false]);
+        $this->log->log($client, 'DESACTIVADO', null, null);
         session()->flash('swal', ['icon'=>'success','title'=>'Cliente desactivado','text'=>'Se desactivó correctamente.']);
         return redirect()->route('admin.clients.index');
     }

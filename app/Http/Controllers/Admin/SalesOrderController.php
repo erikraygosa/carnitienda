@@ -22,6 +22,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\SalesOrderDeliveryNoteMailable;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
+use App\Services\DocumentLogService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -30,6 +31,8 @@ class SalesOrderController extends Controller implements HasMiddleware
 {
 
     use AuthorizesRequests;
+
+    public function __construct(private DocumentLogService $log) {}
 
     public static function middleware(): array
     {
@@ -302,6 +305,7 @@ public function data(Request $request)
             }
         });
 
+        $this->log->log($order, 'CREADO', null, $order->status);
         return redirect()->route('admin.sales-orders.edit', $order)
             ->with('swal',['icon'=>'success','title'=>'Creado','text'=>'Pedido creado']);
     }
@@ -550,6 +554,7 @@ public function approve(SalesOrder $order)
 
     // Aprobado + Procesado en un solo paso (no hay lógica intermedia en PREPARANDO)
     $order->update(['status' => 'PROCESADO', 'despachado_at' => now()]);
+    $this->log->log($order, 'CAMBIO_ESTADO', 'BORRADOR', 'PROCESADO');
     return back()->with('swal', ['icon'=>'success','title'=>'Procesado','text'=>'Pedido aprobado y listo para salida de almacén.']);
 }
 
@@ -559,6 +564,7 @@ public function approve(SalesOrder $order)
             return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo APROBADO pasa a PREPARANDO.']);
         }
         $order->update(['status'=>'PREPARANDO','preparado_at'=>now()]);
+        $this->log->log($order, 'CAMBIO_ESTADO', 'APROBADO', 'PREPARANDO');
         return back()->with('swal',['icon'=>'success','title'=>'Preparando','text'=>'Pedido en preparación.']);
     }
 
@@ -574,8 +580,9 @@ public function approve(SalesOrder $order)
 
         // ⚠️ Ya NO descuenta inventario aquí
         // El descuento real ocurre en Panel de Salida de Producto
+        $old = $order->getOriginal('status');
         $order->update(['status' => 'PROCESADO', 'despachado_at' => now()]);
-
+        $this->log->log($order, 'CAMBIO_ESTADO', $old, 'PROCESADO');
         return back()->with('swal', ['icon'=>'success','title'=>'Procesado','text'=>'Pedido PROCESADO. Pendiente de salida de almacén.']);
     }
 
@@ -591,6 +598,7 @@ public function approve(SalesOrder $order)
             return back()->with('swal',['icon'=>'warning','title'=>'Sin chofer','text'=>'Asigna un chofer antes de salir a ruta.']);
         }
         $order->update(['status'=>'EN_RUTA','en_ruta_at'=>now()]);
+        $this->log->log($order, 'CAMBIO_ESTADO', 'PROCESADO', 'EN_RUTA');
         return back()->with('swal',['icon'=>'success','title'=>'En ruta','text'=>'El pedido salió a ruta.']);
     }
 
@@ -616,6 +624,7 @@ public function approve(SalesOrder $order)
         }
     });
 
+    $this->log->log($order, 'CAMBIO_ESTADO', 'EN_RUTA', 'ENTREGADO');
     return back()->with('swal', ['icon'=>'success','title'=>'Entregado','text'=>'Pedido entregado correctamente.']);
 }
 
@@ -650,6 +659,7 @@ public function approve(SalesOrder $order)
         $order->increment('delivery_attempts');
     });
 
+    $this->log->log($order, 'CAMBIO_ESTADO', 'EN_RUTA', 'NO_ENTREGADO');
     return back()->with('swal', ['icon'=>'success','title'=>'No entregado','text'=>'Pedido marcado y stock revertido.']);
 }
 
@@ -728,6 +738,7 @@ public function approve(SalesOrder $order)
         ]);
     });
 
+    $this->log->log($order, 'LIQUIDADO', null, null, null, 'Monto: $' . number_format((float)$request->monto_entregado, 2));
     return back()->with('swal', ['icon'=>'success','title'=>'Liquidado','text'=>'Liquidación completada.']);
 }
 
@@ -736,7 +747,9 @@ public function approve(SalesOrder $order)
         if (in_array($order->status,['EN_RUTA','ENTREGADO'])) {
             return back()->with('swal',['icon'=>'error','title'=>'Error','text'=>'No se puede cancelar en este estado.']);
         }
+        $old = $order->status;
         $order->update(['status'=>'CANCELADO']);
+        $this->log->log($order, 'CAMBIO_ESTADO', $old, 'CANCELADO');
         return back()->with('swal',['icon'=>'success','title'=>'Cancelado','text'=>'Pedido cancelado']);
     }
 

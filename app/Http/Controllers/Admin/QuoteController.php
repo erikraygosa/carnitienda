@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Mail;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\QuotePdfMailable;
 use App\Services\WhatsappSender;
+use App\Services\DocumentLogService;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use Illuminate\Support\Str;
@@ -25,6 +26,8 @@ use Illuminate\Routing\Controllers\Middleware;
 
 class QuoteController extends Controller implements HasMiddleware
 {
+    public function __construct(private DocumentLogService $log) {}
+
     public static function middleware(): array
     {
         return [
@@ -174,6 +177,7 @@ class QuoteController extends Controller implements HasMiddleware
             $this->saveItems($quote->id, $data['items']);
         });
 
+        $this->log->log($quote, 'CREADO', null, 'BORRADOR');
         session()->flash('swal', ['icon' => 'success', 'title' => '¡Creada!', 'text' => 'Cotización guardada.']);
         return redirect()->route('admin.quotes.edit', $quote);
     }
@@ -407,7 +411,9 @@ public function pdfDownload(Quote $quote)
         if (!in_array($quote->status, ['BORRADOR', 'ENVIADA'], true)) {
             return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo BORRADOR o ENVIADA pueden rechazarse.']);
         }
+        $old = $quote->status;
         $quote->update(['status' => 'RECHAZADA']);
+        $this->log->log($quote, 'CAMBIO_ESTADO', $old, 'RECHAZADA');
         return back()->with('swal', ['icon' => 'success', 'title' => 'Rechazada', 'text' => 'Cotización rechazada.']);
     }
 
@@ -416,7 +422,9 @@ public function pdfDownload(Quote $quote)
         if ($quote->status === 'CONVERTIDA') {
             return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'No se puede cancelar una cotización convertida.']);
         }
+        $old = $quote->status;
         $quote->update(['status' => 'CANCELADA']);
+        $this->log->log($quote, 'CAMBIO_ESTADO', $old, 'CANCELADA');
         return back()->with('swal', ['icon' => 'success', 'title' => 'Cancelada', 'text' => 'Cotización cancelada.']);
     }
 
@@ -519,6 +527,7 @@ public function pdfDownload(Quote $quote)
             $quote->update(['status' => 'APROBADA']);
         });
 
+        $this->log->log($quote, 'CAMBIO_ESTADO', 'ENVIADA', 'APROBADA', null, 'Pedido generado: ' . $order->folio);
         return redirect()
             ->route('admin.sales-orders.edit', $order)
             ->with('swal', ['icon' => 'success', 'title' => 'Aprobada', 'text' => 'Se generó el pedido ' . $order->folio . '.']);

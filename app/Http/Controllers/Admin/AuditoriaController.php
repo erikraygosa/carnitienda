@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\DocumentActivityLog;
+use App\Models\CashRegister;
+use App\Models\Client;
 use App\Models\Dispatch;
+use App\Models\DocumentActivityLog;
 use App\Models\Invoice;
 use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Models\Purchase;
+use App\Models\Quote;
 use App\Models\SalesOrder;
 use App\Models\StockMovement;
 use App\Models\StockTransfer;
@@ -25,12 +29,17 @@ class AuditoriaController extends Controller implements HasMiddleware
 
     protected array $tiposMap = [
         'producto'    => Product::class,
+        'cliente'     => Client::class,
         'pedido'      => SalesOrder::class,
+        'cotizacion'  => Quote::class,
         'despacho'    => Dispatch::class,
         'factura'     => Invoice::class,
-        'movimiento'  => StockMovement::class,
+        'compra'      => Purchase::class,
         'traspaso'    => StockTransfer::class,
+        'movimiento'  => StockMovement::class,
         'inventario'  => InventoryMovement::class,
+        'caja'        => CashRegister::class,
+        'usuario'     => User::class,
     ];
 
     public function index(Request $request)

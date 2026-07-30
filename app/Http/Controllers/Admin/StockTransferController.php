@@ -9,6 +9,7 @@ use App\Models\StockTransferItem;
 use App\Models\Warehouse;
 use App\Models\Product;
 use App\Services\InventoryService;
+use App\Services\DocumentLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -16,6 +17,8 @@ use Illuminate\Routing\Controllers\Middleware;
 
 class StockTransferController extends Controller implements HasMiddleware
 {
+    public function __construct(private DocumentLogService $log) {}
+
     public static function middleware(): array
     {
         return [
@@ -97,6 +100,7 @@ class StockTransferController extends Controller implements HasMiddleware
             return $transfer;
         });
 
+        $this->log->log($transfer, 'CREADO', null, 'PENDIENTE');
         return redirect()
             ->route('admin.stock.transfers.show', $transfer)
             ->with('swal', ['icon' => 'success', 'title' => 'Traspaso creado', 'text' => "Folio: {$transfer->folio}"]);
@@ -123,7 +127,9 @@ class StockTransferController extends Controller implements HasMiddleware
             return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo PENDIENTE o ASIGNADO pueden cancelarse.']);
         }
 
+        $old = $transfer->status;
         $transfer->update(['status' => 'CANCELADO']);
+        $this->log->log($transfer, 'CAMBIO_ESTADO', $old, 'CANCELADO');
         return back()->with('swal', ['icon' => 'success', 'title' => 'Cancelado', 'text' => 'Traspaso cancelado.']);
     }
 
@@ -166,6 +172,7 @@ class StockTransferController extends Controller implements HasMiddleware
             ]);
         });
 
+        $this->log->log($transfer, 'CAMBIO_ESTADO', 'PENDIENTE', 'COMPLETADO');
         return back()->with('swal', ['icon' => 'success', 'title' => 'Completado', 'text' => 'Stock transferido correctamente.']);
     }
 

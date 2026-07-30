@@ -11,11 +11,14 @@ use App\Models\PurchaseOrder;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\DocumentLogService;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 
 class PurchaseController extends Controller implements HasMiddleware
 {
+    public function __construct(private DocumentLogService $log) {}
+
     public static function middleware(): array
     {
         return [
@@ -145,6 +148,7 @@ class PurchaseController extends Controller implements HasMiddleware
             }
         });
 
+        $this->log->log($purchase, 'CREADO', null, 'BORRADOR');
         session()->flash('swal', ['icon'=>'success','title'=>'¡Bien Hecho!','text'=>'Compra creada.']);
         return redirect()->route('admin.purchases.edit', $purchase);
     }
@@ -229,6 +233,7 @@ class PurchaseController extends Controller implements HasMiddleware
             }
         });
 
+        $this->log->log($purchase, 'EDITADO', null, null, null, 'Datos actualizados');
         session()->flash('swal', ['icon'=>'success','title'=>'Actualizado','text'=>'Compra actualizada.']);
         return redirect()->route('admin.purchases.edit', $purchase);
     }
@@ -270,6 +275,7 @@ class PurchaseController extends Controller implements HasMiddleware
             $purchase->update(['status' => 'received']);
         });
 
+        $this->log->log($purchase, 'CAMBIO_ESTADO', 'draft', 'received');
         return back()->with('swal',['icon'=>'success','title'=>'Recibida','text'=>'Compra marcada como recibida y almacen actualizado.']);
     }
 
@@ -280,6 +286,7 @@ class PurchaseController extends Controller implements HasMiddleware
         }
 
         $purchase->update(['status' => 'cancelled']);
+        $this->log->log($purchase, 'CAMBIO_ESTADO', 'draft', 'cancelled');
         return back()->with('swal',['icon'=>'success','title'=>'Cancelada','text'=>'Compra cancelada.']);
     }
 }

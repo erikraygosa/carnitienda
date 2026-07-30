@@ -9,11 +9,14 @@ use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\PacCfdiService;
 use App\Services\CompanyService;
+use App\Services\DocumentLogService;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 
 class InvoiceController extends Controller implements HasMiddleware
 {
+    public function __construct(private DocumentLogService $log) {}
+
     public static function middleware(): array
     {
         return [
@@ -232,6 +235,7 @@ public function store(Request $request)
         }
     });
 
+    $this->log->log($invoice, 'CREADO', null, 'BORRADOR');
     return redirect()->route('admin.invoices.edit', $invoice)
         ->with('swal', ['icon' => 'success', 'title' => 'Creada', 'text' => 'Factura en borrador creada.']);
 }
@@ -320,6 +324,7 @@ public function store(Request $request)
         return back()->with('swal', ['icon'=>'error','title'=>'Error PAC','text'=>$result['error'] ?? 'Fallo al timbrar.']);
     }
 
+    $this->log->log($invoice, 'CAMBIO_ESTADO', 'BORRADOR', 'TIMBRADA', null, 'UUID: ' . $result['uuid']);
     return back()->with('swal', ['icon'=>'success','title'=>'Timbrada','text'=>'Factura timbrada. UUID: ' . $result['uuid']]);
 }
 
@@ -342,7 +347,7 @@ public function store(Request $request)
         }
 
         $invoice->update(['estatus'=>'CANCELADA']);
-
+        $this->log->log($invoice, 'CAMBIO_ESTADO', 'TIMBRADA', 'CANCELADA', null, 'Motivo: ' . $data['motivo']);
         return back()->with('swal',['icon'=>'success','title'=>'Cancelada','text'=>'Factura cancelada en SAT.']);
     }
 

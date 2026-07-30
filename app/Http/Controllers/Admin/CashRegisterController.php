@@ -7,6 +7,7 @@ use App\Models\CashRegister;
 use App\Models\Company;
 use App\Models\Warehouse;
 use App\Services\CashService;
+use App\Services\DocumentLogService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -14,7 +15,10 @@ use Illuminate\Routing\Controllers\Middleware;
 
 class CashRegisterController extends Controller implements HasMiddleware
 {
-    public function __construct(private CashService $cash) {}
+    public function __construct(
+        private CashService $cash,
+        private DocumentLogService $log,
+    ) {}
 
     public static function middleware(): array
     {
@@ -66,6 +70,7 @@ class CashRegisterController extends Controller implements HasMiddleware
             $data['notas'] ?? null
         );
 
+        $this->log->log($reg, 'CREADO', null, 'ABIERTO');
         session()->flash('swal', ['icon' => 'success', 'title' => 'Caja abierta', 'text' => 'La caja quedó abierta.']);
         return redirect()->route('admin.cash.show', $reg);
     }
@@ -79,6 +84,7 @@ class CashRegisterController extends Controller implements HasMiddleware
     public function close(Request $r, CashRegister $cash)
     {
         $this->cash->close($cash);
+        $this->log->log($cash, 'CAMBIO_ESTADO', 'ABIERTO', 'CERRADO');
         session()->flash('swal', ['icon' => 'success', 'title' => 'Caja cerrada', 'text' => 'Se cerró correctamente.']);
         return redirect()->route('admin.cash.index');
     }
