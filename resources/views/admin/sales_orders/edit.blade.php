@@ -460,7 +460,8 @@
         const CLIENT_DEFAULTS = {!! $JS_CLIENT_DEFAULTS !!};
         const DEFAULT_CLIENT  = {!! $JS_SELCLIENT !!};
         const INITIAL_ITEMS   = {!! $JS_ITEMS !!};
-        const CLIENTS_EDIT_BASE = '{{ url('admin/clients') }}';
+        const CLIENTS_EDIT_BASE    = '{{ url('admin/clients') }}';
+        const CLIENT_PRICES_BASE   = '{{ url('admin/sales-orders/client-prices') }}';
 
         const CLIENTS_OVERRIDES = @json($overrides ?? []);
         const LISTS_PRICES      = @json($listItems ?? []);
@@ -541,12 +542,15 @@
             tr.innerHTML = `
                 <input type="hidden" name="items[${i}][id]" value="${it.id || ''}">
                 <td class="p-2">
+                    <div class="flex items-center gap-1">
                     <select class="w-48 border rounded p-1 text-sm sel-product"
                             ${needsProductShadow ? '' : `name="items[${i}][product_id]"`} ${selDis}>
                         <option value="">—</option>
                         ${PRODUCTS_OPTIONS}
                     </select>
                     ${needsProductShadow ? `<input type="hidden" name="items[${i}][product_id]" value="${escHtml(String(it.product_id||''))}">` : ''}
+                    ${CAN_EDIT_ITEMS ? `<button type="button" class="btn-clear-product text-gray-400 hover:text-red-500 text-base leading-none px-1" title="Quitar producto">✕</button>` : ''}
+                    </div>
                 </td>
                 <td class="p-2">
                     <input type="text" class="w-64 border rounded p-1 text-sm inp-desc"
@@ -591,17 +595,27 @@
             if (it.product_id) sel.value = it.product_id;
 
             if (CAN_EDIT_ITEMS) {
+                function clearProduct() {
+                    sel.value = '';
+                    state.items[i].product_id  = '';
+                    state.items[i].descripcion = '';
+                    state.items[i].precio      = 0;
+                    tr.querySelector('.inp-desc').value   = '';
+                    tr.querySelector('.inp-precio').value = 0;
+                    recalcRow(i);
+                }
+
                 sel.addEventListener('change', function() {
                     state.items[i].product_id = this.value;
                     const opt = this.options[this.selectedIndex];
-                    if (!state.items[i].descripcion) {
-                        state.items[i].descripcion = opt?.text || '';
-                        tr.querySelector('.inp-desc').value = state.items[i].descripcion;
-                    }
+                    // Siempre actualiza descripción al cambiar producto
+                    state.items[i].descripcion = opt?.text || '';
+                    tr.querySelector('.inp-desc').value = state.items[i].descripcion;
                     state.items[i].precio = getPrice(this.value);
                     tr.querySelector('.inp-precio').value = state.items[i].precio;
                     recalcRow(i);
                 });
+                tr.querySelector('.btn-clear-product')?.addEventListener('click', clearProduct);
                 tr.querySelector('.inp-descuento').addEventListener('input', function() {
                     state.items[i].descuento = parseFloat(this.value)||0; recalcRow(i);
                 });
@@ -705,6 +719,19 @@
         SOE.onDeliveryChange('{{ $deliveryType }}');
         SOE.onPaymentChange('{{ $paymentMethod }}');
         renderAll();
+
+        // Refrescar precios si el usuario editó precios del cliente en otra pestaña y regresó
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState !== 'visible' || !state.clientId) return;
+            fetch(`${CLIENT_PRICES_BASE}/${state.clientId}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json())
+                .then(data => {
+                    const cid = String(state.clientId);
+                    CLIENTS_OVERRIDES[cid] = data;
+                    if (CAN_EDIT_ITEMS) SOE.repriceAll();
+                })
+                .catch(() => {});
+        });
     })();
     </script>
 
