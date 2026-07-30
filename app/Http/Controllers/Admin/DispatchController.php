@@ -281,8 +281,27 @@ class DispatchController extends Controller implements HasMiddleware
 
     public function preparar(Dispatch $dispatch)
     {
-        $dispatch->update(['status' => 'PREPARANDO']);
-        return back()->with('swal', ['icon' => 'success', 'title' => 'Preparando', 'text' => 'Despacho en preparación.']);
+        // Salta directo a EN_RUTA
+        DB::transaction(function () use ($dispatch) {
+            $dispatch->update(['status' => 'EN_RUTA', 'en_ruta_at' => now()]);
+
+            $dispatch->load('items.salesOrder');
+            foreach ($dispatch->items as $item) {
+                $order = $item->salesOrder;
+                if ($order && in_array($order->status, ['PROCESADO', 'DESPACHADO'])) {
+                    $order->update([
+                        'status'     => 'EN_RUTA',
+                        'en_ruta_at' => now(),
+                    ]);
+                }
+            }
+
+            $dispatch->transfers()
+                ->whereIn('status', ['ASIGNADO', 'EN_RUTA'])
+                ->update(['status' => 'EN_RUTA']);
+        });
+
+        return back()->with('swal', ['icon' => 'success', 'title' => 'En ruta', 'text' => 'Despacho salió en ruta.']);
     }
 
     public function cargar(Dispatch $dispatch)
