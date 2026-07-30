@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\DocumentActivityLog;
+use App\Models\Dispatch;
 use App\Models\Invoice;
 use App\Models\InventoryMovement;
 use App\Models\Product;
@@ -25,6 +26,7 @@ class AuditoriaController extends Controller implements HasMiddleware
     protected array $tiposMap = [
         'producto'    => Product::class,
         'pedido'      => SalesOrder::class,
+        'despacho'    => Dispatch::class,
         'factura'     => Invoice::class,
         'movimiento'  => StockMovement::class,
         'traspaso'    => StockTransfer::class,

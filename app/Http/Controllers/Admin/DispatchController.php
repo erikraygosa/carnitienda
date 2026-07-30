@@ -19,6 +19,7 @@ use App\Models\Client;
 use App\Services\ArService;
 use App\Services\InventoryService;
 use App\Services\CashService;
+use App\Services\DocumentLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -30,9 +31,10 @@ use Illuminate\Routing\Controllers\Middleware;
 class DispatchController extends Controller implements HasMiddleware
 {
     public function __construct(
-        private ArService        $ar,
-        private InventoryService $inv,
-        private CashService      $cash,
+        private ArService          $ar,
+        private InventoryService   $inv,
+        private CashService        $cash,
+        private DocumentLogService $log,
     ) {}
 
     public static function middleware(): array
@@ -199,6 +201,7 @@ class DispatchController extends Controller implements HasMiddleware
                 }
             }
 
+            $this->log->log($dispatch, 'CREADO', null, 'PLANEADO');
             session()->flash('swal', ['icon' => 'success', 'title' => 'Despacho creado', 'text' => 'Listo para salir a ruta.']);
             return redirect()->route('admin.dispatches.edit', $dispatch);
         });
@@ -264,6 +267,7 @@ class DispatchController extends Controller implements HasMiddleware
         }
 
         $dispatch->update($data);
+        $this->log->log($dispatch, 'EDITADO', null, null, null, 'Datos generales actualizados');
         session()->flash('swal', ['icon' => 'success', 'title' => 'Actualizado', 'text' => 'Despacho actualizado.']);
         return back();
     }
@@ -272,6 +276,7 @@ class DispatchController extends Controller implements HasMiddleware
 
     public function destroy(Dispatch $dispatch)
     {
+        $this->log->log($dispatch, 'ELIMINADO', $dispatch->status, null);
         $dispatch->delete();
         session()->flash('swal', ['icon' => 'success', 'title' => 'Eliminado', 'text' => 'Despacho eliminado.']);
         return redirect()->route('admin.dispatches.index');
@@ -282,6 +287,7 @@ class DispatchController extends Controller implements HasMiddleware
     public function preparar(Dispatch $dispatch)
     {
         // Salta directo a EN_RUTA
+        $oldStatus = $dispatch->status;
         DB::transaction(function () use ($dispatch) {
             $dispatch->update(['status' => 'EN_RUTA', 'en_ruta_at' => now()]);
 
@@ -301,12 +307,15 @@ class DispatchController extends Controller implements HasMiddleware
                 ->update(['status' => 'EN_RUTA']);
         });
 
+        $this->log->log($dispatch, 'CAMBIO_ESTADO', $oldStatus, 'EN_RUTA');
         return back()->with('swal', ['icon' => 'success', 'title' => 'En ruta', 'text' => 'Despacho salió en ruta.']);
     }
 
     public function cargar(Dispatch $dispatch)
     {
+        $old = $dispatch->status;
         $dispatch->update(['status' => 'CARGADO']);
+        $this->log->log($dispatch, 'CAMBIO_ESTADO', $old, 'CARGADO');
         return back()->with('swal', ['icon' => 'success', 'title' => 'Cargado', 'text' => 'Vehículo cargado.']);
     }
 
@@ -339,18 +348,22 @@ class DispatchController extends Controller implements HasMiddleware
 
     public function entregar(Dispatch $dispatch)
     {
+        $old = $dispatch->status;
         $dispatch->update(['status' => 'ENTREGADO']);
+        $this->log->log($dispatch, 'CAMBIO_ESTADO', $old, 'ENTREGADO');
         return back();
     }
 
     public function cancelar(Dispatch $dispatch)
     {
+        $old = $dispatch->status;
         // Liberar traspasos asignados al cancelar el despacho
         StockTransfer::where('dispatch_id', $dispatch->id)
             ->whereIn('status', ['ASIGNADO', 'EN_RUTA'])
             ->update(['status' => 'PENDIENTE', 'dispatch_id' => null]);
 
         $dispatch->update(['status' => 'CANCELADO']);
+        $this->log->log($dispatch, 'CAMBIO_ESTADO', $old, 'CANCELADO');
         return back()->with('swal', ['icon' => 'success', 'title' => 'Cancelado', 'text' => 'Despacho cancelado.']);
     }
 
@@ -377,6 +390,7 @@ class DispatchController extends Controller implements HasMiddleware
             }
         });
 
+        $this->log->log($dispatch, 'PEDIDO_ENTREGADO', null, null, null, "Pedido {$order->folio} entregado");
         return back()->with('swal', ['icon' => 'success', 'title' => 'Entregado', 'text' => "Pedido {$order->folio} entregado."]);
     }
 
@@ -411,6 +425,7 @@ class DispatchController extends Controller implements HasMiddleware
             $order->increment('delivery_attempts');
         });
 
+        $this->log->log($dispatch, 'PEDIDO_NO_ENTREGADO', null, null, null, "Pedido {$order->folio} no entregado, stock revertido");
         return back()->with('swal', ['icon' => 'success', 'title' => 'No entregado', 'text' => "Pedido {$order->folio} marcado y stock revertido."]);
     }
 
@@ -455,6 +470,7 @@ class DispatchController extends Controller implements HasMiddleware
             $assignment->update(['status' => 'COMPLETADO']);
         });
 
+        $this->log->log($dispatch, 'TRASPASO_COMPLETADO', null, null, null, "Traspaso {$transfer->folio} completado");
         return back()->with('swal', ['icon' => 'success', 'title' => 'Traspaso completado', 'text' => "Folio {$transfer->folio} transferido correctamente."]);
     }
 
@@ -531,6 +547,7 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
         }
     });
 
+    $this->log->log($dispatch, 'CXC_COBRADA', null, null, null, "Cobro $" . number_format($request->monto, 2) . " cliente #{$assignment->client_id}");
     return back()->with('swal', ['icon' => 'success', 'title' => 'CxC cobrada', 'text' => 'Abono registrado.']);
 }
 
@@ -589,6 +606,7 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
             ]);
         });
 
+        $this->log->log($dispatch, 'CAMBIO_ESTADO', 'EN_RUTA', 'CERRADO', null, 'Monto liquidado: $' . number_format((float)$request->monto_entregado, 2));
         return back()->with('swal', ['icon' => 'success', 'title' => 'Despacho cerrado', 'text' => 'Liquidación completada.']);
     }
 
