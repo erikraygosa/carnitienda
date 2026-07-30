@@ -71,23 +71,6 @@
         @enderror
     </div>
 
-    {{-- Chofer --}}
-    <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">
-            Chofer <span class="text-red-500">*</span>
-        </label>
-        @php $selD = (string)old('driver_id'); @endphp
-        <select name="driver_id" required
-                class="w-full rounded-md border-gray-300 text-sm {{ $errors->has('driver_id') ? 'border-red-500' : '' }}">
-            <option value="">-- sin chofer --</option>
-            @foreach($drivers as $d)
-                <option value="{{ $d->id }}" {{ $selD===(string)$d->id ? 'selected' : '' }}>{{ $d->nombre }}</option>
-            @endforeach
-        </select>
-        @error('driver_id')
-            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-        @enderror
-    </div>
 
     {{-- Vehículo --}}
     <div>

@@ -89,16 +89,6 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Chofer</label>
-                    @php $selD = (string)old('driver_id', $dispatch->driver_id); @endphp
-                    <select name="driver_id" class="w-full rounded-md border-gray-300 text-sm">
-                        <option value="">-- sin chofer --</option>
-                        @foreach($drivers as $d)
-                            <option value="{{ $d->id }}" {{ $selD===(string)$d->id?'selected':'' }}>{{ $d->nombre }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Vehículo</label>
                     <input type="text" name="vehicle" value="{{ old('vehicle',$dispatch->vehicle) }}"
                            class="w-full rounded-md border-gray-300 text-sm">
