@@ -27,7 +27,7 @@ class ReportesController extends Controller implements HasMiddleware
         return [
             new Middleware('can:ver reporte notas de venta',     only: ['notasDeVenta', 'notasDeVentaData', 'notasDeVentaExport']),
             new Middleware('can:ver reporte ventas por producto', only: ['ventasPorProducto', 'ventasPorProductoData', 'ventasPorProductoExport']),
-            new Middleware('can:ver reporte liquidaciones',       only: ['liquidaciones', 'liquidacionesData', 'liquidacionesExport']),
+            new Middleware('can:ver reporte liquidaciones',       only: ['liquidaciones', 'liquidacionesData', 'liquidacionesExport', 'liquidacionesConcentrado']),
         ];
     }
 
@@ -383,36 +383,117 @@ class ReportesController extends Controller implements HasMiddleware
         ]);
     }
 
-    public function liquidacionesExport(Request $request)
+    public function liquidacionesConcentrado(Request $request)
     {
         $items = $this->buildLiquidacionesQuery($request)->get();
 
-        $headers = ['Nota', 'Cliente', 'Ruta', 'Chofer', 'Fecha', 'Monto', 'Estatus'];
-        $rows = $items->map(fn($s) => [
-            $s->folio,
-            $s->cliente_nombre ?? '',
-            $s->ruta_nombre    ?? '',
-            $s->chofer_nombre  ?? '',
-            $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '',
-            (float)$s->total,
-            $s->driver_settlement_status ?? 'PENDIENTE',
-        ])->toArray();
+        // Group by ruta
+        $grouped = $items->groupBy('ruta_nombre')->map(function ($rows, $ruta) {
+            return [
+                'ruta'    => $ruta ?? 'Sin ruta',
+                'notas'   => $rows->map(fn($s) => [
+                    'folio'    => $s->folio,
+                    'cliente'  => $s->cliente_nombre ?? '—',
+                    'fecha'    => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',
+                    'total'    => (float)$s->total,
+                    'total_fmt'=> number_format((float)$s->total, 2),
+                    'estatus'  => $s->driver_settlement_status ?? 'PENDIENTE',
+                ])->values(),
+                'subtotal'     => (float)$rows->sum('total'),
+                'subtotal_fmt' => number_format((float)$rows->sum('total'), 2),
+                'count'        => $rows->count(),
+            ];
+        })->values();
 
-        // Totals row
-        $rows[] = ['TOTAL', '', '', '', '', (float)$items->sum('total'), ''];
-        // note: sum('total') works because total is selected from sales_orders
+        return response()->json([
+            'rutas'       => $grouped,
+            'total'       => $items->count(),
+            'total_monto' => number_format((float)$items->sum('total'), 2),
+        ]);
+    }
 
-        $spreadsheet = $this->makeSpreadsheet($headers, $rows, 'Liquidaciones');
+    public function liquidacionesExport(Request $request)
+    {
+        $items = $this->buildLiquidacionesQuery($request)->get();
+        $fecha = $request->get('fecha', now()->format('d/m/Y'));
+
+        $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $lastRow = count($rows) + 1;
+        $sheet->setTitle('Liquidaciones');
 
-        if ($lastRow > 2) {
-            $sheet->getStyle("F2:F{$lastRow}")->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle("A{$lastRow}:G{$lastRow}")->getFont()->setBold(true);
+        // Title row
+        $sheet->setCellValue('A1', "LISTA DE LIQUIDACIONES - {$fecha}");
+        $sheet->mergeCells('A1:E1');
+        $sheet->getStyle('A1')->applyFromArray([
+            'font'      => ['bold' => true, 'size' => 13, 'color' => ['rgb' => '1E3A5F']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ]);
+
+        $row = 2;
+        $totalGeneral = 0.0;
+
+        $grouped = $items->groupBy('ruta_nombre');
+
+        foreach ($grouped as $rutaNombre => $notas) {
+            // Route header
+            $ruta = $rutaNombre ?? 'Sin ruta';
+            $sheet->setCellValue("A{$row}", strtoupper($ruta));
+            $sheet->mergeCells("A{$row}:E{$row}");
+            $sheet->getStyle("A{$row}")->applyFromArray([
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4F46E5']],
+            ]);
+            $row++;
+
+            // Column headers
+            foreach (['Nota','Cliente','Fecha','Monto','Estatus'] as $ci => $h) {
+                $cell = $this->col($ci + 1) . $row;
+                $sheet->setCellValue($cell, $h);
+                $sheet->getStyle($cell)->applyFromArray([
+                    'font' => ['bold' => true, 'color' => ['rgb' => '374151']],
+                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E5E7EB']],
+                ]);
+            }
+            $row++;
+
+            $subtotal = 0.0;
+            foreach ($notas as $s) {
+                $monto = (float)$s->total;
+                $subtotal += $monto;
+                $sheet->setCellValue("A{$row}", $s->folio);
+                $sheet->setCellValue("B{$row}", $s->cliente_nombre ?? '');
+                $sheet->setCellValue("C{$row}", $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '');
+                $sheet->setCellValue("D{$row}", $monto);
+                $sheet->setCellValue("E{$row}", $s->driver_settlement_status ?? 'PENDIENTE');
+                $sheet->getStyle("D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+                $row++;
+            }
+
+            // Subtotal row
+            $sheet->setCellValue("C{$row}", "Subtotal {$ruta}:");
+            $sheet->setCellValue("D{$row}", $subtotal);
+            $sheet->getStyle("C{$row}:D{$row}")->getFont()->setBold(true);
+            $sheet->getStyle("D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+            $row += 2; // blank line between routes
+
+            $totalGeneral += $subtotal;
         }
 
-        $fecha = $request->get('fecha', now()->format('d-m-Y'));
+        // Grand total
+        $sheet->setCellValue("C{$row}", 'TOTAL GENERAL:');
+        $sheet->setCellValue("D{$row}", $totalGeneral);
+        $sheet->getStyle("C{$row}:D{$row}")->applyFromArray([
+            'font' => ['bold' => true, 'size' => 12],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1E3A5F']],
+        ]);
+        $sheet->getStyle("C{$row}:D{$row}")->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFFFFFFF'));
+        $sheet->getStyle("D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
 
-        return $this->xlsxResponse($spreadsheet, "liquidaciones_{$fecha}.xlsx");
+        foreach (range(1, 5) as $c) {
+            $sheet->getColumnDimension($this->col($c))->setAutoSize(true);
+        }
+
+        $fechaFile = str_replace('/', '-', $fecha);
+        return $this->xlsxResponse($spreadsheet, "liquidaciones_{$fechaFile}.xlsx");
     }
 }

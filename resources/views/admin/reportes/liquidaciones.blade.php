@@ -13,12 +13,14 @@
     <x-wire-card>
 
         {{-- Filtros --}}
-        <div class="grid grid-cols-1 md:grid-cols-6 gap-3 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
             <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Fecha</label>
                 <input type="date" id="lq-fecha"
                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
             <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Ruta</label>
                 <select id="lq-ruta"
                         class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <option value="">Todas las rutas</option>
@@ -28,184 +30,163 @@
                 </select>
             </div>
             <div>
-                <select id="lq-chofer"
-                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
-                    <option value="">Todos los choferes</option>
-                    @foreach($drivers as $driver)
-                        <option value="{{ $driver->id }}">{{ $driver->nombre }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Estatus</label>
                 <select id="lq-estatus"
                         class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <option value="1">Solo pendientes</option>
                     <option value="0">Todas</option>
                 </select>
             </div>
-            <div>
-                <select id="lq-per-page"
-                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
-                    <option value="25">25</option>
-                    <option value="50" selected>50</option>
-                    <option value="100">100</option>
-                </select>
-            </div>
-            <div class="flex items-center">
+            <div class="flex items-end">
                 <button type="button" id="lq-clear" class="text-xs text-indigo-600 hover:underline">
                     Limpiar filtros
                 </button>
             </div>
         </div>
 
-        <div id="lq-summary-bar" class="flex flex-wrap gap-4 mb-4 text-sm text-gray-600"></div>
+        {{-- Resumen --}}
+        <div id="lq-summary-bar" class="flex flex-wrap gap-3 mb-5 text-sm text-gray-600"></div>
 
-        {{-- Tabla --}}
-        <div class="overflow-x-auto rounded-lg border border-gray-200">
-            <table class="min-w-full text-sm divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Nota</th>
-                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ruta</th>
-                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chofer</th>
-                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                        <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
-                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estatus</th>
-                    </tr>
-                </thead>
-                <tbody id="lq-tbody" class="bg-white divide-y divide-gray-200">
-                    <tr>
-                        <td colspan="7" class="px-4 py-8 text-center text-gray-400">Cargando...</td>
-                    </tr>
-                </tbody>
-            </table>
+        {{-- Concentrado por ruta --}}
+        <div id="lq-body" class="space-y-6">
+            <div class="text-center py-8 text-gray-400">Cargando...</div>
         </div>
-
-        {{-- Paginación --}}
-        <div id="lq-pagination" class="mt-4 flex items-center justify-between text-sm text-gray-500"></div>
 
     </x-wire-card>
 
     <script>
     (function(){
-        const DATA_URL   = '{{ route('admin.reportes.liquidaciones.data') }}';
-        const EXPORT_URL = '{{ route('admin.reportes.liquidaciones.export') }}';
+        const CONCENTRADO_URL = '{{ route('admin.reportes.liquidaciones.concentrado') }}';
+        const EXPORT_URL      = '{{ route('admin.reportes.liquidaciones.export') }}';
 
         const hoy = new Date().toISOString().slice(0,10);
 
         let state = {
-            fecha:          hoy,
-            routeId:        '',
-            driverId:       '',
-            soloSinLiq:     '1',
-            perPage:        50,
-            page:           1,
-            lastPage:       1,
+            fecha:       hoy,
+            routeId:     '',
+            soloSinLiq:  '1',
         };
 
         const $ = id => document.getElementById(id);
 
+        const fmtMoney = v => '$' + parseFloat(v || 0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
         async function load() {
-            $('lq-tbody').innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>`;
+            $('lq-body').innerHTML = `<div class="text-center py-8 text-gray-400">Cargando...</div>`;
             $('lq-summary-bar').innerHTML = '';
 
             const params = new URLSearchParams({
-                fecha:            state.fecha,
-                route_id:         state.routeId,
-                driver_id:        state.driverId,
+                fecha:             state.fecha,
+                route_id:          state.routeId,
                 solo_sin_liquidar: state.soloSinLiq,
-                per_page:         state.perPage,
-                page:             state.page,
             });
 
-            const exportParams = new URLSearchParams({ fecha: state.fecha, route_id: state.routeId, driver_id: state.driverId, solo_sin_liquidar: state.soloSinLiq });
+            const exportParams = new URLSearchParams({ fecha: state.fecha, route_id: state.routeId, solo_sin_liquidar: state.soloSinLiq });
             $('lq-export-btn').href = `${EXPORT_URL}?${exportParams}`;
 
             try {
-                const res  = await fetch(`${DATA_URL}?${params}`, { headers: { 'Accept': 'application/json' } });
+                const res  = await fetch(`${CONCENTRADO_URL}?${params}`, { headers: { 'Accept': 'application/json' } });
                 const data = await res.json();
-                state.lastPage = data.last_page;
-                renderTable(data.rows);
-                renderPagination(data.total, data.page, data.last_page);
-                if (data.total > 0) {
-                    $('lq-summary-bar').innerHTML = `
-                        <span class="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-medium">${data.total} notas</span>
-                        <span class="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-xs font-medium">Total: $${data.total_monto}</span>
-                    `;
-                }
+                renderConcentrado(data);
             } catch(e) {
-                $('lq-tbody').innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-red-400">Error cargando datos.</td></tr>`;
+                $('lq-body').innerHTML = `<div class="text-center py-8 text-red-400">Error cargando datos.</div>`;
             }
         }
 
-        function renderTable(rows) {
-            const tbody = $('lq-tbody');
-            if (!rows.length) {
-                tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Sin resultados para los filtros seleccionados.</td></tr>`;
+        function estBadge(estatus) {
+            const cls = estatus === 'LIQUIDADO'
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-amber-100 text-amber-700';
+            return `<span class="px-2 py-0.5 text-xs rounded-full font-medium ${cls}">${estatus}</span>`;
+        }
+
+        function renderConcentrado(data) {
+            const body = $('lq-body');
+
+            if (!data.rutas || data.rutas.length === 0) {
+                body.innerHTML = `<div class="text-center py-8 text-gray-400">Sin resultados para los filtros seleccionados.</div>`;
                 return;
             }
-            tbody.innerHTML = '';
-            rows.forEach(r => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50 transition-colors';
-                tr.innerHTML = `
-                    <td class="px-3 py-2 font-mono text-indigo-700 text-xs font-medium whitespace-nowrap">${r.folio}</td>
-                    <td class="px-3 py-2 text-gray-700">${r.cliente}</td>
-                    <td class="px-3 py-2 text-gray-600 text-xs">${r.ruta}</td>
-                    <td class="px-3 py-2 text-gray-600 text-xs">${r.chofer}</td>
-                    <td class="px-3 py-2 text-gray-600 text-xs whitespace-nowrap">${r.fecha ?? '—'}</td>
-                    <td class="px-3 py-2 text-right font-mono font-medium text-gray-800">$${r.total}</td>
-                    <td class="px-3 py-2">
-                        <span class="px-2 py-0.5 text-xs rounded-full font-medium ${r.est_class}">${r.estatus}</span>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
 
-        function renderPagination(total, page, lastPage) {
-            const wrap = $('lq-pagination');
-            const from = total === 0 ? 0 : ((page - 1) * state.perPage) + 1;
-            const to   = Math.min(page * state.perPage, total);
-            wrap.innerHTML = `
-                <span>${from}–${to} de ${total} registros</span>
-                <div class="flex gap-1">
-                    <button type="button" onclick="LQT.goPage(${page - 1})"
-                            class="px-3 py-1 rounded border text-xs ${page <= 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50'}"
-                            ${page <= 1 ? 'disabled' : ''}>← Ant</button>
-                    <span class="px-3 py-1 text-xs">Pág ${page} / ${lastPage}</span>
-                    <button type="button" onclick="LQT.goPage(${page + 1})"
-                            class="px-3 py-1 rounded border text-xs ${page >= lastPage ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50'}"
-                            ${page >= lastPage ? 'disabled' : ''}>Sig →</button>
+            // Summary bar
+            $('lq-summary-bar').innerHTML = `
+                <span class="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-medium">${data.total} notas</span>
+                <span class="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-xs font-medium">Total general: $${data.total_monto}</span>
+                <span class="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-medium">${data.rutas.length} ruta(s)</span>
+            `;
+
+            // Render each route block
+            let html = '';
+            data.rutas.forEach(grupo => {
+                const rows = grupo.notas.map(n => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-3 py-2 font-mono text-xs text-indigo-700 font-medium whitespace-nowrap">${n.folio}</td>
+                        <td class="px-3 py-2 text-sm text-gray-700">${n.cliente}</td>
+                        <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${n.fecha}</td>
+                        <td class="px-3 py-2 text-sm text-right font-mono font-semibold text-gray-800">${fmtMoney(n.total)}</td>
+                        <td class="px-3 py-2 text-center">${estBadge(n.estatus)}</td>
+                    </tr>
+                `).join('');
+
+                html += `
+                    <div class="rounded-lg border border-gray-200 overflow-hidden">
+                        <div class="flex items-center justify-between px-4 py-2.5 bg-indigo-600">
+                            <span class="text-sm font-bold text-white uppercase tracking-wide">
+                                <i class="fa-solid fa-route mr-1.5 opacity-75"></i>${grupo.ruta}
+                            </span>
+                            <div class="flex items-center gap-4">
+                                <span class="text-xs text-indigo-200">${grupo.count} nota(s)</span>
+                                <span class="text-sm font-bold text-white">${fmtMoney(grupo.subtotal)}</span>
+                            </div>
+                        </div>
+                        <table class="min-w-full text-sm divide-y divide-gray-100">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nota</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
+                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Estatus</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-100">
+                                ${rows}
+                            </tbody>
+                            <tfoot class="bg-gray-50 border-t border-gray-200">
+                                <tr>
+                                    <td colspan="3" class="px-3 py-2 text-xs font-semibold text-gray-600 text-right">Subtotal ${grupo.ruta}:</td>
+                                    <td class="px-3 py-2 text-right font-mono font-bold text-gray-800">${fmtMoney(grupo.subtotal)}</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                `;
+            });
+
+            // Grand total
+            html += `
+                <div class="flex items-center justify-end gap-4 px-4 py-3 bg-gray-800 rounded-lg text-white">
+                    <span class="text-sm font-medium">TOTAL GENERAL</span>
+                    <span class="text-lg font-bold font-mono">$${data.total_monto}</span>
                 </div>
             `;
+
+            body.innerHTML = html;
         }
 
-        window.LQT = {
-            goPage(p) {
-                if (p < 1 || p > state.lastPage) return;
-                state.page = p;
-                load();
-            },
-        };
-
-        $('lq-fecha').addEventListener('change',    function() { state.fecha    = this.value; state.page = 1; load(); });
-        $('lq-ruta').addEventListener('change',     function() { state.routeId  = this.value; state.page = 1; load(); });
-        $('lq-chofer').addEventListener('change',   function() { state.driverId = this.value; state.page = 1; load(); });
-        $('lq-estatus').addEventListener('change',  function() { state.soloSinLiq = this.value; state.page = 1; load(); });
-        $('lq-per-page').addEventListener('change', function() { state.perPage  = parseInt(this.value); state.page = 1; load(); });
+        $('lq-fecha').addEventListener('change',   function() { state.fecha      = this.value; load(); });
+        $('lq-ruta').addEventListener('change',    function() { state.routeId    = this.value; load(); });
+        $('lq-estatus').addEventListener('change', function() { state.soloSinLiq = this.value; load(); });
 
         $('lq-clear').addEventListener('click', function() {
-            state.fecha = hoy; state.routeId = ''; state.driverId = ''; state.soloSinLiq = '1'; state.page = 1;
+            state.fecha = hoy; state.routeId = ''; state.soloSinLiq = '1';
             $('lq-fecha').value   = hoy;
             $('lq-ruta').value    = '';
-            $('lq-chofer').value  = '';
             $('lq-estatus').value = '1';
             load();
         });
 
-        // Inicializar fecha
         $('lq-fecha').value = hoy;
         load();
     })();

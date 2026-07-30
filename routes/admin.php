@@ -343,6 +343,7 @@ Route::prefix('reportes')->name('reportes.')->group(function () {
     Route::get('liquidaciones',               [ReportesController::class, 'liquidaciones'])->name('liquidaciones');
     Route::get('liquidaciones/data',          [ReportesController::class, 'liquidacionesData'])->name('liquidaciones.data');
     Route::get('liquidaciones/export',        [ReportesController::class, 'liquidacionesExport'])->name('liquidaciones.export');
+    Route::get('liquidaciones/concentrado',   [ReportesController::class, 'liquidacionesConcentrado'])->name('liquidaciones.concentrado');
 });
 
 Route::get('auditoria', [AuditoriaController::class, 'index'])->name('auditoria.index');

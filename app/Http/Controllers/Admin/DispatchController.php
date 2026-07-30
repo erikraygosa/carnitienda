@@ -112,7 +112,6 @@ class DispatchController extends Controller implements HasMiddleware
         $data = $request->validate([
                'warehouse_id'      => ['required', 'exists:warehouses,id'],
         'shipping_route_id' => ['required', 'exists:shipping_routes,id'],
-        'driver_id'         => ['required', 'exists:drivers,id'],
         'vehicle'           => ['nullable', 'string', 'max:50'],
         'fecha'             => ['required', 'date'],
         'notas'             => ['nullable', 'string'],
@@ -132,10 +131,17 @@ class DispatchController extends Controller implements HasMiddleware
         }
 
         return DB::transaction(function () use ($data) {
+            // Chofer = mismo nombre que la ruta (se crea si no existe)
+            $route    = \App\Models\ShippingRoute::find($data['shipping_route_id']);
+            $driver   = \App\Models\Driver::firstOrCreate(
+                ['nombre' => $route?->nombre ?? 'Sin nombre'],
+                ['activo' => true]
+            );
+
             $dispatch = Dispatch::create([
                 'warehouse_id'      => $data['warehouse_id']      ?? null,
                 'shipping_route_id' => $data['shipping_route_id'] ?? null,
-                'driver_id'         => $data['driver_id']         ?? null,
+                'driver_id'         => $driver->id,
                 'vehicle'           => $data['vehicle']           ?? null,
                 'fecha'             => Carbon::parse($data['fecha']),
                 'status'            => 'PLANEADO',
@@ -242,11 +248,20 @@ class DispatchController extends Controller implements HasMiddleware
         $data = $request->validate([
             'warehouse_id'      => ['nullable', 'exists:warehouses,id'],
             'shipping_route_id' => ['nullable', 'exists:shipping_routes,id'],
-            'driver_id'         => ['nullable', 'exists:drivers,id'],
             'vehicle'           => ['nullable', 'string', 'max:50'],
             'fecha'             => ['required', 'date'],
             'notas'             => ['nullable', 'string'],
         ]);
+
+        // Sincronizar chofer con la ruta
+        if (!empty($data['shipping_route_id'])) {
+            $route  = \App\Models\ShippingRoute::find($data['shipping_route_id']);
+            $driver = \App\Models\Driver::firstOrCreate(
+                ['nombre' => $route?->nombre ?? 'Sin nombre'],
+                ['activo' => true]
+            );
+            $data['driver_id'] = $driver->id;
+        }
 
         $dispatch->update($data);
         session()->flash('swal', ['icon' => 'success', 'title' => 'Actualizado', 'text' => 'Despacho actualizado.']);
