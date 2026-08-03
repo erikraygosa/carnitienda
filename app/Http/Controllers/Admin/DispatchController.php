@@ -302,7 +302,7 @@ class DispatchController extends Controller implements HasMiddleware
                 }
             }
 
-            $dispatch->transfers()
+            $dispatch->transferAssignments()
                 ->whereIn('status', ['ASIGNADO', 'EN_RUTA'])
                 ->update(['status' => 'EN_RUTA']);
         });
