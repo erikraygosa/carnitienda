@@ -204,7 +204,41 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // Reajustar al cambiar tamaño de ventana
-  window.addEventListener('resize', () => setMainMargin(pinned));
+  window.addEventListener('resize', () => {
+    setMainMargin(pinned);
+    if (window.innerWidth >= 640) closeMobileSidebar();
+  });
+
+  // ── Mobile: overlay + toggle ──
+  const overlay = document.createElement('div');
+  overlay.id = 'sidebar-mobile-overlay';
+  overlay.className = 'fixed inset-0 z-30 bg-black/40 hidden';
+  document.body.appendChild(overlay);
+  let mobileOpen = false;
+
+  function openMobileSidebar() {
+    mobileOpen = true;
+    sidebar.classList.remove('-translate-x-full');
+    sidebar.classList.add('translate-x-0', 'sidebar-expanded');
+    overlay.classList.remove('hidden');
+    document.body.classList.add('overflow-hidden');
+  }
+
+  function closeMobileSidebar() {
+    mobileOpen = false;
+    sidebar.classList.add('-translate-x-full');
+    sidebar.classList.remove('translate-x-0', 'sidebar-expanded');
+    overlay.classList.add('hidden');
+    document.body.classList.remove('overflow-hidden');
+  }
+
+  const hamburger = document.getElementById('mobile-sidebar-toggle');
+  if (hamburger) {
+    hamburger.addEventListener('click', function () {
+      mobileOpen ? closeMobileSidebar() : openMobileSidebar();
+    });
+  }
+  overlay.addEventListener('click', closeMobileSidebar);
 
   // ── Estado inicial sin animación ──
   if (main) main.style.transition = 'none';
