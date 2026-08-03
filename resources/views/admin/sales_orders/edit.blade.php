@@ -46,16 +46,17 @@
         $statusClass = $statusClasses[$order->status] ?? 'bg-slate-100 text-slate-700';
 
         $itemsSeed = $order->items->map(fn($i) => [
-            'id'          => $i->id,
-            'product_id'  => $i->product_id,
-            'descripcion' => $i->descripcion,
-            'cantidad'    => (float)$i->cantidad,
-            'num_cajas'   => $i->num_cajas,
-            'precio'      => (float)$i->precio,
-            'descuento'   => (float)$i->descuento,
-            'iva_pct'     => 0,
-            'impuesto'    => (float)$i->impuesto,
-            'total'       => (float)$i->total,
+            'id'              => $i->id,
+            'product_id'      => $i->product_id,
+            '_productoNombre' => $i->product?->nombre ?? $i->descripcion ?? '',
+            'descripcion'     => $i->descripcion,
+            'cantidad'        => (float)$i->cantidad,
+            'num_cajas'       => $i->num_cajas,
+            'precio'          => (float)$i->precio,
+            'descuento'       => (float)$i->descuento,
+            'iva_pct'         => 0,
+            'impuesto'        => (float)$i->impuesto,
+            'total'           => (float)$i->total,
         ])->values()->toArray();
 
         $clientDefaults = $clients->mapWithKeys(fn($c) => [(string)$c->id => [
@@ -294,6 +295,17 @@
                           {{ $isLocked ? 'readonly' : '' }}>{{ old('comentarios', $order->comentarios) }}</textarea>
             </div>
 
+            {{-- ====== ALERTA precio cero ====== --}}
+            @if($canEditItems)
+            <div id="zero-price-alert" class="hidden rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800 flex items-center justify-between">
+                <span>Algunos productos no tienen precio para este cliente. Se estableció $0.00.</span>
+                <a id="zero-price-link" href="#" target="_blank"
+                   class="ml-3 inline-flex px-3 py-1.5 text-sm rounded-md bg-amber-600 text-white hover:bg-amber-700">
+                    Editar precios
+                </a>
+            </div>
+            @endif
+
             {{-- ====== PARTIDAS ====== --}}
             <div class="overflow-auto border-t pt-4">
                 <table class="min-w-full text-sm">
@@ -467,7 +479,7 @@
         const LISTS_PRICES      = @json($listItems ?? []);
         const INITIAL_PRICE_LIST = @json((string) ($order->price_list_id ?: 'client'));
 
-        const PRODUCTS_OPTIONS = `@foreach($products as $p)<option value="{{ $p->id }}">{{ $p->nombre }}</option>@endforeach`;
+        const PRODUCTS = @json($productsJson);
 
         let state = {
             items: [],
@@ -505,13 +517,14 @@
         }
 
         function updateTotals() {
-            let s=0, d=0, t=0, g=0;
+            let s=0, d=0, t=0, g=0, hasZero=false;
             state.items.forEach(it => {
                 const line = (+it.cantidad||0)*(+it.precio||0);
                 const disc = +it.descuento||0;
                 const base = Math.max(line-disc, 0);
                 const tax  = ((+it.iva_pct||0)/100)*base;
                 s += line; d += disc; t += tax; g += base+tax;
+                if ((+it.precio||0) === 0 && it.product_id) hasZero = true;
             });
             $('tot-subtotal').textContent = fmt(s);
             $('tot-desc').textContent     = fmt(d);
@@ -521,37 +534,128 @@
             set('h-descuento', fmt(d));
             set('h-impuestos', fmt(t));
             set('h-total',     fmt(g));
+            const alertEl = $('zero-price-alert');
+            if (alertEl) alertEl.classList.toggle('hidden', !hasZero || !state.clientId);
+            const link = $('zero-price-link');
+            if (link && state.clientId) link.href = `${CLIENTS_EDIT_BASE}/${state.clientId}/edit`;
         }
 
         function escHtml(str) {
             return String(str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
 
+        // ── Portal global para autocomplete de producto ─────────────────
+        const PROD_PORTAL = document.createElement('ul');
+        PROD_PORTAL.id = 'product-dropdown-portal';
+        PROD_PORTAL.className = 'fixed z-[9999] bg-white border border-gray-200 rounded shadow-md hidden max-h-48 overflow-y-auto text-sm list-none py-1';
+        document.body.appendChild(PROD_PORTAL);
+
+        let portalSelectFn = null;
+        function hidePortal() { PROD_PORTAL.classList.add('hidden'); portalSelectFn = null; }
+        function positionPortal(input) {
+            const r = input.getBoundingClientRect();
+            PROD_PORTAL.style.left  = r.left + 'px';
+            PROD_PORTAL.style.top   = (r.bottom + 2) + 'px';
+            PROD_PORTAL.style.width = Math.max(r.width, 240) + 'px';
+        }
+        document.addEventListener('scroll', hidePortal, true);
+        document.addEventListener('click', function(e) {
+            if (!PROD_PORTAL.contains(e.target)) hidePortal();
+        });
+
+        function attachProductSearch(tr, i) {
+            const input  = tr.querySelector('.inp-product-search');
+            const hidden = tr.querySelector('.hid-product-id');
+
+            function selectProduct(p) {
+                hidden.value = p.id;
+                input.value  = p.nombre;
+                state.items[i].product_id      = p.id;
+                state.items[i]._productoNombre = p.nombre;
+                state.items[i].descripcion     = p.nombre;
+                tr.querySelector('.inp-desc').value   = p.nombre;
+                state.items[i].precio = getPrice(p.id);
+                tr.querySelector('.inp-precio').value = state.items[i].precio;
+                recalcRow(i);
+                hidePortal();
+                input.focus();
+            }
+
+            function clearProduct() {
+                hidden.value = '';
+                input.value  = '';
+                state.items[i].product_id      = '';
+                state.items[i]._productoNombre = '';
+                state.items[i].descripcion     = '';
+                state.items[i].precio          = 0;
+                tr.querySelector('.inp-desc').value   = '';
+                tr.querySelector('.inp-precio').value = 0;
+                recalcRow(i);
+                input.focus();
+            }
+
+            function showDropdown(term) {
+                const t = term.toLowerCase().trim();
+                const matches = t.length === 0 ? [] : PRODUCTS.filter(p =>
+                    p.nombre.toLowerCase().includes(t) ||
+                    (p.sku && p.sku.toLowerCase().includes(t))
+                ).slice(0, 12);
+                PROD_PORTAL.innerHTML = '';
+                if (matches.length === 0) { hidePortal(); return; }
+                portalSelectFn = selectProduct;
+                matches.forEach(p => {
+                    const li = document.createElement('li');
+                    li.className = 'px-3 py-1.5 hover:bg-indigo-50 cursor-pointer flex justify-between items-center';
+                    li.innerHTML = `<span class="truncate">${escHtml(p.nombre)}</span>`
+                                 + (p.sku ? `<span class="text-xs text-gray-400 ml-2 shrink-0">${escHtml(p.sku)}</span>` : '');
+                    li.addEventListener('mousedown', function(e) { e.preventDefault(); selectProduct(p); });
+                    PROD_PORTAL.appendChild(li);
+                });
+                positionPortal(input);
+                PROD_PORTAL.classList.remove('hidden');
+            }
+
+            input.addEventListener('input', function() {
+                if (!this.value.trim()) {
+                    hidden.value = '';
+                    state.items[i].product_id      = '';
+                    state.items[i]._productoNombre = '';
+                }
+                showDropdown(this.value);
+            });
+            input.addEventListener('focus', function() {
+                if (this.value.trim()) showDropdown(this.value);
+            });
+            input.addEventListener('blur', function() {
+                setTimeout(hidePortal, 150);
+            });
+            tr.querySelector('.btn-clear-product').addEventListener('click', clearProduct);
+        }
+
         function renderRow(i) {
-            const it  = state.items[i];
-            const dis      = LOCKED ? 'disabled' : '';       // pedido totalmente bloqueado
-            const disQty   = CAN_EDIT_QTY   ? '' : 'disabled';
-            // Producto/descripción/descuento/IVA solo se pueden tocar en BORRADOR.
-            // En PREPARANDO se muestran de solo lectura (pero deben seguir enviándose en el POST).
+            const it       = state.items[i];
+            const dis      = LOCKED ? 'disabled' : '';
+            const disQty   = CAN_EDIT_QTY ? '' : 'disabled';
             const roItems  = (!LOCKED && !CAN_EDIT_ITEMS) ? 'readonly' : '';
-            const selDis   = LOCKED || !CAN_EDIT_ITEMS ? 'disabled' : '';
-            const needsProductShadow = selDis && !LOCKED; // PREPARANDO: el <select> disabled no se envía, replicamos su valor
-            const tr  = document.createElement('tr');
+            const tr       = document.createElement('tr');
             tr.className   = 'border-b';
             tr.dataset.idx = i;
+
+            // En BORRADOR: autocomplete editable. En PREPARANDO/locked: texto de solo lectura.
+            const productCell = CAN_EDIT_ITEMS
+                ? `<input type="hidden" class="hid-product-id" name="items[${i}][product_id]" value="${escHtml(String(it.product_id||''))}">
+                   <div class="flex items-center gap-1">
+                       <input type="text" class="w-52 border rounded p-1 text-sm inp-product-search"
+                              placeholder="Buscar por nombre o SKU..." autocomplete="off"
+                              value="${escHtml(it._productoNombre||'')}">
+                       <button type="button" class="btn-clear-product text-gray-400 hover:text-red-500 text-base leading-none px-1" title="Quitar producto">✕</button>
+                   </div>`
+                : `<input type="hidden" name="items[${i}][product_id]" value="${escHtml(String(it.product_id||''))}">
+                   <span class="text-sm text-gray-700">${escHtml(it._productoNombre||'—')}</span>`;
+
             tr.innerHTML = `
                 <input type="hidden" name="items[${i}][id]" value="${it.id || ''}">
-                <td class="p-2">
-                    <div class="flex items-center gap-1">
-                    <select class="w-48 border rounded p-1 text-sm sel-product"
-                            ${needsProductShadow ? '' : `name="items[${i}][product_id]"`} ${selDis}>
-                        <option value="">—</option>
-                        ${PRODUCTS_OPTIONS}
-                    </select>
-                    ${needsProductShadow ? `<input type="hidden" name="items[${i}][product_id]" value="${escHtml(String(it.product_id||''))}">` : ''}
-                    ${CAN_EDIT_ITEMS ? `<button type="button" class="btn-clear-product text-gray-400 hover:text-red-500 text-base leading-none px-1" title="Quitar producto">✕</button>` : ''}
-                    </div>
-                </td>
+                <td class="p-2">${productCell}</td>
                 <td class="p-2">
                     <input type="text" class="w-64 border rounded p-1 text-sm inp-desc"
                            name="items[${i}][descripcion]" value="${escHtml(it.descripcion)}"
@@ -591,31 +695,8 @@
                 ${CAN_EDIT_ITEMS ? `<td class="p-2 text-center"><button type="button" class="text-red-500 hover:text-red-700 text-xs btn-remove">✕</button></td>` : ''}
             `;
 
-            const sel = tr.querySelector('.sel-product');
-            if (it.product_id) sel.value = it.product_id;
-
             if (CAN_EDIT_ITEMS) {
-                function clearProduct() {
-                    sel.value = '';
-                    state.items[i].product_id  = '';
-                    state.items[i].descripcion = '';
-                    state.items[i].precio      = 0;
-                    tr.querySelector('.inp-desc').value   = '';
-                    tr.querySelector('.inp-precio').value = 0;
-                    recalcRow(i);
-                }
-
-                sel.addEventListener('change', function() {
-                    state.items[i].product_id = this.value;
-                    const opt = this.options[this.selectedIndex];
-                    // Siempre actualiza descripción al cambiar producto
-                    state.items[i].descripcion = opt?.text || '';
-                    tr.querySelector('.inp-desc').value = state.items[i].descripcion;
-                    state.items[i].precio = getPrice(this.value);
-                    tr.querySelector('.inp-precio').value = state.items[i].precio;
-                    recalcRow(i);
-                });
-                tr.querySelector('.btn-clear-product')?.addEventListener('click', clearProduct);
+                attachProductSearch(tr, i);
                 tr.querySelector('.inp-descuento').addEventListener('input', function() {
                     state.items[i].descuento = parseFloat(this.value)||0; recalcRow(i);
                 });
@@ -649,7 +730,7 @@
         window.SOE = {
             addRow() {
                 if (!CAN_EDIT_ITEMS) return;
-                state.items.push({id:null,product_id:'',descripcion:'',cantidad:1,num_cajas:null,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0});
+                state.items.push({id:null,product_id:'',_productoNombre:'',descripcion:'',cantidad:1,num_cajas:null,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0});
                 renderAll();
             },
             onClientChange(clientId) {
