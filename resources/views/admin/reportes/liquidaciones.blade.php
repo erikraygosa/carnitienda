@@ -34,7 +34,7 @@
                 <select id="lq-estatus"
                         class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <option value="1">Solo pendientes</option>
-                    <option value="0">Todas</option>
+                    <option value="0" selected>Todas</option>
                 </select>
             </div>
             <div class="flex items-end">
@@ -64,7 +64,7 @@
         let state = {
             fecha:       hoy,
             routeId:     '',
-            soloSinLiq:  '1',
+            soloSinLiq:  '0',
         };
 
         const $ = id => document.getElementById(id);
@@ -238,10 +238,10 @@
         $('lq-estatus').addEventListener('change', function() { state.soloSinLiq = this.value; load(); });
 
         $('lq-clear').addEventListener('click', function() {
-            state.fecha = hoy; state.routeId = ''; state.soloSinLiq = '1';
+            state.fecha = hoy; state.routeId = ''; state.soloSinLiq = '0';
             $('lq-fecha').value   = hoy;
             $('lq-ruta').value    = '';
-            $('lq-estatus').value = '1';
+            $('lq-estatus').value = '0';
             load();
         });
 
