@@ -138,7 +138,25 @@
 
     <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
         <h3 class="text-white font-semibold mb-1">WhatsApp (Evolution API)</h3>
-        <p class="text-xs text-gray-500 mb-4">Datos del servidor Evolution API usado para enviar remisiones/facturas por WhatsApp. Si quedan vacíos, el envío por WhatsApp se deshabilita.</p>
+        <p class="text-xs text-gray-500 mb-2">Datos del servidor Evolution API usado para enviar remisiones/facturas por WhatsApp. Si falta alguno, el envío por WhatsApp se deshabilita.</p>
+
+        @php
+            $waBaseUrl  = $whatsapp['whatsapp.base_url']?->valor ?? '';
+            $waInstance = $whatsapp['whatsapp.instance']?->valor ?? '';
+            $waApiKey   = $whatsapp['whatsapp.api_key']?->valor ?? '';
+            $waFaltan   = array_filter([
+                $waBaseUrl  === '' ? 'URL base' : null,
+                $waInstance === '' ? 'Instancia' : null,
+                $waApiKey   === '' ? 'API Key'   : null,
+            ]);
+        @endphp
+        <p class="text-xs mb-4">
+            @if(empty($waFaltan))
+                <span class="text-emerald-400">✓ Configurado — los 3 campos tienen valor guardado.</span>
+            @else
+                <span class="text-amber-400">⚠ Falta guardar: {{ implode(', ', $waFaltan) }}.</span>
+            @endif
+        </p>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
