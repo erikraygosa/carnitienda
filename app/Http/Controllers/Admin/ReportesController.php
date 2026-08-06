@@ -112,7 +112,9 @@ class ReportesController extends Controller implements HasMiddleware
             ->when($fecha,           fn($q) => $q->whereDate('dispatches.fecha', $fecha))
             ->when($routeId,         fn($q) => $q->where('dispatches.shipping_route_id', $routeId))
             ->when($driverId,        fn($q) => $q->where('dispatches.driver_id', $driverId))
-            ->when($soloSinLiquidar, fn($q) => $q->where('sales_orders.driver_settlement_status', 'PENDIENTE'))
+            ->when($soloSinLiquidar, fn($q) => $q
+                ->where('sales_orders.driver_settlement_status', 'PENDIENTE')
+                ->whereNotIn('sales_orders.status', ['NO_ENTREGADO', 'CANCELADO']))
             ->orderBy('shipping_routes.nombre')
             ->orderBy('dispatches.id');
     }
@@ -144,6 +146,26 @@ class ReportesController extends Controller implements HasMiddleware
             'ENTREGADO'    => 'bg-emerald-100 text-emerald-700',
             'NO_ENTREGADO' => 'bg-orange-100 text-orange-700',
             'CANCELADO'    => 'bg-rose-100 text-rose-700',
+        ];
+    }
+
+    /**
+     * Estatus de liquidación a mostrar. Si el pedido nunca se entregó (NO_ENTREGADO/CANCELADO)
+     * no hay nada que cobrar del chofer, así que "PENDIENTE" sería engañoso.
+     */
+    private function liquidacionEstatus(?string $orderStatus, ?string $settlementStatus): array
+    {
+        if (in_array($orderStatus, ['NO_ENTREGADO', 'CANCELADO'])) {
+            return ['label' => 'No aplica', 'class' => 'bg-gray-100 text-gray-500'];
+        }
+
+        $settlementStatus = $settlementStatus ?? 'PENDIENTE';
+
+        return [
+            'label' => $settlementStatus,
+            'class' => $settlementStatus === 'LIQUIDADO'
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-amber-100 text-amber-700',
         ];
     }
 
@@ -409,25 +431,24 @@ class ReportesController extends Controller implements HasMiddleware
         $totalMonto = (clone $q)->sum('sales_orders.total');
         $items      = $q->skip(($page - 1) * $perPage)->take($perPage)->get();
 
-        $settlementColors = [
-            'PENDIENTE' => 'bg-amber-100 text-amber-700',
-            'LIQUIDADO' => 'bg-emerald-100 text-emerald-700',
-        ];
         $orderLabels  = $this->orderStatusLabels();
         $orderClasses = $this->orderStatusClasses();
 
-        $rows = $items->map(fn($s) => [
-            'folio'          => $s->folio,
-            'cliente'        => $s->cliente_nombre ?? '—',
-            'ruta'           => $s->ruta_nombre    ?? '—',
-            'chofer'         => $s->chofer_nombre   ?? '—',
-            'fecha'          => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',
-            'total'          => number_format((float)$s->total, 2),
-            'estatus'        => $s->driver_settlement_status ?? 'PENDIENTE',
-            'est_class'      => $settlementColors[$s->driver_settlement_status ?? 'PENDIENTE'] ?? 'bg-gray-100 text-gray-700',
-            'estatus_pedido' => $orderLabels[$s->order_status] ?? $s->order_status,
-            'pedido_class'   => $orderClasses[$s->order_status] ?? 'bg-gray-100 text-gray-700',
-        ]);
+        $rows = $items->map(function ($s) use ($orderLabels, $orderClasses) {
+            $liq = $this->liquidacionEstatus($s->order_status, $s->driver_settlement_status);
+            return [
+                'folio'          => $s->folio,
+                'cliente'        => $s->cliente_nombre ?? '—',
+                'ruta'           => $s->ruta_nombre    ?? '—',
+                'chofer'         => $s->chofer_nombre   ?? '—',
+                'fecha'          => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',
+                'total'          => number_format((float)$s->total, 2),
+                'estatus'        => $liq['label'],
+                'est_class'      => $liq['class'],
+                'estatus_pedido' => $orderLabels[$s->order_status] ?? $s->order_status,
+                'pedido_class'   => $orderClasses[$s->order_status] ?? 'bg-gray-100 text-gray-700',
+            ];
+        });
 
         return response()->json([
             'rows'        => $rows,
@@ -450,16 +471,20 @@ class ReportesController extends Controller implements HasMiddleware
         $grouped = $items->groupBy('ruta_nombre')->map(function ($rows, $ruta) use ($orderLabels, $orderClasses) {
             return [
                 'ruta'    => $ruta ?? 'Sin ruta',
-                'notas'   => $rows->map(fn($s) => [
-                    'folio'          => $s->folio,
-                    'cliente'        => $s->cliente_nombre ?? '—',
-                    'fecha'          => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',
-                    'total'          => (float)$s->total,
-                    'total_fmt'      => number_format((float)$s->total, 2),
-                    'estatus'        => $s->driver_settlement_status ?? 'PENDIENTE',
-                    'estatus_pedido' => $orderLabels[$s->order_status] ?? $s->order_status,
-                    'pedido_class'   => $orderClasses[$s->order_status] ?? 'bg-gray-100 text-gray-700',
-                ])->values(),
+                'notas'   => $rows->map(function ($s) use ($orderLabels, $orderClasses) {
+                    $liq = $this->liquidacionEstatus($s->order_status, $s->driver_settlement_status);
+                    return [
+                        'folio'          => $s->folio,
+                        'cliente'        => $s->cliente_nombre ?? '—',
+                        'fecha'          => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',
+                        'total'          => (float)$s->total,
+                        'total_fmt'      => number_format((float)$s->total, 2),
+                        'estatus'        => $liq['label'],
+                        'liq_class'      => $liq['class'],
+                        'estatus_pedido' => $orderLabels[$s->order_status] ?? $s->order_status,
+                        'pedido_class'   => $orderClasses[$s->order_status] ?? 'bg-gray-100 text-gray-700',
+                    ];
+                })->values(),
                 'subtotal'     => (float)$rows->sum('total'),
                 'subtotal_fmt' => number_format((float)$rows->sum('total'), 2),
                 'count'        => $rows->count(),
@@ -528,7 +553,7 @@ class ReportesController extends Controller implements HasMiddleware
                 $sheet->setCellValue("C{$row}", $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '');
                 $sheet->setCellValue("D{$row}", $monto);
                 $sheet->setCellValue("E{$row}", $orderLabels[$s->order_status] ?? $s->order_status);
-                $sheet->setCellValue("F{$row}", $s->driver_settlement_status ?? 'PENDIENTE');
+                $sheet->setCellValue("F{$row}", $this->liquidacionEstatus($s->order_status, $s->driver_settlement_status)['label']);
                 $sheet->getStyle("D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
                 $row++;
             }

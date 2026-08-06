@@ -93,13 +93,6 @@
             }
         }
 
-        function estBadge(estatus) {
-            const cls = estatus === 'LIQUIDADO'
-                ? 'bg-emerald-100 text-emerald-700'
-                : 'bg-amber-100 text-amber-700';
-            return `<span class="px-2 py-0.5 text-xs rounded-full font-medium ${cls}">${estatus}</span>`;
-        }
-
         function pedidoBadge(label, cls) {
             return `<span class="px-2 py-0.5 text-xs rounded-full font-medium ${cls}">${label}</span>`;
         }
@@ -130,7 +123,7 @@
                         <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${n.fecha}</td>
                         <td class="px-3 py-2 text-sm text-right font-mono font-semibold text-gray-800">${fmtMoney(n.total)}</td>
                         <td class="px-3 py-2 text-center">${pedidoBadge(n.estatus_pedido, n.pedido_class)}</td>
-                        <td class="px-3 py-2 text-center">${estBadge(n.estatus)}</td>
+                        <td class="px-3 py-2 text-center">${pedidoBadge(n.estatus, n.liq_class)}</td>
                     </tr>
                 `).join('');
 
