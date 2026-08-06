@@ -125,6 +125,55 @@
     </div>
 
     <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-white font-semibold mb-1">WhatsApp (Evolution API)</h3>
+        <p class="text-xs text-gray-500 mb-4">Datos del servidor Evolution API usado para enviar remisiones/facturas por WhatsApp. Si quedan vacíos, el envío por WhatsApp se deshabilita.</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">URL base</label>
+                <input type="text" name="whatsapp.base_url"
+                       value="{{ $whatsapp['whatsapp.base_url']?->valor ?? '' }}"
+                       placeholder="https://evo.midominio.com"
+                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Instancia</label>
+                <input type="text" name="whatsapp.instance"
+                       value="{{ $whatsapp['whatsapp.instance']?->valor ?? '' }}"
+                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs text-gray-500 mb-1">
+                    API Key
+                    @if(filled($whatsapp['whatsapp.api_key']?->valor ?? null))
+                        <span class="text-emerald-500">(ya configurada — deja en blanco para conservarla)</span>
+                    @endif
+                </label>
+                <input type="password" name="whatsapp.api_key" autocomplete="new-password"
+                       placeholder="{{ filled($whatsapp['whatsapp.api_key']?->valor ?? null) ? '••••••••••••' : '' }}"
+                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-white font-semibold mb-1">Probar envío de WhatsApp</h3>
+        <p class="text-xs text-gray-500 mb-4">Guarda la configuración de arriba primero; luego prueba con un número real.</p>
+        <form action="{{ route('superadmin.settings.whatsapp.test') }}" method="POST" class="flex items-end gap-3">
+            @csrf
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Teléfono (10 dígitos o con lada país)</label>
+                <input type="text" name="telefono" placeholder="9991234567"
+                       class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none w-52">
+            </div>
+            <button type="submit"
+                    class="px-4 py-2 text-sm rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 font-medium">
+                Enviar prueba
+            </button>
+        </form>
+    </div>
+
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
         <h3 class="text-white font-semibold mb-1">Logística</h3>
         <p class="text-xs text-gray-500 mb-4">Controla acciones que pueden saltarse el flujo normal de despacho.</p>
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\SystemSetting;
+use App\Services\WhatsappSender;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
@@ -16,8 +17,9 @@ class SettingsController extends Controller
         $correo      = SystemSetting::where('grupo', 'correo')->get()->keyBy('clave');
         $auth        = SystemSetting::where('grupo', 'auth')->get()->keyBy('clave');
         $logistica   = SystemSetting::where('grupo', 'logistica')->get()->keyBy('clave');
+        $whatsapp    = SystemSetting::where('grupo', 'whatsapp')->get()->keyBy('clave');
 
-        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica'));
+        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica', 'whatsapp'));
     }
 
     public function update(Request $request)
@@ -33,12 +35,21 @@ class SettingsController extends Controller
             'correo.from_address'        => ['nullable', 'email', 'max:150'],
             'auth_login_mode'            => ['nullable', 'string', 'in:email,username'],
             'auth_username_domain'       => ['nullable', 'string', 'max:100'],
+            'whatsapp.base_url'          => ['nullable', 'string', 'max:255', 'url'],
+            'whatsapp.instance'          => ['nullable', 'string', 'max:100'],
+            'whatsapp.api_key'           => ['nullable', 'string', 'max:255'],
         ]);
 
         foreach ($data as $clave => $valor) {
+            if ($clave === 'whatsapp.api_key') continue; // se maneja aparte para no borrarla si se deja en blanco
             if ($valor !== null && !($valor instanceof \Illuminate\Http\UploadedFile)) {
                 SystemSetting::set($clave, $valor, is_int($valor) ? 'integer' : 'string');
             }
+        }
+
+        // El campo de API Key es tipo password: si llega vacío, se conserva la que ya estaba guardada.
+        if (filled($data['whatsapp.api_key'] ?? null)) {
+            SystemSetting::set('whatsapp.api_key', $data['whatsapp.api_key'], 'string');
         }
 
         // Campos de autenticación usan guión bajo en el formulario pero se almacenan con punto
@@ -58,5 +69,28 @@ class SettingsController extends Controller
         }
 
         return back()->with('success', 'Configuración guardada correctamente.');
+    }
+
+    public function testWhatsapp(Request $request, WhatsappSender $whatsapp)
+    {
+        $request->validate([
+            'telefono' => ['required', 'string', 'max:20'],
+        ]);
+
+        if (!$whatsapp->isConfigured()) {
+            return back()->with('error', 'Faltan datos de WhatsApp por configurar (URL base, instancia o API Key).');
+        }
+
+        try {
+            $resp = $whatsapp->sendText($request->telefono, 'Mensaje de prueba desde ' . config('app.name') . ' — la conexión de WhatsApp funciona correctamente.');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Error de conexión: ' . $e->getMessage());
+        }
+
+        if ($resp['ok'] ?? false) {
+            return back()->with('success', '✓ Mensaje de prueba enviado correctamente.');
+        }
+
+        return back()->with('error', 'WhatsApp respondió ' . ($resp['status'] ?? '?') . ': ' . (is_string($resp['body']) ? $resp['body'] : json_encode($resp['body'] ?? [])));
     }
 }

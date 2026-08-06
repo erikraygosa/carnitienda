@@ -39,5 +39,6 @@
 
     Route::get('/settings',  [SuperSettings::class, 'index'])->name('settings.index');
     Route::put('/settings',  [SuperSettings::class, 'update'])->name('settings.update');
+    Route::post('/settings/whatsapp/test', [SuperSettings::class, 'testWhatsapp'])->name('settings.whatsapp.test');
 
 

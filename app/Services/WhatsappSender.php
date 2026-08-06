@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\SystemSetting;
 use Illuminate\Support\Facades\Http;
 
 class WhatsappSender
@@ -12,13 +13,22 @@ class WhatsappSender
 
     public function __construct()
     {
-        $this->baseUrl  = rtrim(env('EVO_API_BASE_URL', ''), '/');
-        $this->instance = env('EVO_API_INSTANCE', '');
-        $this->apiKey   = env('EVO_API_KEY', '');
+        $this->baseUrl  = rtrim(SystemSetting::get('whatsapp.base_url', env('EVO_API_BASE_URL', '')), '/');
+        $this->instance = SystemSetting::get('whatsapp.instance', env('EVO_API_INSTANCE', ''));
+        $this->apiKey   = SystemSetting::get('whatsapp.api_key', env('EVO_API_KEY', ''));
+    }
+
+    public function isConfigured(): bool
+    {
+        return $this->baseUrl !== '' && $this->instance !== '' && $this->apiKey !== '';
     }
 
     public function sendPdf(string $telefono, string $mensaje, string $filename, string $pdfRaw): array
     {
+        if (!$this->isConfigured()) {
+            return ['ok' => false, 'status' => 0, 'body' => 'WhatsApp no está configurado. Configúralo en Superadmin → Configuración → WhatsApp.'];
+        }
+
         $phone = $this->normalizePhone($telefono);
 
         // 1. Primero enviamos el PDF como media
@@ -45,6 +55,10 @@ class WhatsappSender
 
     public function sendText(string $telefono, string $mensaje): array
     {
+        if (!$this->isConfigured()) {
+            return ['ok' => false, 'status' => 0, 'body' => 'WhatsApp no está configurado. Configúralo en Superadmin → Configuración → WhatsApp.'];
+        }
+
         $phone = $this->normalizePhone($telefono);
         $url   = "{$this->baseUrl}/message/sendText/{$this->instance}";
 
