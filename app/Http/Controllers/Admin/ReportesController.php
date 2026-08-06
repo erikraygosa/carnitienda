@@ -147,9 +147,11 @@ class ReportesController extends Controller implements HasMiddleware
         ];
     }
 
-    private function pendientesPorDespachar()
+    private function pendientesPorProcesar()
     {
-        return SalesOrder::whereIn('status', ['PROCESADO', 'DESPACHADO'])
+        // APROBADO/PREPARANDO: pedidos que todavía no pasan por "Procesar"
+        // (una vez PROCESADO, ya están listos para despachar y salen de esta lista).
+        return SalesOrder::whereIn('status', ['APROBADO', 'PREPARANDO'])
             ->with(['client:id,nombre', 'route:id,nombre'])
             ->latest()
             ->limit(200)
@@ -158,6 +160,7 @@ class ReportesController extends Controller implements HasMiddleware
                 'folio'   => $o->folio,
                 'cliente' => $o->client?->nombre ?? '—',
                 'ruta'    => $o->route?->nombre ?? '—',
+                'estatus' => $o->status_label,
                 'total'   => number_format((float) $o->total, 2),
                 'fecha'   => $o->programado_para ? \Carbon\Carbon::parse($o->programado_para)->format('d/m/Y') : '—',
                 'url'     => route('admin.sales-orders.edit', $o->id),
@@ -467,7 +470,7 @@ class ReportesController extends Controller implements HasMiddleware
             'rutas'               => $grouped,
             'total'               => $items->count(),
             'total_monto'         => number_format((float)$items->sum('total'), 2),
-            'pendientes_procesar' => $this->pendientesPorDespachar(),
+            'pendientes_procesar' => $this->pendientesPorProcesar(),
         ]);
     }
 
@@ -551,10 +554,10 @@ class ReportesController extends Controller implements HasMiddleware
         $sheet->getStyle("D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
         $row += 3; // blank space before the pending section
 
-        // Pedidos procesados pendientes por despachar
-        $pendientes = $this->pendientesPorDespachar();
+        // Pedidos pendientes por procesar
+        $pendientes = $this->pendientesPorProcesar();
 
-        $sheet->setCellValue("A{$row}", 'PEDIDOS PROCESADOS PENDIENTES POR DESPACHAR');
+        $sheet->setCellValue("A{$row}", 'PEDIDOS PENDIENTES POR PROCESAR');
         $sheet->mergeCells("A{$row}:F{$row}");
         $sheet->getStyle("A{$row}")->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
@@ -563,11 +566,11 @@ class ReportesController extends Controller implements HasMiddleware
         $row++;
 
         if ($pendientes->isEmpty()) {
-            $sheet->setCellValue("A{$row}", 'No hay pedidos procesados pendientes por despachar.');
+            $sheet->setCellValue("A{$row}", 'No hay pedidos pendientes por procesar.');
             $sheet->mergeCells("A{$row}:F{$row}");
             $row++;
         } else {
-            foreach (['Nota','Cliente','Ruta','Programado','Monto'] as $ci => $h) {
+            foreach (['Nota','Cliente','Ruta','Estatus','Programado','Monto'] as $ci => $h) {
                 $cell = $this->col($ci + 1) . $row;
                 $sheet->setCellValue($cell, $h);
                 $sheet->getStyle($cell)->applyFromArray([
@@ -581,9 +584,10 @@ class ReportesController extends Controller implements HasMiddleware
                 $sheet->setCellValue("A{$row}", $p['folio']);
                 $sheet->setCellValue("B{$row}", $p['cliente']);
                 $sheet->setCellValue("C{$row}", $p['ruta']);
-                $sheet->setCellValue("D{$row}", $p['fecha']);
-                $sheet->setCellValue("E{$row}", (float) str_replace(',', '', $p['total']));
-                $sheet->getStyle("E{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+                $sheet->setCellValue("D{$row}", $p['estatus']);
+                $sheet->setCellValue("E{$row}", $p['fecha']);
+                $sheet->setCellValue("F{$row}", (float) str_replace(',', '', $p['total']));
+                $sheet->getStyle("F{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
                 $row++;
             }
         }

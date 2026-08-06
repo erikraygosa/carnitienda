@@ -192,6 +192,7 @@
                     </td>
                     <td class="px-3 py-2 text-sm text-gray-700">${p.cliente}</td>
                     <td class="px-3 py-2 text-sm text-gray-500">${p.ruta}</td>
+                    <td class="px-3 py-2 text-center">${pedidoBadge(p.estatus, p.estatus === 'Preparando' ? 'bg-sky-100 text-sky-700' : 'bg-blue-100 text-blue-700')}</td>
                     <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${p.fecha}</td>
                     <td class="px-3 py-2 text-sm text-right font-mono font-semibold text-gray-800">${fmtMoney(p.total)}</td>
                 </tr>
@@ -202,24 +203,25 @@
                     <div class="flex items-center justify-between px-4 py-2.5 bg-amber-500">
                         <span class="text-sm font-bold text-white uppercase tracking-wide">
                             <i class="fa-solid fa-triangle-exclamation mr-1.5 opacity-75"></i>
-                            Pedidos procesados pendientes por despachar
+                            Pedidos pendientes por procesar
                         </span>
                         <div class="flex items-center gap-3">
                             <span class="text-xs text-amber-100">${pendientes.length} pedido(s)</span>
-                            <a href="{{ route('admin.dispatches.create') }}"
+                            <a href="{{ route('admin.sales-orders.index') }}"
                                class="text-xs bg-white text-amber-700 font-semibold px-2 py-1 rounded hover:bg-amber-50">
-                                Ir a despacho
+                                Ir a pedidos
                             </a>
                         </div>
                     </div>
                     ${pendientes.length === 0
-                        ? `<div class="text-center py-4 text-sm text-gray-400">No hay pedidos procesados pendientes por despachar.</div>`
+                        ? `<div class="text-center py-4 text-sm text-gray-400">No hay pedidos pendientes por procesar.</div>`
                         : `<table class="min-w-full text-sm divide-y divide-gray-100">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nota</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ruta</th>
+                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Estatus</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Programado</th>
                                     <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
                                 </tr>
