@@ -40,32 +40,48 @@ class SettingsController extends Controller
             'whatsapp.api_key'           => ['nullable', 'string', 'max:255'],
         ]);
 
+        // Grupo real de cada clave — SystemSetting::set() no lo infiere solo, y sin
+        // esto una fila nueva cae en el grupo 'general' por default de la tabla,
+        // quedando invisible en su sección aunque sí se guardó.
+        $gruposPorClave = [
+            'app.nombre'                 => 'general',
+            'app.timezone'               => 'general',
+            'facturacion.version_cfdi'   => 'facturacion',
+            'facturacion.exportacion'    => 'facturacion',
+            'facturacion.alerta_timbres' => 'facturacion',
+            'correo.from_name'           => 'correo',
+            'correo.from_address'        => 'correo',
+            'whatsapp.base_url'          => 'whatsapp',
+            'whatsapp.instance'          => 'whatsapp',
+        ];
+
         foreach ($data as $clave => $valor) {
             if ($clave === 'whatsapp.api_key') continue; // se maneja aparte para no borrarla si se deja en blanco
             if ($valor !== null && !($valor instanceof \Illuminate\Http\UploadedFile)) {
-                SystemSetting::set($clave, $valor, is_int($valor) ? 'integer' : 'string');
+                SystemSetting::set($clave, $valor, is_int($valor) ? 'integer' : 'string', $gruposPorClave[$clave] ?? null);
             }
         }
 
         // El campo de API Key es tipo password: si llega vacío, se conserva la que ya estaba guardada.
         if (filled($data['whatsapp.api_key'] ?? null)) {
-            SystemSetting::set('whatsapp.api_key', $data['whatsapp.api_key'], 'string');
+            SystemSetting::set('whatsapp.api_key', $data['whatsapp.api_key'], 'string', 'whatsapp');
         }
 
         // Campos de autenticación usan guión bajo en el formulario pero se almacenan con punto
-        SystemSetting::set('auth.login_mode',       $request->input('auth_login_mode', 'email'), 'string');
-        SystemSetting::set('auth.username_domain',  $request->input('auth_username_domain', ''), 'string');
+        SystemSetting::set('auth.login_mode',       $request->input('auth_login_mode', 'email'), 'string', 'auth');
+        SystemSetting::set('auth.username_domain',  $request->input('auth_username_domain', ''), 'string', 'auth');
 
         // Checkbox: si no viene en el request es porque está desmarcado.
         SystemSetting::set(
             'logistica.permitir_completar_traspaso_directo',
             $request->boolean('logistica_permitir_completar_traspaso_directo') ? '1' : '0',
-            'boolean'
+            'boolean',
+            'logistica'
         );
 
         if ($request->hasFile('app.logo')) {
             $path = $request->file('app.logo')->store('logos', 'public');
-            SystemSetting::set('app.logo_path', $path, 'file');
+            SystemSetting::set('app.logo_path', $path, 'file', 'general');
         }
 
         return back()->with('success', 'Configuración guardada correctamente.');

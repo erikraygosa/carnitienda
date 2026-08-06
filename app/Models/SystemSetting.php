@@ -45,14 +45,18 @@ class SystemSetting extends Model
     /**
      * Guarda o actualiza un setting y limpia el cache
      */
-    public static function set(string $clave, mixed $valor, string $tipo = 'string'): void
+    public static function set(string $clave, mixed $valor, string $tipo = 'string', ?string $grupo = null): void
     {
         $valorStr = is_array($valor) ? json_encode($valor) : (string) $valor;
 
-        static::updateOrCreate(
-            ['clave' => $clave],
-            ['valor' => $valorStr, 'tipo' => $tipo]
-        );
+        $attrs = ['valor' => $valorStr, 'tipo' => $tipo];
+        // Solo tocamos 'grupo' si nos lo pasan explícitamente — si no, se respeta
+        // el que ya tenía la fila (o el default de la tabla si es una fila nueva).
+        if ($grupo !== null) {
+            $attrs['grupo'] = $grupo;
+        }
+
+        static::updateOrCreate(['clave' => $clave], $attrs);
 
         Cache::forget("setting_{$clave}");
     }
