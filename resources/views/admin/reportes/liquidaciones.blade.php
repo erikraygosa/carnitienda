@@ -100,11 +100,16 @@
             return `<span class="px-2 py-0.5 text-xs rounded-full font-medium ${cls}">${estatus}</span>`;
         }
 
+        function pedidoBadge(label, cls) {
+            return `<span class="px-2 py-0.5 text-xs rounded-full font-medium ${cls}">${label}</span>`;
+        }
+
         function renderConcentrado(data) {
             const body = $('lq-body');
 
             if (!data.rutas || data.rutas.length === 0) {
-                body.innerHTML = `<div class="text-center py-8 text-gray-400">Sin resultados para los filtros seleccionados.</div>`;
+                body.innerHTML = `<div class="text-center py-8 text-gray-400">Sin resultados para los filtros seleccionados.</div>`
+                    + renderPendientes(data.pendientes_procesar || []);
                 return;
             }
 
@@ -124,6 +129,7 @@
                         <td class="px-3 py-2 text-sm text-gray-700">${n.cliente}</td>
                         <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${n.fecha}</td>
                         <td class="px-3 py-2 text-sm text-right font-mono font-semibold text-gray-800">${fmtMoney(n.total)}</td>
+                        <td class="px-3 py-2 text-center">${pedidoBadge(n.estatus_pedido, n.pedido_class)}</td>
                         <td class="px-3 py-2 text-center">${estBadge(n.estatus)}</td>
                     </tr>
                 `).join('');
@@ -146,7 +152,8 @@
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
                                     <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
-                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Estatus</th>
+                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Estatus pedido</th>
+                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Liquidación</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-100">
@@ -156,7 +163,7 @@
                                 <tr>
                                     <td colspan="3" class="px-3 py-2 text-xs font-semibold text-gray-600 text-right">Subtotal ${grupo.ruta}:</td>
                                     <td class="px-3 py-2 text-right font-mono font-bold text-gray-800">${fmtMoney(grupo.subtotal)}</td>
-                                    <td></td>
+                                    <td colspan="2"></td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -172,7 +179,56 @@
                 </div>
             `;
 
+            html += renderPendientes(data.pendientes_procesar || []);
+
             body.innerHTML = html;
+        }
+
+        function renderPendientes(pendientes) {
+            const rows = pendientes.map(p => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-2 font-mono text-xs text-indigo-700 font-medium whitespace-nowrap">
+                        <a href="${p.url}" class="hover:underline">${p.folio}</a>
+                    </td>
+                    <td class="px-3 py-2 text-sm text-gray-700">${p.cliente}</td>
+                    <td class="px-3 py-2 text-sm text-gray-500">${p.ruta}</td>
+                    <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${p.fecha}</td>
+                    <td class="px-3 py-2 text-sm text-right font-mono font-semibold text-gray-800">${fmtMoney(p.total)}</td>
+                </tr>
+            `).join('');
+
+            return `
+                <div class="rounded-lg border border-amber-200 overflow-hidden mt-2">
+                    <div class="flex items-center justify-between px-4 py-2.5 bg-amber-500">
+                        <span class="text-sm font-bold text-white uppercase tracking-wide">
+                            <i class="fa-solid fa-triangle-exclamation mr-1.5 opacity-75"></i>
+                            Pedidos procesados pendientes por despachar
+                        </span>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs text-amber-100">${pendientes.length} pedido(s)</span>
+                            <a href="{{ route('admin.dispatches.create') }}"
+                               class="text-xs bg-white text-amber-700 font-semibold px-2 py-1 rounded hover:bg-amber-50">
+                                Ir a despacho
+                            </a>
+                        </div>
+                    </div>
+                    ${pendientes.length === 0
+                        ? `<div class="text-center py-4 text-sm text-gray-400">No hay pedidos procesados pendientes por despachar.</div>`
+                        : `<table class="min-w-full text-sm divide-y divide-gray-100">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nota</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ruta</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Programado</th>
+                                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-100">${rows}</tbody>
+                        </table>`
+                    }
+                </div>
+            `;
         }
 
         $('lq-fecha').addEventListener('change',   function() { state.fecha      = this.value; load(); });

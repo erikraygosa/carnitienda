@@ -100,7 +100,8 @@ class ReportesController extends Controller implements HasMiddleware
                 'drivers.nombre as chofer_nombre',
                 'dispatches.fecha',
                 'sales_orders.total',
-                'sales_orders.driver_settlement_status'
+                'sales_orders.driver_settlement_status',
+                'sales_orders.status as order_status'
             )
             ->join('dispatches',      'dispatches.id',      '=', 'dispatch_items.dispatch_id')
             ->join('sales_orders',    'sales_orders.id',    '=', 'dispatch_items.sales_order_id')
@@ -114,6 +115,54 @@ class ReportesController extends Controller implements HasMiddleware
             ->when($soloSinLiquidar, fn($q) => $q->where('sales_orders.driver_settlement_status', 'PENDIENTE'))
             ->orderBy('shipping_routes.nombre')
             ->orderBy('dispatches.id');
+    }
+
+    private function orderStatusLabels(): array
+    {
+        return [
+            'BORRADOR'     => 'Borrador',
+            'APROBADO'     => 'Aprobado',
+            'PREPARANDO'   => 'Preparando',
+            'PROCESADO'    => 'Procesado',
+            'DESPACHADO'   => 'Despachado',
+            'EN_RUTA'      => 'En ruta',
+            'ENTREGADO'    => 'Entregado',
+            'NO_ENTREGADO' => 'No entregado',
+            'CANCELADO'    => 'Cancelado',
+        ];
+    }
+
+    private function orderStatusClasses(): array
+    {
+        return [
+            'BORRADOR'     => 'bg-gray-100 text-gray-700',
+            'APROBADO'     => 'bg-blue-100 text-blue-700',
+            'PREPARANDO'   => 'bg-sky-100 text-sky-700',
+            'PROCESADO'    => 'bg-amber-100 text-amber-700',
+            'DESPACHADO'   => 'bg-amber-100 text-amber-700',
+            'EN_RUTA'      => 'bg-violet-100 text-violet-700',
+            'ENTREGADO'    => 'bg-emerald-100 text-emerald-700',
+            'NO_ENTREGADO' => 'bg-orange-100 text-orange-700',
+            'CANCELADO'    => 'bg-rose-100 text-rose-700',
+        ];
+    }
+
+    private function pendientesPorDespachar()
+    {
+        return SalesOrder::whereIn('status', ['PROCESADO', 'DESPACHADO'])
+            ->with(['client:id,nombre', 'route:id,nombre'])
+            ->latest()
+            ->limit(200)
+            ->get(['id', 'folio', 'client_id', 'shipping_route_id', 'status', 'total', 'programado_para'])
+            ->map(fn($o) => [
+                'folio'   => $o->folio,
+                'cliente' => $o->client?->nombre ?? '—',
+                'ruta'    => $o->route?->nombre ?? '—',
+                'total'   => number_format((float) $o->total, 2),
+                'fecha'   => $o->programado_para ? \Carbon\Carbon::parse($o->programado_para)->format('d/m/Y') : '—',
+                'url'     => route('admin.sales-orders.edit', $o->id),
+            ])
+            ->values();
     }
 
     private function col(int $n): string
@@ -361,16 +410,20 @@ class ReportesController extends Controller implements HasMiddleware
             'PENDIENTE' => 'bg-amber-100 text-amber-700',
             'LIQUIDADO' => 'bg-emerald-100 text-emerald-700',
         ];
+        $orderLabels  = $this->orderStatusLabels();
+        $orderClasses = $this->orderStatusClasses();
 
         $rows = $items->map(fn($s) => [
-            'folio'     => $s->folio,
-            'cliente'   => $s->cliente_nombre ?? '—',
-            'ruta'      => $s->ruta_nombre    ?? '—',
-            'chofer'    => $s->chofer_nombre   ?? '—',
-            'fecha'     => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',
-            'total'     => number_format((float)$s->total, 2),
-            'estatus'   => $s->driver_settlement_status ?? 'PENDIENTE',
-            'est_class' => $settlementColors[$s->driver_settlement_status ?? 'PENDIENTE'] ?? 'bg-gray-100 text-gray-700',
+            'folio'          => $s->folio,
+            'cliente'        => $s->cliente_nombre ?? '—',
+            'ruta'           => $s->ruta_nombre    ?? '—',
+            'chofer'         => $s->chofer_nombre   ?? '—',
+            'fecha'          => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',
+            'total'          => number_format((float)$s->total, 2),
+            'estatus'        => $s->driver_settlement_status ?? 'PENDIENTE',
+            'est_class'      => $settlementColors[$s->driver_settlement_status ?? 'PENDIENTE'] ?? 'bg-gray-100 text-gray-700',
+            'estatus_pedido' => $orderLabels[$s->order_status] ?? $s->order_status,
+            'pedido_class'   => $orderClasses[$s->order_status] ?? 'bg-gray-100 text-gray-700',
         ]);
 
         return response()->json([
@@ -387,17 +440,22 @@ class ReportesController extends Controller implements HasMiddleware
     {
         $items = $this->buildLiquidacionesQuery($request)->get();
 
+        $orderLabels  = $this->orderStatusLabels();
+        $orderClasses = $this->orderStatusClasses();
+
         // Group by ruta
-        $grouped = $items->groupBy('ruta_nombre')->map(function ($rows, $ruta) {
+        $grouped = $items->groupBy('ruta_nombre')->map(function ($rows, $ruta) use ($orderLabels, $orderClasses) {
             return [
                 'ruta'    => $ruta ?? 'Sin ruta',
                 'notas'   => $rows->map(fn($s) => [
-                    'folio'    => $s->folio,
-                    'cliente'  => $s->cliente_nombre ?? '—',
-                    'fecha'    => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',
-                    'total'    => (float)$s->total,
-                    'total_fmt'=> number_format((float)$s->total, 2),
-                    'estatus'  => $s->driver_settlement_status ?? 'PENDIENTE',
+                    'folio'          => $s->folio,
+                    'cliente'        => $s->cliente_nombre ?? '—',
+                    'fecha'          => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',
+                    'total'          => (float)$s->total,
+                    'total_fmt'      => number_format((float)$s->total, 2),
+                    'estatus'        => $s->driver_settlement_status ?? 'PENDIENTE',
+                    'estatus_pedido' => $orderLabels[$s->order_status] ?? $s->order_status,
+                    'pedido_class'   => $orderClasses[$s->order_status] ?? 'bg-gray-100 text-gray-700',
                 ])->values(),
                 'subtotal'     => (float)$rows->sum('total'),
                 'subtotal_fmt' => number_format((float)$rows->sum('total'), 2),
@@ -406,9 +464,10 @@ class ReportesController extends Controller implements HasMiddleware
         })->values();
 
         return response()->json([
-            'rutas'       => $grouped,
-            'total'       => $items->count(),
-            'total_monto' => number_format((float)$items->sum('total'), 2),
+            'rutas'               => $grouped,
+            'total'               => $items->count(),
+            'total_monto'         => number_format((float)$items->sum('total'), 2),
+            'pendientes_procesar' => $this->pendientesPorDespachar(),
         ]);
     }
 
