@@ -604,6 +604,25 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
                 'monto_liquidado' => $monto,
                 'notas_cierre'    => $request->notas_cierre,
             ]);
+
+            // El cobro en efectivo/contraentrega del despacho ya se concilió (diferencia $0.00
+            // validada en la vista antes de cerrar): marcar cada pedido como liquidado con el chofer.
+            // Los pedidos a CRÉDITO no pasan por aquí — se liquidan por CxC.
+            foreach ($dispatch->items as $item) {
+                $order = $item->salesOrder;
+                if (!$order) continue;
+                if ($order->status !== 'ENTREGADO') continue;
+                if (!in_array($order->payment_method, ['EFECTIVO', 'CONTRAENTREGA'])) continue;
+                if ($order->driver_settlement_status === 'LIQUIDADO') continue;
+
+                $order->update([
+                    'cobrado_efectivo'         => $order->total,
+                    'driver_settlement_status' => 'LIQUIDADO',
+                    'driver_settlement_at'     => now(),
+                    'cobrado_confirmado_at'    => now(),
+                    'cobrado_confirmado_por'   => auth()->id(),
+                ]);
+            }
         });
 
         $this->log->log($dispatch, 'CAMBIO_ESTADO', 'EN_RUTA', 'CERRADO', null, 'Monto liquidado: $' . number_format((float)$request->monto_entregado, 2));
