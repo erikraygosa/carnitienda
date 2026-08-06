@@ -12,8 +12,6 @@ class InventoryService
     public function getMainWarehouseId(): int
     {
         $id = DB::table('warehouses')->where('is_primary', 1)->value('id');
-        if (!$id) $id = DB::table('warehouses')->where('principal', 1)->value('id');
-        if (!$id) $id = DB::table('warehouses')->where('es_principal', 1)->value('id');
         if (!$id) $id = (int) DB::table('warehouses')->orderBy('id')->value('id');
         if (!$id) throw new \RuntimeException('No hay almacenes definidos. Crea al menos un almacén.');
         return (int) $id;

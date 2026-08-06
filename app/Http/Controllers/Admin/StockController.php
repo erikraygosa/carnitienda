@@ -185,8 +185,6 @@ class StockController extends Controller implements HasMiddleware
     private function getMainWarehouseId(): ?int
     {
         $id = DB::table('warehouses')->where('is_primary', 1)->value('id')
-           ?? DB::table('warehouses')->where('principal', 1)->value('id')
-           ?? DB::table('warehouses')->where('es_principal', 1)->value('id')
            ?? DB::table('warehouses')->orderBy('id')->value('id');
 
         return $id ? (int) $id : null;
