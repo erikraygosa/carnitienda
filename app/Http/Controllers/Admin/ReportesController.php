@@ -94,7 +94,31 @@ class ReportesController extends Controller implements HasMiddleware
         // pendientes | todas | no_entregado (mantiene compat con solo_sin_liquidar=1/0)
         $filtroRaw    = $request->get('filtro_estatus', $request->get('solo_sin_liquidar', '0') === '1' ? 'pendientes' : 'todas');
 
-        return DispatchItem::select(
+        // Filtros comunes, en un query base sobre dispatch_items + dispatches + sales_orders
+        // (sin los leftJoin de nombre, que solo hacen falta para desplegar, no para filtrar).
+        $base = DispatchItem::query()
+            ->join('dispatches',   'dispatches.id',   '=', 'dispatch_items.dispatch_id')
+            ->join('sales_orders', 'sales_orders.id', '=', 'dispatch_items.sales_order_id')
+            ->whereIn('dispatches.status', ['EN_RUTA', 'CERRADO', 'ENTREGADO'])
+            ->when($fecha,    fn($q) => $q->whereDate('dispatches.fecha', $fecha))
+            ->when($routeId,  fn($q) => $q->where('dispatches.shipping_route_id', $routeId))
+            ->when($driverId, fn($q) => $q->where('dispatches.driver_id', $driverId))
+            ->when($filtroRaw === 'pendientes', fn($q) => $q
+                ->where('sales_orders.driver_settlement_status', 'PENDIENTE')
+                ->whereNotIn('sales_orders.status', ['NO_ENTREGADO', 'CANCELADO']))
+            ->when($filtroRaw === 'no_entregado', fn($q) => $q->where('sales_orders.status', 'NO_ENTREGADO'));
+
+        // Un pedido puede quedar asignado a más de un despacho dentro del mismo filtro
+        // (p.ej. un reintento tras "No entregado"); nos quedamos solo con la asignación
+        // más reciente para no duplicar la nota ni contar su monto dos veces.
+        $latestItemIds = (clone $base)
+            ->select(DB::raw('MAX(dispatch_items.id) as max_id'))
+            ->groupBy('dispatch_items.sales_order_id')
+            ->pluck('max_id');
+
+        return $base
+            ->whereIn('dispatch_items.id', $latestItemIds)
+            ->select(
                 'sales_orders.folio',
                 'clients.nombre as cliente_nombre',
                 'shipping_routes.nombre as ruta_nombre',
@@ -104,19 +128,9 @@ class ReportesController extends Controller implements HasMiddleware
                 'sales_orders.driver_settlement_status',
                 'sales_orders.status as order_status'
             )
-            ->join('dispatches',      'dispatches.id',      '=', 'dispatch_items.dispatch_id')
-            ->join('sales_orders',    'sales_orders.id',    '=', 'dispatch_items.sales_order_id')
             ->leftJoin('clients',         'clients.id',         '=', 'sales_orders.client_id')
             ->leftJoin('shipping_routes', 'shipping_routes.id', '=', 'dispatches.shipping_route_id')
             ->leftJoin('drivers',         'drivers.id',         '=', 'dispatches.driver_id')
-            ->whereIn('dispatches.status', ['EN_RUTA', 'CERRADO', 'ENTREGADO'])
-            ->when($fecha,           fn($q) => $q->whereDate('dispatches.fecha', $fecha))
-            ->when($routeId,         fn($q) => $q->where('dispatches.shipping_route_id', $routeId))
-            ->when($driverId,        fn($q) => $q->where('dispatches.driver_id', $driverId))
-            ->when($filtroRaw === 'pendientes', fn($q) => $q
-                ->where('sales_orders.driver_settlement_status', 'PENDIENTE')
-                ->whereNotIn('sales_orders.status', ['NO_ENTREGADO', 'CANCELADO']))
-            ->when($filtroRaw === 'no_entregado', fn($q) => $q->where('sales_orders.status', 'NO_ENTREGADO'))
             ->orderBy('shipping_routes.nombre')
             ->orderBy('dispatches.id');
     }
