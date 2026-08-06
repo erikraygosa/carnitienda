@@ -19,7 +19,7 @@
         $valueProg     = old('programado_para', now()->format('Y-m-d'));
         $valueMoneda   = old('moneda', 'MXN');
         $deliveryType  = old('delivery_type', 'ENVIO');
-        $paymentMethod = old('payment_method', 'EFECTIVO');
+        $paymentMethod = old('payment_method', 'CREDITO');
 
         $seedItems    = $seedItems ?? [];
         $initialItems = (is_array($seedItems) && count($seedItems))
