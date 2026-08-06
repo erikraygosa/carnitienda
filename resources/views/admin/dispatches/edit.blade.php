@@ -374,7 +374,7 @@
                             <select name="payment_type_id" class="w-full rounded border-gray-300 text-sm mb-3" required>
                                 <option value="">-- seleccionar --</option>
                                 @foreach($paymentTypes as $pt)
-                                    <option value="{{ $pt->id }}">{{ $pt->descripcion }}</option>
+                                    <option value="{{ $pt->id }}" {{ $pt->clave === 'EFECTIVO' ? 'selected' : '' }}>{{ $pt->descripcion }}</option>
                                 @endforeach
                             </select>
                             <button type="submit"
@@ -535,7 +535,7 @@
                                         required>
                                     <option value="">-- seleccionar --</option>
                                     @foreach($paymentTypes as $pt)
-                                        <option value="{{ $pt->id }}">{{ $pt->descripcion }}</option>
+                                        <option value="{{ $pt->id }}" {{ $pt->clave === 'EFECTIVO' ? 'selected' : '' }}>{{ $pt->descripcion }}</option>
                                     @endforeach
                                 </select>
                             </div>

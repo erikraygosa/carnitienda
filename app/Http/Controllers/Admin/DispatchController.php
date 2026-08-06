@@ -225,7 +225,7 @@ class DispatchController extends Controller implements HasMiddleware
         $warehouses    = Warehouse::orderBy('nombre')->get(['id', 'nombre']);
         $routes        = ShippingRoute::orderBy('nombre')->get(['id', 'nombre']);
         $drivers       = Driver::orderBy('nombre')->get(['id', 'nombre']);
-        $paymentTypes  = PaymentType::orderBy('descripcion')->get(['id', 'descripcion']);
+        $paymentTypes  = PaymentType::where('activo', 1)->orderBy('id')->get(['id', 'clave', 'descripcion']);
         $cajasAbiertas = CashRegister::where('estatus', 'ABIERTO')->latest()->get();
 
         $statusClasses = [
