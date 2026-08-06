@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class StockTransferItem extends Model
 {
-    protected $fillable = ['stock_transfer_id', 'product_id', 'qty'];
+    protected $fillable = ['stock_transfer_id', 'product_id', 'qty', 'num_cajas', 'comentarios'];
 
     public function transfer() { return $this->belongsTo(StockTransfer::class, 'stock_transfer_id'); }
     public function product()  { return $this->belongsTo(Product::class); }

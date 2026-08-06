@@ -73,9 +73,11 @@ class StockTransferController extends Controller implements HasMiddleware
             'to_warehouse_id'   => ['required', 'exists:warehouses,id', 'different:from_warehouse_id'],
             'fecha'             => ['required', 'date'],
             'notas'             => ['nullable', 'string', 'max:500'],
-            'items'             => ['required', 'array', 'min:1'],
-            'items.*.product_id'=> ['required', 'exists:products,id'],
-            'items.*.qty'       => ['required', 'numeric', 'min:0.001'],
+            'items'                => ['required', 'array', 'min:1'],
+            'items.*.product_id'   => ['required', 'exists:products,id'],
+            'items.*.qty'          => ['required', 'numeric', 'min:0.001'],
+            'items.*.num_cajas'    => ['nullable', 'integer', 'min:0'],
+            'items.*.comentarios'  => ['nullable', 'string', 'max:200'],
         ]);
 
         $transfer = DB::transaction(function () use ($data) {
@@ -94,6 +96,8 @@ class StockTransferController extends Controller implements HasMiddleware
                     'stock_transfer_id' => $transfer->id,
                     'product_id'        => $it['product_id'],
                     'qty'               => $it['qty'],
+                    'num_cajas'         => $it['num_cajas'] ?? null,
+                    'comentarios'       => $it['comentarios'] ?? null,
                 ]);
             }
 

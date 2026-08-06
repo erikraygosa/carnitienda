@@ -136,13 +136,15 @@
                         <tr>
                             <th class="p-2 text-left">Producto</th>
                             <th class="p-2 text-left text-gray-400 text-xs">Código</th>
-                            <th class="p-2 text-right w-36">Cantidad</th>
+                            <th class="p-2 text-right w-28">Cantidad</th>
+                            <th class="p-2 text-right w-24">Cajas</th>
+                            <th class="p-2 text-left w-56">Observaciones</th>
                             <th class="p-2 w-8"></th>
                         </tr>
                     </thead>
                     <tbody id="items-body">
                         <tr id="empty-row">
-                            <td colspan="4" class="p-4 text-center text-gray-400 text-sm">
+                            <td colspan="6" class="p-4 text-center text-gray-400 text-sm">
                                 Usa el buscador o scanner para agregar productos
                             </td>
                         </tr>
@@ -180,7 +182,7 @@
             tbody.innerHTML = '';
 
             if (!items.length) {
-                tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400 text-sm">
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400 text-sm">
                     Usa el buscador o scanner para agregar productos</td></tr>`;
                 $('items-count').textContent = 0;
                 return;
@@ -199,7 +201,21 @@
                         <input type="number" min="0.001" step="0.001"
                                name="items[${i}][qty]"
                                value="${it.qty}"
-                               class="w-28 border rounded p-1 text-right text-sm inp-qty" required>
+                               class="w-24 border rounded p-1 text-right text-sm inp-qty" required>
+                    </td>
+                    <td class="p-2 text-right">
+                        <input type="number" min="0" step="1"
+                               name="items[${i}][num_cajas]"
+                               value="${it.num_cajas ?? ''}"
+                               placeholder="—"
+                               class="w-20 border rounded p-1 text-right text-sm inp-cajas">
+                    </td>
+                    <td class="p-2">
+                        <input type="text" maxlength="200"
+                               name="items[${i}][comentarios]"
+                               value="${escHtml(it.comentarios || '')}"
+                               placeholder="Observaciones..."
+                               class="w-full border rounded p-1 text-sm inp-comentarios">
                     </td>
                     <td class="p-2 text-center">
                         <button type="button" class="text-red-400 hover:text-red-600 text-xs btn-remove">✕</button>
@@ -207,6 +223,12 @@
                 `;
                 tr.querySelector('.inp-qty').addEventListener('input', function() {
                     items[i].qty = parseFloat(this.value) || 0;
+                });
+                tr.querySelector('.inp-cajas').addEventListener('input', function() {
+                    items[i].num_cajas = this.value === '' ? null : parseInt(this.value, 10);
+                });
+                tr.querySelector('.inp-comentarios').addEventListener('input', function() {
+                    items[i].comentarios = this.value;
                 });
                 tr.querySelector('.btn-remove').addEventListener('click', function() {
                     items.splice(i, 1);
@@ -231,7 +253,7 @@
                 showToast(`+${qty} a ${product.nombre}`);
                 return;
             }
-            items.push({ product_id: product.id, nombre: product.nombre, qty });
+            items.push({ product_id: product.id, nombre: product.nombre, qty, num_cajas: null, comentarios: '' });
             renderAll();
             showToast(`✓ ${product.nombre} agregado`);
         }
@@ -400,7 +422,7 @@
         if (SEED_ITEMS && SEED_ITEMS.length) {
             SEED_ITEMS.forEach(it => {
                 const p = PRODUCTS.find(p => p.id == it.product_id);
-                if (p) items.push({ product_id: p.id, nombre: p.nombre, qty: it.qty || 1 });
+                if (p) items.push({ product_id: p.id, nombre: p.nombre, qty: it.qty || 1, num_cajas: it.num_cajas ?? null, comentarios: it.comentarios || '' });
             });
         }
         renderAll();
