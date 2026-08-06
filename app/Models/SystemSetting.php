@@ -91,6 +91,9 @@ class SystemSetting extends Model
             // Autenticación
             ['clave' => 'auth.login_mode',        'valor' => 'email', 'tipo' => 'string', 'grupo' => 'auth', 'descripcion' => 'Modo de inicio de sesión: email o username'],
             ['clave' => 'auth.username_domain',    'valor' => '',      'tipo' => 'string', 'grupo' => 'auth', 'descripcion' => 'Dominio que se agrega al nombre de usuario al iniciar sesión'],
+
+            // Logística
+            ['clave' => 'logistica.permitir_completar_traspaso_directo', 'valor' => '0', 'tipo' => 'boolean', 'grupo' => 'logistica', 'descripcion' => 'Permite completar un traspaso sin pasar por un despacho (rompe el flujo normal PENDIENTE → ASIGNADO → EN_RUTA)'],
         ];
 
         foreach ($defaults as $setting) {

@@ -15,8 +15,9 @@ class SettingsController extends Controller
         $facturacion = SystemSetting::where('grupo', 'facturacion')->get()->keyBy('clave');
         $correo      = SystemSetting::where('grupo', 'correo')->get()->keyBy('clave');
         $auth        = SystemSetting::where('grupo', 'auth')->get()->keyBy('clave');
+        $logistica   = SystemSetting::where('grupo', 'logistica')->get()->keyBy('clave');
 
-        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth'));
+        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica'));
     }
 
     public function update(Request $request)
@@ -43,6 +44,13 @@ class SettingsController extends Controller
         // Campos de autenticación usan guión bajo en el formulario pero se almacenan con punto
         SystemSetting::set('auth.login_mode',       $request->input('auth_login_mode', 'email'), 'string');
         SystemSetting::set('auth.username_domain',  $request->input('auth_username_domain', ''), 'string');
+
+        // Checkbox: si no viene en el request es porque está desmarcado.
+        SystemSetting::set(
+            'logistica.permitir_completar_traspaso_directo',
+            $request->boolean('logistica_permitir_completar_traspaso_directo') ? '1' : '0',
+            'boolean'
+        );
 
         if ($request->hasFile('app.logo')) {
             $path = $request->file('app.logo')->store('logos', 'public');

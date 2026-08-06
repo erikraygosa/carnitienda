@@ -118,7 +118,9 @@ class StockTransferController extends Controller implements HasMiddleware
             'CANCELADO'  => 'bg-rose-100 text-rose-700',
         ];
 
-        return view('admin.stock.transfers.show', compact('transfer', 'statusClasses'));
+        $canCompleteDirect = (bool) \App\Models\SystemSetting::get('logistica.permitir_completar_traspaso_directo', false);
+
+        return view('admin.stock.transfers.show', compact('transfer', 'statusClasses', 'canCompleteDirect'));
     }
 
     public function cancel(StockTransfer $transfer)
@@ -138,6 +140,14 @@ class StockTransferController extends Controller implements HasMiddleware
      */
     public function complete(StockTransfer $transfer, InventoryService $inv)
     {
+        if (!\App\Models\SystemSetting::get('logistica.permitir_completar_traspaso_directo', false)) {
+            return back()->with('swal', [
+                'icon'  => 'error',
+                'title' => 'No permitido',
+                'text'  => 'Completar traspasos directamente está deshabilitado. Este traspaso debe asignarse a un despacho y salir a ruta. Un superadmin puede habilitarlo en Superadmin → Configuración.',
+            ]);
+        }
+
         if (!in_array($transfer->status, ['PENDIENTE', 'ASIGNADO', 'EN_RUTA'])) {
             return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Este traspaso no puede completarse.']);
         }

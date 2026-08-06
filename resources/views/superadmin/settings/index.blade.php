@@ -124,6 +124,29 @@
         </div>
     </div>
 
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-white font-semibold mb-1">Logística</h3>
+        <p class="text-xs text-gray-500 mb-4">Controla acciones que pueden saltarse el flujo normal de despacho.</p>
+
+        @php
+            $permitirCompletarDirecto = ($logistica['logistica.permitir_completar_traspaso_directo']?->valor ?? '0') === '1';
+        @endphp
+
+        <label class="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" name="logistica_permitir_completar_traspaso_directo" value="1"
+                   {{ $permitirCompletarDirecto ? 'checked' : '' }}
+                   class="mt-1 rounded bg-gray-800 border-gray-700 text-indigo-600 focus:ring-indigo-500">
+            <span>
+                <span class="block text-sm text-white">Permitir completar un traspaso sin pasar por un despacho</span>
+                <span class="block text-xs text-gray-500 mt-0.5">
+                    Deshabilitado por defecto. El flujo normal es PENDIENTE → ASIGNADO a un despacho → EN_RUTA → COMPLETADO
+                    (desde el propio despacho). Si activas esto, cualquiera con acceso a Traspasos podrá marcarlo como
+                    completado directamente, sin que el traspaso haya salido a ruta.
+                </span>
+            </span>
+        </label>
+    </div>
+
     <div class="flex justify-end">
         <button type="submit"
                 class="px-6 py-2.5 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium">
