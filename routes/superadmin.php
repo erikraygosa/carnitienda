@@ -8,8 +8,14 @@
     use App\Http\Controllers\SuperAdmin\CompanyController as SuperCompany;
     use App\Http\Controllers\SuperAdmin\SeriesController as SuperSeries;
     use App\Http\Controllers\SuperAdmin\SettingsController as SuperSettings;
+    use App\Http\Controllers\SuperAdmin\ResetController as SuperReset;
 
     Route::get('/', [SuperDashboard::class, 'index'])->name('dashboard');
+
+    Route::prefix('reset')->name('reset.')->group(function () {
+        Route::get('/',  [SuperReset::class, 'index'])->name('index');
+        Route::post('/', [SuperReset::class, 'run'])->name('run');
+    });
 
     Route::prefix('pac')->name('pac.')->group(function () {
         Route::get('/',               [SuperPac::class, 'index'])->name('index');
