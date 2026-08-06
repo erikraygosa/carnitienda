@@ -19,7 +19,7 @@ $links = [
   ['header'=>'Finanzas','can'=>$user->hasPermissionTo('ver cxc')],
   ['name'=>'Cuentas y cobros','icon'=>'fa-solid fa-piggy-bank','can'=>$user->hasPermissionTo('ver cxc'),'active'=>request()->routeIs('admin.ar.*')||request()->routeIs('admin.ar-payments.*'),'children'=>[['name'=>'Cuentas','icon'=>'fa-solid fa-file-invoice-dollar','href'=>route('admin.ar.index'),'active'=>request()->routeIs('admin.ar.*'),'can'=>$user->hasPermissionTo('ver cxc')],['name'=>'Cobros','icon'=>'fa-solid fa-cash-register','href'=>route('admin.ar-payments.create'),'active'=>request()->routeIs('admin.ar-payments.*'),'can'=>$user->hasPermissionTo('registrar cobros')],['name'=>'Notas de crédito','icon'=>'fa-solid fa-file-invoice-dollar','href'=>route('admin.ar-payments.notas.index'),'active'=>request()->routeIs('admin.ar-payments.notas.index'),'can'=>$user->hasPermissionTo('ver cxc')],['name'=>'Complementos de Pago','icon'=>'fa-solid fa-file-circle-check','href'=>route('admin.ar.complementos.index'),'active'=>request()->routeIs('admin.ar.complementos.*'),'can'=>$user->hasPermissionTo('crear facturas')]]],
   ['header'=>'Reportes','can'=>$user->hasAnyPermission(['ver reporte notas de venta','ver reporte ventas por producto','ver reporte liquidaciones'])],
-  ['name'=>'Reportes','icon'=>'fa-solid fa-chart-bar','can'=>$user->hasAnyPermission(['ver reporte notas de venta','ver reporte ventas por producto','ver reporte liquidaciones']),'active'=>request()->routeIs('admin.reportes.*'),'children'=>[['name'=>'Notas de Venta','href'=>route('admin.reportes.notas-de-venta'),'active'=>request()->routeIs('admin.reportes.notas-de-venta'),'can'=>$user->hasPermissionTo('ver reporte notas de venta')],['name'=>'Ventas por Producto','href'=>route('admin.reportes.ventas-por-producto'),'active'=>request()->routeIs('admin.reportes.ventas-por-producto'),'can'=>$user->hasPermissionTo('ver reporte ventas por producto')],['name'=>'Liquidaciones','href'=>route('admin.reportes.liquidaciones'),'active'=>request()->routeIs('admin.reportes.liquidaciones'),'can'=>$user->hasPermissionTo('ver reporte liquidaciones')]]],
+  ['name'=>'Reportes','icon'=>'fa-solid fa-chart-bar','can'=>$user->hasAnyPermission(['ver reporte notas de venta','ver reporte ventas por producto','ver reporte liquidaciones']),'active'=>request()->routeIs('admin.reportes.*'),'children'=>[['name'=>'Notas de Venta','icon'=>'fa-solid fa-receipt','href'=>route('admin.reportes.notas-de-venta'),'active'=>request()->routeIs('admin.reportes.notas-de-venta'),'can'=>$user->hasPermissionTo('ver reporte notas de venta')],['name'=>'Ventas por Producto','icon'=>'fa-solid fa-chart-line','href'=>route('admin.reportes.ventas-por-producto'),'active'=>request()->routeIs('admin.reportes.ventas-por-producto'),'can'=>$user->hasPermissionTo('ver reporte ventas por producto')],['name'=>'Liquidaciones','icon'=>'fa-solid fa-money-check-dollar','href'=>route('admin.reportes.liquidaciones'),'active'=>request()->routeIs('admin.reportes.liquidaciones'),'can'=>$user->hasPermissionTo('ver reporte liquidaciones')]]],
   ['header'=>'Sistema','can'=>$user->hasPermissionTo('ver auditoria')],
   ['name'=>'Auditoría','icon'=>'fa-solid fa-shield-halved','href'=>route('admin.auditoria.index'),'active'=>request()->routeIs('admin.auditoria.*'),'can'=>$user->hasPermissionTo('ver auditoria')],
   ['header'=>'Configuración','can'=>$user->hasAnyPermission(['ver configuracion','ver usuarios'])],
@@ -148,10 +148,15 @@ foreach ($links as $i => $item) {
                 @php $activeChild = !empty($child['active']); @endphp
                 <li>
                   <a href="{{ $child['href'] ?? '#' }}"
-                     class="flex items-center w-full p-2 rounded-lg pl-11 transition whitespace-nowrap
+                     class="flex items-center w-full p-2 rounded-lg pl-7 transition whitespace-nowrap
                            {{ $activeChild ? 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white'
                                            : 'text-gray-900 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700' }}">
-                    {{ $child['name'] ?? 'Item' }}
+                    <span class="inline-flex flex-shrink-0 justify-center items-center w-6 h-6 rounded-lg text-xs
+                          {{ $activeChild ? 'text-gray-900 dark:text-white'
+                                          : 'text-gray-400 dark:text-gray-400' }}">
+                      <i class="{{ $child['icon'] ?? 'fa-regular fa-circle' }}"></i>
+                    </span>
+                    <span class="ms-2">{{ $child['name'] ?? 'Item' }}</span>
                   </a>
                 </li>
               @endforeach
