@@ -35,7 +35,7 @@ class SettingsController extends Controller
             'correo.from_address'        => ['nullable', 'email', 'max:150'],
             'auth_login_mode'            => ['nullable', 'string', 'in:email,username'],
             'auth_username_domain'       => ['nullable', 'string', 'max:100'],
-            'whatsapp.base_url'          => ['nullable', 'string', 'max:255', 'url'],
+            'whatsapp.base_url'          => ['nullable', 'string', 'max:255'],
             'whatsapp.instance'          => ['nullable', 'string', 'max:100'],
             'whatsapp.api_key'           => ['nullable', 'string', 'max:255'],
         ]);

@@ -2,6 +2,18 @@
 @section('title', 'Configuración del sistema')
 
 @section('content')
+
+@if ($errors->any())
+    <div class="mb-6 rounded-xl border border-red-700 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+        <p class="font-semibold mb-1">No se guardó — revisa estos campos:</p>
+        <ul class="list-disc list-inside">
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
+
 <form action="{{ route('superadmin.settings.update') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
     @csrf @method('PUT')
 
