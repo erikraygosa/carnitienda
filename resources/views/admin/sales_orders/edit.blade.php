@@ -353,7 +353,15 @@
     {{-- ====== ACCIONES ====== --}}
     <x-wire-card class="mt-4">
         <div class="flex items-center space-x-2">
-            <x-wire-button href="{{ route('admin.sales-orders.edit',$order) }}" blue xs>Editar</x-wire-button>
+            @if(in_array($order->status, ['APROBADO','PROCESADO']))
+                <form action="{{ route('admin.sales-orders.reopen',$order) }}" method="POST"
+                      onsubmit="return confirm('El pedido está en estatus {{ $order->status_label }}. ¿Deseas editarlo? Esto regresará el pedido a Borrador.');">
+                    @csrf
+                    <x-wire-button type="submit" blue xs>Editar</x-wire-button>
+                </form>
+            @else
+                <x-wire-button href="{{ route('admin.sales-orders.edit',$order) }}" blue xs>Editar</x-wire-button>
+            @endif
             <x-wire-button href="{{ route('admin.sales-orders.pdf',$order) }}" gray outline xs target="_blank">Ver PDF</x-wire-button>
             <x-wire-button href="{{ route('admin.sales-orders.pdf.download',$order) }}" gray xs>Descargar PDF</x-wire-button>
             <x-wire-button href="{{ route('admin.sales-orders.ticket',$order) }}" gray outline xs target="_blank">Imprimir</x-wire-button>

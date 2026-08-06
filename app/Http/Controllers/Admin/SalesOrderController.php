@@ -39,7 +39,7 @@ class SalesOrderController extends Controller implements HasMiddleware
         return [
             new Middleware('can:ver pedidos', only: ['index', 'data']),
             new Middleware('can:crear pedidos', only: ['create', 'store']),
-            new Middleware('can:editar pedidos', only: ['edit', 'update', 'approve', 'startPreparing', 'dispatchToRoute', 'deliver', 'notDelivered', 'recordCash', 'settleDriver', 'sendForm', 'send', 'pdf', 'pdfDownload']),
+            new Middleware('can:editar pedidos', only: ['edit', 'update', 'reopen', 'approve', 'startPreparing', 'dispatchToRoute', 'deliver', 'notDelivered', 'recordCash', 'settleDriver', 'sendForm', 'send', 'pdf', 'pdfDownload']),
             new Middleware('can:cancelar pedidos', only: ['cancel']),
             // process() is gated by $this->authorize('procesar pedidos') inline
         ];
@@ -527,6 +527,42 @@ public function data(Request $request)
     }
 
     // ======== Transiciones de estado ========
+
+    /**
+     * Reabre un pedido APROBADO o PROCESADO regresándolo a BORRADOR para poder
+     * editar sus partidas de nuevo. Requiere confirmación explícita desde la vista.
+     */
+    public function reopen(SalesOrder $order)
+    {
+        if (!in_array($order->status, ['APROBADO', 'PROCESADO'])) {
+            return back()->with('swal', [
+                'icon'  => 'error',
+                'title' => 'No permitido',
+                'text'  => 'Solo un pedido Aprobado o Procesado puede reabrirse para editar.',
+            ]);
+        }
+
+        $enDespacho = DB::table('dispatch_items')->where('sales_order_id', $order->id)->exists();
+        if ($enDespacho) {
+            return back()->with('swal', [
+                'icon'  => 'error',
+                'title' => 'No permitido',
+                'text'  => 'Este pedido ya está asignado a un despacho, no se puede reabrir para editar.',
+            ]);
+        }
+
+        $order->update([
+            'status'         => 'BORRADOR',
+            'preparado_at'   => null,
+            'despachado_at'  => null,
+        ]);
+
+        return back()->with('swal', [
+            'icon'  => 'success',
+            'title' => 'Pedido reabierto',
+            'text'  => 'El pedido volvió a Borrador, ya puedes editarlo.',
+        ]);
+    }
 
 public function approve(SalesOrder $order)
 {
