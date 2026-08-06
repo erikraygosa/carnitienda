@@ -70,7 +70,7 @@
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Almacén</label>
-                    @php $selW = (string)old('warehouse_id', $dispatch->warehouse_id); @endphp
+                    @php $selW = (string)old('warehouse_id', $dispatch->warehouse_id ?? '1'); @endphp
                     <select name="warehouse_id" class="w-full rounded-md border-gray-300 text-sm">
                         <option value="">-- seleccionar --</option>
                         @foreach($warehouses as $w)

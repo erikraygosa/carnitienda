@@ -41,7 +41,7 @@
         <label class="block text-sm font-medium text-gray-700 mb-1">
             Almacén <span class="text-red-500">*</span>
         </label>
-        @php $selW = (string)old('warehouse_id'); @endphp
+        @php $selW = (string)old('warehouse_id', '1'); @endphp
         <select name="warehouse_id" required
                 class="w-full rounded-md border-gray-300 text-sm {{ $errors->has('warehouse_id') ? 'border-red-500' : '' }}">
             <option value="">-- seleccionar --</option>
