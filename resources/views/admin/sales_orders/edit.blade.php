@@ -354,11 +354,26 @@
     <x-wire-card class="mt-4">
         <div class="flex items-center space-x-2">
             @if(in_array($order->status, ['APROBADO','PROCESADO']))
-                <form action="{{ route('admin.sales-orders.reopen',$order) }}" method="POST"
-                      onsubmit="return confirm('El pedido está en estatus {{ $order->status_label }}. ¿Deseas editarlo? Esto regresará el pedido a Borrador.');">
+                <form id="reopen-form" action="{{ route('admin.sales-orders.reopen',$order) }}" method="POST">
                     @csrf
-                    <x-wire-button type="submit" blue xs>Editar</x-wire-button>
+                    <x-wire-button type="button" onclick="confirmReopen()" blue xs>Editar</x-wire-button>
                 </form>
+                <script>
+                    function confirmReopen() {
+                        Swal.fire({
+                            icon: 'question',
+                            title: '¿Deseas editar el pedido?',
+                            text: 'Está en estatus {{ $order->status_label }}. Esto regresará el pedido a Borrador.',
+                            showCancelButton: true,
+                            confirmButtonText: 'Sí, editar',
+                            cancelButtonText: 'Cancelar',
+                        }).then(function(result) {
+                            if (result.isConfirmed) {
+                                document.getElementById('reopen-form').submit();
+                            }
+                        });
+                    }
+                </script>
             @else
                 <x-wire-button href="{{ route('admin.sales-orders.edit',$order) }}" blue xs>Editar</x-wire-button>
             @endif
