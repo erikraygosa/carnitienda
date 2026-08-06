@@ -482,7 +482,7 @@ class ReportesController extends Controller implements HasMiddleware
 
         // Title row
         $sheet->setCellValue('A1', "LISTA DE LIQUIDACIONES - {$fecha}");
-        $sheet->mergeCells('A1:E1');
+        $sheet->mergeCells('A1:F1');
         $sheet->getStyle('A1')->applyFromArray([
             'font'      => ['bold' => true, 'size' => 13, 'color' => ['rgb' => '1E3A5F']],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
@@ -490,6 +490,7 @@ class ReportesController extends Controller implements HasMiddleware
 
         $row = 2;
         $totalGeneral = 0.0;
+        $orderLabels = $this->orderStatusLabels();
 
         $grouped = $items->groupBy('ruta_nombre');
 
@@ -497,7 +498,7 @@ class ReportesController extends Controller implements HasMiddleware
             // Route header
             $ruta = $rutaNombre ?? 'Sin ruta';
             $sheet->setCellValue("A{$row}", strtoupper($ruta));
-            $sheet->mergeCells("A{$row}:E{$row}");
+            $sheet->mergeCells("A{$row}:F{$row}");
             $sheet->getStyle("A{$row}")->applyFromArray([
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4F46E5']],
@@ -505,7 +506,7 @@ class ReportesController extends Controller implements HasMiddleware
             $row++;
 
             // Column headers
-            foreach (['Nota','Cliente','Fecha','Monto','Estatus'] as $ci => $h) {
+            foreach (['Nota','Cliente','Fecha','Monto','Estatus pedido','Liquidación'] as $ci => $h) {
                 $cell = $this->col($ci + 1) . $row;
                 $sheet->setCellValue($cell, $h);
                 $sheet->getStyle($cell)->applyFromArray([
@@ -523,7 +524,8 @@ class ReportesController extends Controller implements HasMiddleware
                 $sheet->setCellValue("B{$row}", $s->cliente_nombre ?? '');
                 $sheet->setCellValue("C{$row}", $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '');
                 $sheet->setCellValue("D{$row}", $monto);
-                $sheet->setCellValue("E{$row}", $s->driver_settlement_status ?? 'PENDIENTE');
+                $sheet->setCellValue("E{$row}", $orderLabels[$s->order_status] ?? $s->order_status);
+                $sheet->setCellValue("F{$row}", $s->driver_settlement_status ?? 'PENDIENTE');
                 $sheet->getStyle("D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
                 $row++;
             }
@@ -547,8 +549,46 @@ class ReportesController extends Controller implements HasMiddleware
         ]);
         $sheet->getStyle("C{$row}:D{$row}")->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFFFFFFF'));
         $sheet->getStyle("D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+        $row += 3; // blank space before the pending section
 
-        foreach (range(1, 5) as $c) {
+        // Pedidos procesados pendientes por despachar
+        $pendientes = $this->pendientesPorDespachar();
+
+        $sheet->setCellValue("A{$row}", 'PEDIDOS PROCESADOS PENDIENTES POR DESPACHAR');
+        $sheet->mergeCells("A{$row}:F{$row}");
+        $sheet->getStyle("A{$row}")->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'D97706']],
+        ]);
+        $row++;
+
+        if ($pendientes->isEmpty()) {
+            $sheet->setCellValue("A{$row}", 'No hay pedidos procesados pendientes por despachar.');
+            $sheet->mergeCells("A{$row}:F{$row}");
+            $row++;
+        } else {
+            foreach (['Nota','Cliente','Ruta','Programado','Monto'] as $ci => $h) {
+                $cell = $this->col($ci + 1) . $row;
+                $sheet->setCellValue($cell, $h);
+                $sheet->getStyle($cell)->applyFromArray([
+                    'font' => ['bold' => true, 'color' => ['rgb' => '374151']],
+                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FDE68A']],
+                ]);
+            }
+            $row++;
+
+            foreach ($pendientes as $p) {
+                $sheet->setCellValue("A{$row}", $p['folio']);
+                $sheet->setCellValue("B{$row}", $p['cliente']);
+                $sheet->setCellValue("C{$row}", $p['ruta']);
+                $sheet->setCellValue("D{$row}", $p['fecha']);
+                $sheet->setCellValue("E{$row}", (float) str_replace(',', '', $p['total']));
+                $sheet->getStyle("E{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+                $row++;
+            }
+        }
+
+        foreach (range(1, 6) as $c) {
             $sheet->getColumnDimension($this->col($c))->setAutoSize(true);
         }
 
