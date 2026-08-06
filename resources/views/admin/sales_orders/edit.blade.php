@@ -519,7 +519,7 @@
             return parseFloat((LISTS_PRICES[state.priceList]||{})[pid] ?? 0) || 0;
         }
 
-        const fmt = n => Number(n||0).toFixed(2);
+        const fmt = n => Number(n||0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         const $   = id => document.getElementById(id);
         const set = (id, val) => { const el = $(id); if(el) el.value = val; };
 
