@@ -88,10 +88,11 @@ class ReportesController extends Controller implements HasMiddleware
 
     private function buildLiquidacionesQuery(Request $request)
     {
-        $fecha           = $request->get('fecha', now()->toDateString());
-        $routeId         = $request->get('route_id', '');
-        $driverId        = $request->get('driver_id', '');
-        $soloSinLiquidar = $request->get('solo_sin_liquidar', '1') === '1';
+        $fecha        = $request->get('fecha', now()->toDateString());
+        $routeId      = $request->get('route_id', '');
+        $driverId     = $request->get('driver_id', '');
+        // pendientes | todas | no_entregado (mantiene compat con solo_sin_liquidar=1/0)
+        $filtroRaw    = $request->get('filtro_estatus', $request->get('solo_sin_liquidar', '0') === '1' ? 'pendientes' : 'todas');
 
         return DispatchItem::select(
                 'sales_orders.folio',
@@ -112,9 +113,10 @@ class ReportesController extends Controller implements HasMiddleware
             ->when($fecha,           fn($q) => $q->whereDate('dispatches.fecha', $fecha))
             ->when($routeId,         fn($q) => $q->where('dispatches.shipping_route_id', $routeId))
             ->when($driverId,        fn($q) => $q->where('dispatches.driver_id', $driverId))
-            ->when($soloSinLiquidar, fn($q) => $q
+            ->when($filtroRaw === 'pendientes', fn($q) => $q
                 ->where('sales_orders.driver_settlement_status', 'PENDIENTE')
                 ->whereNotIn('sales_orders.status', ['NO_ENTREGADO', 'CANCELADO']))
+            ->when($filtroRaw === 'no_entregado', fn($q) => $q->where('sales_orders.status', 'NO_ENTREGADO'))
             ->orderBy('shipping_routes.nombre')
             ->orderBy('dispatches.id');
     }

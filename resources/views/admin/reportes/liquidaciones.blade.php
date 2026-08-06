@@ -33,8 +33,9 @@
                 <label class="block text-xs font-medium text-gray-500 mb-1">Estatus</label>
                 <select id="lq-estatus"
                         class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
-                    <option value="1">Solo pendientes</option>
-                    <option value="0" selected>Todas</option>
+                    <option value="pendientes">Solo pendientes</option>
+                    <option value="todas" selected>Todas</option>
+                    <option value="no_entregado">No entregados</option>
                 </select>
             </div>
             <div class="flex items-end">
@@ -62,9 +63,9 @@
         const hoy = new Date().toISOString().slice(0,10);
 
         let state = {
-            fecha:       hoy,
-            routeId:     '',
-            soloSinLiq:  '0',
+            fecha:         hoy,
+            routeId:       '',
+            filtroEstatus: 'todas',
         };
 
         const $ = id => document.getElementById(id);
@@ -76,12 +77,12 @@
             $('lq-summary-bar').innerHTML = '';
 
             const params = new URLSearchParams({
-                fecha:             state.fecha,
-                route_id:          state.routeId,
-                solo_sin_liquidar: state.soloSinLiq,
+                fecha:          state.fecha,
+                route_id:       state.routeId,
+                filtro_estatus: state.filtroEstatus,
             });
 
-            const exportParams = new URLSearchParams({ fecha: state.fecha, route_id: state.routeId, solo_sin_liquidar: state.soloSinLiq });
+            const exportParams = new URLSearchParams({ fecha: state.fecha, route_id: state.routeId, filtro_estatus: state.filtroEstatus });
             $('lq-export-btn').href = `${EXPORT_URL}?${exportParams}`;
 
             try {
@@ -226,15 +227,15 @@
             `;
         }
 
-        $('lq-fecha').addEventListener('change',   function() { state.fecha      = this.value; load(); });
-        $('lq-ruta').addEventListener('change',    function() { state.routeId    = this.value; load(); });
-        $('lq-estatus').addEventListener('change', function() { state.soloSinLiq = this.value; load(); });
+        $('lq-fecha').addEventListener('change',   function() { state.fecha         = this.value; load(); });
+        $('lq-ruta').addEventListener('change',    function() { state.routeId       = this.value; load(); });
+        $('lq-estatus').addEventListener('change', function() { state.filtroEstatus = this.value; load(); });
 
         $('lq-clear').addEventListener('click', function() {
-            state.fecha = hoy; state.routeId = ''; state.soloSinLiq = '0';
+            state.fecha = hoy; state.routeId = ''; state.filtroEstatus = 'todas';
             $('lq-fecha').value   = hoy;
             $('lq-ruta').value    = '';
-            $('lq-estatus').value = '0';
+            $('lq-estatus').value = 'todas';
             load();
         });
 
