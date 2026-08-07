@@ -195,8 +195,10 @@
         var clientSelect = document.getElementById('client_id');
         var notasLista   = document.getElementById('notas-lista');
 
-        clientSelect.addEventListener('change', function () {
-            var clientId = this.value;
+        // Expuesta globalmente: select2 no siempre dispara 'change' de forma que
+        // addEventListener lo capture de manera confiable, así que también se
+        // llama explícitamente desde el .on('change') de select2 más abajo.
+        window.cargarNotasDeCliente = function (clientId) {
             if (!clientId) {
                 notasLista.innerHTML = '<p class="text-sm text-gray-400">Selecciona un cliente para ver sus notas.</p>';
                 return;
@@ -252,6 +254,11 @@
             .catch(function() {
                 notasLista.innerHTML = '<p class="text-sm text-red-400">Error al cargar notas.</p>';
             });
+        };
+
+        // Fallback nativo (por si algo más cambia el <select> directamente sin pasar por select2)
+        clientSelect.addEventListener('change', function () {
+            window.cargarNotasDeCliente(this.value);
         });
     })();
     </script>
@@ -277,9 +284,12 @@ $(function () {
         allowClear: true,
         width: '100%',
         language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
+    }).on('change', function () {
+        if (window.cargarNotasDeCliente) window.cargarNotasDeCliente(this.value);
     });
     @if($preClientId)
     $('#client_id').val('{{ $preClientId }}').trigger('change.select2');
+    window.cargarNotasDeCliente && window.cargarNotasDeCliente('{{ $preClientId }}');
     @endif
 
     // Bug conocido de select2: al dar clic en la "x" de limpiar, el mismo clic
