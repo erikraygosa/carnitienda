@@ -200,10 +200,14 @@
                     <td class="p-2 font-medium text-gray-800">${escHtml(p?.nombre || it.nombre || '—')}</td>
                     <td class="p-2 text-xs text-gray-400 font-mono">${escHtml(p?.codigo || p?.sku || '')}</td>
                     <td class="p-2 text-right">
-                        <input type="number" min="0.5" step="0.5"
-                               name="items[${i}][qty]"
-                               value="${it.qty}"
-                               class="w-24 border rounded p-1 text-right text-sm inp-qty" required>
+                        <div class="flex items-center justify-end gap-0.5">
+                            <button type="button" class="btn-qty-step w-5 h-6 shrink-0 border rounded text-xs text-gray-500 hover:bg-gray-100" data-step="-0.5" tabindex="-1">−</button>
+                            <input type="number" min="0.001" step="0.001"
+                                   name="items[${i}][qty]"
+                                   value="${it.qty}"
+                                   class="w-16 border rounded p-1 text-right text-sm inp-qty" required>
+                            <button type="button" class="btn-qty-step w-5 h-6 shrink-0 border rounded text-xs text-gray-500 hover:bg-gray-100" data-step="0.5" tabindex="-1">+</button>
+                        </div>
                     </td>
                     <td class="p-2 text-xs text-gray-500">${escHtml(p?.unidad || '—')}</td>
                     <td class="p-2 text-right">
@@ -226,6 +230,14 @@
                 `;
                 tr.querySelector('.inp-qty').addEventListener('input', function() {
                     items[i].qty = parseFloat(this.value) || 0;
+                });
+                tr.querySelectorAll('.btn-qty-step').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const inp = tr.querySelector('.inp-qty');
+                        const nuevo = Math.max(0, (parseFloat(inp.value)||0) + parseFloat(this.dataset.step));
+                        inp.value = nuevo.toFixed(3).replace(/\.?0+$/, '') || '0';
+                        items[i].qty = parseFloat(inp.value) || 0;
+                    });
                 });
                 tr.querySelector('.inp-cajas').addEventListener('input', function() {
                     items[i].num_cajas = this.value === '' ? null : parseInt(this.value, 10);

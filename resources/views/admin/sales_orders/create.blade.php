@@ -478,9 +478,13 @@
                            name="items[${i}][descripcion]" value="${escHtml(it.descripcion)}" required>
                 </td>
                 <td class="p-2 text-right">
-                    <input type="number" min="0.5" step="0.5"
-                           class="w-24 border rounded p-1 text-right text-sm inp-cantidad"
-                           name="items[${i}][cantidad]" value="${it.cantidad}" required>
+                    <div class="flex items-center justify-end gap-0.5">
+                        <button type="button" class="btn-qty-step w-5 h-6 shrink-0 border rounded text-xs text-gray-500 hover:bg-gray-100" data-step="-0.5" tabindex="-1">−</button>
+                        <input type="number" min="0.001" step="0.001"
+                               class="w-16 border rounded p-1 text-right text-sm inp-cantidad"
+                               name="items[${i}][cantidad]" value="${it.cantidad}" required>
+                        <button type="button" class="btn-qty-step w-5 h-6 shrink-0 border rounded text-xs text-gray-500 hover:bg-gray-100" data-step="0.5" tabindex="-1">+</button>
+                    </div>
                 </td>
                 <td class="p-2 text-xs text-gray-500 td-unidad">${escHtml(it.unidad || '—')}</td>
                 <td class="p-2 text-center">
@@ -516,6 +520,15 @@
 
             tr.querySelector('.inp-cantidad').addEventListener('input', function() {
                 state.items[i].cantidad = parseFloat(this.value)||0; recalcRow(i);
+            });
+            tr.querySelectorAll('.btn-qty-step').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const inp = tr.querySelector('.inp-cantidad');
+                    const nuevo = Math.max(0, (parseFloat(inp.value)||0) + parseFloat(this.dataset.step));
+                    inp.value = nuevo.toFixed(3).replace(/\.?0+$/, '') || '0';
+                    state.items[i].cantidad = parseFloat(inp.value)||0;
+                    recalcRow(i);
+                });
             });
             tr.querySelector('.inp-precio').addEventListener('input', function() {
                 state.items[i].precio = parseFloat(this.value)||0; recalcRow(i);
