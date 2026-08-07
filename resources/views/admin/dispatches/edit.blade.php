@@ -27,7 +27,9 @@
                 && in_array($i->salesOrder?->payment_method, ['EFECTIVO','CONTRAENTREGA']))
             ->sum(fn($i) => $i->salesOrder?->total ?? 0);
 
-        $cxcCobradas  = $dispatch->arAssignments->where('status','COBRADO')->sum('monto_cobrado');
+        // Incluye abonos PARCIALes, no solo asignaciones ya COBRADO por completo —
+        // monto_cobrado acumula lo realmente recibido sin importar el estatus.
+        $cxcCobradas  = $dispatch->arAssignments->sum('monto_cobrado');
         $totalACobrar = $pedidosEfectivo + $cxcCobradas;
 
         $traspasosTotal     = $dispatch->transferAssignments->count();
