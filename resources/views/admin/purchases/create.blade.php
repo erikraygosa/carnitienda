@@ -56,7 +56,7 @@
                         Proveedor <span class="text-red-500">*</span>
                     </label>
                     <select name="provider_id" id="provider_id" required
-                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sel-provider">
                         <option value="">-- seleccionar --</option>
                         @foreach($providers as $p)
                             <option value="{{ $p->id }}" {{ $selProvider === (string)$p->id ? 'selected' : '' }}>
@@ -164,7 +164,21 @@
         const ITEMS_SEED = @json($seedItems);
     </script>
 
-    <script>
+@push('css')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<style>
+.select2-container .select2-selection--single { height: 38px !important; border-color: #d1d5db !important; border-radius: 6px !important; }
+.select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 36px !important; font-size: 0.875rem; color: #374151; padding-left: 10px; }
+.select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px !important; }
+.select2-dropdown { border-color: #d1d5db; border-radius: 6px; font-size: 0.875rem; }
+.select2-container--default .select2-search--dropdown .select2-search__field { border-color: #d1d5db; border-radius: 4px; padding: 4px 8px; }
+</style>
+@endpush
+
+@push('js')
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
         (() => {
             /* ─── Estado ─── */
             let items = (ITEMS_SEED && ITEMS_SEED.length)
@@ -182,6 +196,7 @@
             /* ─── Helpers ─── */
             const fmt = n => Number(n || 0).toFixed(2);
             const num = v => parseFloat(v) || 0;
+            const escHtml = str => String(str ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
             function calcLine(item) {
                 const line = num(item.qty_received) * num(item.price);
@@ -213,7 +228,7 @@
             function buildProductOptions(selectedId) {
                 return PRODUCTS.map(p => {
                     const sel = String(p.id) === String(selectedId) ? 'selected' : '';
-                    return `<option value="${p.id}" ${sel}>${p.nombre}</option>`;
+                    return `<option value="${p.id}" ${sel}>${escHtml(p.nombre)}</option>`;
                 }).join('');
             }
 
@@ -225,7 +240,7 @@
 
                 tr.innerHTML = `
                     <td class="p-2">
-                        <select class="w-full border rounded p-1"
+                        <select class="w-full border rounded p-1 sel-product"
                                 name="items[${i}][product_id]" required>
                             <option value="">-- seleccionar --</option>
                             ${buildProductOptions(item.product_id)}
@@ -310,12 +325,29 @@
                 });
             }
 
+            /* ─── select2 en el <select> de producto de una fila ─── */
+            function initRowSelect2(tr) {
+                $(tr).find('.sel-product').select2({
+                    placeholder: '-- seleccionar producto --',
+                    allowClear: true,
+                    width: '100%',
+                    dropdownParent: $('#purchase-form'),
+                    language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
+                });
+            }
+
             /* ─── Re-render completo ─── */
             function renderAll() {
                 snapshotDOM();
+                // Destruir select2 antes de vaciar la tabla, si no quedan dropdowns huérfanos en <body>
+                tbody.querySelectorAll('.sel-product').forEach(sel => {
+                    if ($(sel).data('select2')) $(sel).select2('destroy');
+                });
                 tbody.innerHTML = '';
                 items.forEach((item, i) => {
-                    tbody.appendChild(renderRow(i, item));
+                    const tr = renderRow(i, item);
+                    tbody.appendChild(tr);
+                    initRowSelect2(tr);
                 });
                 updateTotals();
             }
@@ -337,5 +369,18 @@
             btnAdd.addEventListener('click', addItem);
             renderAll(); // carga inicial con seed (o fila vacía)
         })();
-    </script>
+
+        $(function () {
+            $('#provider_id').select2({
+                placeholder: '-- seleccionar proveedor --',
+                allowClear: true,
+                width: '100%',
+                language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
+            });
+            @if($selProvider)
+            $('#provider_id').val('{{ $selProvider }}').trigger('change.select2');
+            @endif
+        });
+</script>
+@endpush
 </x-admin-layout>
