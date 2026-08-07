@@ -13,9 +13,19 @@ class WhatsappSender
 
     public function __construct()
     {
-        $this->baseUrl  = rtrim(SystemSetting::get('whatsapp.base_url', env('EVO_API_BASE_URL', '')), '/');
-        $this->instance = SystemSetting::get('whatsapp.instance', env('EVO_API_INSTANCE', ''));
-        $this->apiKey   = SystemSetting::get('whatsapp.api_key', env('EVO_API_KEY', ''));
+        $this->baseUrl  = rtrim($this->firstNonEmpty(SystemSetting::get('whatsapp.base_url'), env('EVO_API_BASE_URL', '')), '/');
+        $this->instance = $this->firstNonEmpty(SystemSetting::get('whatsapp.instance'), env('EVO_API_INSTANCE', ''));
+        $this->apiKey   = $this->firstNonEmpty(SystemSetting::get('whatsapp.api_key'), env('EVO_API_KEY', ''));
+    }
+
+    /**
+     * SystemSetting::get() solo cae al valor por defecto cuando la fila NO existe.
+     * Si existe pero quedó vacía (ej. un intento de guardado fallido), hay que
+     * seguir prefiriendo el .env como respaldo en vez de usar el vacío.
+     */
+    private function firstNonEmpty(?string $primary, string $fallback): string
+    {
+        return filled($primary) ? $primary : $fallback;
     }
 
     public function isConfigured(): bool
