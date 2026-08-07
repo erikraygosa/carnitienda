@@ -522,28 +522,39 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
             'status'        => $nuevoStatus,
         ]);
 
-        if ($request->filled('order_ids')) {
-            $restante = $monto;
-            $ordenes  = SalesOrder::whereIn('id', $request->order_ids)->orderBy('fecha')->get();
+        // Si no se marcaron notas específicas, se aplica FIFO a las notas pendientes
+        // del cliente — sin esto, el dinero quedaba trazado en dispatch_ar_assignments
+        // pero sales_orders.saldo_pendiente nunca se actualizaba, y la nota seguía
+        // apareciendo con el monto completo en Cuentas por cobrar.
+        $ordenes = $request->filled('order_ids')
+            ? SalesOrder::whereIn('id', $request->order_ids)->orderBy('fecha')->get()
+            : SalesOrder::where('client_id', $assignment->client_id)
+                ->where('payment_method', 'CREDITO')
+                ->whereIn('status', ['ENTREGADO'])
+                ->whereNull('cobrado_at')
+                ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
+                ->orderBy('fecha')
+                ->get();
 
-            foreach ($ordenes as $orden) {
-                if ($restante <= 0) break;
+        $restante = $monto;
 
-                $saldo = ($orden->saldo_pendiente !== null && (float)$orden->saldo_pendiente > 0)
-                    ? (float) $orden->saldo_pendiente
-                    : (float) $orden->total;
+        foreach ($ordenes as $orden) {
+            if ($restante <= 0) break;
 
-                $abono      = min($restante, $saldo);
-                $nuevoSaldo = round($saldo - $abono, 2);
+            $saldo = ($orden->saldo_pendiente !== null && (float)$orden->saldo_pendiente > 0)
+                ? (float) $orden->saldo_pendiente
+                : (float) $orden->total;
 
-                $updateData = ['saldo_pendiente' => $nuevoSaldo];
-                if ($nuevoSaldo <= 0) {
-                    $updateData['cobrado_at'] = now();
-                }
+            $abono      = min($restante, $saldo);
+            $nuevoSaldo = round($saldo - $abono, 2);
 
-                $orden->update($updateData);
-                $restante = round($restante - $abono, 2);
+            $updateData = ['saldo_pendiente' => $nuevoSaldo];
+            if ($nuevoSaldo <= 0) {
+                $updateData['cobrado_at'] = now();
             }
+
+            $orden->update($updateData);
+            $restante = round($restante - $abono, 2);
         }
     });
 
