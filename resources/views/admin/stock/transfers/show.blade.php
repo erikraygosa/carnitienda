@@ -86,17 +86,11 @@
                 {{ $transfer->status_label }}
             </span>
             <div class="ml-auto flex items-center gap-2">
-                @if(in_array($transfer->status, ['PENDIENTE','ASIGNADO','EN_RUTA']))
-                    @if($canCompleteDirect)
-                        <form method="POST" action="{{ route('admin.stock.transfers.complete', $transfer) }}">
-                            @csrf
-                            <x-wire-button type="submit" green xs>✓ Completar traspaso</x-wire-button>
-                        </form>
-                    @else
-                        <span class="text-xs text-gray-400" title="Deshabilitado — el traspaso debe salir a ruta desde un despacho. Se habilita en Superadmin → Configuración.">
-                            Este traspaso se completa desde el despacho, no aquí.
-                        </span>
-                    @endif
+                @if(in_array($transfer->status, ['PENDIENTE','ASIGNADO','EN_RUTA']) && $canCompleteDirect)
+                    <form method="POST" action="{{ route('admin.stock.transfers.complete', $transfer) }}">
+                        @csrf
+                        <x-wire-button type="submit" green xs>✓ Completar traspaso</x-wire-button>
+                    </form>
                 @endif
                 @if(in_array($transfer->status, ['PENDIENTE','ASIGNADO']))
                     <form method="POST" action="{{ route('admin.stock.transfers.cancel', $transfer) }}">
