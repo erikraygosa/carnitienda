@@ -76,6 +76,7 @@
                         <tr>
                             <th class="text-left p-2">Producto</th>
                             <th class="text-right p-2">Cant.</th>
+                            <th class="text-left p-2">Unidad</th>
                             <th class="text-right p-2">Precio</th>
                             <th class="text-right p-2">Desc.</th>
                             <th class="text-right p-2">% IVA</th>
@@ -103,7 +104,7 @@
 
     {{-- Productos disponibles para el select --}}
     <script>
-        const PRODUCTS = @json($products->map(fn($p) => ['id' => $p->id, 'nombre' => $p->nombre]));
+        const PRODUCTS = @json($products->map(fn($p) => ['id' => $p->id, 'nombre' => $p->nombre, 'unidad' => $p->unidad ?? '']));
     </script>
 
     <script>
@@ -122,6 +123,7 @@
             /* ─── Helpers ─── */
             const fmt  = n  => Number(n || 0).toFixed(2);
             const num  = v  => parseFloat(v) || 0;
+            const escHtml = str => String(str ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
             function calcLine(item) {
                 const lineSub = num(item.qty)   * num(item.price);
@@ -153,8 +155,13 @@
             function buildProductOptions(selectedId) {
                 return PRODUCTS.map(p => {
                     const sel = String(p.id) === String(selectedId) ? 'selected' : '';
-                    return `<option value="${p.id}" ${sel}>${p.nombre}</option>`;
+                    return `<option value="${p.id}" ${sel}>${escHtml(p.nombre)}</option>`;
                 }).join('');
+            }
+
+            function unidadDe(productId) {
+                const p = PRODUCTS.find(p => String(p.id) === String(productId));
+                return p?.unidad || '—';
             }
 
             /* ─── Render de una fila ─── */
@@ -171,11 +178,12 @@
                         </select>
                     </td>
                     <td class="p-2 text-right">
-                        <input type="number" min="0.001" step="0.001"
+                        <input type="number" min="0.5" step="0.5"
                             class="w-28 border rounded p-1 text-right"
                             name="items[${i}][qty_ordered]"
                             value="${item.qty}" required>
                     </td>
+                    <td class="p-2 text-xs text-gray-500 td-unidad">${escHtml(unidadDe(item.product_id))}</td>
                     <td class="p-2 text-right">
                         <input type="number" min="0" step="0.01"
                             class="w-28 border rounded p-1 text-right"
@@ -203,6 +211,8 @@
                 /* Guardar product_id al cambiar el select */
                 tr.querySelector('select').addEventListener('change', function() {
                     items[parseInt(tr.dataset.idx)].product_id = this.value;
+                    const unidadEl = tr.querySelector('.td-unidad');
+                    if (unidadEl) unidadEl.textContent = unidadDe(this.value);
                 });
 
                 /* Eventos de inputs numéricos */

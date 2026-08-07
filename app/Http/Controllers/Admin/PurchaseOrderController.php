@@ -38,7 +38,7 @@ class PurchaseOrderController extends Controller implements HasMiddleware
         return view('admin.purchase_orders.create', [
             'providers'  => Provider::orderBy('nombre')->get(),
             'warehouses' => Warehouse::orderBy('nombre')->get(),
-            'products'   => Product::orderBy('nombre')->get(['id','nombre']),
+            'products'   => Product::orderBy('nombre')->get(['id','nombre','unidad']),
         ]);
     }
 
@@ -133,7 +133,7 @@ class PurchaseOrderController extends Controller implements HasMiddleware
             'order'      => $purchase_order->load('items.product','provider','warehouse'),
             'providers'  => Provider::orderBy('nombre')->get(),
             'warehouses' => Warehouse::orderBy('nombre')->get(),
-            'products'   => Product::orderBy('nombre')->get(['id','nombre']),
+            'products'   => Product::orderBy('nombre')->get(['id','nombre','unidad']),
         ]);
     }
 

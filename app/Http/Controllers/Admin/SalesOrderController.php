@@ -137,12 +137,13 @@ public function data(Request $request)
 {
     $clients    = Client::orderBy('nombre')->get();
     $priceLists = PriceList::orderBy('nombre')->get(['id','nombre']);
-    $products   = Product::where('activo', 1)->orderBy('nombre')->get(['id','nombre','precio_base','sku','barcode']); // ← primero
+    $products   = Product::where('activo', 1)->orderBy('nombre')->get(['id','nombre','precio_base','sku','barcode','unidad']); // ← primero
     $productsJson = $products->map(fn($p) => [
         'id'     => $p->id,
         'nombre' => $p->nombre,
         'sku'    => $p->sku ?? '',
         'precio' => (float) $p->precio_base,
+        'unidad' => $p->unidad ?? '',
     ])->values();
     $warehouses = Warehouse::orderBy('nombre')->get(['id','nombre']);
     $drivers    = Driver::orderBy('nombre')->get(['id','nombre']);

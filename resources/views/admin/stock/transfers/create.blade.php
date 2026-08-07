@@ -31,6 +31,7 @@
             'nombre' => $p->nombre,
             'sku'    => $p->sku ?? '',
             'codigo' => $p->codigo ?? $p->barcode ?? '',
+            'unidad' => $p->unidad ?? '',
         ])->values(), JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
     @endphp
 
@@ -137,6 +138,7 @@
                             <th class="p-2 text-left">Producto</th>
                             <th class="p-2 text-left text-gray-400 text-xs">Código</th>
                             <th class="p-2 text-right w-28">Cantidad</th>
+                            <th class="p-2 text-left w-20">Unidad</th>
                             <th class="p-2 text-right w-24">Cajas</th>
                             <th class="p-2 text-left w-56">Observaciones</th>
                             <th class="p-2 w-8"></th>
@@ -144,7 +146,7 @@
                     </thead>
                     <tbody id="items-body">
                         <tr id="empty-row">
-                            <td colspan="6" class="p-4 text-center text-gray-400 text-sm">
+                            <td colspan="7" class="p-4 text-center text-gray-400 text-sm">
                                 Usa el buscador o scanner para agregar productos
                             </td>
                         </tr>
@@ -182,7 +184,7 @@
             tbody.innerHTML = '';
 
             if (!items.length) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400 text-sm">
+                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-400 text-sm">
                     Usa el buscador o scanner para agregar productos</td></tr>`;
                 $('items-count').textContent = 0;
                 return;
@@ -198,11 +200,12 @@
                     <td class="p-2 font-medium text-gray-800">${escHtml(p?.nombre || it.nombre || '—')}</td>
                     <td class="p-2 text-xs text-gray-400 font-mono">${escHtml(p?.codigo || p?.sku || '')}</td>
                     <td class="p-2 text-right">
-                        <input type="number" min="0.001" step="0.001"
+                        <input type="number" min="0.5" step="0.5"
                                name="items[${i}][qty]"
                                value="${it.qty}"
                                class="w-24 border rounded p-1 text-right text-sm inp-qty" required>
                     </td>
+                    <td class="p-2 text-xs text-gray-500">${escHtml(p?.unidad || '—')}</td>
                     <td class="p-2 text-right">
                         <input type="number" min="0" step="1"
                                name="items[${i}][num_cajas]"

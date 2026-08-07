@@ -228,6 +228,7 @@
                             <th class="p-2 text-left">Producto</th>
                             <th class="p-2 text-left">Descripción</th>
                             <th class="p-2 text-right">Cantidad</th>
+                            <th class="p-2 text-left">Unidad</th>
                             <th class="p-2 text-center" title="Número aproximado de cajas (referencia)">Cajas</th>
                             <th class="p-2 text-right">Precio</th>
                             <th class="p-2 text-right">Desc.</th>
@@ -369,6 +370,7 @@
 
                 state.items[i].product_id      = p.id;
                 state.items[i]._productoNombre = p.nombre;
+                state.items[i].unidad          = p.unidad || '';
 
                 // Siempre actualiza la descripción al cambiar de producto
                 state.items[i].descripcion = p.nombre;
@@ -376,6 +378,9 @@
 
                 state.items[i].precio = getPrice(p.id);
                 tr.querySelector('.inp-precio').value = state.items[i].precio;
+
+                const unidadEl = tr.querySelector('.td-unidad');
+                if (unidadEl) unidadEl.textContent = p.unidad || '—';
 
                 recalcRow(i);
                 hidePortal();
@@ -389,8 +394,11 @@
                 state.items[i]._productoNombre = '';
                 state.items[i].descripcion     = '';
                 state.items[i].precio          = 0;
+                state.items[i].unidad          = '';
                 tr.querySelector('.inp-desc').value   = '';
                 tr.querySelector('.inp-precio').value = 0;
+                const unidadEl = tr.querySelector('.td-unidad');
+                if (unidadEl) unidadEl.textContent = '—';
                 recalcRow(i);
                 input.focus();
             }
@@ -446,6 +454,10 @@
         // ── Render de fila ───────────────────────────────────────────────
         function renderRow(i) {
             const it = state.items[i];
+            if (!it.unidad && it.product_id) {
+                const prod = PRODUCTS.find(p => p.id == it.product_id);
+                if (prod) it.unidad = prod.unidad || '';
+            }
             const tr = document.createElement('tr');
             tr.className   = 'border-b';
             tr.dataset.idx = i;
@@ -466,10 +478,11 @@
                            name="items[${i}][descripcion]" value="${escHtml(it.descripcion)}" required>
                 </td>
                 <td class="p-2 text-right">
-                    <input type="number" min="0.001" step="0.001"
+                    <input type="number" min="0.5" step="0.5"
                            class="w-24 border rounded p-1 text-right text-sm inp-cantidad"
                            name="items[${i}][cantidad]" value="${it.cantidad}" required>
                 </td>
+                <td class="p-2 text-xs text-gray-500 td-unidad">${escHtml(it.unidad || '—')}</td>
                 <td class="p-2 text-center">
                     <input type="number" min="1" step="1"
                            class="w-16 border rounded p-1 text-center text-sm inp-cajas"
