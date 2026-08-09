@@ -107,6 +107,12 @@
             <input type="hidden" name="regimen_fiscal_emisor"
                    value="{{ old('regimen_fiscal_emisor', $invoice->regimen_fiscal_emisor ?? $emisorDefaults['regimen_fiscal_emisor']) }}">
             <input type="hidden" name="exportacion" value="{{ $invoice->exportacion ?? '01' }}">
+            @if($invoice->sales_order_id)
+                <input type="hidden" name="sales_order_id" value="{{ old('sales_order_id', $invoice->sales_order_id) }}">
+            @endif
+            @if($invoice->sale_id)
+                <input type="hidden" name="sale_id" value="{{ old('sale_id', $invoice->sale_id) }}">
+            @endif
             <input type="hidden" name="subtotal"    id="hidden-subtotal">
             <input type="hidden" name="impuestos"   id="hidden-impuestos">
             <input type="hidden" name="total"       id="hidden-total">

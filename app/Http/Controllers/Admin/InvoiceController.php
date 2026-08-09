@@ -386,8 +386,9 @@ public function pdfDownload(Invoice $invoice)
     protected function mapFromOrder(SalesOrder $order): array
     {
         return [
-            'client_id' => $order->client_id,
-            'moneda'    => $order->moneda,
+            'client_id'      => $order->client_id,
+            'sales_order_id' => $order->id,
+            'moneda'         => $order->moneda,
             'items'     => $order->items->map(function ($it) {
                 $p = $it->product;
                 return [
@@ -411,6 +412,7 @@ public function pdfDownload(Invoice $invoice)
     {
         return [
             'client_id' => $sale->client_id,
+            'sale_id'   => $sale->id,
             'moneda'    => $sale->moneda,
             'items'     => $sale->items->map(function ($it) {
                 $p = $it->product;

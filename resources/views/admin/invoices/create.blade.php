@@ -90,6 +90,12 @@
             {{-- Campos ocultos del emisor --}}
             <input type="hidden" name="lugar_expedicion"      value="{{ old('lugar_expedicion', $emisorDefaults['lugar_expedicion']) }}">
             <input type="hidden" name="regimen_fiscal_emisor" value="{{ old('regimen_fiscal_emisor', $emisorDefaults['regimen_fiscal_emisor']) }}">
+            @if(!empty($prefill['sales_order_id']))
+                <input type="hidden" name="sales_order_id" value="{{ old('sales_order_id', $prefill['sales_order_id']) }}">
+            @endif
+            @if(!empty($prefill['sale_id']))
+                <input type="hidden" name="sale_id" value="{{ old('sale_id', $prefill['sale_id']) }}">
+            @endif
             <input type="hidden" name="serie"       value="A">
             <input type="hidden" name="folio"       value="">
             <input type="hidden" name="exportacion" value="01">
