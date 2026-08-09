@@ -9,7 +9,7 @@ class Invoice extends Model
 {
      use BelongsToCompany;
     protected $fillable = [
-        'client_id','sales_order_id','sale_id','ar_payment_id',
+        'client_id','sales_order_id','sale_id','ar_payment_id','related_invoice_id',
         'serie','folio','fecha','tipo_comprobante',
         'lugar_expedicion','exportacion',
         'regimen_fiscal_emisor','regimen_fiscal_receptor',
@@ -34,6 +34,11 @@ class Invoice extends Model
     public function sale()           { return $this->belongsTo(Sale::class); }
     public function arPayment()      { return $this->belongsTo(ArPayment::class); }
     public function complementDocs() { return $this->hasMany(InvoiceComplementDoc::class); }
+
+    /** Factura de Ingreso original que afecta esta Nota de Crédito (tipo E) */
+    public function relatedInvoiceOriginal() { return $this->belongsTo(Invoice::class, 'related_invoice_id'); }
+    /** Notas de crédito emitidas contra esta factura */
+    public function notasCredito() { return $this->hasMany(Invoice::class, 'related_invoice_id'); }
 
     /** Cobros aplicados directamente a esta factura (facturas libres, sin pedido) */
     public function arPaymentItems()

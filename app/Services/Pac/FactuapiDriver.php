@@ -291,6 +291,7 @@ $serie = $invoice->serie ?? 'A';
     })->values()->toArray();
 
     $payload = [
+        'type'     => $invoice->tipo_comprobante === 'E' ? 'E' : 'I',
         'customer' => [
             'legal_name' => $cliente?->razon_social ?? $cliente?->nombre ?? 'PUBLICO EN GENERAL',
             'tax_id'     => $cliente?->rfc ?? 'XAXX010101000',
@@ -311,6 +312,14 @@ $serie = $invoice->serie ?? 'A';
 
     if ($folio) {
         $payload['folio_number'] = $folio;
+    }
+
+    // Nota de crédito: relacionar con el CFDI de Ingreso que se está afectando
+    if ($invoice->tipo_comprobante === 'E' && $invoice->relatedInvoiceOriginal?->uuid) {
+        $payload['related_documents'] = [[
+            'relationship' => '01', // Nota de crédito de los documentos relacionados
+            'documents'    => $invoice->relatedInvoiceOriginal->uuid,
+        ]];
     }
 
     return $payload;

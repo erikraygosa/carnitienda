@@ -605,6 +605,8 @@ public function pdfDownload(Invoice $invoice)
             ]);
         });
 
+        $this->log->log($invoice, 'EDITADO', null, null, null, 'Datos actualizados');
+
         return back()->with('swal', ['icon'=>'success','title'=>'Actualizada','text'=>'Factura en borrador actualizada.']);
     }
 

@@ -75,4 +75,24 @@ class SeriesController extends Controller
         $serie->delete();
         return back()->with('success', 'Serie eliminada.');
     }
+
+    /**
+     * Reinicia el contador de folio de una serie. Bloqueado si ya existe
+     * algún CFDI real (BORRADOR o TIMBRADA) con esa serie/tipo, para no
+     * generar colisiones de folio con documentos ya emitidos.
+     */
+    public function reset(InvoiceSeries $serie)
+    {
+        $yaUsada = \App\Models\Invoice::where('serie', $serie->serie)
+            ->where('tipo_comprobante', $serie->tipo_comprobante)
+            ->exists();
+
+        if ($yaUsada) {
+            return back()->with('error', 'No se puede reiniciar: ya hay facturas guardadas con esta serie. Usa "Reiniciar datos" en Facturas si quieres borrarlas primero.');
+        }
+
+        $serie->update(['folio_actual' => $serie->folio_inicio - 1]);
+
+        return back()->with('success', "Folio de la serie {$serie->serie} reiniciado a {$serie->folio_inicio}.");
+    }
 }

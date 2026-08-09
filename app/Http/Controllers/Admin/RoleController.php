@@ -79,9 +79,11 @@ class RoleController extends Controller implements HasMiddleware
             str_starts_with($name, 'eliminar producto')) {
             return 'productos';
         }
-        // Facturas
+        // Facturas (incluye complementos de pago y notas de crédito, que
+        // son CFDI emitidos desde el mismo módulo)
         if (str_starts_with($name, 'ver factura') || str_starts_with($name, 'timbrar') ||
-            str_starts_with($name, 'cancelar factura')) {
+            str_starts_with($name, 'cancelar factura') ||
+            str_contains($name, 'complementos pago') || str_contains($name, 'notas credito')) {
             return 'facturas';
         }
         // Configuración (gestionar roles no cae por segunda palabra)

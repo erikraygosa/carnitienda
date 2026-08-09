@@ -2,7 +2,7 @@
     title="Complementos de Pago"
     :breadcrumbs="[
         ['name'=>'Dashboard','url'=>route('admin.dashboard')],
-        ['name'=>'Cuentas y cobros','url'=>route('admin.ar.index')],
+        ['name'=>'Facturación'],
         ['name'=>'Complementos de Pago'],
     ]"
 >

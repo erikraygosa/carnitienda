@@ -99,6 +99,11 @@
                             <button type="submit" class="text-xs text-red-500 hover:text-red-400">Eliminar</button>
                         </form>
                         @endif
+                        <form action="{{ route('superadmin.series.reset', $serie) }}" method="POST" class="inline ml-2"
+                              onsubmit="return confirm('¿Reiniciar el folio de la serie {{ $serie->serie }} ({{ $serie->tipo_label }}) a {{ $serie->folio_inicio }}? Solo funciona si no hay facturas guardadas con esta serie.')">
+                            @csrf
+                            <button type="submit" class="text-xs text-amber-500 hover:text-amber-400">Reiniciar folio</button>
+                        </form>
                     </td>
                 </tr>
                 @empty

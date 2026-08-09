@@ -35,6 +35,7 @@
         Route::post('/',          [SuperSeries::class, 'store'])->name('store');
         Route::put('/{serie}',    [SuperSeries::class, 'update'])->name('update');
         Route::delete('/{serie}', [SuperSeries::class, 'destroy'])->name('destroy');
+        Route::post('/{serie}/reset', [SuperSeries::class, 'reset'])->name('reset');
     });
 
     Route::get('/settings',  [SuperSettings::class, 'index'])->name('settings.index');

@@ -21,6 +21,7 @@ use App\Http\Controllers\Admin\DriverCashRegisterController;
 use App\Http\Controllers\Admin\AccountsReceivableController;
 use App\Http\Controllers\Admin\ArPaymentsController;
 use App\Http\Controllers\Admin\ArComplementosController;
+use App\Http\Controllers\Admin\NotaCreditoController;
 use App\Http\Controllers\Admin\ArCobranzaController;
 use App\Http\Controllers\Admin\CashRegisterController;
 use App\Http\Controllers\Admin\CashMovementController;
@@ -180,6 +181,12 @@ Route::post('invoices/{invoice}/send',    [InvoiceController::class, 'send'])->n
 // Generación desde Pedido / Venta / Directa
 Route::post('sales-orders/{order}/invoice', [InvoiceController::class, 'fromSalesOrder'])->name('invoices.from-order');
 Route::post('sales/{sale}/invoice',         [InvoiceController::class, 'fromSale'])->name('invoices.from-sale');
+
+Route::prefix('notas-credito')->name('notas-credito.')->group(function () {
+    Route::get('/',       [NotaCreditoController::class, 'index'])->name('index');
+    Route::get('/create', [NotaCreditoController::class, 'create'])->name('create');
+    Route::post('/',      [NotaCreditoController::class, 'store'])->name('store');
+});
 
 Route::prefix('driver-cash')->name('driver-cash.')->group(function () {
     Route::get('/',                  [DriverCashRegisterController::class,'index'])->name('index');

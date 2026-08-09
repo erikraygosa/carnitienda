@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceComplementDoc;
 use App\Models\InvoiceSeries;
 use App\Services\CompanyService;
+use App\Services\DocumentLogService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -16,10 +17,12 @@ use Illuminate\Support\Facades\DB;
 
 class ArComplementosController extends Controller implements HasMiddleware
 {
+    public function __construct(private DocumentLogService $log) {}
+
     public static function middleware(): array
     {
         return [
-            new Middleware('can:crear facturas'),
+            new Middleware('can:generar complementos pago'),
         ];
     }
 
@@ -166,6 +169,14 @@ class ArComplementosController extends Controller implements HasMiddleware
         $empresa    = app(CompanyService::class)->activa();
         $fiscalData = $empresa?->fiscalData;
 
+        // El SAT solo permite el RFC genérico (XAXX010101000, "público en
+        // general") junto con régimen 616 — igual que en facturas normales.
+        // Si el cliente no tiene RFC, se fuerza aquí sin importar qué haya
+        // elegido el usuario, para no generar un CFDI que el PAC rechace.
+        if (empty($cliente?->rfc)) {
+            $data['regimen_fiscal_receptor'] = '616';
+        }
+
         $complemento = DB::transaction(function () use ($data, $payment, $cliente, $fiscalData) {
             // Reservar serie y folio
             $series = InvoiceSeries::where('serie', $data['serie'])
@@ -217,6 +228,8 @@ class ArComplementosController extends Controller implements HasMiddleware
 
             return $complemento;
         });
+
+        $this->log->log($complemento, 'CREADO', null, 'BORRADOR', null, 'Complemento de pago (cobro #' . $payment->id . ')');
 
         session()->flash('swal', [
             'icon'  => 'success',
