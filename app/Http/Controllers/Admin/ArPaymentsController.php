@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Models\Invoice;
 use App\Models\PaymentType;
 use App\Services\ArService;
 use Illuminate\Http\Request;
@@ -32,28 +33,19 @@ class ArPaymentsController extends Controller implements HasMiddleware
         $types       = PaymentType::orderBy('descripcion')->get();
         $preClientId = request('client_id');
 
-        $notasPendientes = collect();
+        $notasPendientes     = collect();
+        $facturasPendientes  = collect();
         if ($preClientId) {
-            $notasPendientes = SalesOrder::where('client_id', $preClientId)
-                ->where('payment_method', 'CREDITO')
-                ->whereIn('status', ['ENTREGADO'])
-                ->whereNull('cobrado_at')
-                ->where(function($q) {
-                    $q->whereNull('saldo_pendiente')
-                      ->orWhere('saldo_pendiente', '>', 0);
-                })
-                ->orderBy('fecha')
-                ->get(['id','folio','fecha','total','saldo_pendiente']);
+            $notasPendientes    = $this->notasPendientesDe($preClientId);
+            $facturasPendientes = $this->facturasLibresPendientesDe($preClientId);
         }
 
-        return view('admin.ar.payments.create', compact('clients', 'types', 'preClientId', 'notasPendientes'));
+        return view('admin.ar.payments.create', compact('clients', 'types', 'preClientId', 'notasPendientes', 'facturasPendientes'));
     }
 
-    public function notas(Request $request)
+    private function notasPendientesDe($clientId)
     {
-        $clientId = $request->query('client_id');
-
-        $orders = SalesOrder::where('client_id', $clientId)
+        return SalesOrder::where('client_id', $clientId)
             ->where('payment_method', 'CREDITO')
             ->whereIn('status', ['ENTREGADO'])
             ->whereNull('cobrado_at')
@@ -62,7 +54,37 @@ class ArPaymentsController extends Controller implements HasMiddleware
                   ->orWhere('saldo_pendiente', '>', 0);
             })
             ->orderBy('fecha')
-            ->get(['id','folio','fecha','total','saldo_pendiente'])
+            ->get(['id','folio','fecha','total','saldo_pendiente']);
+    }
+
+    /**
+     * Facturas libres (sin pedido/nota) timbradas en PPD con saldo por cobrar,
+     * para poder registrarles un cobro directo y luego generarles su
+     * complemento de pago.
+     */
+    private function facturasLibresPendientesDe($clientId)
+    {
+        return Invoice::where('client_id', $clientId)
+            ->whereNull('sales_order_id')
+            ->whereNull('sale_id')
+            ->where('tipo_comprobante', 'I')
+            ->where('metodo_pago', 'PPD')
+            ->where('estatus', 'TIMBRADA')
+            ->orderBy('fecha')
+            ->get(['id','serie','folio','fecha','total'])
+            ->map(function ($inv) {
+                $inv->saldo_pendiente = $inv->saldoPendiente();
+                return $inv;
+            })
+            ->filter(fn($inv) => $inv->saldo_pendiente > 0)
+            ->values();
+    }
+
+    public function notas(Request $request)
+    {
+        $clientId = $request->query('client_id');
+
+        $orders = $this->notasPendientesDe($clientId)
             ->map(fn($o) => [
                 'id'              => $o->id,
                 'folio'           => $o->folio,
@@ -73,7 +95,16 @@ class ArPaymentsController extends Controller implements HasMiddleware
                     : (float) $o->total,
             ]);
 
-        return response()->json($orders);
+        $facturas = $this->facturasLibresPendientesDe($clientId)
+            ->map(fn($inv) => [
+                'id'              => $inv->id,
+                'folio'           => $inv->serie . $inv->folio,
+                'fecha'           => \Carbon\Carbon::parse($inv->fecha)->format('d/m/Y'),
+                'total'           => (float) $inv->total,
+                'saldo_pendiente' => (float) $inv->saldo_pendiente,
+            ]);
+
+        return response()->json(['ordenes' => $orders->values(), 'facturas' => $facturas->values()]);
     }
 
     public function store(Request $request)
@@ -87,12 +118,14 @@ class ArPaymentsController extends Controller implements HasMiddleware
             'notes'           => 'nullable|string',
             'order_ids'       => 'nullable|array',
             'order_ids.*'     => 'integer|exists:sales_orders,id',
+            'invoice_ids'     => 'nullable|array',
+            'invoice_ids.*'   => 'integer|exists:invoices,id',
         ]);
 
-        if (empty($data['order_ids'])) {
+        if (empty($data['order_ids']) && empty($data['invoice_ids'])) {
             return back()
                 ->withInput()
-                ->withErrors(['order_ids' => 'Debes seleccionar al menos una nota a cubrir.']);
+                ->withErrors(['order_ids' => 'Debes seleccionar al menos una nota o factura a cubrir.']);
         }
 
         DB::transaction(function () use ($data) {
@@ -121,7 +154,7 @@ class ArPaymentsController extends Controller implements HasMiddleware
 
             $restante = (float) $data['amount'];
 
-            $ordenes = SalesOrder::whereIn('id', $data['order_ids'])
+            $ordenes = SalesOrder::whereIn('id', $data['order_ids'] ?? [])
                 ->orderBy('fecha')
                 ->get();
 
@@ -148,6 +181,29 @@ class ArPaymentsController extends Controller implements HasMiddleware
                 }
 
                 $orden->update($updateData);
+                $restante = round($restante - $abono, 2);
+            }
+
+            // Facturas libres (sin pedido) — mismo reparto FIFO, con el
+            // sobrante que haya quedado después de cubrir notas.
+            $facturas = Invoice::whereIn('id', $data['invoice_ids'] ?? [])
+                ->orderBy('fecha')
+                ->get();
+
+            foreach ($facturas as $factura) {
+                if ($restante <= 0) break;
+
+                $saldo = $factura->saldoPendiente();
+                if ($saldo <= 0) continue;
+
+                $abono = min($restante, $saldo);
+
+                \App\Models\ArPaymentItem::create([
+                    'ar_payment_id' => $payment->id,
+                    'invoice_id'    => $factura->id,
+                    'monto_aplicado'=> $abono,
+                ]);
+
                 $restante = round($restante - $abono, 2);
             }
         });

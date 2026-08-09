@@ -28,25 +28,31 @@ class ArComplementosController extends Controller implements HasMiddleware
         $search   = $request->get('search', '');
         $clientId = $request->get('client_id', '');
 
+        $matchInvoicePpdTimbrada = fn($q) => $q->where('metodo_pago', 'PPD')->where('estatus', 'TIMBRADA');
+
         $payments = ArPayment::with([
                 'paymentType',
                 'items.salesOrder.client',
                 'items.salesOrder.invoice',
+                'items.invoiceLibre.client',
                 'complementInvoice',
             ])
-            ->whereHas('items.salesOrder.invoice', fn($q) =>
-                $q->where('metodo_pago', 'PPD')->where('estatus', 'TIMBRADA')
-            )
+            ->where(function ($q) use ($matchInvoicePpdTimbrada) {
+                $q->whereHas('items.salesOrder.invoice', $matchInvoicePpdTimbrada)
+                  ->orWhereHas('items.invoiceLibre', $matchInvoicePpdTimbrada);
+            })
             ->whereDoesntHave('complementInvoice')
             ->when($search, fn($q) =>
-                $q->whereHas('items.salesOrder.client', fn($c) =>
-                    $c->where('nombre', 'like', "%$search%")
-                )
+                $q->where(function ($q2) use ($search) {
+                    $q2->whereHas('items.salesOrder.client', fn($c) => $c->where('nombre', 'like', "%$search%"))
+                       ->orWhereHas('items.invoiceLibre.client', fn($c) => $c->where('nombre', 'like', "%$search%"));
+                })
             )
             ->when($clientId, fn($q) =>
-                $q->whereHas('items.salesOrder', fn($so) =>
-                    $so->where('client_id', $clientId)
-                )
+                $q->where(function ($q2) use ($clientId) {
+                    $q2->whereHas('items.salesOrder', fn($so) => $so->where('client_id', $clientId))
+                       ->orWhereHas('items.invoiceLibre', fn($inv) => $inv->where('client_id', $clientId));
+                })
             )
             ->latest('fecha')
             ->paginate(25)
@@ -55,12 +61,12 @@ class ArComplementosController extends Controller implements HasMiddleware
         // Determinar cliente y facturas relacionadas por payment
         $payments->each(function ($p) {
             $invoices = $p->items
-                ->map(fn($item) => $item->salesOrder?->invoice)
+                ->map(fn($item) => $item->relatedInvoice())
                 ->filter(fn($inv) => $inv && $inv->metodo_pago === 'PPD' && $inv->estatus === 'TIMBRADA')
                 ->unique('id');
 
             $p->_related_invoices = $invoices;
-            $p->_cliente = $p->items->first()?->salesOrder?->client?->nombre ?? '—';
+            $p->_cliente = $p->items->first()?->relatedClient()?->nombre ?? '—';
         });
 
         return view('admin.ar.complementos.index', compact('payments', 'search', 'clientId'));
@@ -72,6 +78,8 @@ class ArComplementosController extends Controller implements HasMiddleware
                 'paymentType',
                 'items.salesOrder.client',
                 'items.salesOrder.invoice.items',
+                'items.invoiceLibre.client',
+                'items.invoiceLibre.items',
                 'complementInvoice',
             ])
             ->findOrFail($request->query('payment_id'));
@@ -85,7 +93,7 @@ class ArComplementosController extends Controller implements HasMiddleware
         $docs = $payment->items
             ->map(function (ArPaymentItem $item) {
                 $so  = $item->salesOrder;
-                $inv = $so?->invoice;
+                $inv = $item->relatedInvoice();
 
                 if (! $inv || $inv->metodo_pago !== 'PPD' || $inv->estatus !== 'TIMBRADA') {
                     return null;
@@ -115,7 +123,7 @@ class ArComplementosController extends Controller implements HasMiddleware
 
         abort_if($docs->isEmpty(), 422, 'No hay facturas PPD timbradas asociadas a este cobro.');
 
-        $cliente = $payment->items->first()?->salesOrder?->client;
+        $cliente = $payment->items->first()?->relatedClient();
 
         $series = InvoiceSeries::where('tipo_comprobante', 'P')
             ->where('activa', true)
@@ -148,11 +156,12 @@ class ArComplementosController extends Controller implements HasMiddleware
             'docs.*.imp_saldo_insoluto'      => 'required|numeric|min:0',
         ]);
 
-        $payment = ArPayment::with(['paymentType', 'items.salesOrder.client'])->findOrFail($data['payment_id']);
+        $payment = ArPayment::with(['paymentType', 'items.salesOrder.client', 'items.invoiceLibre.client'])
+            ->findOrFail($data['payment_id']);
 
         abort_if($payment->complementInvoice, 422, 'Este cobro ya tiene un complemento generado.');
 
-        $cliente = $payment->items->first()?->salesOrder?->client;
+        $cliente = $payment->items->first()?->relatedClient();
 
         $empresa    = app(CompanyService::class)->activa();
         $fiscalData = $empresa?->fiscalData;

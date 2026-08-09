@@ -84,12 +84,47 @@
                         </label>
                         @endforeach
 
-                        <div class="flex justify-between items-center pt-2 border-t text-sm">
-                            <span class="text-gray-600">Total notas seleccionadas:</span>
-                            <span id="suma-notas" class="font-mono font-semibold text-indigo-600">$0.00</span>
-                        </div>
                     @endif
                 </div>
+            </div>
+
+            {{-- Facturas libres pendientes (sin pedido) --}}
+            <div id="facturas-wrap" style="{{ $facturasPendientes->isEmpty() ? 'display:none' : '' }}">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Facturas libres a cubrir
+                    <span class="text-gray-400 font-normal">(facturas sin pedido asociado)</span>
+                </label>
+                <div id="facturas-lista" class="space-y-2">
+                    @foreach($facturasPendientes as $factura)
+                    @php $tieneParcial = $factura->saldo_pendiente < (float)$factura->total; @endphp
+                    <label class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-indigo-50 cursor-pointer factura-item">
+                        <input type="checkbox" name="invoice_ids[]" value="{{ $factura->id }}"
+                               data-saldo="{{ $factura->saldo_pendiente }}"
+                               class="factura-chk rounded border-gray-300 text-indigo-600"
+                               {{ in_array($factura->id, old('invoice_ids', [])) ? 'checked' : '' }}>
+                        <div class="flex-1">
+                            <div class="text-sm font-medium text-gray-800">{{ $factura->serie }}{{ $factura->folio }}</div>
+                            <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($factura->fecha)->format('d/m/Y') }}</div>
+                        </div>
+                        <div class="text-right">
+                            @if($tieneParcial)
+                                <div class="text-xs text-gray-400 line-through">${{ number_format($factura->total, 2) }}</div>
+                            @endif
+                            <div class="text-sm font-mono font-semibold {{ $tieneParcial ? 'text-amber-600' : 'text-gray-700' }}">
+                                ${{ number_format($factura->saldo_pendiente, 2) }}
+                                @if($tieneParcial)
+                                    <span class="text-xs font-normal text-amber-500">pendiente</span>
+                                @endif
+                            </div>
+                        </div>
+                    </label>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center pt-2 border-t text-sm">
+                <span class="text-gray-600">Total seleccionado:</span>
+                <span id="suma-notas" class="font-mono font-semibold text-indigo-600">$0.00</span>
             </div>
 
             {{-- Fecha y Monto --}}
@@ -164,15 +199,15 @@
 
     <script>
     (function () {
-        var sumaEl   = document.getElementById('suma-notas');
         var amountEl = document.getElementById('amount');
 
-        // ── Calcular suma usando data-saldo ───────────────────────────────
+        // ── Calcular suma usando data-saldo (notas + facturas libres) ─────
         function calcularSuma() {
             var total = 0;
-            document.querySelectorAll('.nota-chk:checked').forEach(function(chk) {
+            document.querySelectorAll('.nota-chk:checked, .factura-chk:checked').forEach(function(chk) {
                 total += parseFloat(chk.dataset.saldo) || 0;
             });
+            var sumaEl = document.getElementById('suma-notas');
             if (sumaEl) {
                 sumaEl.textContent = '$' + total.toLocaleString('es-MX', {
                     minimumFractionDigits: 2, maximumFractionDigits: 2
@@ -184,16 +219,42 @@
         }
 
         function bindChks() {
-            document.querySelectorAll('.nota-chk').forEach(function(chk) {
+            document.querySelectorAll('.nota-chk, .factura-chk').forEach(function(chk) {
+                chk.removeEventListener('change', calcularSuma);
                 chk.addEventListener('change', calcularSuma);
             });
         }
 
         bindChks();
 
+        function itemHtml(o, checkboxName, checkboxClass) {
+            var tieneParcial = o.saldo_pendiente < o.total;
+            var saldoFmt = Number(o.saldo_pendiente).toLocaleString('es-MX', {minimumFractionDigits:2});
+            var totalFmt = Number(o.total).toLocaleString('es-MX', {minimumFractionDigits:2});
+
+            return '<label class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-indigo-50 cursor-pointer">'
+                + '<input type="checkbox" name="' + checkboxName + '" value="' + o.id + '"'
+                + ' data-saldo="' + o.saldo_pendiente + '"'
+                + ' class="' + checkboxClass + ' rounded border-gray-300 text-indigo-600">'
+                + '<div class="flex-1">'
+                + '<div class="text-sm font-medium text-gray-800">' + o.folio + '</div>'
+                + '<div class="text-xs text-gray-500">' + o.fecha + '</div>'
+                + '</div>'
+                + '<div class="text-right">'
+                + (tieneParcial ? '<div class="text-xs text-gray-400 line-through">$' + totalFmt + '</div>' : '')
+                + '<div class="text-sm font-mono font-semibold ' + (tieneParcial ? 'text-amber-600' : 'text-gray-700') + '">'
+                + '$' + saldoFmt
+                + (tieneParcial ? ' <span class="text-xs font-normal text-amber-500">pendiente</span>' : '')
+                + '</div>'
+                + '</div>'
+                + '</label>';
+        }
+
         // ── Cambio de cliente ─────────────────────────────────────────────
-        var clientSelect = document.getElementById('client_id');
-        var notasLista   = document.getElementById('notas-lista');
+        var clientSelect  = document.getElementById('client_id');
+        var notasLista    = document.getElementById('notas-lista');
+        var facturasWrap  = document.getElementById('facturas-wrap');
+        var facturasLista = document.getElementById('facturas-lista');
 
         // Expuesta globalmente: select2 no siempre dispara 'change' de forma que
         // addEventListener lo capture de manera confiable, así que también se
@@ -201,6 +262,9 @@
         window.cargarNotasDeCliente = function (clientId) {
             if (!clientId) {
                 notasLista.innerHTML = '<p class="text-sm text-gray-400">Selecciona un cliente para ver sus notas.</p>';
+                facturasWrap.style.display = 'none';
+                facturasLista.innerHTML = '';
+                calcularSuma();
                 return;
             }
 
@@ -214,42 +278,23 @@
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (!data.length) {
-                    notasLista.innerHTML = '<p class="text-sm text-gray-400">Este cliente no tiene notas pendientes.</p>';
-                    return;
+                var ordenes  = data.ordenes  || [];
+                var facturas = data.facturas || [];
+
+                notasLista.innerHTML = ordenes.length
+                    ? ordenes.map(function(o) { return itemHtml(o, 'order_ids[]', 'nota-chk'); }).join('')
+                    : '<p class="text-sm text-gray-400">Este cliente no tiene notas pendientes.</p>';
+
+                if (facturas.length) {
+                    facturasWrap.style.display = '';
+                    facturasLista.innerHTML = facturas.map(function(f) { return itemHtml(f, 'invoice_ids[]', 'factura-chk'); }).join('');
+                } else {
+                    facturasWrap.style.display = 'none';
+                    facturasLista.innerHTML = '';
                 }
 
-                var html = data.map(function(o) {
-                    var tieneParcial = o.saldo_pendiente < o.total;
-                    var saldoFmt = Number(o.saldo_pendiente).toLocaleString('es-MX', {minimumFractionDigits:2});
-                    var totalFmt = Number(o.total).toLocaleString('es-MX', {minimumFractionDigits:2});
-
-                    return '<label class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-indigo-50 cursor-pointer nota-item">'
-                        + '<input type="checkbox" name="order_ids[]" value="' + o.id + '"'
-                        + ' data-saldo="' + o.saldo_pendiente + '"'
-                        + ' class="nota-chk rounded border-gray-300 text-indigo-600">'
-                        + '<div class="flex-1">'
-                        + '<div class="text-sm font-medium text-gray-800">' + o.folio + '</div>'
-                        + '<div class="text-xs text-gray-500">' + o.fecha + '</div>'
-                        + '</div>'
-                        + '<div class="text-right">'
-                        + (tieneParcial ? '<div class="text-xs text-gray-400 line-through">$' + totalFmt + '</div>' : '')
-                        + '<div class="text-sm font-mono font-semibold ' + (tieneParcial ? 'text-amber-600' : 'text-gray-700') + '">'
-                        + '$' + saldoFmt
-                        + (tieneParcial ? ' <span class="text-xs font-normal text-amber-500">pendiente</span>' : '')
-                        + '</div>'
-                        + '</div>'
-                        + '</label>';
-                }).join('');
-
-                html += '<div class="flex justify-between items-center pt-2 border-t text-sm">'
-                    + '<span class="text-gray-600">Total notas seleccionadas:</span>'
-                    + '<span id="suma-notas" class="font-mono font-semibold text-indigo-600">$0.00</span>'
-                    + '</div>';
-
-                notasLista.innerHTML = html;
-                sumaEl = document.getElementById('suma-notas');
                 bindChks();
+                calcularSuma();
             })
             .catch(function() {
                 notasLista.innerHTML = '<p class="text-sm text-red-400">Error al cargar notas.</p>';

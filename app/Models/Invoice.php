@@ -35,6 +35,24 @@ class Invoice extends Model
     public function arPayment()      { return $this->belongsTo(ArPayment::class); }
     public function complementDocs() { return $this->hasMany(InvoiceComplementDoc::class); }
 
+    /** Cobros aplicados directamente a esta factura (facturas libres, sin pedido) */
+    public function arPaymentItems()
+    {
+        return $this->hasMany(ArPaymentItem::class, 'invoice_id');
+    }
+
+    public function esLibre(): bool
+    {
+        return empty($this->sales_order_id) && empty($this->sale_id);
+    }
+
+    /** Saldo pendiente de cobro de una factura libre (total - cobros ya aplicados) */
+    public function saldoPendiente(): float
+    {
+        $cobrado = $this->arPaymentItems()->sum('monto_aplicado');
+        return round((float) $this->total - (float) $cobrado, 2);
+    }
+
     // Helpers de estado
     public function isDraft()     { return $this->estatus === 'BORRADOR'; }
     public function isStamped()   { return $this->estatus === 'TIMBRADA'; }
