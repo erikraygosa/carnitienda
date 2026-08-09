@@ -235,11 +235,9 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
             'complements' => [[
                 'type' => 'pago',
                 'data' => [[
-                    'payment_form' => $payment?->paymentType?->satFormaPago() ?? '99',
-                    'currency'     => 'MXN',
-                    'amount'       => (float) ($payment?->monto ?? 0),
-                    'date'         => $paymentDate,
-                    'related_documents' => $relatedDocuments,
+                    'payment_form'       => $payment?->paymentType?->satFormaPago() ?? '99',
+                    'date'               => $paymentDate,
+                    'related_documents'  => $relatedDocuments,
                 ]],
             ]],
         ];
