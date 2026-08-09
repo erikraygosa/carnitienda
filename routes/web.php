@@ -13,12 +13,6 @@ Route::redirect('/', '/admin/');
 //     return view('welcome');
 // });
 
-Route::middleware([
-    'auth:sanctum',
-    config('jetstream.auth_session'),
-    'verified',
-])->group(function () {
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('dashboard');
-});
+// El scaffolding de Jetstream registraba /dashboard mostrando su vista de
+// bienvenida por defecto; la app real vive en /admin, así que se redirige.
+Route::redirect('/dashboard', '/admin');
