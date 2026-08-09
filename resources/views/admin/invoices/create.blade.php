@@ -373,6 +373,8 @@
     function updateRowFields(i) {
         var row = document.getElementById('item-row-' + i);
         if (!row) return;
+        var prodField = row.querySelector('input[name="items[' + i + '][product_id]"]');
+        if (prodField) prodField.value = items[i].product_id || '';
         row.querySelector('[data-field="descripcion"]').value     = items[i].descripcion     || '';
         row.querySelector('[data-field="clave_prod_serv"]').value = items[i].clave_prod_serv || '';
         row.querySelector('[data-field="clave_unidad"]').value    = items[i].clave_unidad    || '';
