@@ -62,7 +62,7 @@
             @foreach($timbresPorTipo as $tipo => $total)
                 <div class="px-4 py-2 rounded-lg bg-gray-800 text-sm">
                     <span class="text-gray-400">{{ $tipoLabels[$tipo] ?? $tipo }}</span>
-                    <span class="text-white font-semibold ml-2">{{ $total }}</span>
+                    <span class="text-white font-semibold ml-2">{{ (int) $total }}</span>
                 </div>
             @endforeach
         </div>
