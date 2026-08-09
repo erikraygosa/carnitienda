@@ -240,11 +240,11 @@ $(function () {
 
     // Bug conocido de select2: al dar clic en la "x" de limpiar, el mismo clic
     // se propaga y vuelve a abrir el dropdown (se ve como "abre y cierra sin borrar").
-    $(document).on('select2:unselecting', function() {
-        $(this).data('unselecting', true);
+    $(document).on('select2:unselecting', function(e) {
+        $(e.target).data('unselecting', true);
     }).on('select2:opening', function(e) {
-        if ($(this).data('unselecting')) {
-            $(this).removeData('unselecting');
+        if ($(e.target).data('unselecting')) {
+            $(e.target).removeData('unselecting');
             e.preventDefault();
         }
     });
