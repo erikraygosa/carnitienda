@@ -175,7 +175,7 @@ class ArComplementosController extends Controller implements HasMiddleware
                 'fecha'                   => $data['fecha'],
                 'tipo_comprobante'        => 'P',
                 'uso_cfdi'                => 'CP01',
-                'forma_pago'              => $payment->paymentType?->clave ?? '99',
+                'forma_pago'              => $payment->paymentType?->satFormaPago() ?? '99',
                 'metodo_pago'             => 'PUE',
                 'lugar_expedicion'        => $data['lugar_expedicion'],
                 'exportacion'             => '01',
