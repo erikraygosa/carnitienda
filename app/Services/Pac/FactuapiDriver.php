@@ -210,7 +210,6 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
             }
 
             return [
-                'tax_object'   => '02',
                 'uuid'         => $ri->uuid,
                 'amount'       => (float) $ri->total,
                 'installment'  => $doc->num_parcialidad,
