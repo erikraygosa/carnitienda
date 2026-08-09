@@ -731,4 +731,43 @@
     }
     </script>
 
+@push('css')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<style>
+.select2-container .select2-selection--single { height: 38px !important; border-color: #d1d5db !important; border-radius: 6px !important; }
+.select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 36px !important; font-size: 0.875rem; color: #374151; padding-left: 10px; }
+.select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px !important; }
+.select2-container--disabled .select2-selection--single { background-color: #f9fafb !important; cursor: not-allowed; }
+.select2-dropdown { border-color: #d1d5db; border-radius: 6px; font-size: 0.875rem; }
+.select2-container--default .select2-search--dropdown .select2-search__field { border-color: #d1d5db; border-radius: 4px; padding: 4px 8px; }
+</style>
+@endpush
+
+@push('js')
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(function () {
+    $('#client_id').select2({
+        placeholder: '-- seleccionar cliente --',
+        allowClear: true,
+        width: '100%',
+        dropdownParent: $('#invoice-edit-form'),
+        language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
+    });
+
+    // Bug conocido de select2: al dar clic en la "x" de limpiar, el mismo clic
+    // se propaga y vuelve a abrir el dropdown (se ve como "abre y cierra sin borrar").
+    $(document).on('select2:unselecting', function(e) {
+        $(e.target).data('unselecting', true);
+    }).on('select2:opening', function(e) {
+        if ($(e.target).data('unselecting')) {
+            $(e.target).removeData('unselecting');
+            e.preventDefault();
+        }
+    });
+});
+</script>
+@endpush
+
 </x-admin-layout>
