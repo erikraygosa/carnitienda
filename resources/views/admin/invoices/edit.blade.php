@@ -521,6 +521,7 @@
         });
         var i = items.length - 1;
         appendRow(i);
+        initRowSelect2(i);
         recalc(i);
     }
 
@@ -531,11 +532,29 @@
         updateTotals();
     }
 
+    function initRowSelect2(i) {
+        if (IS_LOCKED || typeof $ === 'undefined') return;
+        var $sel = $('#item-row-' + i).find('.sel-product');
+        if (!$sel.length) return;
+        $sel.select2({
+            placeholder: '-- seleccionar producto --',
+            allowClear: true,
+            width: '100%',
+            dropdownParent: $('#invoice-edit-form'),
+            language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
+        });
+    }
+
     // ─── Render ───────────────────────────────────────────────────────────────
     function renderAllRows() {
         var tbody = document.getElementById('items-body');
+        if (typeof $ !== 'undefined') {
+            tbody.querySelectorAll('.sel-product').forEach(function(sel) {
+                if ($(sel).data('select2')) $(sel).select2('destroy');
+            });
+        }
         tbody.innerHTML = '';
-        items.forEach(function (_, i) { appendRow(i); });
+        items.forEach(function (_, i) { appendRow(i); initRowSelect2(i); });
         updateTotals();
     }
 
@@ -558,7 +577,7 @@
         tr.className = 'border-b hover:bg-gray-50';
         tr.innerHTML = `
             <td class="p-2">
-                <select class="w-full border rounded p-1 text-sm mb-1"
+                <select class="w-full border rounded p-1 text-sm mb-1 sel-product"
                         onchange="onProductChange(${i}, this.value)"
                         ${dis}>
                     ${productOptions}

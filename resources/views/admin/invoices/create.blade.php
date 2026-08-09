@@ -424,6 +424,7 @@
             importe:0, iva_importe:0, ieps_pct:0, ieps_importe:0,
         });
         appendRow(items.length - 1);
+        initRowSelect2(items.length - 1);
         recalc(items.length - 1);
     }
 
@@ -434,9 +435,30 @@
         updateTotals();
     }
 
+    function initRowSelect2(i) {
+        if (LOCKED_ITEMS || typeof $ === 'undefined') return;
+        var $sel = $('#item-row-' + i).find('.sel-product');
+        if (!$sel.length) return;
+        $sel.select2({
+            placeholder: '-- seleccionar producto --',
+            allowClear: true,
+            width: '100%',
+            dropdownParent: $('#inv-form'),
+            language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
+        });
+    }
+
     function renderAllRows() {
-        document.getElementById('items-body').innerHTML = '';
-        items.forEach(function(_, i) { appendRow(i); });
+        var tbody = document.getElementById('items-body');
+        // Destruir select2 antes de vaciar la tabla, si no quedan dropdowns
+        // huérfanos en <body> interceptando clics de otras filas.
+        if (typeof $ !== 'undefined') {
+            tbody.querySelectorAll('.sel-product').forEach(function(sel) {
+                if ($(sel).data('select2')) $(sel).select2('destroy');
+            });
+        }
+        tbody.innerHTML = '';
+        items.forEach(function(_, i) { appendRow(i); initRowSelect2(i); });
         updateTotals();
     }
 
@@ -502,7 +524,7 @@
         } else {
             tr.innerHTML = `
                 <td class="p-2">
-                    <select class="w-full border rounded p-1 text-sm mb-1" onchange="onProductChange(${i}, this.value)">
+                    <select class="w-full border rounded p-1 text-sm mb-1 sel-product" onchange="onProductChange(${i}, this.value)">
                         ${productOptions}
                     </select>
                     <input type="hidden" name="items[${i}][product_id]" value="${escHtml(it.product_id)}">
