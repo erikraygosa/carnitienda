@@ -354,9 +354,16 @@
 
             /* ─── Acciones ─── */
             function addItem() {
+                // Solo agrega y monta la fila nueva — NO destruye/reinicia el select2
+                // de las filas existentes (eso dejaba dropdowns huérfanos interceptando
+                // clics y obligaba a darle exacto en la flechita para poder elegir).
                 snapshotDOM();
                 items.push({ product_id: '', qty_received: 1, price: 0, discount: 0, tax_rate: 0, total: 0 });
-                renderAll();
+                const i  = items.length - 1;
+                const tr = renderRow(i, items[i]);
+                tbody.appendChild(tr);
+                initRowSelect2(tr);
+                updateTotals();
             }
 
             function removeRow(i) {
