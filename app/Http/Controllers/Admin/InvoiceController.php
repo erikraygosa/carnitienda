@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\{Invoice, InvoiceItem, Client, SalesOrder, Sale, Product};
+use App\Models\{Invoice, InvoiceItem, Client, SalesOrder, Sale, Product, StampCounter};
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -16,6 +16,26 @@ use Illuminate\Routing\Controllers\Middleware;
 class InvoiceController extends Controller implements HasMiddleware
 {
     public function __construct(private DocumentLogService $log) {}
+
+    /**
+     * Contador de timbres vigente de la empresa activa (o null si no hay
+     * ninguno configurado — no bloquea nada, solo es informativo).
+     */
+    private function timbresInfo(): ?array
+    {
+        $empresa = app(CompanyService::class)->activa();
+        if (! $empresa) return null;
+
+        $counter = StampCounter::activoParaEmpresa($empresa->id);
+        if (! $counter) return null;
+
+        return [
+            'restantes'   => $counter->timbresRestantes(),
+            'usados'      => $counter->timbres_usados,
+            'contratados' => $counter->timbres_contratados,
+            'alerta'      => $counter->alertaRestantes(),
+        ];
+    }
 
     public static function middleware(): array
     {
@@ -34,7 +54,9 @@ class InvoiceController extends Controller implements HasMiddleware
         ->latest('id')
         ->paginate(20);
 
-    return view('admin.invoices.index', compact('invoices'));
+    $timbresInfo = $this->timbresInfo();
+
+    return view('admin.invoices.index', compact('invoices', 'timbresInfo'));
     }
 
     // Crear desde: pedido, venta o directa
@@ -98,11 +120,13 @@ class InvoiceController extends Controller implements HasMiddleware
     $nextSerie = $series?->serie ?? 'A';
     $nextFolio = $series ? ($series->folio_actual + 1) : 1;
 
+    $timbresInfo = $this->timbresInfo();
+
     return view('admin.invoices.create', compact(
         'clients', 'products', 'prefill',
         'empresa', 'emisorDefaults',
         'clientsMap', 'productsMap',
-        'nextSerie', 'nextFolio'
+        'nextSerie', 'nextFolio', 'timbresInfo'
     ));
 }
 
@@ -281,10 +305,12 @@ public function store(Request $request)
         'unidad'          => $p->unidad ?? 'PZA',
     ]);
 
+    $timbresInfo = $this->timbresInfo();
+
     return view('admin.invoices.edit', compact(
     'invoice', 'clients', 'products',
     'empresa', 'emisorDefaults',
-    'clientsMap', 'productsMap'
+    'clientsMap', 'productsMap', 'timbresInfo'
 ));
 }
     // TIMBRAR
