@@ -251,11 +251,14 @@
                                 class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
                             <option value="">Selecciona régimen</option>
                             @foreach($regimenes as $clave => $desc)
-                                <option value="{{ $clave }}" {{ $selRegRec === $clave ? 'selected' : '' }}>
+                                <option value="{{ $clave }}" {{ (string)$selRegRec === (string)$clave ? 'selected' : '' }}>
                                     {{ $clave }} — {{ $desc }}
                                 </option>
                             @endforeach
                         </select>
+                        <p id="no-rfc-warning" class="hidden mt-1 text-xs text-amber-600">
+                            ⚠ Este cliente no tiene RFC registrado — el SAT exige Régimen 616 y Uso S01 cuando se factura como "público en general".
+                        </p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -364,11 +367,22 @@
         document.getElementById('client-razon').textContent = d.razon_social || '';
         if (meta) meta.classList.remove('hidden');
 
-        var regEl = document.getElementById('regimen_fiscal_receptor');
-        if (regEl && d.regimen_fiscal) regEl.value = d.regimen_fiscal;
+        var regEl  = document.getElementById('regimen_fiscal_receptor');
+        var usoEl  = document.getElementById('uso_cfdi');
+        var warnEl = document.getElementById('no-rfc-warning');
 
-        var usoEl = document.getElementById('uso_cfdi');
-        if (usoEl && d.uso_cfdi) usoEl.value = d.uso_cfdi;
+        if (!d.rfc) {
+            // El SAT solo permite el RFC genérico (público en general) junto
+            // con régimen 616 y uso S01 — se fuerza aquí para que coincida
+            // con lo que el servidor va a guardar de todas formas.
+            if (regEl) regEl.value = '616';
+            if (usoEl) usoEl.value = 'S01';
+            if (warnEl) warnEl.classList.remove('hidden');
+        } else {
+            if (warnEl) warnEl.classList.add('hidden');
+            if (regEl && d.regimen_fiscal) regEl.value = d.regimen_fiscal;
+            if (usoEl && d.uso_cfdi) usoEl.value = d.uso_cfdi;
+        }
     }
 
     function onProductChange(i, productId) {

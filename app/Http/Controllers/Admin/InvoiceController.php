@@ -18,6 +18,27 @@ class InvoiceController extends Controller implements HasMiddleware
     public function __construct(private DocumentLogService $log) {}
 
     /**
+     * El SAT solo permite el RFC genérico (XAXX010101000, "público en
+     * general") junto con régimen fiscal 616 y uso CFDI S01. Si el cliente
+     * no tiene RFC real capturado, el sistema manda ese RFC genérico a
+     * Facturapi sin importar qué régimen/uso haya elegido el usuario en el
+     * formulario — así que forzamos aquí los únicos valores válidos para
+     * no generar un "Error PAC: tax_system no tiene un valor permitido"
+     * al timbrar.
+     */
+    private function forceGenericRfcRegimen(array $data): array
+    {
+        $cliente = Client::find($data['client_id'] ?? null);
+
+        if ($cliente && empty($cliente->rfc)) {
+            $data['regimen_fiscal_receptor'] = '616';
+            $data['uso_cfdi'] = 'S01';
+        }
+
+        return $data;
+    }
+
+    /**
      * Contador de timbres vigente de la empresa activa (o null si no hay
      * ninguno configurado — no bloquea nada, solo es informativo).
      */
@@ -166,6 +187,8 @@ public function store(Request $request)
             ->with('swal', ['icon' => 'error', 'title' => 'Datos inválidos', 'text' => 'Elige pedido o nota, no ambos.'])
             ->withInput();
     }
+
+    $data = $this->forceGenericRfcRegimen($data);
 
     $invoice = null;
 
@@ -508,6 +531,8 @@ public function pdfDownload(Invoice $invoice)
             'items.*.iva_pct'         => ['nullable', 'numeric', 'gte:0'],
             'items.*.ieps_pct'        => ['nullable', 'numeric', 'gte:0'],
         ]);
+
+        $data = $this->forceGenericRfcRegimen($data);
 
         DB::transaction(function () use (&$invoice, $data) {
             $subtotal  = 0;

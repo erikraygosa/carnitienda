@@ -258,11 +258,14 @@
                             <option value="">Selecciona régimen</option>
                             @foreach($regimenes as $clave => $desc)
                                 <option value="{{ $clave }}"
-                                        {{ $selRegRec === $clave ? 'selected' : '' }}>
+                                        {{ (string)$selRegRec === (string)$clave ? 'selected' : '' }}>
                                     {{ $clave }} — {{ $desc }}
                                 </option>
                             @endforeach
                         </select>
+                        <p id="no-rfc-warning" class="hidden mt-1 text-xs text-amber-600">
+                            ⚠ Este cliente no tiene RFC registrado — el SAT exige Régimen 616 y Uso S01 cuando se factura como "público en general".
+                        </p>
                     </div>
 
                     <div class="space-y-2">
@@ -436,14 +439,24 @@
         document.getElementById('client-razon').textContent = d.razon_social || '';
         if (meta) meta.style.display = 'flex';
 
+        var warnEl = document.getElementById('no-rfc-warning');
+        if (warnEl) warnEl.classList.toggle('hidden', !!d.rfc);
+
         // Solo autocompleta los selects cuando el usuario cambia el cliente
         // (no al cargar la página, para respetar los valores guardados)
         if (updateSelects) {
             var regEl = document.getElementById('regimen_fiscal_receptor');
-            if (regEl && d.regimen_fiscal) regEl.value = d.regimen_fiscal;
-
             var usoEl = document.getElementById('uso_cfdi');
-            if (usoEl && d.uso_cfdi) usoEl.value = d.uso_cfdi;
+
+            if (!d.rfc) {
+                // El SAT solo permite el RFC genérico (público en general)
+                // junto con régimen 616 y uso S01.
+                if (regEl) regEl.value = '616';
+                if (usoEl) usoEl.value = 'S01';
+            } else {
+                if (regEl && d.regimen_fiscal) regEl.value = d.regimen_fiscal;
+                if (usoEl && d.uso_cfdi) usoEl.value = d.uso_cfdi;
+            }
         }
     }
 
