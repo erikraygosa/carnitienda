@@ -253,8 +253,8 @@
                                value="${item.qty_received}" required>
                     </td>
                     <td class="p-2 text-right">
-                        <input type="number" min="0" step="0.01"
-                               class="w-28 border rounded p-1 text-right"
+                        <input type="number" min="0.01" step="0.01"
+                               class="w-28 border rounded p-1 text-right inp-price"
                                name="items[${i}][price]"
                                value="${item.price}" required>
                     </td>

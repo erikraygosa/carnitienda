@@ -84,7 +84,7 @@ class PurchaseController extends Controller implements HasMiddleware
             'items'                   => ['required','array','min:1'],
             'items.*.product_id'      => ['required','exists:products,id'],
             'items.*.qty_received'    => ['required','numeric','min:0.001'],
-            'items.*.price'           => ['required','numeric','min:0'],
+            'items.*.price'           => ['required','numeric','min:0.01'],
             'items.*.discount'        => ['nullable','numeric','min:0'],
             'items.*.tax_rate'        => ['nullable','numeric','min:0'],
         ]);
@@ -180,7 +180,7 @@ class PurchaseController extends Controller implements HasMiddleware
             'items'                   => ['required','array','min:1'],
             'items.*.product_id'      => ['required','exists:products,id'],
             'items.*.qty_received'    => ['required','numeric','min:0.001'],
-            'items.*.price'           => ['required','numeric','min:0'],
+            'items.*.price'           => ['required','numeric','min:0.01'],
             'items.*.discount'        => ['nullable','numeric','min:0'],
             'items.*.tax_rate'        => ['nullable','numeric','min:0'],
         ]);
