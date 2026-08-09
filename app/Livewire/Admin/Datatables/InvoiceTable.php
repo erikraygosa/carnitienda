@@ -3,58 +3,70 @@
 namespace App\Livewire\Admin\Datatables;
 
 use App\Models\Invoice;
-use Illuminate\Database\Eloquent\Builder;
-use Rappasoft\LaravelLivewireTables\DataTableComponent;
-use Rappasoft\LaravelLivewireTables\Views\Column;
+use Livewire\Component;
+use Livewire\WithPagination;
 
-class InvoiceTable extends DataTableComponent
+class InvoiceTable extends Component
 {
-    protected $model = Invoice::class;
+    use WithPagination;
 
-    public function configure(): void
+    public string $search          = '';
+    public string $tipoComprobante = '';
+    public string $estatus         = '';
+    public string $fechaDesde      = '';
+    public string $fechaHasta      = '';
+    public string $sortBy          = 'id';
+    public string $sortDir         = 'desc';
+    public int    $perPage         = 15;
+
+    public function mount(): void
     {
-        $this->setPrimaryKey('id')
-            ->setDefaultSort('id', 'desc')
-            ->setPerPage(10)
-            ->setPerPageAccepted([10, 25, 50, 100]);
+        // Por default solo el mes actual, para no cargar todo el histórico.
+        $this->fechaDesde = now()->startOfMonth()->toDateString();
+        $this->fechaHasta = now()->endOfMonth()->toDateString();
     }
 
-    public function builder(): Builder
+    public function updatingSearch():          void { $this->resetPage(); }
+    public function updatingTipoComprobante():  void { $this->resetPage(); }
+    public function updatingEstatus():          void { $this->resetPage(); }
+    public function updatingFechaDesde():       void { $this->resetPage(); }
+    public function updatingFechaHasta():       void { $this->resetPage(); }
+    public function updatingPerPage():          void { $this->resetPage(); }
+
+    public function limpiarFiltros(): void
     {
-        return Invoice::query()
-            ->select('invoices.*')
-            ->with(['client']);
+        $this->reset(['search', 'tipoComprobante', 'estatus', 'fechaDesde', 'fechaHasta']);
+        $this->resetPage();
     }
 
-    public function columns(): array
+    public function sort(string $col): void
     {
-        return [
-            Column::make('ID', 'id')->sortable()->collapseOnMobile(),
+        $this->sortDir = $this->sortBy === $col
+            ? ($this->sortDir === 'asc' ? 'desc' : 'asc')
+            : 'asc';
+        $this->sortBy = $col;
+        $this->resetPage();
+    }
 
-            Column::make('Folio', 'folio')
-                ->searchable()
-                ->sortable()
-                ->format(fn($v, $row) => ($row->serie ?? '') . ($row->folio ?? '—')),
+    public function render()
+    {
+        $q = Invoice::with('client')
+            ->when($this->search, function ($q) {
+                $t = '%' . $this->search . '%';
+                $q->where(fn($q) =>
+                    $q->where('folio', 'like', $t)
+                      ->orWhere('serie', 'like', $t)
+                      ->orWhereHas('client', fn($q) => $q->where('nombre', 'like', $t))
+                );
+            })
+            ->when($this->tipoComprobante, fn($q) => $q->where('tipo_comprobante', $this->tipoComprobante))
+            ->when($this->estatus,         fn($q) => $q->where('estatus', $this->estatus))
+            ->when($this->fechaDesde,      fn($q) => $q->whereDate('fecha', '>=', $this->fechaDesde))
+            ->when($this->fechaHasta,      fn($q) => $q->whereDate('fecha', '<=', $this->fechaHasta))
+            ->orderBy($this->sortBy, $this->sortDir);
 
-            Column::make('Cliente', 'client.nombre')
-                ->format(fn($v, $row) => $row->client?->nombre ?? '—')
-                ->searchable(),
-
-            Column::make('Fecha', 'fecha')
-                ->sortable()
-                ->format(fn($v) => optional($v)->format('d/m/Y') ?? '—'),
-
-            Column::make('Estatus', 'estatus')
-                ->sortable()
-                ->format(fn($v, $row) => $row->estatus ?? '—'),
-
-            Column::make('Total', 'total')
-                ->sortable()
-                ->format(fn($v, $row) => ($row->moneda ?? 'MXN') . ' ' . number_format((float)$v, 2)),
-
-            Column::make('Acciones')
-                ->label(fn($row) => view('admin.invoices.partials.actions', ['invoice' => $row])->render())
-                ->html(),
-        ];
+        return view('livewire.admin.datatables.invoice-table', [
+            'invoices' => $q->paginate($this->perPage),
+        ]);
     }
 }
