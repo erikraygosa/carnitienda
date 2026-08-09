@@ -292,40 +292,93 @@ body { font-size: 11px; color: #1a1a1a; background: #fff; padding: 28px 32px; }
             <td class="val" colspan="5">{{ $invoice->numero_certificado_sat ?? '—' }}</td>
         </tr>
         @endif
+        @if($invoice->tipo_comprobante === 'E' && $invoice->relatedInvoiceOriginal)
+        <tr>
+            <td class="lbl">Relacionada a:</td>
+            <td class="val" colspan="5">
+                Factura {{ $invoice->relatedInvoiceOriginal->serie }}{{ $invoice->relatedInvoiceOriginal->folio }}
+                @if($invoice->relatedInvoiceOriginal->uuid) — UUID {{ $invoice->relatedInvoiceOriginal->uuid }}@endif
+            </td>
+        </tr>
+        @endif
     </table>
 </div>
 
-{{-- ══════════════ PARTIDAS ══════════════ --}}
-<table class="items-table">
-    <thead>
-        <tr>
-            <th style="width:9%">ClaveSAT</th>
-            <th>Descripción</th>
-            <th style="width:7%">Unidad</th>
-            <th class="r" style="width:8%">Cant.</th>
-            <th class="r" style="width:10%">V. Unitario</th>
-            <th class="r" style="width:8%">Desc.</th>
-            <th class="r" style="width:7%">% IVA</th>
-            <th class="r" style="width:9%">IVA</th>
-            <th class="r" style="width:10%">Importe</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach($invoice->items as $it)
-        <tr>
-            <td class="gray">{{ $it->clave_prod_serv ?? '—' }}</td>
-            <td>{{ $it->descripcion }}</td>
-            <td class="gray">{{ $it->clave_unidad ?? '' }} {{ $it->unidad ?? '' }}</td>
-            <td class="r">{{ number_format((float)$it->cantidad, 3) }}</td>
-            <td class="r">{{ number_format((float)$it->valor_unitario, 4) }}</td>
-            <td class="r">{{ number_format((float)$it->descuento, 2) }}</td>
-            <td class="r">{{ number_format((float)$it->iva_pct, 0) }}%</td>
-            <td class="r">{{ number_format((float)$it->iva_importe, 2) }}</td>
-            <td class="r" style="font-weight:bold">{{ number_format((float)$it->importe, 2) }}</td>
-        </tr>
-        @endforeach
-    </tbody>
-</table>
+@if($invoice->tipo_comprobante === 'P')
+    {{-- ══════════════ COMPLEMENTO DE PAGO — sin partidas, muestra el pago ══════════════ --}}
+    <div class="cfdi-box">
+        <div class="cfdi-title">Datos del pago</div>
+        <table class="cfdi-grid" cellpadding="0" cellspacing="0">
+            <tr>
+                <td class="lbl" style="width:14%">Fecha de pago:</td>
+                <td class="val" style="width:19%">{{ optional($invoice->arPayment?->fecha)->format('d/m/Y') ?? '—' }}</td>
+                <td class="lbl" style="width:14%">Forma de pago:</td>
+                <td class="val" style="width:19%">{{ $invoice->arPayment?->paymentType?->descripcion ?? $invoice->forma_pago }}</td>
+                <td class="lbl" style="width:14%">Monto pagado:</td>
+                <td class="val">{{ $invoice->moneda }} {{ number_format((float) $invoice->arPayment?->monto, 2) }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th>Factura relacionada</th>
+                <th>UUID</th>
+                <th class="r" style="width:10%">Parcialidad</th>
+                <th class="r" style="width:15%">Saldo anterior</th>
+                <th class="r" style="width:15%">Importe pagado</th>
+                <th class="r" style="width:15%">Saldo insoluto</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($invoice->complementDocs as $doc)
+            <tr>
+                <td>{{ $doc->relatedInvoice?->serie }}{{ $doc->relatedInvoice?->folio }}</td>
+                <td class="gray" style="font-size:8px">{{ $doc->relatedInvoice?->uuid }}</td>
+                <td class="r">{{ $doc->num_parcialidad }}</td>
+                <td class="r">{{ number_format((float) $doc->imp_saldo_anterior, 2) }}</td>
+                <td class="r" style="font-weight:bold">{{ number_format((float) $doc->imp_pagado, 2) }}</td>
+                <td class="r">{{ number_format((float) $doc->imp_saldo_insoluto, 2) }}</td>
+            </tr>
+            @empty
+            <tr><td colspan="6" class="gray">Sin documentos relacionados.</td></tr>
+            @endforelse
+        </tbody>
+    </table>
+@else
+    {{-- ══════════════ PARTIDAS ══════════════ --}}
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th style="width:9%">ClaveSAT</th>
+                <th>Descripción</th>
+                <th style="width:7%">Unidad</th>
+                <th class="r" style="width:8%">Cant.</th>
+                <th class="r" style="width:10%">V. Unitario</th>
+                <th class="r" style="width:8%">Desc.</th>
+                <th class="r" style="width:7%">% IVA</th>
+                <th class="r" style="width:9%">IVA</th>
+                <th class="r" style="width:10%">Importe</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($invoice->items as $it)
+            <tr>
+                <td class="gray">{{ $it->clave_prod_serv ?? '—' }}</td>
+                <td>{{ $it->descripcion }}</td>
+                <td class="gray">{{ $it->clave_unidad ?? '' }} {{ $it->unidad ?? '' }}</td>
+                <td class="r">{{ number_format((float)$it->cantidad, 3) }}</td>
+                <td class="r">{{ number_format((float)$it->valor_unitario, 4) }}</td>
+                <td class="r">{{ number_format((float)$it->descuento, 2) }}</td>
+                <td class="r">{{ number_format((float)$it->iva_pct, 0) }}%</td>
+                <td class="r">{{ number_format((float)$it->iva_importe, 2) }}</td>
+                <td class="r" style="font-weight:bold">{{ number_format((float)$it->importe, 2) }}</td>
+            </tr>
+            @endforeach
+        </tbody>
+    </table>
+@endif
 
 {{-- ══════════════ TOTALES + QR ══════════════ --}}
 <table style="width:100%;border-collapse:collapse;margin-top:12px">
@@ -352,6 +405,12 @@ body { font-size: 11px; color: #1a1a1a; background: #fff; padding: 28px 32px; }
         {{-- Totales --}}
         <td style="vertical-align:top">
             <table class="totales-table">
+                @if($invoice->tipo_comprobante === 'P')
+                <tr class="total-line">
+                    <td>TOTAL PAGADO</td>
+                    <td class="r">{{ $invoice->moneda }} {{ number_format((float) $invoice->arPayment?->monto, 2) }}</td>
+                </tr>
+                @else
                 <tr class="sub-line">
                     <td>Subtotal</td>
                     <td class="r">{{ number_format((float)$invoice->subtotal, 2) }}</td>
@@ -372,6 +431,7 @@ body { font-size: 11px; color: #1a1a1a; background: #fff; padding: 28px 32px; }
                     <td>TOTAL</td>
                     <td class="r">{{ $invoice->moneda }} {{ number_format((float)$invoice->total, 2) }}</td>
                 </tr>
+                @endif
             </table>
         </td>
     </tr>

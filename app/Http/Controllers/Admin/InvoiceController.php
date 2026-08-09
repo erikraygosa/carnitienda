@@ -403,7 +403,7 @@ public function store(Request $request)
     // PDF y envío (opcional: usa tu layout PDF)
     public function pdf(Invoice $invoice)
 {
-    $invoice->load('client', 'items', 'company.fiscalData');
+    $invoice->load('client', 'items', 'company.fiscalData', 'complementDocs.relatedInvoice', 'arPayment.paymentType', 'relatedInvoiceOriginal');
 
     $empresa = $invoice->company
         ?? \App\Models\Company::first(); // fallback directo a BD
@@ -418,7 +418,7 @@ public function store(Request $request)
 
 public function pdfDownload(Invoice $invoice)
 {
-    $invoice->load('client', 'items', 'company.fiscalData');
+    $invoice->load('client', 'items', 'company.fiscalData', 'complementDocs.relatedInvoice', 'arPayment.paymentType', 'relatedInvoiceOriginal');
 
     $empresa = $invoice->company
         ?? \App\Models\Company::first();
@@ -627,7 +627,7 @@ public function pdfDownload(Invoice $invoice)
     ]);
 
     $empresa = app(\App\Services\CompanyService::class)->activa();
-    $invoice->loadMissing(['client', 'items', 'company.fiscalData']);
+    $invoice->loadMissing(['client', 'items', 'company.fiscalData', 'complementDocs.relatedInvoice', 'arPayment.paymentType', 'relatedInvoiceOriginal']);
 
     $pdf   = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.invoice', [
         'invoice' => $invoice,
