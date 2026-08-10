@@ -6,6 +6,15 @@
         ['name'=>'Complementos de Pago'],
     ]"
 >
+    <x-slot name="action">
+        @can('registrar cobros')
+        <a href="{{ route('admin.ar-payments.create') }}"
+           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+            <i class="fa-solid fa-cash-register"></i>
+            Registrar cobro
+        </a>
+        @endcan
+    </x-slot>
     {{-- Filtros --}}
     <x-wire-card class="mb-4">
         <form method="GET" action="{{ route('admin.ar.complementos.index') }}"
@@ -26,9 +35,17 @@
 
     <x-wire-card>
         @if($payments->isEmpty())
-            <p class="py-10 text-center text-gray-400 text-sm">
-                No hay cobros pendientes de complemento de pago.
-            </p>
+            <div class="py-10 text-center text-gray-400 text-sm">
+                <p class="mb-3">No hay cobros pendientes de complemento de pago.</p>
+                <p class="text-xs">
+                    Para generar un complemento primero registra el cobro de una factura PPD:
+                    @can('registrar cobros')
+                    <a href="{{ route('admin.ar-payments.create') }}" class="text-indigo-600 hover:underline font-medium">
+                        Registrar cobro →
+                    </a>
+                    @endcan
+                </p>
+            </div>
         @else
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
