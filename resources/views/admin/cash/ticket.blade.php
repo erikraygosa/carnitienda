@@ -34,6 +34,8 @@
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 2px 0; font-size: 11px; vertical-align: top; }
         .logo { max-width: 55mm; max-height: 18mm; object-fit: contain; margin-bottom: 4px; display: block; margin-left: auto; margin-right: auto; }
+        .firmas td { padding-top: 28px; width: 50%; }
+        .firma-linea { border-top: 1px solid #333; margin: 0 6px; }
         .btns {
             width: var(--w);
             display: flex;
@@ -61,128 +63,7 @@
 </head>
 <body>
     <div class="wrap" id="ticket">
-
-        <div class="center">
-            @if($company?->logo_path)
-                <img src="{{ Storage::url($company->logo_path) }}" alt="Logo" class="logo">
-            @endif
-
-            <div class="bold">{{ $company?->nombre_comercial ?? $company?->razon_social ?? 'Mi Tienda' }}</div>
-            @if($company?->razon_social && $company?->nombre_comercial)
-                <div class="xs">{{ $company->razon_social }}</div>
-            @endif
-            @if($company?->rfc)
-                <div class="xs">RFC: {{ $company->rfc }}</div>
-            @endif
-            @if($company?->telefono)
-                <div class="xs">Tel: {{ $company->telefono }}</div>
-            @endif
-            @if($company?->email)
-                <div class="xs">{{ $company->email }}</div>
-            @endif
-
-            <hr>
-
-            <div class="xs bold">Caja #{{ $register->id }} • {{ $register->fecha->format('d/m/Y') }}</div>
-            <div class="xs">Usuario: {{ $register->user?->name ?? 'N/D' }}</div>
-            <div class="xs">Almacén: {{ $register->warehouse?->nombre ?? 'N/D' }}</div>
-
-            <hr>
-        </div>
-
-        <table>
-            <tbody>
-                <tr>
-                    <td>Apertura</td>
-                    <td class="right">${{ number_format($register->monto_apertura, 2) }}</td>
-                </tr>
-                <tr>
-                    <td>Ingresos</td>
-                    <td class="right">${{ number_format($register->ingresos, 2) }}</td>
-                </tr>
-                <tr>
-                    <td>Egresos</td>
-                    <td class="right">- ${{ number_format($register->egresos, 2) }}</td>
-                </tr>
-                <tr>
-                    <td>Ventas efectivo</td>
-                    <td class="right">${{ number_format($register->ventas_efectivo, 2) }}</td>
-                </tr>
-                <tr>
-                    <td class="bold">Saldo final</td>
-                    <td class="right bold">${{ number_format($register->monto_cierre, 2) }}</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <hr class="mt-2">
-
-        <div class="center small bold">Movimientos</div>
-        <table>
-            <thead>
-                <tr>
-                    <th class="left">Hora</th>
-                    <th class="left">Tipo</th>
-                    <th class="left">Concepto</th>
-                    <th class="right">Monto</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($register->movements()->oldest()->get() as $m)
-                <tr>
-                    <td class="xs">{{ $m->created_at->format('H:i') }}</td>
-                    <td class="xs">{{ $m->tipo }}</td>
-                    <td class="xs">{{ \Illuminate\Support\Str::limit($m->concepto, 18) }}</td>
-                    <td class="xs right">${{ number_format($m->monto, 2) }}</td>
-                </tr>
-                @empty
-                <tr>
-                    <td colspan="4" class="xs center">Sin movimientos</td>
-                </tr>
-                @endforelse
-            </tbody>
-        </table>
-
-        @if($register->posSales->isNotEmpty())
-        <hr class="mt-2">
-        <div class="center small bold">Notas de venta POS ({{ $register->posSales->count() }})</div>
-        <table>
-            <thead>
-                <tr>
-                    <th class="left xs">#</th>
-                    <th class="left xs">Hora</th>
-                    <th class="left xs">Método</th>
-                    <th class="right xs">Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($register->posSales as $venta)
-                <tr>
-                    <td class="xs">{{ $venta->id }}</td>
-                    <td class="xs">{{ $venta->created_at->format('H:i') }}</td>
-                    <td class="xs">{{ $venta->metodo_pago }}</td>
-                    <td class="xs right">${{ number_format($venta->total, 2) }}</td>
-                </tr>
-                @foreach($venta->items as $item)
-                <tr>
-                    <td class="xs" colspan="2" style="padding-left:8px;">
-                        {{ \Illuminate\Support\Str::limit($item->product?->nombre ?? 'Producto', 20) }}
-                    </td>
-                    <td class="xs">x{{ $item->cantidad }}</td>
-                    <td class="xs right">${{ number_format($item->subtotal, 2) }}</td>
-                </tr>
-                @endforeach
-                @endforeach
-            </tbody>
-        </table>
-        @endif
-
-        <hr class="mt-2">
-        <div class="center xs">¡Gracias!</div>
-        @if($company?->sitio_web)
-            <div class="center xs">{{ $company->sitio_web }}</div>
-        @endif
-
+        @include('admin.cash.partials.ticket-body', ['register' => $register, 'company' => $company, 'forPdf' => false])
     </div>
 
     <div class="btns">
