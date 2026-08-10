@@ -31,7 +31,7 @@
 
     @if($vista === 'productos')
         <x-wire-card>
-            <form method="GET" action="{{ route('admin.stock.index') }}"
+            <form id="stock-filter-form" method="GET" action="{{ route('admin.stock.index') }}"
                   class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 <input type="hidden" name="vista" value="productos">
                 <div class="md:col-span-2">
@@ -47,7 +47,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Producto</label>
-                    <select name="product_id" class="w-full rounded-md border-gray-300 text-sm">
+                    <select name="product_id" id="product_id" class="w-full rounded-md border-gray-300 text-sm">
                         <option value="">-- todos --</option>
                         @foreach($products as $p)
                             <option value="{{ $p->id }}" {{ (string)$productId === (string)$p->id ? 'selected' : '' }}>
@@ -264,7 +264,40 @@
 
 </x-admin-layout>
 
+@push('css')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<style>
+.select2-container .select2-selection--single { height: 38px !important; border-color: #d1d5db !important; border-radius: 6px !important; }
+.select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 36px !important; font-size: 0.875rem; color: #374151; padding-left: 10px; }
+.select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px !important; }
+.select2-dropdown { border-color: #d1d5db; border-radius: 6px; font-size: 0.875rem; }
+.select2-container--default .select2-search--dropdown .select2-search__field { border-color: #d1d5db; border-radius: 4px; padding: 4px 8px; }
+</style>
+@endpush
+
 @push('js')
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(function () {
+    $('#product_id').select2({
+        placeholder: '-- todos --',
+        allowClear: true,
+        width: '100%',
+        dropdownParent: $('#stock-filter-form'),
+        language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
+    });
+
+    $(document).on('select2:unselecting', function(e) {
+        $(e.target).data('unselecting', true);
+    }).on('select2:opening', function(e) {
+        if ($(e.target).data('unselecting')) {
+            $(e.target).removeData('unselecting');
+            e.preventDefault();
+        }
+    });
+});
+</script>
 <script>
 (function () {
     var filterAlmacen = document.getElementById('filter-almacen');

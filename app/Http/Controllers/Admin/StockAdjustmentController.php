@@ -22,7 +22,7 @@ class StockAdjustmentController extends Controller implements HasMiddleware
     {
         return view('admin.stock.adjustments.create', [
             'warehouses' => \App\Models\Warehouse::orderBy('nombre')->get(),
-            'products'   => \App\Models\Product::orderBy('nombre')->get(['id','nombre']),
+            'products'   => \App\Models\Product::active()->orderBy('nombre')->get(['id','nombre']),
         ]);
     }
 
