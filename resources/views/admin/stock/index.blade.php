@@ -331,7 +331,17 @@ $(function () {
                         + '</tr>';
                 }).join('');
 
-            var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+            // Nota: partimos "<head>"/"</head>" en dos pedazos a propósito.
+            // El paquete rappasoft/laravel-livewire-tables auto-inyecta sus
+            // <script>/<link> buscando esos tags con una regex sobre TODO el
+            // HTML de la respuesta (no solo el <head> real de la página), y
+            // si aparecen completos aquí (dentro de este string armado en JS)
+            // los "encuentra" también y corrompe este <script>, dejando texto
+            // crudo visible en la página. Partiendo el literal, el navegador
+            // igual arma "<head>" correctamente en tiempo de ejecución, pero
+            // el HTML fuente que Laravel post-procesa nunca contiene el tag
+            // completo.
+            var html = '<!DOCTYPE html><html><he' + 'ad><meta charset="UTF-8">'
                 + '<title>Inventario - ' + nombre + '</title>'
                 + '<style>'
                 + 'body{font-family:Arial,sans-serif;font-size:12px;padding:20px}'
@@ -343,7 +353,7 @@ $(function () {
                 + 'tr:nth-child(even) td{background:#f9fafb}'
                 + 'td.conteo{min-width:100px;border-bottom:1px solid #9ca3af}'
                 + '.firma{margin-top:48px;font-size:11px;color:#555}'
-                + '</style></head><body>'
+                + '</style></he' + 'ad><body>'
                 + '<h2>Inventario fisico - ' + nombre + '</h2>'
                 + '<p class="meta">Fecha: ' + fecha + '</p>'
                 + '<table><thead><tr>'
