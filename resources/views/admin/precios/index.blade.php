@@ -8,9 +8,7 @@
 >
     @if(! $modoAlmacen)
     <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        <strong>El sistema está en modo "precios globales".</strong> Los precios que guardes aquí quedan
-        listos, pero el Punto de Venta seguirá usando el precio de la ficha del producto (igual en todos
-        los almacenes) hasta que un superadmin active "Precios por almacén" en Configuración.
+        <strong>El sistema está en modo "precios globales".</strong>
     </div>
     @endif
 
