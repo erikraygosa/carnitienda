@@ -187,23 +187,6 @@
     </div>
 
     <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
-        <h3 class="text-white font-semibold mb-1">Probar envío de WhatsApp</h3>
-        <p class="text-xs text-gray-500 mb-4">Guarda la configuración de arriba primero; luego prueba con un número real.</p>
-        <form action="{{ route('superadmin.settings.whatsapp.test') }}" method="POST" class="flex items-end gap-3">
-            @csrf
-            <div>
-                <label class="block text-xs text-gray-500 mb-1">Teléfono (10 dígitos o con lada país)</label>
-                <input type="text" name="telefono" placeholder="9991234567"
-                       class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none w-52">
-            </div>
-            <button type="submit"
-                    class="px-4 py-2 text-sm rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 font-medium">
-                Enviar prueba
-            </button>
-        </form>
-    </div>
-
-    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
         <h3 class="text-white font-semibold mb-1">Precios</h3>
         <p class="text-xs text-gray-500 mb-4">
             Controla si el precio de venta del Punto de Venta (POS) es el mismo en todos los
@@ -270,6 +253,28 @@
         </button>
     </div>
 </form>
+
+{{-- Fuera del form de arriba a propósito: un <form> anidado dentro de otro
+     es HTML inválido, y el navegador cierra el <form> exterior en cuanto
+     encuentra el </form> del anidado — todo lo que vaya después (Precios,
+     Logística, el botón "Guardar configuración") quedaba fuera del form real
+     y nunca se enviaba al guardar. Por eso este bloque se movió aquí. --}}
+<div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+    <h3 class="text-white font-semibold mb-1">Probar envío de WhatsApp</h3>
+    <p class="text-xs text-gray-500 mb-4">Guarda la configuración de arriba primero; luego prueba con un número real.</p>
+    <form action="{{ route('superadmin.settings.whatsapp.test') }}" method="POST" class="flex items-end gap-3">
+        @csrf
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Teléfono (10 dígitos o con lada país)</label>
+            <input type="text" name="telefono" placeholder="9991234567"
+                   class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none w-52">
+        </div>
+        <button type="submit"
+                class="px-4 py-2 text-sm rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 font-medium">
+            Enviar prueba
+        </button>
+    </form>
+</div>
 
 <script>
 (function () {
