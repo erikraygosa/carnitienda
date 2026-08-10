@@ -95,16 +95,16 @@ class POSController extends Controller implements HasMiddleware
   }
   public function ticket(\App\Models\PosSale $sale)
 {
-    $sale->load('items.product', 'client');
-    $company = \App\Models\Company::first();
+    $sale->load('items.product', 'client', 'warehouse', 'user');
+    $company = \App\Models\Company::with('fiscalData')->first();
     return view('admin.pos.ticket', compact('sale', 'company'));
 }
 
 
  public function ticketPdf(\App\Models\PosSale $sale)
 {
-    $sale->load('items.product', 'client');
-    $company = \App\Models\Company::first();
+    $sale->load('items.product', 'client', 'warehouse', 'user');
+    $company = \App\Models\Company::with('fiscalData')->first();
 
     $ancho = 226.77;
     $alto  = 1200;
@@ -118,8 +118,8 @@ class POSController extends Controller implements HasMiddleware
 public function sendWhatsapp(\App\Models\PosSale $sale, \Illuminate\Http\Request $request)
 {
     try {
-        $sale->load('items.product', 'client');
-        $company = \App\Models\Company::first();
+        $sale->load('items.product', 'client', 'warehouse', 'user');
+        $company = \App\Models\Company::with('fiscalData')->first();
 
         $telefono = $request->input('telefono');
         $nombre   = $sale->client?->nombre ?? 'Cliente';
