@@ -77,6 +77,18 @@ class POSController extends Controller implements HasMiddleware
     $reg = CashRegister::findOrFail($data['cash_register_id']);
     abort_if($reg->user_id !== auth()->id(), 403, 'No puedes usar esta caja.');
     abort_if($reg->estatus !== 'ABIERTO', 422, 'La caja no está abierta.');
+
+    // El campo de precio en el POS solo es editable en el navegador con el
+    // permiso 'editar precio en pos'; esto lo hace innegociable también del
+    // lado del servidor — sin el permiso, se ignora cualquier precio que
+    // venga en la petición y se recalcula con el precio real del sistema.
+    if (! auth()->user()->can('editar precio en pos')) {
+        $precios = $this->pricing->mapaPrecios($reg->warehouse_id);
+        foreach ($data['items'] as &$item) {
+            $item['precio_unitario'] = $precios[$item['product_id']] ?? 0;
+        }
+        unset($item);
+    }
     $sale = $this->pos->createSale($reg, $data, $data['items']);
     session()->flash('swal',['icon'=>'success','title'=>'Venta registrada','text'=>'La venta fue generada.']);
     return redirect()->route('admin.pos.ticket', $sale);

@@ -63,7 +63,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver cxc', 'registrar cobros', 'ver reportes cxc',
 
             // POS
-            'usar pos',
+            'usar pos', 'editar precio en pos',
 
             // Cajas
             'ver cajas', 'abrir cajas', 'cerrar cajas',

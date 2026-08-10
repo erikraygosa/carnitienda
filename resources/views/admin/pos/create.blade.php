@@ -93,8 +93,8 @@
     <form id="pos-form" action="{{ route('admin.pos.store') }}" method="POST">
         @csrf
         <input type="hidden" name="cash_register_id" value="{{ $reg->id }}">
-        {{-- Indicar si el usuario es admin para que el JS sepa si puede editar precio --}}
-        <input type="hidden" id="is-admin" value="{{ auth()->user()->hasRole('admin') ? '1' : '0' }}">
+        {{-- Indicar si el usuario puede editar precio en el POS --}}
+        <input type="hidden" id="is-admin" value="{{ auth()->user()->can('editar precio en pos') ? '1' : '0' }}">
 
         <div class="pos-grid">
 

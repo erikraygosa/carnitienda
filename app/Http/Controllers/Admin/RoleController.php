@@ -49,6 +49,8 @@ class RoleController extends Controller implements HasMiddleware
         if (in_array($name, ['ver cxc', 'registrar cobros', 'ver reportes cxc', 'crear facturas'])) {
             return 'cxc';
         }
+        // POS
+        if ($name === 'editar precio en pos') return 'pos';
         // Inventario
         if (in_array($name, ['ver stock', 'gestionar traspasos', 'gestionar almacenes']) ||
             str_contains($name, 'precios almacen') || str_contains($name, 'precios matriz')) {
