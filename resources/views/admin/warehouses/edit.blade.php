@@ -34,6 +34,21 @@
                 <option value="0" {{ old('activo', $warehouse->activo) == '0' ? 'selected' : '' }}>Inactivo</option>
             </select>
         </div>
+
+        <div class="md:col-span-2">
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" name="is_primary" value="1"
+                       {{ old('is_primary', $warehouse->is_primary) ? 'checked' : '' }}
+                       class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                <span>
+                    <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">Es el almacén Matriz (principal)</span>
+                    <span class="block text-xs text-gray-500 mt-0.5">
+                        Solo puede haber uno. Se usa como respaldo por defecto y como origen al
+                        "Aplicar precios de Matriz a los demás almacenes".
+                    </span>
+                </span>
+            </label>
+        </div>
         </form>
     </x-wire-card>
 </x-admin-layout>

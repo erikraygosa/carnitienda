@@ -48,7 +48,12 @@
                     >
                         <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ $warehouse->id }}</td>
                         <td class="px-4 py-3 font-mono text-gray-700 dark:text-gray-300">{{ $warehouse->codigo ?: '—' }}</td>
-                        <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{{ $warehouse->nombre }}</td>
+                        <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
+                            {{ $warehouse->nombre }}
+                            @if($warehouse->is_primary)
+                                <span class="ml-1 px-1.5 py-0.5 text-xs rounded bg-indigo-100 text-indigo-700">Matriz</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ $warehouse->direccion ?: '—' }}</td>
                         <td class="px-4 py-3">
                             @if($warehouse->activo)

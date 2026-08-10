@@ -31,13 +31,19 @@ class WarehouseController extends Controller implements HasMiddleware
     public function store(Request $request)
     {
         $data = $request->validate([
-            'codigo'    => 'required|string|max:30|unique:warehouses,codigo',
-            'nombre'    => 'required|string|max:120',
-            'direccion' => 'nullable|string|max:200',
-            'activo'    => 'required|boolean',
+            'codigo'      => 'required|string|max:30|unique:warehouses,codigo',
+            'nombre'      => 'required|string|max:120',
+            'direccion'   => 'nullable|string|max:200',
+            'activo'      => 'required|boolean',
+            'is_primary'  => 'nullable|boolean',
         ]);
+        $data['is_primary'] = $request->boolean('is_primary');
 
         $warehouse = Warehouse::create($data);
+
+        if ($warehouse->is_primary) {
+            Warehouse::where('id', '!=', $warehouse->id)->update(['is_primary' => false]);
+        }
 
         session()->flash('swal',[
             'icon'  => 'success',
@@ -56,13 +62,20 @@ class WarehouseController extends Controller implements HasMiddleware
     public function update(Request $request, Warehouse $warehouse)
     {
         $data = $request->validate([
-            'codigo'    => 'required|string|max:30|unique:warehouses,codigo,' . $warehouse->id,
-            'nombre'    => 'required|string|max:120',
-            'direccion' => 'nullable|string|max:200',
-            'activo'    => 'required|boolean',
+            'codigo'      => 'required|string|max:30|unique:warehouses,codigo,' . $warehouse->id,
+            'nombre'      => 'required|string|max:120',
+            'direccion'   => 'nullable|string|max:200',
+            'activo'      => 'required|boolean',
+            'is_primary'  => 'nullable|boolean',
         ]);
+        $data['is_primary'] = $request->boolean('is_primary');
 
         $warehouse->update($data);
+
+        // Solo puede haber un almacén Matriz — si este se marcó, se desmarcan los demás.
+        if ($warehouse->is_primary) {
+            Warehouse::where('id', '!=', $warehouse->id)->update(['is_primary' => false]);
+        }
 
         session()->flash('swal',[
             'icon'  => 'success',
