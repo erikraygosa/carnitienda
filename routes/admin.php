@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\PurchaseController;
 use App\Http\Controllers\Admin\StockController;
 use App\Http\Controllers\Admin\StockAdjustmentController;
 use App\Http\Controllers\Admin\StockTransferController;
+use App\Http\Controllers\Admin\PriceByWarehouseController;
 use App\Http\Controllers\Admin\QuoteController;
 use App\Http\Controllers\Admin\SalesOrderController;
 use App\Http\Controllers\Admin\SaleController;
@@ -86,6 +87,10 @@ Route::post('stock/adjustments', [StockAdjustmentController::class, 'store'])->n
 Route::get('stock/transfers/create', [StockTransferController::class, 'create'])->name('stock.transfers.create');
 Route::post('stock/transfers', [StockTransferController::class, 'store'])->name('stock.transfers.store');
 Route::get('stock/print-warehouse/{warehouse}', [StockController::class, 'printWarehouse'])->name('stock.print-warehouse');
+
+Route::get('precios', [PriceByWarehouseController::class, 'index'])->name('precios.index');
+Route::post('precios', [PriceByWarehouseController::class, 'store'])->name('precios.store');
+Route::post('precios/aplicar-matriz', [PriceByWarehouseController::class, 'aplicarMatriz'])->name('precios.aplicar-matriz');
 
 Route::resource('quotes', QuoteController::class)
     ->except('show')

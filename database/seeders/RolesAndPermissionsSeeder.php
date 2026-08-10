@@ -42,6 +42,9 @@ class RolesAndPermissionsSeeder extends Seeder
             // Stock / Inventario
             'ver stock', 'gestionar traspasos',
 
+            // Precios por almacén
+            'ver precios almacen', 'editar precios almacen', 'aplicar precios matriz',
+
             // Cotizaciones
             'ver cotizaciones', 'crear cotizaciones', 'editar cotizaciones', 'aprobar cotizaciones',
 

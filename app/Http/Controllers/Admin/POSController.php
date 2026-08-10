@@ -8,6 +8,7 @@ use App\Models\CashRegister;
 use App\Models\Client;
 use App\Models\Product;
 use App\Services\PosService;
+use App\Services\PricingService;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf; // arriba
 use Dompdf\Options;
@@ -17,7 +18,7 @@ use Illuminate\Routing\Controllers\Middleware;
 
 class POSController extends Controller implements HasMiddleware
 {
-    public function __construct(private PosService $pos) {}
+    public function __construct(private PosService $pos, private PricingService $pricing) {}
 
     public static function middleware(): array
     {
@@ -41,11 +42,15 @@ class POSController extends Controller implements HasMiddleware
     $clients  = Client::where('activo', 1)->orderBy('nombre')->get();
     $products = Product::where('activo', 1)->orderBy('nombre')->get(['id','nombre','sku','precio_base','tasa_iva','unidad']);
 
+    // Precio efectivo para el almacén de ESTA caja (si el modo 'por almacén'
+    // está activo en Superadmin; si no, cae al precio_base de siempre).
+    $precios = $this->pricing->mapaPrecios($reg->warehouse_id);
+
     $productsJson = $products->map(fn($p) => [
         'id'       => $p->id,
         'nombre'   => $p->nombre,
         'sku'      => $p->sku ?? '',
-        'precio'   => (float) $p->precio_base,
+        'precio'   => $precios[$p->id] ?? (float) $p->precio_base,
         'tasa_iva' => (float) $p->tasa_iva,
         'unidad'   => $p->unidad,
     ]);

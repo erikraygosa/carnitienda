@@ -18,8 +18,9 @@ class SettingsController extends Controller
         $auth        = SystemSetting::where('grupo', 'auth')->get()->keyBy('clave');
         $logistica   = SystemSetting::where('grupo', 'logistica')->get()->keyBy('clave');
         $whatsapp    = SystemSetting::where('grupo', 'whatsapp')->get()->keyBy('clave');
+        $precios     = SystemSetting::where('grupo', 'precios')->get()->keyBy('clave');
 
-        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica', 'whatsapp'));
+        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica', 'whatsapp', 'precios'));
     }
 
     public function update(Request $request)
@@ -38,6 +39,7 @@ class SettingsController extends Controller
             'whatsapp.base_url'          => ['nullable', 'string', 'max:255'],
             'whatsapp.instance'          => ['nullable', 'string', 'max:100'],
             'whatsapp.api_key'           => ['nullable', 'string', 'max:255'],
+            'precios_modo'                => ['nullable', 'string', 'in:global,almacen'],
         ]);
 
         // Grupo real de cada clave — SystemSetting::set() no lo infiere solo, y sin
@@ -77,6 +79,13 @@ class SettingsController extends Controller
             $request->boolean('logistica_permitir_completar_traspaso_directo') ? '1' : '0',
             'boolean',
             'logistica'
+        );
+
+        SystemSetting::set(
+            'precios.modo',
+            $request->input('precios_modo') === 'almacen' ? 'almacen' : 'global',
+            'string',
+            'precios'
         );
 
         if ($request->hasFile('app.logo')) {

@@ -204,6 +204,43 @@
     </div>
 
     <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-white font-semibold mb-1">Precios</h3>
+        <p class="text-xs text-gray-500 mb-4">
+            Controla si el precio de venta del Punto de Venta (POS) es el mismo en todos los
+            almacenes, o si cada almacén puede tener su propio precio.
+        </p>
+
+        @php $modoPrecios = $precios['precios.modo']?->valor ?? 'global'; @endphp
+
+        <div class="space-y-3">
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="radio" name="precios_modo" value="global"
+                       {{ $modoPrecios === 'global' ? 'checked' : '' }}
+                       class="mt-1 bg-gray-800 border-gray-700 text-indigo-600 focus:ring-indigo-500">
+                <span>
+                    <span class="block text-sm text-white">Precios globales</span>
+                    <span class="block text-xs text-gray-500 mt-0.5">
+                        Un solo precio por producto (el que está en su ficha), igual en todos los almacenes. Comportamiento actual.
+                    </span>
+                </span>
+            </label>
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="radio" name="precios_modo" value="almacen"
+                       {{ $modoPrecios === 'almacen' ? 'checked' : '' }}
+                       class="mt-1 bg-gray-800 border-gray-700 text-indigo-600 focus:ring-indigo-500">
+                <span>
+                    <span class="block text-sm text-white">Precios por almacén</span>
+                    <span class="block text-xs text-gray-500 mt-0.5">
+                        Cada almacén puede tener su propio precio de venta al público. Se gestiona en
+                        Inventario → Precios por almacén. El que no tenga precio propio usa el precio
+                        de la ficha del producto como respaldo.
+                    </span>
+                </span>
+            </label>
+        </div>
+    </div>
+
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
         <h3 class="text-white font-semibold mb-1">Logística</h3>
         <p class="text-xs text-gray-500 mb-4">Controla acciones que pueden saltarse el flujo normal de despacho.</p>
 
