@@ -31,5 +31,20 @@ return Application::configure(basePath: dirname(__DIR__))
     ]);
 })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // 419 Page Expired (token CSRF vencido/no coincide): en vez de la
+        // pantalla de error, regresamos al login (o a la página anterior)
+        // con un aviso claro para que la persona vuelva a intentar.
+        $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, \Illuminate\Http\Request $request) {
+            if ($request->is('login')) {
+                return redirect()->route('login')
+                    ->with('status', 'Tu sesión expiró por inactividad. Intenta iniciar sesión de nuevo.');
+            }
+
+            return redirect()->back()
+                ->with('swal', [
+                    'icon'  => 'info',
+                    'title' => 'Tu sesión expiró',
+                    'text'  => 'Por seguridad tuvimos que cerrarla por inactividad. Intenta de nuevo.',
+                ]);
+        });
     })->create();
