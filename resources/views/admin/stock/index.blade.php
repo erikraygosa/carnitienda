@@ -331,16 +331,14 @@ $(function () {
                         + '</tr>';
                 }).join('');
 
-            // Nota: partimos "<head>"/"</head>" en dos pedazos a propósito.
-            // El paquete rappasoft/laravel-livewire-tables auto-inyecta sus
-            // <script>/<link> buscando esos tags con una regex sobre TODO el
-            // HTML de la respuesta (no solo el <head> real de la página), y
-            // si aparecen completos aquí (dentro de este string armado en JS)
-            // los "encuentra" también y corrompe este <script>, dejando texto
-            // crudo visible en la página. Partiendo el literal, el navegador
-            // igual arma "<head>" correctamente en tiempo de ejecución, pero
-            // el HTML fuente que Laravel post-procesa nunca contiene el tag
-            // completo.
+            // Nota: partimos a propósito la etiqueta HEAD (apertura y cierre)
+            // en dos pedazos. El paquete rappasoft/laravel-livewire-tables
+            // auto-inyecta sus scripts/estilos con una regex que busca esa
+            // etiqueta en TODO el HTML de la respuesta (no solo la real de
+            // la página) — si aparece completa aquí (este string armado en
+            // JS) también la "encuentra" y la corrompe, dejando texto crudo
+            // visible en la página. Partiendo el literal evitamos el match;
+            // el navegador la reconstruye normal en tiempo de ejecución.
             var html = '<!DOCTYPE html><html><he' + 'ad><meta charset="UTF-8">'
                 + '<title>Inventario - ' + nombre + '</title>'
                 + '<style>'
