@@ -53,19 +53,23 @@ class DispatchController extends Controller implements HasMiddleware
         ];
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        
+        $fechaDesde = $request->get('fecha_desde', now()->startOfMonth()->toDateString());
+        $fechaHasta = $request->get('fecha_hasta', now()->endOfMonth()->toDateString());
+
         $dispatches = \App\Models\Dispatch::with(['driver', 'route', 'warehouse'])
             ->withCount([
                 'items',
                 'items as items_entregados'    => fn($q) => $q->where('status', 'ENTREGADO'),
                 'items as items_no_entregados' => fn($q) => $q->where('status', 'NO_ENTREGADO'),
             ])
+            ->whereDate('fecha', '>=', $fechaDesde)
+            ->whereDate('fecha', '<=', $fechaHasta)
             ->orderBy('fecha', 'desc')
             ->get();
 
-        return view('admin.dispatches.index', compact('dispatches'));
+        return view('admin.dispatches.index', compact('dispatches', 'fechaDesde', 'fechaHasta'));
     }
 
     // ── Create ────────────────────────────────────────────────────────────────

@@ -35,6 +35,27 @@
     </div>
 
     <x-wire-card>
+        {{-- Filtro de fechas (server-side, mes actual por defecto) --}}
+        <form method="GET" action="{{ route('admin.dispatches.index') }}" class="flex flex-wrap gap-3 items-end mb-3 pb-3 border-b border-gray-100">
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Desde</label>
+                <input type="date" name="fecha_desde" value="{{ $fechaDesde }}"
+                       class="rounded-md border-gray-300 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Hasta</label>
+                <input type="date" name="fecha_hasta" value="{{ $fechaHasta }}"
+                       class="rounded-md border-gray-300 text-sm">
+            </div>
+            <button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+                Filtrar
+            </button>
+            <a href="{{ route('admin.dispatches.index') }}"
+               class="px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50">
+                Mes actual
+            </a>
+        </form>
+
         {{-- Filtros --}}
         <div class="flex flex-wrap gap-3 mb-4">
             <input id="filter-search" type="text"
@@ -61,6 +82,7 @@
                         <th class="px-4 py-3 text-left font-medium text-gray-500">Almacén</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500">Pedidos</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500">Estado</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-500">Cierres</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500">Acciones</th>
                     </tr>
                 </thead>
@@ -109,6 +131,20 @@
                             <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ $statusClass }}">
                                 {{ $dispatch->status }}
                             </span>
+                        </td>
+                        <td class="px-4 py-3">
+                            @if(in_array($dispatch->status, ['EN_RUTA','ENTREGADO','CERRADO']))
+                                <div class="flex flex-col gap-1">
+                                    <span class="inline-flex items-center gap-1 text-xs {{ $dispatch->traspasos_cerrado_at ? 'text-emerald-700' : 'text-gray-400' }}">
+                                        {{ $dispatch->traspasos_cerrado_at ? '✓' : '○' }} Traspasos
+                                    </span>
+                                    <span class="inline-flex items-center gap-1 text-xs {{ $dispatch->cobranza_cerrado_at ? 'text-emerald-700' : 'text-gray-400' }}">
+                                        {{ $dispatch->cobranza_cerrado_at ? '✓' : '○' }} Cobranza
+                                    </span>
+                                </div>
+                            @else
+                                <span class="text-xs text-gray-300">—</span>
+                            @endif
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-1 flex-wrap">
