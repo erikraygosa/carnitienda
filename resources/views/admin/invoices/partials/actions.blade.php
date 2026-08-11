@@ -16,10 +16,11 @@
     @if($invoice->estatus === 'TIMBRADA')
         <x-wire-button href="{{ route('admin.invoices.send.form', $invoice) }}" violet xs>Enviar</x-wire-button>
 
-        <form action="{{ route('admin.invoices.cancel', $invoice) }}" method="POST" class="inline"
-              onsubmit="return confirm('¿Cancelar esta factura en el SAT?')">
+        <form action="{{ route('admin.invoices.cancel', $invoice) }}" method="POST" class="inline form-cancel-cfdi-list">
             @csrf
-            <x-wire-button type="submit" red xs>Cancelar CFDI</x-wire-button>
+            <input type="hidden" name="motivo">
+            <input type="hidden" name="folio_sustitucion">
+            <x-wire-button type="button" red xs onclick="cancelarCfdiDesdeListado(this)">Cancelar CFDI</x-wire-button>
         </form>
     @endif
 

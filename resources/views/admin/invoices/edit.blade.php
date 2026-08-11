@@ -370,7 +370,7 @@
                     Enviar
                 </x-wire-button>
                 <form id="form-cancel-cfdi" action="{{ route('admin.invoices.cancel', $invoice) }}" method="POST"
-                      onsubmit="return confirmarCancelacion()">
+                      onsubmit="return confirmarCancelacion(event)">
                     @csrf
                     <div class="grid grid-cols-2 gap-2 items-end">
                         <div>
@@ -405,8 +405,20 @@
                     wrap.classList.toggle('hidden', !esSustitucion);
                     input.required = esSustitucion;
                 }
-                function confirmarCancelacion() {
-                    return confirm('¿Cancelar esta factura en el SAT?');
+                function confirmarCancelacion(e) {
+                    e.preventDefault();
+                    var form = e.target;
+                    Swal.fire({
+                        title: '¿Cancelar esta factura en el SAT?',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Cancelar CFDI',
+                        confirmButtonColor: '#d33',
+                        cancelButtonText: 'Volver',
+                    }).then(function (result) {
+                        if (result.isConfirmed) form.submit();
+                    });
+                    return false;
                 }
                 </script>
             @endif
