@@ -168,7 +168,7 @@
                             <input type="hidden" name="ids[]" value="{{ $tid }}">
                         @endforeach
                         <button type="submit"
-                                onclick="return confirm('¿Completar TODOS los traspasos?')"
+                                onclick="return confirmarAccionMasiva(this, '¿Completar TODOS los traspasos?')"
                                 class="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-emerald-600 text-white hover:bg-emerald-700">
                             ✓ Completar todos ({{ $traspasosPendientesIds->count() }})
                         </button>
@@ -180,7 +180,7 @@
                             <input type="hidden" name="ids[]" value="{{ $tid }}">
                         @endforeach
                         <button type="submit"
-                                onclick="return confirm('¿Marcar TODOS como no completados?')"
+                                onclick="return confirmarAccionMasiva(this, '¿Marcar TODOS como no completados?')"
                                 class="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-orange-500 text-white hover:bg-orange-600">
                             ✗ No completar todos
                         </button>
@@ -265,7 +265,7 @@
                             <input type="hidden" name="ids[]" value="{{ $pi->id }}">
                         @endforeach
                         <button type="submit"
-                                onclick="return confirm('¿Marcar TODOS los pedidos como entregados?')"
+                                onclick="return confirmarAccionMasiva(this, '¿Marcar TODOS los pedidos como entregados?')"
                                 class="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-emerald-600 text-white hover:bg-emerald-700">
                             ✓ Entregar todos ({{ $pedidosPendientesItems->count() }})
                         </button>
@@ -277,7 +277,7 @@
                             <input type="hidden" name="ids[]" value="{{ $pi->id }}">
                         @endforeach
                         <button type="submit"
-                                onclick="return confirm('¿Marcar TODOS como NO entregados?')"
+                                onclick="return confirmarAccionMasiva(this, '¿Marcar TODOS como NO entregados?')"
                                 class="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-orange-500 text-white hover:bg-orange-600">
                             ✗ No entregar todos
                         </button>
@@ -413,7 +413,7 @@
                                 <input type="hidden" name="ids[]" value="{{ $cp->id }}">
                             @endforeach
                             <button type="submit"
-                                    onclick="return confirm('¿Marcar TODAS como no cobradas?')"
+                                    onclick="return confirmarAccionMasiva(this, '¿Marcar TODAS como no cobradas?')"
                                     class="w-full px-3 py-2 text-xs rounded bg-gray-400 text-white hover:bg-gray-500">
                                 ✗ Marcar todas como no cobradas
                             </button>
@@ -576,7 +576,7 @@
                         <form action="{{ route('admin.dispatches.cxc.no-cobrar', [$dispatch, $assignment]) }}" method="POST">
                             @csrf
                             <button type="submit"
-                                    onclick="return confirm('¿Marcar como no cobrada?')"
+                                    onclick="return confirmarAccionMasiva(this, '¿Marcar como no cobrada?')"
                                     class="px-3 py-1.5 text-xs rounded-md bg-gray-200 text-gray-600 hover:bg-gray-300">
                                 ✗ No cobrar a este cliente
                             </button>
@@ -768,6 +768,22 @@
     @endif
 
     <script>
+    // ── Confirmación de acciones masivas (antes confirm() nativo) ───────────
+    function confirmarAccionMasiva(btn, mensaje) {
+        var form = btn.closest('form');
+        Swal.fire({
+            title: mensaje,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí',
+            confirmButtonColor: '#4f46e5',
+            cancelButtonText: 'Cancelar',
+        }).then(function (result) {
+            if (result.isConfirmed) form.submit();
+        });
+        return false;
+    }
+
     (function () {
         // ── Monto entregado con comas de miles (input visible formateado +
         //    hidden con el valor numérico real que se manda al servidor) ───
