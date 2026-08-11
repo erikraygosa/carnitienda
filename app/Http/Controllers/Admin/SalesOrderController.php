@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Mail;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\SalesOrderDeliveryNoteMailable;
 use App\Models\StockMovement;
+use App\Models\DispatchItemLine;
 use App\Services\InventoryService;
 use App\Services\DocumentLogService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -345,9 +346,16 @@ public function data(Request $request)
             ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
             ->toArray();
 
+        // Partidas ya surtidas con producto real (Panel de Surtido) — no se
+        // pueden volver a editar/quitar desde aquí, ya salieron del almacén.
+        $itemsSurtidosIds = DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $order->id))
+            ->where('qty_despachada', '>', 0)
+            ->pluck('sales_order_item_id')
+            ->all();
+
         return view('admin.sales_orders.edit', compact(
             'order','clients','priceLists','products','warehouses','drivers','routes',
-            'productsJson','overrides','listItems'
+            'productsJson','overrides','listItems','itemsSurtidosIds'
         ));
     }
 
@@ -387,6 +395,7 @@ public function data(Request $request)
             'moneda'          => ['required','string','max:10'],
 
             'items'                => ['required','array','min:1'],
+            'items.*.id'           => ['nullable','integer'],
             'items.*.product_id'   => ['nullable','exists:products,id'],
             'items.*.descripcion'  => ['required','string','max:255'],
             'items.*.cantidad'     => ['required','numeric','gt:0'],
@@ -397,13 +406,36 @@ public function data(Request $request)
             'comentarios'          => ['nullable','string','max:2000'],
         ]);
 
-        DB::transaction(function () use ($sales_order, $data) {
+        // Partidas ya surtidas con producto real (Panel de Surtido) — se
+        // ignora lo que venga del form para ellas, se conservan tal cual
+        // están en BD; ya salieron del almacén, no se pueden tocar aquí.
+        $itemsSurtidosIds = DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $sales_order->id))
+            ->where('qty_despachada', '>', 0)
+            ->pluck('sales_order_item_id')
+            ->all();
+
+        DB::transaction(function () use ($sales_order, $data, $itemsSurtidosIds) {
             $subtotal=0; $descuento=0; $impuestos=0; $total=0;
 
-            // borra items previos y recalcula
-            $sales_order->items()->delete();
+            // Las ya surtidas se quedan intactas — arrastran su propio total.
+            $itemsBloqueados = $sales_order->items()->whereIn('id', $itemsSurtidosIds)->get();
+            foreach ($itemsBloqueados as $ib) {
+                $subtotal  += (float) $ib->cantidad * (float) $ib->precio;
+                $descuento += (float) $ib->descuento;
+                $impuestos += (float) $ib->impuesto;
+                $total     += (float) $ib->total;
+            }
+
+            // Solo se borran/recrean las que NO están ya surtidas.
+            $sales_order->items()->whereNotIn('id', $itemsSurtidosIds)->delete();
 
             foreach ($data['items'] as $it) {
+                // Si venía con un id de una partida ya surtida, se ignora por
+                // completo (ya se contó arriba con su valor real de BD).
+                if (!empty($it['id']) && in_array((int) $it['id'], $itemsSurtidosIds, true)) {
+                    continue;
+                }
+
                 $line_sub = (float)$it['cantidad'] * (float)$it['precio'];
                 $line_desc= (float)($it['descuento'] ?? 0);
                 $line_tax = (float)($it['impuesto']  ?? 0);

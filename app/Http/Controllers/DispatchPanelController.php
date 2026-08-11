@@ -121,14 +121,28 @@ class DispatchPanelController extends Controller
 
         abort_if($item->sales_order_id !== $order->id, 404);
 
+        // 'sin_existencia' es la única puerta para guardar en 0 — el botón
+        // "Guardar" normal siempre exige > 0. Así una línea en 0 nunca es un
+        // descuido, siempre fue una decisión explícita (con nota).
+        $sinExistencia = $request->boolean('sin_existencia');
+
         $request->validate([
-            'qty_despachada' => ['required', 'numeric', 'min:0.001'],
+            'qty_despachada' => ['required', 'numeric', $sinExistencia ? 'min:0' : 'min:0.001'],
             'num_cajas'      => ['nullable', 'integer', 'min:0'],
             'nota'           => ['nullable', 'string', 'max:255'],
         ], [
             'qty_despachada.required' => 'Captura la cantidad despachada.',
-            'qty_despachada.min'      => 'La cantidad despachada no puede ser 0 — si el producto no está disponible, edita el pedido en vez de despacharlo en 0.',
+            'qty_despachada.min'      => 'La cantidad despachada no puede ser 0 — si el producto no está disponible, usa el botón "Sin existencia".',
         ]);
+
+        // Una línea ya surtida con producto real no se puede volver a tocar
+        // desde aquí (evita que se reduzca/borre después de haber salido).
+        $existente = DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $order->id))
+            ->where('sales_order_item_id', $item->id)
+            ->first();
+        if ($existente && (float) $existente->qty_despachada > 0) {
+            return response()->json(['ok' => false, 'message' => 'Este producto ya se surtió, no se puede modificar.'], 422);
+        }
 
         $dispatchItem = DispatchItem::firstOrCreate(
             ['sales_order_id' => $order->id],
@@ -168,12 +182,28 @@ class DispatchPanelController extends Controller
         $request->validate([
             'lines'                       => 'required|array|min:1',
             'lines.*.sales_order_item_id' => 'required|integer|exists:sales_order_items,id',
-            'lines.*.qty_despachada'      => ['required', 'numeric', 'min:0.001'],
+            'lines.*.qty_despachada'      => ['required', 'numeric', 'min:0'],
             'lines.*.num_cajas'           => 'nullable|integer|min:0',
             'lines.*.nota'                => 'nullable|string|max:255',
-        ], [
-            'lines.*.qty_despachada.min' => 'Hay productos con cantidad 0 — no se puede completar el despacho si falta sacar algo.',
         ]);
+
+        // Un 0 solo es válido si ya pasó por el botón "Sin existencia" (que
+        // deja guardada la línea en 0 vía saveLine) — así nadie completa el
+        // despacho con cantidad 0 sin haberlo confirmado explícitamente antes.
+        $lineasEnCero = collect($request->lines)->filter(fn ($l) => (float) $l['qty_despachada'] === 0.0);
+        if ($lineasEnCero->isNotEmpty()) {
+            $idsConfirmadosEnCero = DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $order->id))
+                ->where('qty_despachada', 0)
+                ->pluck('sales_order_item_id');
+
+            $noConfirmadas = $lineasEnCero->pluck('sales_order_item_id')->diff($idsConfirmadosEnCero);
+            if ($noConfirmadas->isNotEmpty()) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'Hay productos con cantidad 0 sin confirmar — usa el botón "Sin existencia" en esa línea antes de completar.',
+                ], 422);
+            }
+        }
 
         $totalItemsPedido = $order->items()->count();
         if (count($request->lines) < $totalItemsPedido) {

@@ -1,8 +1,8 @@
 <x-admin-layout
-    title="Panel de Despacho"
+    title="Panel de Surtido"
     :breadcrumbs="[
         ['name'=>'Dashboard','url'=>route('admin.dashboard')],
-        ['name'=>'Panel de Despacho'],
+        ['name'=>'Panel de Surtido'],
     ]"
 >
     {{-- KPIs --}}
@@ -11,7 +11,7 @@
             $kpis = [
                 ['label'=>'Procesados pendientes', 'color'=>'text-amber-600',
                  'count'=> \App\Models\SalesOrder::where('status','PROCESADO')->count()],
-                ['label'=>'Despachados hoy',       'color'=>'text-indigo-600',
+                ['label'=>'Surtidos hoy',          'color'=>'text-indigo-600',
                  'count'=> \App\Models\SalesOrder::where('status','DESPACHADO')->whereDate('despachado_at', today())->count()],
                 ['label'=>'Entregados hoy',         'color'=>'text-emerald-600',
                  'count'=> \App\Models\SalesOrder::where('status','ENTREGADO')->whereDate('entregado_at', today())->count()],
@@ -113,7 +113,7 @@
                                     <button
                                         onclick="abrirDespacho({{ $pedido->id }}, '{{ $pedido->folio }}')"
                                         class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700 whitespace-nowrap">
-                                        Despachar
+                                        Surtir
                                     </button>
                                     @endif
                                 </td>
@@ -148,7 +148,7 @@
             <x-wire-card>
                 <div class="flex items-center justify-between mb-3">
                     <div>
-                        <h2 class="font-semibold text-gray-800" id="panel-titulo">Despacho</h2>
+                        <h2 class="font-semibold text-gray-800" id="panel-titulo">Surtido</h2>
                         <p class="text-xs text-gray-500" id="panel-cliente"></p>
                     </div>
                     <button onclick="cerrarPanel()"
@@ -168,7 +168,7 @@
                             <tr>
                                 <th class="px-2 py-2 text-left text-xs text-gray-500">Producto</th>
                                 <th class="px-2 py-2 text-center text-xs text-gray-500">Solicitado</th>
-                                <th class="px-2 py-2 text-center text-xs text-gray-500">Despachado</th>
+                                <th class="px-2 py-2 text-center text-xs text-gray-500">Surtido</th>
                                 <th class="px-2 py-2 text-center text-xs text-gray-500">Cajas</th>
                                 <th class="px-2 py-2 text-center text-xs text-gray-500">Dif.</th>
                                 <th class="px-2 py-2 text-center text-xs text-gray-500"></th>
@@ -178,14 +178,14 @@
                     </table>
 
                     <textarea id="panel-nota-global" rows="2"
-                        placeholder="Nota general del despacho (opcional)"
+                        placeholder="Nota general del surtido (opcional)"
                         class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm mb-3 focus:outline-none focus:ring-1 focus:ring-indigo-500">
                     </textarea>
 
                     <button onclick="guardarDespacho()" id="btn-completar"
                         class="w-full py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
                         disabled>
-                        Completar despacho
+                        Completar surtido
                     </button>
                 </div>
             </x-wire-card>
@@ -265,8 +265,12 @@
             var tbody = document.getElementById('panel-lines');
             tbody.innerHTML = '';
             lines.forEach(function(line, idx) {
-                // Ya venía guardada de una sesión anterior (qty_despachada > 0 persistido).
-                line.guardado = line.qty_despachada !== null && line.qty_despachada > 0;
+                // Ya venía guardada de una sesión anterior (qty_despachada persistido,
+                // 0 incluido — un 0 guardado significa "sin existencia" confirmado).
+                line.guardado      = line.qty_despachada !== null;
+                line.sinExistencia = line.guardado && line.qty_despachada === 0;
+                // Ya se surtió con producto real: no se puede volver a tocar.
+                line.bloqueada     = line.guardado && line.qty_despachada > 0;
 
                 var qty = line.qty_despachada !== null ? line.qty_despachada : line.qty_solicitada;
                 var dif = qty - line.qty_solicitada;
@@ -288,6 +292,7 @@
                         '   value="' + qty.toFixed(3) + '"' +
                         '   data-idx="' + idx + '"' +
                         '   onchange="actualizarDif(this, ' + idx + ')"' +
+                        (line.bloqueada ? '   disabled' : '') +
                         '/>' +
                     '</td>' +
                     '<td class="px-2 py-1 text-center">' +
@@ -297,17 +302,25 @@
                         '   placeholder="—"' +
                         '   data-cajas-idx="' + idx + '"' +
                         '   onchange="actualizarCajas(this, ' + idx + ')"' +
+                        (line.bloqueada ? '   disabled' : '') +
                         '/>' +
                     '</td>' +
                     '<td class="px-2 py-2 text-center font-mono text-xs ' + difColor + '" id="dif-' + idx + '">' +
                         difStr +
                     '</td>' +
-                    '<td class="px-2 py-1 text-center">' +
-                        '<button type="button" onclick="guardarLinea(' + idx + ')"' +
-                        '   id="btn-linea-' + idx + '"' +
-                        '   class="px-2 py-1 text-xs rounded ' + (line.guardado ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-600 text-white hover:bg-indigo-700') + '">' +
-                        (line.guardado ? '✓ Guardado' : 'Guardar') +
-                        '</button>' +
+                    '<td class="px-2 py-1 text-center whitespace-nowrap">' +
+                        (line.bloqueada
+                            ? '<span class="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700">✓ Surtido</span>'
+                        : line.sinExistencia
+                            ? '<span class="px-2 py-1 text-xs rounded bg-gray-200 text-gray-600">Sin existencia</span>'
+                        :
+                            '<button type="button" onclick="guardarLinea(' + idx + ')"' +
+                            '   id="btn-linea-' + idx + '"' +
+                            '   class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">Guardar</button>' +
+                            '<button type="button" onclick="marcarSinExistencia(' + idx + ')"' +
+                            '   id="btn-sin-existencia-' + idx + '"' +
+                            '   class="ml-1 px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50">Sin existencia</button>'
+                        ) +
                     '</td>';
                 tbody.appendChild(tr);
             });
@@ -358,19 +371,32 @@
             if (aviso) aviso.classList.toggle('hidden', listo);
         }
 
-        // ── Pinta en verde la fila de la lista principal (sin recargar) ──
-        function marcarFilaComoDespachadaEnLista(salesOrderItemId) {
+        // ── Pinta la fila de la lista principal (sin recargar) — verde si se
+        //    surtió con producto real, gris si quedó "sin existencia" ──────
+        function marcarFilaComoDespachadaEnLista(salesOrderItemId, sinExistencia) {
             var tr = tbody.querySelector('tr[data-item-id="' + salesOrderItemId + '"]');
             if (!tr) return;
             tr.classList.remove('hover:bg-indigo-50');
-            tr.classList.add('bg-emerald-50', 'hover:bg-emerald-100');
             var celdaProducto = tr.children[3];
+            if (sinExistencia) {
+                tr.classList.add('bg-gray-50', 'hover:bg-gray-100');
+                if (celdaProducto && !celdaProducto.querySelector('.marca-guardado')) {
+                    celdaProducto.classList.add('text-gray-500', 'line-through');
+                    var marcaGris = document.createElement('span');
+                    marcaGris.className = 'ml-1 text-gray-400 marca-guardado';
+                    marcaGris.title = 'Sin existencia';
+                    marcaGris.textContent = '(sin existencia)';
+                    celdaProducto.appendChild(marcaGris);
+                }
+                return;
+            }
+            tr.classList.add('bg-emerald-50', 'hover:bg-emerald-100');
             if (celdaProducto && !celdaProducto.querySelector('.marca-guardado')) {
                 celdaProducto.classList.remove('text-gray-800');
                 celdaProducto.classList.add('text-emerald-800', 'font-medium');
                 var marca = document.createElement('span');
                 marca.className = 'ml-1 text-emerald-600 marca-guardado';
-                marca.title = 'Ya guardado';
+                marca.title = 'Ya surtido';
                 marca.textContent = '✓';
                 celdaProducto.appendChild(marca);
             }
@@ -383,12 +409,36 @@
             var qty   = parseFloat(input.value) || 0;
 
             if (qty <= 0) {
-                Swal.fire('Cantidad inválida', 'La cantidad despachada no puede ser 0. Si el producto no está disponible, edita el pedido en vez de despacharlo en 0.', 'warning');
+                Swal.fire('Cantidad inválida', 'La cantidad surtida no puede ser 0. Si el producto no está disponible, usa el botón "Sin existencia".', 'warning');
                 return;
             }
 
-            var btn = document.getElementById('btn-linea-' + idx);
-            if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+            enviarLinea(idx, qty, false);
+        };
+
+        // ── Marcar una línea sin existencia (guarda en 0, con nota) ──────
+        window.marcarSinExistencia = function(idx) {
+            Swal.fire({
+                title: 'Sin existencia',
+                text: '¿Confirmas que este producto no está disponible? Se guardará en 0 y el pedido se actualizará para reflejarlo.',
+                icon: 'question',
+                input: 'text',
+                inputPlaceholder: 'Motivo (opcional)',
+                showCancelButton: true,
+                confirmButtonText: 'Confirmar',
+                cancelButtonText: 'Cancelar',
+            }).then(function(result) {
+                if (!result.isConfirmed) return;
+                var linea = linesData[idx];
+                linea.notaLinea = result.value || 'Sin existencia en almacén';
+                enviarLinea(idx, 0, true);
+            });
+        };
+
+        function enviarLinea(idx, qty, sinExistencia) {
+            var line = linesData[idx];
+            var btn  = document.getElementById(sinExistencia ? 'btn-sin-existencia-' + idx : 'btn-linea-' + idx);
+            if (btn) btn.disabled = true;
 
             fetch('/admin/despacho/pedido/' + currentOrderId + '/linea/' + line.sales_order_item_id + '/guardar', {
                 method:  'POST',
@@ -400,34 +450,32 @@
                 body: JSON.stringify({
                     qty_despachada: qty,
                     num_cajas:      line.num_cajas != null ? line.num_cajas : null,
-                    nota:           document.getElementById('panel-nota-global').value.trim() || null,
+                    nota:           sinExistencia
+                        ? line.notaLinea
+                        : (document.getElementById('panel-nota-global').value.trim() || null),
+                    sin_existencia: sinExistencia,
                 }),
             })
             .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
             .then(function(res) {
-                if (btn) btn.disabled = false;
                 if (res.status === 200 && res.data.ok) {
                     line.qty_despachada = qty;
-                    line.guardado = true;
-                    if (btn) {
-                        btn.textContent = '✓ Guardado';
-                        btn.className = 'px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700';
-                    }
-                    marcarFilaComoDespachadaEnLista(line.sales_order_item_id);
+                    renderLines(linesData);
+                    marcarFilaComoDespachadaEnLista(line.sales_order_item_id, qty === 0);
                     actualizarProgreso();
                 } else {
                     var msg = (res.data.errors && res.data.errors.qty_despachada)
                         ? res.data.errors.qty_despachada[0]
                         : (res.data.message || 'No se pudo guardar el producto.');
                     Swal.fire('Error', msg, 'error');
-                    if (btn) btn.textContent = 'Guardar';
+                    if (btn) btn.disabled = false;
                 }
             })
             .catch(function() {
-                if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
+                if (btn) btn.disabled = false;
                 Swal.fire('Error', 'No se pudo guardar el producto.', 'error');
             });
-        };
+        }
 
         window.cerrarPanel = function() {
             document.getElementById('panel-despacho').classList.add('hidden');
@@ -441,16 +489,19 @@
 
             var pendientes = linesData.filter(function(l) { return !l.guardado; });
             if (pendientes.length > 0) {
-                Swal.fire('Faltan productos', 'Guarda todos los productos (botón "Guardar" de cada línea) antes de completar el despacho.', 'warning');
+                Swal.fire('Faltan productos', 'Guarda todos los productos (botón "Guardar" de cada línea, o "Sin existencia") antes de completar el surtido.', 'warning');
                 return;
             }
 
+            var notaGlobal = document.getElementById('panel-nota-global').value.trim() || null;
             var lines = linesData.map(function(line) {
                 return {
                     sales_order_item_id: line.sales_order_item_id,
                     qty_despachada:      line.qty_despachada,
                     num_cajas:           line.num_cajas != null ? line.num_cajas : null,
-                    nota:                document.getElementById('panel-nota-global').value.trim() || null,
+                    // No pisar la nota de "sin existencia" ya guardada por línea
+                    // (line.nota = la que vino del server si se guardó en otra sesión).
+                    nota:                line.sinExistencia ? (line.notaLinea || line.nota || null) : notaGlobal,
                 };
             });
 
@@ -471,7 +522,7 @@
 
                     Swal.fire({
                         icon: 'success',
-                        title: 'Despacho completado',
+                        title: 'Surtido completado',
                         text: data.message,
                         timer: 2000,
                         showConfirmButton: false,
@@ -487,7 +538,7 @@
                 }
             })
             .catch(function() {
-                Swal.fire('Error', 'No se pudo completar el despacho.', 'error');
+                Swal.fire('Error', 'No se pudo completar el surtido.', 'error');
             });
         };
 

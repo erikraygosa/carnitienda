@@ -57,6 +57,9 @@
             'iva_pct'         => 0,
             'impuesto'        => (float)$i->impuesto,
             'total'           => (float)$i->total,
+            // Ya se surtió con producto real en el Panel de Surtido — no se
+            // puede volver a tocar desde aquí.
+            'ya_surtido'      => in_array($i->id, $itemsSurtidosIds ?? []),
         ])->values()->toArray();
 
         $clientDefaults = $clients->mapWithKeys(fn($c) => [(string)$c->id => [
@@ -662,16 +665,18 @@
         }
 
         function renderRow(i) {
-            const it       = state.items[i];
-            const dis      = LOCKED ? 'disabled' : '';
-            const disQty   = CAN_EDIT_QTY ? '' : 'disabled';
-            const roItems  = (!LOCKED && !CAN_EDIT_ITEMS) ? 'readonly' : '';
-            const tr       = document.createElement('tr');
-            tr.className   = 'border-b';
-            tr.dataset.idx = i;
+            const it        = state.items[i];
+            const surtido   = !!it.ya_surtido;
+            const canItems  = CAN_EDIT_ITEMS && !surtido;
+            const dis       = (LOCKED || surtido) ? 'disabled' : '';
+            const disQty    = (CAN_EDIT_QTY && !surtido) ? '' : 'disabled';
+            const roItems   = (!LOCKED && !canItems) ? 'readonly' : '';
+            const tr        = document.createElement('tr');
+            tr.className    = 'border-b' + (surtido ? ' bg-emerald-50/40' : '');
+            tr.dataset.idx  = i;
 
-            // En BORRADOR: autocomplete editable. En PREPARANDO/locked: texto de solo lectura.
-            const productCell = CAN_EDIT_ITEMS
+            // En BORRADOR: autocomplete editable. En PREPARANDO/locked/ya surtido: texto de solo lectura.
+            const productCell = canItems
                 ? `<input type="hidden" class="hid-product-id" name="items[${i}][product_id]" value="${escHtml(String(it.product_id||''))}">
                    <div class="flex items-center gap-1">
                        <input type="text" class="w-52 border rounded p-1 text-sm inp-product-search"
@@ -680,7 +685,8 @@
                        <button type="button" class="btn-clear-product text-gray-400 hover:text-red-500 text-base leading-none px-1" title="Quitar producto">✕</button>
                    </div>`
                 : `<input type="hidden" name="items[${i}][product_id]" value="${escHtml(String(it.product_id||''))}">
-                   <span class="text-sm text-gray-700">${escHtml(it._productoNombre||'—')}</span>`;
+                   <span class="text-sm text-gray-700">${escHtml(it._productoNombre||'—')}</span>
+                   ${surtido ? '<span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-medium align-middle">✓ Surtido</span>' : ''}`;
 
             tr.innerHTML = `
                 <input type="hidden" name="items[${i}][id]" value="${it.id || ''}">
@@ -706,7 +712,7 @@
                     <input type="number" min="0" step="0.0001"
                            class="w-28 border rounded p-1 text-right text-sm bg-gray-50 inp-precio"
                            name="items[${i}][precio]" value="${it.precio}"
-                           ${dis} ${LOCKED ? '' : 'readonly'} required>
+                           ${dis} ${(LOCKED || surtido) ? '' : 'readonly'} required>
                 </td>
                 <td class="p-2 text-right">
                     <input type="number" min="0" step="0.01"
@@ -721,10 +727,10 @@
                            name="items[${i}][impuesto]" value="${it.impuesto}">
                 </td>
                 <td class="p-2 text-right font-medium td-total">${fmt(it.total)}</td>
-                ${CAN_EDIT_ITEMS ? `<td class="p-2 text-center"><button type="button" class="text-red-500 hover:text-red-700 text-xs btn-remove">✕</button></td>` : ''}
+                ${CAN_EDIT_ITEMS ? `<td class="p-2 text-center">${surtido ? '' : '<button type="button" class="text-red-500 hover:text-red-700 text-xs btn-remove">✕</button>'}</td>` : ''}
             `;
 
-            if (CAN_EDIT_ITEMS) {
+            if (canItems) {
                 attachProductSearch(tr, i);
                 tr.querySelector('.inp-descuento').addEventListener('input', function() {
                     state.items[i].descuento = parseFloat(this.value)||0; recalcRow(i);
@@ -740,7 +746,7 @@
                 });
             }
 
-            if (CAN_EDIT_QTY) {
+            if (CAN_EDIT_QTY && !surtido) {
                 tr.querySelector('.inp-cantidad').addEventListener('input', function() {
                     state.items[i].cantidad = parseFloat(this.value)||0; recalcRow(i);
                 });
