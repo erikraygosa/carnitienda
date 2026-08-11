@@ -102,16 +102,28 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @forelse($movimientos as $mov)
+                        @php
+                            // 'AJUSTE' resta del saldo igual que 'OUT' (misma fórmula de saldo
+                            // acumulado usada en toda la app: IN suma, cualquier otro tipo resta).
+                            $tipoLabel = match($mov->tipo) {
+                                'IN'     => 'ENTRADA',
+                                'OUT'    => 'SALIDA',
+                                'AJUSTE' => 'AJUSTE',
+                                default  => $mov->tipo,
+                            };
+                            $tipoClase = match($mov->tipo) {
+                                'IN'     => 'bg-emerald-100 text-emerald-700',
+                                'AJUSTE' => 'bg-amber-100 text-amber-700',
+                                default  => 'bg-red-100 text-red-700',
+                            };
+                        @endphp
                         <tr class="hover:bg-gray-50 {{ $mov->tipo === 'IN' ? 'bg-emerald-50/30' : '' }}">
                             <td class="p-3 text-gray-500 whitespace-nowrap">
                                 {{ \Carbon\Carbon::parse($mov->created_at)->format('d/m/Y H:i') }}
                             </td>
                             <td class="p-3 text-center">
-                                <span class="px-2 py-0.5 rounded-full text-xs font-medium
-                                    {{ $mov->tipo === 'IN'
-                                        ? 'bg-emerald-100 text-emerald-700'
-                                        : 'bg-red-100 text-red-700' }}">
-                                    {{ $mov->tipo === 'IN' ? 'ENTRADA' : 'SALIDA' }}
+                                <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ $tipoClase }}">
+                                    {{ $tipoLabel }}
                                 </span>
                             </td>
                             <td class="p-3 text-right font-mono">
@@ -122,7 +134,7 @@
                                 @endif
                             </td>
                             <td class="p-3 text-right font-mono">
-                                @if($mov->tipo === 'OUT')
+                                @if($mov->tipo === 'OUT' || $mov->tipo === 'AJUSTE')
                                     <span class="text-red-700">-{{ number_format($mov->cantidad, 3) }}</span>
                                 @else
                                     <span class="text-gray-200">—</span>
@@ -155,7 +167,7 @@
                                 @endif
                             </td>
                             <td class="p-3 text-gray-500 text-xs">
-                                {{ $mov->user?->name ?? '—' }}
+                                {{ $mov->user_name ?? '—' }}
                             </td>
                         </tr>
                     @empty
