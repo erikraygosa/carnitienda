@@ -80,6 +80,7 @@ class DispatchPanelController extends Controller
             return [
                 'sales_order_item_id' => $item->id,
                 'producto'            => $item->product?->nombre ?? $item->descripcion,
+                'unidad'              => $item->product?->unidad,
                 'qty_solicitada'      => (float) $item->cantidad,
                 'num_cajas'           => $item->num_cajas,
                 'qty_despachada'      => $line ? (float) $line->qty_despachada : null,
@@ -101,7 +102,55 @@ class DispatchPanelController extends Controller
         ]);
     }
 
-    // ── 3. Guarda despacho real, descuenta inventario y recalcula ────
+    // ── 2b. Guarda UNA sola línea, para ir avanzando producto por producto ──
+    //       No toca inventario ni el estatus del pedido — solo deja registrado
+    //       el avance para retomarlo después (show() ya lo recupera).
+    public function saveLine(Request $request, SalesOrder $order, SalesOrderItem $item)
+    {
+        $this->authorize('salida de producto');
+
+        abort_if($item->sales_order_id !== $order->id, 404);
+
+        $request->validate([
+            'qty_despachada' => ['required', 'numeric', 'min:0.001'],
+            'num_cajas'      => ['nullable', 'integer', 'min:0'],
+            'nota'           => ['nullable', 'string', 'max:255'],
+        ], [
+            'qty_despachada.required' => 'Captura la cantidad despachada.',
+            'qty_despachada.min'      => 'La cantidad despachada no puede ser 0 — si el producto no está disponible, edita el pedido en vez de despacharlo en 0.',
+        ]);
+
+        $dispatchItem = DispatchItem::firstOrCreate(
+            ['sales_order_id' => $order->id],
+            [
+                'dispatch_id' => $this->getOrCreateDispatch(),
+                'referencia'  => $order->folio,
+                'status'      => 'ASIGNADO',
+            ]
+        );
+
+        DispatchItemLine::updateOrCreate(
+            ['dispatch_item_id' => $dispatchItem->id, 'sales_order_item_id' => $item->id],
+            [
+                'qty_solicitada' => (float) $item->cantidad,
+                'qty_despachada' => (float) $request->qty_despachada,
+                'nota'           => $request->nota,
+            ]
+        );
+
+        if ($request->has('num_cajas')) {
+            $item->update([
+                'num_cajas' => $request->num_cajas !== null && $request->num_cajas !== ''
+                    ? (int) $request->num_cajas
+                    : null,
+            ]);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    // ── 3. Completa el despacho: exige que TODOS los productos ya se hayan
+    //      guardado (con cantidad > 0), descuenta inventario y recalcula ────
     public function saveDespacho(Request $request, SalesOrder $order, InventoryService $inv)
     {
         $this->authorize('salida de producto');
@@ -109,10 +158,20 @@ class DispatchPanelController extends Controller
         $request->validate([
             'lines'                       => 'required|array|min:1',
             'lines.*.sales_order_item_id' => 'required|integer|exists:sales_order_items,id',
-            'lines.*.qty_despachada'      => 'required|numeric|min:0',
+            'lines.*.qty_despachada'      => ['required', 'numeric', 'min:0.001'],
             'lines.*.num_cajas'           => 'nullable|integer|min:0',
             'lines.*.nota'                => 'nullable|string|max:255',
+        ], [
+            'lines.*.qty_despachada.min' => 'Hay productos con cantidad 0 — no se puede completar el despacho si falta sacar algo.',
         ]);
+
+        $totalItemsPedido = $order->items()->count();
+        if (count($request->lines) < $totalItemsPedido) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Faltan productos por despachar — no se puede completar hasta que todos estén marcados.',
+            ], 422);
+        }
 
         DB::transaction(function () use ($request, $order, $inv) {
 

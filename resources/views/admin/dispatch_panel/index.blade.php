@@ -157,6 +157,7 @@
 
                 {{-- Tabla de líneas --}}
                 <div id="panel-contenido" class="hidden">
+                    <p class="text-xs text-gray-500 mb-2" id="panel-progreso"></p>
                     <table class="min-w-full text-sm mb-4">
                         <thead class="bg-gray-50">
                             <tr>
@@ -165,6 +166,7 @@
                                 <th class="px-2 py-2 text-center text-xs text-gray-500">Despachado</th>
                                 <th class="px-2 py-2 text-center text-xs text-gray-500">Cajas</th>
                                 <th class="px-2 py-2 text-center text-xs text-gray-500">Dif.</th>
+                                <th class="px-2 py-2 text-center text-xs text-gray-500"></th>
                             </tr>
                         </thead>
                         <tbody id="panel-lines" class="divide-y divide-gray-100"></tbody>
@@ -175,10 +177,14 @@
                         class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm mb-3 focus:outline-none focus:ring-1 focus:ring-indigo-500">
                     </textarea>
 
-                    <button onclick="guardarDespacho()"
-                        class="w-full py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition">
-                        Guardar salida real
+                    <button onclick="guardarDespacho()" id="btn-completar"
+                        class="w-full py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled>
+                        Completar despacho
                     </button>
+                    <p class="text-xs text-center text-amber-600 mt-1" id="panel-aviso-incompleto">
+                        Guarda cada producto (con cantidad mayor a 0) antes de poder completar.
+                    </p>
                 </div>
             </x-wire-card>
         </div>
@@ -257,15 +263,22 @@
             var tbody = document.getElementById('panel-lines');
             tbody.innerHTML = '';
             lines.forEach(function(line, idx) {
+                // Ya venía guardada de una sesión anterior (qty_despachada > 0 persistido).
+                line.guardado = line.qty_despachada !== null && line.qty_despachada > 0;
+
                 var qty = line.qty_despachada !== null ? line.qty_despachada : line.qty_solicitada;
                 var dif = qty - line.qty_solicitada;
                 var difColor = dif > 0 ? 'text-amber-600' : dif < 0 ? 'text-red-600' : 'text-gray-400';
                 var difStr   = dif === 0 ? '—' : (dif > 0 ? '+' : '') + dif.toFixed(3);
+                var unidad   = line.unidad ? line.unidad : '';
 
                 var tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
+                tr.id = 'linea-' + idx;
                 tr.innerHTML =
-                    '<td class="px-2 py-2 text-gray-700">' + escHtml(line.producto) + '</td>' +
+                    '<td class="px-2 py-2 text-gray-700">' + escHtml(line.producto) +
+                        (unidad ? ' <span class="text-xs text-gray-400">(' + escHtml(unidad) + ')</span>' : '') +
+                    '</td>' +
                     '<td class="px-2 py-2 text-center text-gray-600">' + line.qty_solicitada.toFixed(3) + '</td>' +
                     '<td class="px-2 py-1 text-center">' +
                         '<input type="number" step="0.001" min="0"' +
@@ -286,9 +299,17 @@
                     '</td>' +
                     '<td class="px-2 py-2 text-center font-mono text-xs ' + difColor + '" id="dif-' + idx + '">' +
                         difStr +
+                    '</td>' +
+                    '<td class="px-2 py-1 text-center">' +
+                        '<button type="button" onclick="guardarLinea(' + idx + ')"' +
+                        '   id="btn-linea-' + idx + '"' +
+                        '   class="px-2 py-1 text-xs rounded ' + (line.guardado ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-600 text-white hover:bg-indigo-700') + '">' +
+                        (line.guardado ? '✓ Guardado' : 'Guardar') +
+                        '</button>' +
                     '</td>';
                 tbody.appendChild(tr);
             });
+            actualizarProgreso();
         }
 
         window.actualizarCajas = function(input, idx) {
@@ -299,6 +320,10 @@
             var qty = parseFloat(input.value) || 0;
             var sol = linesData[idx].qty_solicitada;
             linesData[idx].qty_despachada = qty;
+            // Si el usuario toca la cantidad, esa línea deja de estar "guardada"
+            // hasta que se vuelva a confirmar (evita completar con un valor
+            // editado a último momento sin que quede persistido).
+            marcarLineaComoPendiente(idx);
             var dif      = qty - sol;
             var difColor = dif > 0 ? 'text-amber-600' : dif < 0 ? 'text-red-600' : 'text-gray-400';
             var difStr   = dif === 0 ? '—' : (dif > 0 ? '+' : '') + dif.toFixed(3);
@@ -307,19 +332,102 @@
             cell.className    = 'px-2 py-2 text-center font-mono text-xs ' + difColor;
         };
 
+        function marcarLineaComoPendiente(idx) {
+            linesData[idx].guardado = false;
+            var btn = document.getElementById('btn-linea-' + idx);
+            if (btn) {
+                btn.textContent = 'Guardar';
+                btn.className = 'px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700';
+            }
+            actualizarProgreso();
+        }
+
+        function actualizarProgreso() {
+            var total    = linesData.length;
+            var guardadas = linesData.filter(function(l) { return l.guardado; }).length;
+            var progreso = document.getElementById('panel-progreso');
+            if (progreso) {
+                progreso.textContent = guardadas + ' / ' + total + ' producto(s) guardados';
+            }
+            var btnCompletar = document.getElementById('btn-completar');
+            var aviso        = document.getElementById('panel-aviso-incompleto');
+            var listo        = total > 0 && guardadas === total;
+            if (btnCompletar) btnCompletar.disabled = !listo;
+            if (aviso) aviso.classList.toggle('hidden', listo);
+        }
+
+        // ── Guardar UNA línea (item por item, se puede ir avanzando) ─────
+        window.guardarLinea = function(idx) {
+            var line  = linesData[idx];
+            var input = document.querySelector('#panel-lines input[data-idx="' + idx + '"]');
+            var qty   = parseFloat(input.value) || 0;
+
+            if (qty <= 0) {
+                Swal.fire('Cantidad inválida', 'La cantidad despachada no puede ser 0. Si el producto no está disponible, edita el pedido en vez de despacharlo en 0.', 'warning');
+                return;
+            }
+
+            var btn = document.getElementById('btn-linea-' + idx);
+            if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+            fetch('/admin/despacho/pedido/' + currentOrderId + '/linea/' + line.sales_order_item_id + '/guardar', {
+                method:  'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept':       'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({
+                    qty_despachada: qty,
+                    num_cajas:      line.num_cajas != null ? line.num_cajas : null,
+                    nota:           document.getElementById('panel-nota-global').value.trim() || null,
+                }),
+            })
+            .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
+            .then(function(res) {
+                if (btn) btn.disabled = false;
+                if (res.status === 200 && res.data.ok) {
+                    line.qty_despachada = qty;
+                    line.guardado = true;
+                    if (btn) {
+                        btn.textContent = '✓ Guardado';
+                        btn.className = 'px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700';
+                    }
+                    actualizarProgreso();
+                } else {
+                    var msg = (res.data.errors && res.data.errors.qty_despachada)
+                        ? res.data.errors.qty_despachada[0]
+                        : (res.data.message || 'No se pudo guardar el producto.');
+                    Swal.fire('Error', msg, 'error');
+                    if (btn) btn.textContent = 'Guardar';
+                }
+            })
+            .catch(function() {
+                if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
+                Swal.fire('Error', 'No se pudo guardar el producto.', 'error');
+            });
+        };
+
         window.cerrarPanel = function() {
             document.getElementById('panel-despacho').classList.add('hidden');
             currentOrderId = null;
         };
 
+        // ── Completa el despacho: exige que TODAS las líneas ya estén
+        //    guardadas (botón viene disabled si no) ───────────────────────
         window.guardarDespacho = function() {
             if (!currentOrderId) return;
 
-            var inputs = document.querySelectorAll('#panel-lines input[type=number]');
-            var lines  = linesData.map(function(line, idx) {
+            var pendientes = linesData.filter(function(l) { return !l.guardado; });
+            if (pendientes.length > 0) {
+                Swal.fire('Faltan productos', 'Guarda todos los productos (botón "Guardar" de cada línea) antes de completar el despacho.', 'warning');
+                return;
+            }
+
+            var lines = linesData.map(function(line) {
                 return {
                     sales_order_item_id: line.sales_order_item_id,
-                    qty_despachada:      parseFloat(inputs[idx]?.value) || 0,
+                    qty_despachada:      line.qty_despachada,
                     num_cajas:           line.num_cajas != null ? line.num_cajas : null,
                     nota:                document.getElementById('panel-nota-global').value.trim() || null,
                 };
@@ -342,7 +450,7 @@
 
                     Swal.fire({
                         icon: 'success',
-                        title: 'Despacho guardado',
+                        title: 'Despacho completado',
                         text: data.message,
                         timer: 2000,
                         showConfirmButton: false,
@@ -358,7 +466,7 @@
                 }
             })
             .catch(function() {
-                Swal.fire('Error', 'No se pudo guardar el despacho.', 'error');
+                Swal.fire('Error', 'No se pudo completar el despacho.', 'error');
             });
         };
 
