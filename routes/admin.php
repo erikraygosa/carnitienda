@@ -110,6 +110,7 @@ Route::resource('sales-orders', SalesOrderController::class)->except(['show']);
 
     // Ticket térmico + PDF
     Route::get ('sales-orders/{order}/ticket',        [SalesOrderController::class,'ticket'])->name('sales-orders.ticket');
+    Route::get ('sales-orders/{order}/ticket/pdf',    [SalesOrderController::class,'ticketPdf'])->name('sales-orders.ticket.pdf');
     Route::get ('sales-orders/{order}/pdf',           [SalesOrderController::class,'pdf'])->name('sales-orders.pdf');
     Route::get ('sales-orders/{order}/pdf/download',  [SalesOrderController::class,'pdfDownload'])->name('sales-orders.pdf.download');
 

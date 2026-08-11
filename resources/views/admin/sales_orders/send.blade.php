@@ -30,11 +30,11 @@
                 <div class="flex gap-2">
                     <a href="{{ route('admin.sales-orders.pdf',$order) }}" target="_blank"
                        class="inline-flex px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50">
-                        👁 Ver PDF
+                        👁 Ver carta
                     </a>
-                    <a href="{{ route('admin.sales-orders.pdf.download',$order) }}"
+                    <a href="{{ route('admin.sales-orders.ticket.pdf',$order) }}" target="_blank"
                        class="inline-flex px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50">
-                        ⬇ Descargar
+                        🧾 Ver ticket
                     </a>
                 </div>
             </div>
@@ -64,8 +64,27 @@
                     <label class="inline-flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" name="channels[]" value="whatsapp"
                                class="rounded border-gray-300 text-indigo-600"
-                                {{ in_array('whatsapp', old('channels', [])) ? 'checked' : '' }}
+                               {{ in_array('whatsapp', old('channels', [])) ? 'checked' : '' }}>
                         <span class="text-sm text-gray-700">💬 WhatsApp</span>
+                    </label>
+                </div>
+            </div>
+
+            {{-- Formato del documento --}}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Formato</label>
+                <div class="flex items-center gap-6">
+                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="formato" value="carta"
+                               class="border-gray-300 text-indigo-600"
+                               {{ old('formato', 'carta') === 'carta' ? 'checked' : '' }}>
+                        <span class="text-sm text-gray-700">📄 Carta (remisión)</span>
+                    </label>
+                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="formato" value="ticket"
+                               class="border-gray-300 text-indigo-600"
+                               {{ old('formato') === 'ticket' ? 'checked' : '' }}>
+                        <span class="text-sm text-gray-700">🧾 Ticket 80mm</span>
                     </label>
                 </div>
             </div>

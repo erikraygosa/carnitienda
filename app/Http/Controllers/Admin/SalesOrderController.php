@@ -40,7 +40,7 @@ class SalesOrderController extends Controller implements HasMiddleware
         return [
             new Middleware('can:ver pedidos', only: ['index', 'data']),
             new Middleware('can:crear pedidos', only: ['create', 'store']),
-            new Middleware('can:editar pedidos', only: ['edit', 'update', 'reopen', 'approve', 'startPreparing', 'dispatchToRoute', 'deliver', 'notDelivered', 'recordCash', 'settleDriver', 'sendForm', 'send', 'pdf', 'pdfDownload']),
+            new Middleware('can:editar pedidos', only: ['edit', 'update', 'reopen', 'approve', 'startPreparing', 'dispatchToRoute', 'deliver', 'notDelivered', 'recordCash', 'settleDriver', 'sendForm', 'send', 'pdf', 'pdfDownload', 'ticketPdf']),
             new Middleware('can:cancelar pedidos', only: ['cancel']),
             // process() is gated by $this->authorize('procesar pedidos') inline
         ];
@@ -866,6 +866,21 @@ private function aprobarPedido(SalesOrder $order): array
         return view('admin.sales_orders.ticket', compact('order', 'empresa'));
     }
 
+    public function ticketPdf(SalesOrder $order)
+    {
+        $order->load('client', 'items.product', 'warehouse');
+        $empresa = app(\App\Services\CompanyService::class)->activa();
+
+        // 72mm de ancho, igual que el ticket en pantalla (1mm = 2.8346pt)
+        $ancho = 204.09;
+        $alto  = 1200;
+
+        $pdf = Pdf::loadView('admin.sales_orders.ticket-pdf', compact('order', 'empresa'))
+            ->setPaper([0, 0, $ancho, $alto], 'portrait');
+
+        return $pdf->stream('ticket-pedido-' . ($order->folio ?? $order->id) . '.pdf');
+    }
+
     // ========= PDF =========
         public function pdf(SalesOrder $order)
 {
@@ -907,6 +922,7 @@ public function pdfDownload(SalesOrder $order)
     $request->validate([
         'channels'    => ['required','array','min:1'],
         'channels.*'  => ['in:email,whatsapp'],
+        'formato'     => ['nullable','in:carta,ticket'],
         'email'       => ['nullable','email'],
         'telefono'    => ['nullable','string'],
         'mensaje'     => ['nullable','string','max:500'],
@@ -915,9 +931,17 @@ public function pdfDownload(SalesOrder $order)
     $empresa = app(\App\Services\CompanyService::class)->activa();
     $order->loadMissing(['client','items.product','warehouse','driver','route']);
 
-    $pdf    = Pdf::loadView('pdf.sales_order', ['order' => $order, 'empresa' => $empresa]);
+    $formato = $request->input('formato', 'carta');
+
+    if ($formato === 'ticket') {
+        $pdf = Pdf::loadView('admin.sales_orders.ticket-pdf', ['order' => $order, 'empresa' => $empresa])
+            ->setPaper([0, 0, 204.09, 1200], 'portrait');
+        $fname = 'ticket-' . ($order->folio ?? $order->id) . '.pdf';
+    } else {
+        $pdf   = Pdf::loadView('pdf.sales_order', ['order' => $order, 'empresa' => $empresa]);
+        $fname = 'remision-' . ($order->folio ?? $order->id) . '.pdf';
+    }
     $pdfRaw = $pdf->output();
-    $fname  = 'remision-' . ($order->folio ?? $order->id) . '.pdf';
 
     $errors = [];
 
