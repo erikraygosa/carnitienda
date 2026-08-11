@@ -369,13 +369,13 @@
                                blue xs>
                     Enviar
                 </x-wire-button>
-                <form action="{{ route('admin.invoices.cancel', $invoice) }}" method="POST"
-                      onsubmit="return confirm('¿Cancelar esta factura en el SAT?')">
+                <form id="form-cancel-cfdi" action="{{ route('admin.invoices.cancel', $invoice) }}" method="POST"
+                      onsubmit="return confirmarCancelacion()">
                     @csrf
                     <div class="grid grid-cols-2 gap-2 items-end">
                         <div>
                             <label class="block text-xs text-gray-500 mb-1">Motivo cancelación</label>
-                            <select name="motivo"
+                            <select name="motivo" id="motivo-cancelacion" onchange="toggleFolioSustitucion()"
                                     class="w-full rounded border-gray-300 text-sm focus:border-indigo-500">
                                 <option value="02">02 — Comprobante emitido con errores sin relación</option>
                                 <option value="01">01 — Comprobante emitido con errores con relación</option>
@@ -385,7 +385,30 @@
                         </div>
                         <x-wire-button type="submit" red xs>Cancelar CFDI</x-wire-button>
                     </div>
+                    <div id="wrap-folio-sustitucion" class="mt-2 hidden">
+                        <label class="block text-xs text-gray-500 mb-1">
+                            UUID de la factura que la sustituye <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="folio_sustitucion" id="input-folio-sustitucion"
+                               placeholder="00000000-0000-0000-0000-000000000000"
+                               class="w-full rounded border-gray-300 text-sm focus:border-indigo-500">
+                        <p class="text-xs text-gray-400 mt-0.5">
+                            El motivo 01 exige indicar el UUID del CFDI que sustituye a este — sin él, el SAT puede rechazar la cancelación.
+                        </p>
+                    </div>
                 </form>
+                <script>
+                function toggleFolioSustitucion() {
+                    var esSustitucion = document.getElementById('motivo-cancelacion').value === '01';
+                    var wrap  = document.getElementById('wrap-folio-sustitucion');
+                    var input = document.getElementById('input-folio-sustitucion');
+                    wrap.classList.toggle('hidden', !esSustitucion);
+                    input.required = esSustitucion;
+                }
+                function confirmarCancelacion() {
+                    return confirm('¿Cancelar esta factura en el SAT?');
+                }
+                </script>
             @endif
 
             <span class="ml-auto px-2 py-1 text-xs rounded-full font-medium

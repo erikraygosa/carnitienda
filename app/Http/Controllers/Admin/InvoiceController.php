@@ -386,7 +386,11 @@ public function store(Request $request)
 
         $data = $request->validate([
             'motivo' => ['required','in:01,02,03,04'],
-            'folio_sustitucion' => ['nullable','string','max:50']
+            // Motivo 01 = "con relación": el SAT exige el UUID del CFDI que
+            // sustituye a este; sin él Facturapi/SAT puede rechazar la cancelación.
+            'folio_sustitucion' => ['required_if:motivo,01','nullable','string','max:50'],
+        ], [
+            'folio_sustitucion.required_if' => 'El motivo 01 (con relación) requiere el UUID de la factura que sustituye a esta.',
         ]);
 
         $resp = $pac->cancel($invoice, $data['motivo'], $data['folio_sustitucion'] ?? null);

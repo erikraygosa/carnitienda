@@ -116,13 +116,19 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
                 return ['ok' => false, 'error' => 'La factura no tiene UUID para cancelar.'];
             }
 
-            $payload = ['motive' => $motivo];
+            // Facturapi espera motive/substitution como query params del DELETE,
+            // no en el cuerpo — Http::delete($url, $data) manda $data como
+            // JSON body por default, así que aquí nunca le llegaba el motivo
+            // real (y "substitution_uuid" tampoco es el nombre que usa la API,
+            // es "substitution"). Verificado contra la doc oficial de Facturapi.
+            $query = ['motive' => $motivo];
             if ($folioSustitucion) {
-                $payload['substitution_uuid'] = $folioSustitucion;
+                $query['substitution'] = $folioSustitucion;
             }
 
             $response = $this->http()
-                ->delete("/invoices/{$invoice->uuid}", $payload);
+                ->withQueryParameters($query)
+                ->delete("/invoices/{$invoice->uuid}");
 
             if ($response->failed()) {
                 $error = $response->json('message') ?? 'Error al cancelar en Factuapi';
