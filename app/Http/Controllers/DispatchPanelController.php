@@ -31,7 +31,17 @@ class DispatchPanelController extends Controller
             ->paginate(50)
             ->withQueryString();
 
-        return view('admin.dispatch_panel.index', compact('pedidos', 'rutas', 'rutaId'));
+        // sales_order_item_id de líneas ya guardadas (qty_despachada != null y > 0),
+        // para poder marcarlas de otro color en la lista sin abrir el panel.
+        $itemsDespachadosIds = DispatchItemLine::whereHas('dispatchItem', function ($q) use ($pedidos) {
+                $q->whereIn('sales_order_id', $pedidos->pluck('id'));
+            })
+            ->whereNotNull('qty_despachada')
+            ->where('qty_despachada', '>', 0)
+            ->pluck('sales_order_item_id')
+            ->flip();
+
+        return view('admin.dispatch_panel.index', compact('pedidos', 'rutas', 'rutaId', 'itemsDespachadosIds'));
     }
 
     // ── Polling: conteo de pedidos PROCESADOS para notificaciones ───

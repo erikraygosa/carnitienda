@@ -77,10 +77,12 @@
                         @foreach($pedidos as $pedido)
                             @php $itemCount = $pedido->items->count(); @endphp
                             @foreach($pedido->items as $itemIdx => $item)
+                            @php $yaDespachado = $itemsDespachadosIds->has($item->id); @endphp
                             <tr
                                 data-order-id="{{ $pedido->id }}"
+                                data-item-id="{{ $item->id }}"
                                 data-search="{{ strtolower($pedido->folio . ' ' . ($pedido->client?->nombre ?? '') . ' ' . ($item->product?->nombre ?? $item->descripcion ?? '')) }}"
-                                class="hover:bg-indigo-50 transition {{ $itemIdx === 0 ? 'border-t-2 border-gray-300' : 'border-t border-gray-100' }}"
+                                class="transition {{ $itemIdx === 0 ? 'border-t-2 border-gray-300' : 'border-t border-gray-100' }} {{ $yaDespachado ? 'bg-emerald-50 hover:bg-emerald-100' : 'hover:bg-indigo-50' }}"
                             >
                                 {{-- Folio solo en primera fila del pedido --}}
                                 <td class="px-3 py-2 font-mono text-indigo-700 font-semibold whitespace-nowrap">
@@ -94,13 +96,16 @@
                                 <td class="px-3 py-2 text-gray-500 text-xs whitespace-nowrap">
                                     {{ $itemIdx === 0 && $pedido->fecha ? $pedido->fecha->format('d/m/Y') : '' }}
                                 </td>
-                                <td class="px-3 py-2 text-gray-800">
+                                <td class="px-3 py-2 {{ $yaDespachado ? 'text-emerald-800 font-medium' : 'text-gray-800' }}">
                                     {{ $item->product?->nombre ?? $item->descripcion ?? '—' }}
+                                    @if($yaDespachado)
+                                        <span class="ml-1 text-emerald-600" title="Ya guardado">✓</span>
+                                    @endif
                                 </td>
-                                <td class="px-3 py-2 text-right text-gray-600 tabular-nums">
+                                <td class="px-3 py-2 text-right tabular-nums {{ $yaDespachado ? 'text-emerald-700' : 'text-gray-600' }}">
                                     {{ number_format($item->cantidad, 3) }}
                                 </td>
-                                <td class="px-3 py-2 text-center text-gray-500">
+                                <td class="px-3 py-2 text-center {{ $yaDespachado ? 'text-emerald-700' : 'text-gray-500' }}">
                                     {{ $item->num_cajas ?? '—' }}
                                 </td>
                                 <td class="px-3 py-2">
@@ -353,6 +358,24 @@
             if (aviso) aviso.classList.toggle('hidden', listo);
         }
 
+        // ── Pinta en verde la fila de la lista principal (sin recargar) ──
+        function marcarFilaComoDespachadaEnLista(salesOrderItemId) {
+            var tr = tbody.querySelector('tr[data-item-id="' + salesOrderItemId + '"]');
+            if (!tr) return;
+            tr.classList.remove('hover:bg-indigo-50');
+            tr.classList.add('bg-emerald-50', 'hover:bg-emerald-100');
+            var celdaProducto = tr.children[3];
+            if (celdaProducto && !celdaProducto.querySelector('.marca-guardado')) {
+                celdaProducto.classList.remove('text-gray-800');
+                celdaProducto.classList.add('text-emerald-800', 'font-medium');
+                var marca = document.createElement('span');
+                marca.className = 'ml-1 text-emerald-600 marca-guardado';
+                marca.title = 'Ya guardado';
+                marca.textContent = '✓';
+                celdaProducto.appendChild(marca);
+            }
+        }
+
         // ── Guardar UNA línea (item por item, se puede ir avanzando) ─────
         window.guardarLinea = function(idx) {
             var line  = linesData[idx];
@@ -390,6 +413,7 @@
                         btn.textContent = '✓ Guardado';
                         btn.className = 'px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700';
                     }
+                    marcarFilaComoDespachadaEnLista(line.sales_order_item_id);
                     actualizarProgreso();
                 } else {
                     var msg = (res.data.errors && res.data.errors.qty_despachada)
