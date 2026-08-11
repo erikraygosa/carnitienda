@@ -668,8 +668,15 @@
             const it        = state.items[i];
             const surtido   = !!it.ya_surtido;
             const canItems  = CAN_EDIT_ITEMS && !surtido;
-            const dis       = (LOCKED || surtido) ? 'disabled' : '';
-            const disQty    = (CAN_EDIT_QTY && !surtido) ? '' : 'disabled';
+            // 'disabled' NO se envía al guardar el formulario — una partida ya
+            // surtida debe seguir mandando su descripción/cantidad/precio tal
+            // cual (si no, el servidor la rechaza como "campo requerido"), solo
+            // que de solo lectura ('readonly' sí se envía). 'disabled' de
+            // verdad solo aplica cuando el PEDIDO completo está bloqueado
+            // (ENTREGADO/CANCELADO), donde ni se muestra el botón de guardar.
+            const dis       = LOCKED ? 'disabled' : '';
+            const roSurtido = surtido ? 'readonly' : '';
+            const disQty    = LOCKED ? 'disabled' : (surtido ? 'readonly' : (CAN_EDIT_QTY ? '' : 'disabled'));
             const roItems   = (!LOCKED && !canItems) ? 'readonly' : '';
             const tr        = document.createElement('tr');
             tr.className    = 'border-b' + (surtido ? ' bg-emerald-50/40' : '');
@@ -694,7 +701,7 @@
                 <td class="p-2">
                     <input type="text" class="w-64 border rounded p-1 text-sm inp-desc"
                            name="items[${i}][descripcion]" value="${escHtml(it.descripcion)}"
-                           ${dis} ${roItems} required>
+                           ${dis} ${roItems} ${roSurtido} required>
                 </td>
                 <td class="p-2 text-right">
                     <input type="number" min="0.001" step="0.001"
@@ -706,18 +713,18 @@
                     <input type="number" min="1" step="1"
                            class="w-16 border rounded p-1 text-center text-sm inp-cajas"
                            name="items[${i}][num_cajas]" value="${it.num_cajas || ''}"
-                           placeholder="—" title="Cajas aprox." ${dis}>
+                           placeholder="—" title="Cajas aprox." ${surtido ? 'readonly' : dis}>
                 </td>
                 <td class="p-2 text-right">
                     <input type="number" min="0" step="0.0001"
                            class="w-28 border rounded p-1 text-right text-sm bg-gray-50 inp-precio"
                            name="items[${i}][precio]" value="${it.precio}"
-                           ${dis} ${(LOCKED || surtido) ? '' : 'readonly'} required>
+                           ${dis} readonly required>
                 </td>
                 <td class="p-2 text-right">
                     <input type="number" min="0" step="0.01"
                            class="w-24 border rounded p-1 text-right text-sm inp-descuento"
-                           name="items[${i}][descuento]" value="${it.descuento}" ${dis} ${roItems}>
+                           name="items[${i}][descuento]" value="${it.descuento}" ${dis} ${roItems} ${roSurtido}>
                 </td>
                 <td class="p-2 text-right">
                     <input type="number" min="0" step="0.01"
