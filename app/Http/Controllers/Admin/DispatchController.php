@@ -650,12 +650,15 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
             ]);
         }
 
-        $cxcPendientes = $dispatch->arAssignments->whereIn('status', ['PENDIENTE', 'PARCIAL']);
-        if ($cxcPendientes->count() > 0) {
+        // Solo PENDIENTE (sin ningún abono) bloquea el cierre. PARCIAL ya se
+        // resolvió — se registró lo cobrado ese día; el saldo restante sigue
+        // como CxC normal y no detiene la liquidación del chofer.
+        $cxcSinResolver = $dispatch->arAssignments->where('status', 'PENDIENTE');
+        if ($cxcSinResolver->count() > 0) {
             return back()->with('swal', [
                 'icon'  => 'warning',
-                'title' => 'CxC pendientes',
-                'text'  => "Faltan {$cxcPendientes->count()} cuenta(s) por cobrar por resolver.",
+                'title' => 'CxC sin resolver',
+                'text'  => "Faltan {$cxcSinResolver->count()} cuenta(s) por cobrar sin ni siquiera un abono — cóbralas o márcalas como no cobradas.",
             ]);
         }
 

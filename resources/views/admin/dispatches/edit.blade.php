@@ -37,7 +37,14 @@
 
         $traspasosPendientesIds = $dispatch->transferAssignments->where('status','PENDIENTE')->pluck('id');
         $pedidosPendientesItems = $dispatch->items->filter(fn($i) => $i->salesOrder?->status === 'EN_RUTA');
+        // PENDIENTE+PARCIAL: lo que todavía puede recibir un abono (para el
+        // dropdown de "cobrar todas" y el botón por fila) — un PARCIAL ya
+        // tiene dinero registrado, pero se le puede seguir abonando.
         $cxcPendientes          = $dispatch->arAssignments->whereIn('status',['PENDIENTE','PARCIAL']);
+        // Solo PENDIENTE bloquea el cierre — PARCIAL ya se resolvió (se
+        // registró lo que se cobró); lo que falte del saldo sigue como CxC
+        // normal, no detiene la liquidación del chofer de hoy.
+        $cxcSinResolver         = $dispatch->arAssignments->where('status','PENDIENTE');
 
         // ── Cierres parciales: traspasos+crédito por un lado, efectivo+CxC por otro ──
         $pedidosCreditoPendientes  = $pedidosPendientesItems->filter(
@@ -50,7 +57,7 @@
             fn($ta) => in_array($ta->status, ['COMPLETADO','NO_COMPLETADO'])
         );
         $puedeCerrarTraspasos = $traspasosResueltos && $pedidosCreditoPendientes->count() === 0;
-        $puedeCerrarCobranza  = $pedidosEfectivoPendientesItems->count() === 0 && $cxcPendientes->count() === 0;
+        $puedeCerrarCobranza  = $pedidosEfectivoPendientesItems->count() === 0 && $cxcSinResolver->count() === 0;
         $montoSugerido        = $pedidosEfectivo + $cxcCobradas;
     @endphp
 
@@ -693,9 +700,9 @@
                         Faltan {{ $pedidosEfectivoPendientesItems->count() }} pedido(s) de efectivo/contraentrega por marcar.
                     </p>
                 @endif
-                @if($cxcPendientes->count() > 0)
+                @if($cxcSinResolver->count() > 0)
                     <p class="text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded px-3 py-2 mb-3">
-                        Faltan {{ $cxcPendientes->count() }} CxC por resolver.
+                        Faltan {{ $cxcSinResolver->count() }} CxC sin ni siquiera un abono — cóbralas o márcalas como no cobradas.
                     </p>
                 @endif
 
@@ -710,22 +717,15 @@
                     </div>
                 </div>
 
-                <form action="{{ route('admin.dispatches.cerrar-cobranza', $dispatch) }}" method="POST">
+                <form id="form-cerrar-cobranza" action="{{ route('admin.dispatches.cerrar-cobranza', $dispatch) }}" method="POST">
                     @csrf
                     <div class="space-y-3">
                         <div>
                             <label class="block text-xs text-gray-500 mb-1">Monto entregado <span class="text-indigo-500">(sug: ${{ number_format($montoSugerido, 2) }})</span></label>
-                            <input type="number" name="monto_entregado" min="0" step="0.01" value="{{ $montoSugerido }}"
-                                   class="w-full rounded-md border-gray-300 shadow-sm text-sm" required>
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Caja donde se registra el ingreso (opcional)</label>
-                            <select name="pos_register_id" class="w-full rounded-md border-gray-300 shadow-sm text-sm">
-                                <option value="">— Sin registrar en caja —</option>
-                                @foreach($cajasAbiertas as $caja)
-                                    <option value="{{ $caja->id }}">Caja #{{ $caja->id }} — {{ $caja->user?->name }}</option>
-                                @endforeach
-                            </select>
+                            <input type="hidden" name="monto_entregado" id="monto-entregado-real" value="{{ $montoSugerido }}">
+                            <input type="text" inputmode="decimal" id="monto-entregado-visible"
+                                   value="{{ number_format($montoSugerido, 2) }}"
+                                   class="w-full rounded-md border-gray-300 shadow-sm text-sm text-right">
                         </div>
                         <div>
                             <label class="block text-xs text-gray-500 mb-1">Notas de cierre (opcional)</label>
@@ -769,6 +769,27 @@
 
     <script>
     (function () {
+        // ── Monto entregado con comas de miles (input visible formateado +
+        //    hidden con el valor numérico real que se manda al servidor) ───
+        var montoVisible = document.getElementById('monto-entregado-visible');
+        var montoReal     = document.getElementById('monto-entregado-real');
+        if (montoVisible && montoReal) {
+            function soloNumero(str) {
+                return (str || '').replace(/[^0-9.]/g, '');
+            }
+            montoVisible.addEventListener('focus', function () {
+                this.value = soloNumero(this.value);
+            });
+            montoVisible.addEventListener('blur', function () {
+                var n = parseFloat(soloNumero(this.value)) || 0;
+                montoReal.value = n;
+                this.value = n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            });
+            montoVisible.addEventListener('input', function () {
+                montoReal.value = parseFloat(soloNumero(this.value)) || 0;
+            });
+        }
+
         // ── Modal bulk CxC ────────────────────────────────────────────────
         var btnBulk  = document.getElementById('btn-bulk-cxc');
         var modal    = document.getElementById('modal-bulk-cxc');
