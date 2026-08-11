@@ -620,14 +620,18 @@ public function pdfDownload(Invoice $invoice)
     return view('admin.invoices.send', [
         'invoice'     => $invoice,
         'clientEmail' => $invoice->client?->email ?? '',
+        'clientPhone' => $invoice->client?->telefono ?? '',
     ]);
 }
 
-    public function send(Request $request, Invoice $invoice)
+    public function send(Request $request, Invoice $invoice, \App\Services\WhatsappSender $whatsapp)
 {
     $request->validate([
-        'email'   => ['required', 'email'],
-        'mensaje' => ['nullable', 'string', 'max:500'],
+        'channels'    => ['required', 'array', 'min:1'],
+        'channels.*'  => ['in:email,whatsapp'],
+        'email'       => ['nullable', 'email'],
+        'telefono'    => ['nullable', 'string'],
+        'mensaje'     => ['nullable', 'string', 'max:500'],
     ]);
 
     $empresa = app(\App\Services\CompanyService::class)->activa();
@@ -640,18 +644,53 @@ public function pdfDownload(Invoice $invoice)
     $raw   = $pdf->output();
     $fname = 'factura-' . ($invoice->serie ?? '') . ($invoice->folio ?? $invoice->id) . '.pdf';
 
-    try {
-        \Illuminate\Support\Facades\Mail::to($request->email)
-            ->send(new \App\Mail\InvoiceMailable(
-                invoice: $invoice,
-                pdfRaw:  $raw,
-                pdfName: $fname,
-               mensaje: $request->input('mensaje') ?? '',
-            ));
+    $errors = [];
 
-        return back()->with('swal', ['icon'=>'success','title'=>'Enviada','text'=>'Factura enviada correctamente.']);
-    } catch (\Throwable $e) {
-        return back()->with('swal', ['icon'=>'error','title'=>'Error al enviar','text'=>$e->getMessage()]);
+    if (in_array('email', $request->channels, true)) {
+        $to = $request->input('email') ?: ($invoice->client?->email ?? null);
+        if (!$to) {
+            $errors[] = 'El cliente no tiene correo y no proporcionaste uno.';
+        } else {
+            try {
+                \Illuminate\Support\Facades\Mail::to($to)
+                    ->send(new \App\Mail\InvoiceMailable(
+                        invoice: $invoice,
+                        pdfRaw:  $raw,
+                        pdfName: $fname,
+                        mensaje: $request->input('mensaje') ?? '',
+                    ));
+            } catch (\Throwable $e) {
+                $errors[] = 'Error enviando email: ' . $e->getMessage();
+            }
+        }
     }
+
+    if (in_array('whatsapp', $request->channels, true)) {
+        $phone = $request->input('telefono') ?: ($invoice->client?->telefono ?? null);
+        $msg   = $request->input('mensaje') ?: 'Te adjunto tu factura 📎';
+
+        if (!$phone) {
+            $errors[] = 'El cliente no tiene teléfono y no proporcionaste uno.';
+        } else {
+            try {
+                $resp = $whatsapp->sendPdf($phone, $msg, $fname, $raw);
+                if (!($resp['ok'] ?? false)) {
+                    $errors[] = 'WhatsApp API respondió ' . ($resp['status'] ?? '500') . ': ' . json_encode($resp['body'] ?? []);
+                }
+            } catch (\Throwable $e) {
+                $errors[] = 'Error enviando WhatsApp: ' . $e->getMessage();
+            }
+        }
+    }
+
+    if ($errors) {
+        return back()->with('swal', [
+            'icon'  => 'error',
+            'title' => 'Envío parcial',
+            'text'  => implode(' | ', $errors),
+        ]);
+    }
+
+    return back()->with('swal', ['icon'=>'success','title'=>'Enviada','text'=>'Factura enviada correctamente.']);
 }
 }

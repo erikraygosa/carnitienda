@@ -12,28 +12,83 @@
     </x-slot>
 
     <x-wire-card>
-        <form method="POST" action="{{ route('admin.invoices.send', $invoice) }}" class="space-y-4">
+        @if($errors->any())
+        <div class="mb-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-rose-800">
+            <ul class="list-disc ml-5 text-sm">
+                @foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach
+            </ul>
+        </div>
+        @endif
+
+        <form method="POST" action="{{ route('admin.invoices.send', $invoice) }}" class="space-y-5">
             @csrf
 
+            {{-- Canales --}}
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                    Correo del destinatario <span class="text-red-500">*</span>
-                </label>
-                <input type="email" name="email" value="{{ old('email', $clientEmail) }}" required
-                       class="w-full rounded-md border-gray-300 shadow-sm text-sm">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Enviar por</label>
+                <div class="flex items-center gap-6">
+                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="channels[]" value="email"
+                               class="rounded border-gray-300 text-indigo-600"
+                               {{ in_array('email', old('channels', ['email'])) ? 'checked' : '' }}>
+                        <span class="text-sm text-gray-700">📧 Email</span>
+                    </label>
+                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="channels[]" value="whatsapp"
+                               class="rounded border-gray-300 text-indigo-600"
+                               {{ in_array('whatsapp', old('channels', [])) ? 'checked' : '' }}>
+                        <span class="text-sm text-gray-700">💬 WhatsApp</span>
+                    </label>
+                </div>
             </div>
 
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Mensaje (opcional)</label>
-                <textarea name="mensaje" rows="4"
-                          class="w-full rounded-md border-gray-300 shadow-sm text-sm"
-                          placeholder="Adjunto encontrarás tu factura...">{{ old('mensaje') }}</textarea>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+                {{-- Email --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Correo del cliente
+                    </label>
+                    <input type="email" name="email"
+                           value="{{ old('email', $clientEmail) }}"
+                           placeholder="cliente@correo.com"
+                           class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <p class="mt-1 text-xs text-gray-400">
+                        Si lo dejas vacío se usará el correo registrado del cliente.
+                    </p>
+                </div>
+
+                {{-- Teléfono --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Teléfono (WhatsApp)
+                    </label>
+                    <input type="text" name="telefono"
+                           value="{{ old('telefono', $clientPhone) }}"
+                           placeholder="5219990000000"
+                           class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <p class="mt-1 text-xs text-gray-400">
+                        Formato: 52 + lada + número (sin espacios ni guiones).
+                    </p>
+                </div>
+
+                {{-- Mensaje --}}
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Mensaje</label>
+                    <textarea name="mensaje" rows="3"
+                              placeholder="Adjunto encontrarás tu factura 📎"
+                              class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">{{ old('mensaje', 'Adjunto encontrarás tu factura 📎') }}</textarea>
+                </div>
+
             </div>
 
-            <div class="flex justify-end">
+            <div class="flex justify-end pt-2">
                 <button type="submit"
-                        class="inline-flex px-4 py-2 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
-                    Enviar factura
+                        class="inline-flex items-center gap-2 px-5 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                    </svg>
+                    Enviar
                 </button>
             </div>
         </form>
