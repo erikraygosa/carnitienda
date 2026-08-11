@@ -128,20 +128,40 @@
 
     {{-- CLIENTE --}}
     @if($client)
+    @php
+        // Dirección: primero la capturada en el pedido (entrega_*), si no
+        // hay usamos la de entrega efectiva del cliente, y si tampoco hay
+        // caemos a la dirección libre del cliente.
+        $efectiva = $client->getEntregaEfectiva();
+        $calle    = $order->entrega_calle   ?? $efectiva['calle']   ?? '';
+        $numero   = $order->entrega_numero  ?? $efectiva['numero']  ?? '';
+        $colonia  = $order->entrega_colonia ?? $efectiva['colonia'] ?? '';
+        $ciudad   = $order->entrega_ciudad  ?? $efectiva['ciudad']  ?? '';
+        $estado   = $order->entrega_estado  ?? $efectiva['estado']  ?? '';
+        $cp       = $order->entrega_cp      ?? $efectiva['cp']      ?? '';
+
+        $dirParts = array_filter([
+            trim($calle . ' ' . $numero),
+            $colonia,
+            trim($ciudad . ($estado ? ', ' . $estado : '') . ($cp ? '  CP ' . $cp : '')),
+        ]);
+
+        // Si no hay nada estructurado, usamos el campo libre de dirección.
+        if (!count($dirParts) && $client->direccion) {
+            $dirParts = [$client->direccion];
+        }
+
+        $telEntrega = $order->entrega_telefono ?? $client->telefono ?? '';
+    @endphp
     <div>
         <span class="sm">Cliente:</span>
         <span class="sm">{{ $client->telefono ?? '' }}</span>
-        <div class="bold">{{ strtoupper($client->nombre) }}</div>
-        @php
-            $dirParts = array_filter([
-                trim(($order->entrega_calle ?? $client->calle ?? '').
-                     ' '.($order->entrega_numero ?? $client->numero ?? '')),
-                $order->entrega_colonia ?? $client->colonia ?? '',
-                $client->telefono ? 'Teléfono: '.$client->telefono : '',
-            ]);
-        @endphp
+        <div class="bold">{{ strtoupper($order->entrega_nombre ?: $client->nombre) }}</div>
         @if(count($dirParts))
             <div class="sm">{{ implode(', ', $dirParts) }}</div>
+        @endif
+        @if($telEntrega)
+            <div class="sm">Teléfono: {{ $telEntrega }}</div>
         @endif
     </div>
     @endif

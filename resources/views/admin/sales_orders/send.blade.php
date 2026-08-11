@@ -56,15 +56,15 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">Enviar por</label>
                 <div class="flex items-center gap-6">
                     <label class="inline-flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" name="channels[]" value="email"
+                        <input type="checkbox" name="channels[]" value="email" id="ch-email"
                                class="rounded border-gray-300 text-indigo-600"
-                               {{ in_array('email', old('channels', ['email'])) ? 'checked' : '' }}>
+                               {{ in_array('email', old('channels', [])) ? 'checked' : '' }}>
                         <span class="text-sm text-gray-700">📧 Email</span>
                     </label>
                     <label class="inline-flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" name="channels[]" value="whatsapp"
+                        <input type="checkbox" name="channels[]" value="whatsapp" id="ch-whatsapp"
                                class="rounded border-gray-300 text-indigo-600"
-                               {{ in_array('whatsapp', old('channels', [])) ? 'checked' : '' }}>
+                               {{ in_array('whatsapp', old('channels', ['whatsapp'])) ? 'checked' : '' }}>
                         <span class="text-sm text-gray-700">💬 WhatsApp</span>
                     </label>
                 </div>
@@ -75,15 +75,15 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">Formato</label>
                 <div class="flex items-center gap-6">
                     <label class="inline-flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="formato" value="carta"
+                        <input type="radio" name="formato" value="carta" id="fmt-carta"
                                class="border-gray-300 text-indigo-600"
-                               {{ old('formato', 'carta') === 'carta' ? 'checked' : '' }}>
+                               {{ old('formato') === 'carta' ? 'checked' : '' }}>
                         <span class="text-sm text-gray-700">📄 Carta (remisión)</span>
                     </label>
                     <label class="inline-flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="formato" value="ticket"
+                        <input type="radio" name="formato" value="ticket" id="fmt-ticket"
                                class="border-gray-300 text-indigo-600"
-                               {{ old('formato') === 'ticket' ? 'checked' : '' }}>
+                               {{ old('formato', 'ticket') === 'ticket' ? 'checked' : '' }}>
                         <span class="text-sm text-gray-700">🧾 Ticket 80mm</span>
                     </label>
                 </div>
@@ -129,6 +129,8 @@
 
             </div>
 
+            <div id="resumen-envio" class="text-sm text-gray-600 bg-indigo-50 border border-indigo-100 rounded-md px-3 py-2"></div>
+
             <div class="flex justify-end pt-2">
                 <button type="submit"
                         class="inline-flex items-center gap-2 px-5 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">
@@ -140,4 +142,39 @@
             </div>
         </form>
     </x-wire-card>
+
+    <script>
+    (function () {
+        var chEmail   = document.getElementById('ch-email');
+        var chWa      = document.getElementById('ch-whatsapp');
+        var inpEmail  = document.querySelector('input[name="email"]');
+        var inpTel    = document.querySelector('input[name="telefono"]');
+        var fmtCarta  = document.getElementById('fmt-carta');
+        var resumen   = document.getElementById('resumen-envio');
+
+        function actualizar() {
+            var destinos = [];
+            if (chEmail.checked) {
+                destinos.push('📧 Email a ' + (inpEmail.value.trim() || '(sin correo capturado)'));
+            }
+            if (chWa.checked) {
+                destinos.push('💬 WhatsApp a ' + (inpTel.value.trim() || '(sin teléfono capturado)'));
+            }
+            var formato = fmtCarta.checked ? 'formato Carta (remisión)' : 'formato Ticket 80mm';
+
+            resumen.textContent = destinos.length
+                ? 'Se enviará por: ' + destinos.join(' · ') + ' — ' + formato
+                : 'Selecciona al menos un canal de envío.';
+        }
+
+        [chEmail, chWa, fmtCarta, document.getElementById('fmt-ticket')].forEach(function (el) {
+            el.addEventListener('change', actualizar);
+        });
+        [inpEmail, inpTel].forEach(function (el) {
+            el.addEventListener('input', actualizar);
+        });
+
+        actualizar();
+    })();
+    </script>
 </x-admin-layout>

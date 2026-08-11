@@ -871,8 +871,9 @@ private function aprobarPedido(SalesOrder $order): array
         $order->load('client', 'items.product', 'warehouse');
         $empresa = app(\App\Services\CompanyService::class)->activa();
 
-        // 72mm de ancho, igual que el ticket en pantalla (1mm = 2.8346pt)
-        $ancho = 204.09;
+        // Página de 80mm para que el ticket (72mm) tenga margen y no se
+        // corte el contenido del lado derecho, igual que en POS/Caja.
+        $ancho = 226.77;
         $alto  = 1200;
 
         $pdf = Pdf::loadView('admin.sales_orders.ticket-pdf', compact('order', 'empresa'))
@@ -935,7 +936,7 @@ public function pdfDownload(SalesOrder $order)
 
     if ($formato === 'ticket') {
         $pdf = Pdf::loadView('admin.sales_orders.ticket-pdf', ['order' => $order, 'empresa' => $empresa])
-            ->setPaper([0, 0, 204.09, 1200], 'portrait');
+            ->setPaper([0, 0, 226.77, 1200], 'portrait');
         $fname = 'ticket-' . ($order->folio ?? $order->id) . '.pdf';
     } else {
         $pdf   = Pdf::loadView('pdf.sales_order', ['order' => $order, 'empresa' => $empresa]);
