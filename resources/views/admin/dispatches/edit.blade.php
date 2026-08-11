@@ -38,6 +38,20 @@
         $traspasosPendientesIds = $dispatch->transferAssignments->where('status','PENDIENTE')->pluck('id');
         $pedidosPendientesItems = $dispatch->items->filter(fn($i) => $i->salesOrder?->status === 'EN_RUTA');
         $cxcPendientes          = $dispatch->arAssignments->whereIn('status',['PENDIENTE','PARCIAL']);
+
+        // ── Cierres parciales: traspasos+crédito por un lado, efectivo+CxC por otro ──
+        $pedidosCreditoPendientes  = $pedidosPendientesItems->filter(
+            fn($i) => !in_array($i->salesOrder?->payment_method, ['EFECTIVO','CONTRAENTREGA'])
+        );
+        $pedidosEfectivoPendientesItems = $pedidosPendientesItems->filter(
+            fn($i) => in_array($i->salesOrder?->payment_method, ['EFECTIVO','CONTRAENTREGA'])
+        );
+        $traspasosResueltos = $traspasosTotal === 0 || $dispatch->transferAssignments->every(
+            fn($ta) => in_array($ta->status, ['COMPLETADO','NO_COMPLETADO'])
+        );
+        $puedeCerrarTraspasos = $traspasosResueltos && $pedidosCreditoPendientes->count() === 0;
+        $puedeCerrarCobranza  = $pedidosEfectivoPendientesItems->count() === 0 && $cxcPendientes->count() === 0;
+        $montoSugerido        = $pedidosEfectivo + $cxcCobradas;
     @endphp
 
     {{-- Botones de impresión --}}
@@ -611,71 +625,126 @@
     </x-wire-card>
     @endif
 
-    {{-- ====== CIERRE ====== --}}
+    {{-- ====== CIERRES PARCIALES (independientes, en cualquier orden) ====== --}}
     @if($dispatch->status === 'EN_RUTA')
-    @php
-        $todosPedidosMarcados = $dispatch->items->every(
-            fn($i) => $i->salesOrder && in_array($i->salesOrder->status, ['ENTREGADO','NO_ENTREGADO','CANCELADO'])
-        );
-        $todosTraspasosResueltos = $traspasosTotal === 0 || $dispatch->transferAssignments->every(
-            fn($ta) => in_array($ta->status, ['COMPLETADO','NO_COMPLETADO'])
-        );
-        $puedesCerrar  = $todosPedidosMarcados && $todosTraspasosResueltos;
-        $montoSugerido = $pedidosEfectivo + $cxcCobradas;
-    @endphp
-    <x-wire-card class="mt-4">
-        <h3 class="font-semibold text-gray-800 mb-1">Cerrar despacho y liquidar chofer</h3>
-        @if(!$todosPedidosMarcados)
-            <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-3">
-                Aún hay pedidos en tránsito. Márcalos antes de cerrar.
-            </p>
-        @endif
-        @if(!$todosTraspasosResueltos)
-            <p class="text-sm text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-3 py-2 mb-3">
-                Aún hay traspasos pendientes de marcar.
-            </p>
-        @endif
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-4">
-            <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-center">
-                <div class="text-lg font-semibold text-emerald-700">{{ $dispatch->items->filter(fn($i) => $i->salesOrder?->status === 'ENTREGADO')->count() }}</div>
-                <div class="text-xs text-emerald-600">Entregados</div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+
+        {{-- Cierre A: Traspasos + pedidos a crédito --}}
+        <x-wire-card>
+            <div class="flex items-center gap-2 mb-1">
+                <h3 class="font-semibold text-gray-800">Cerrar traspasos y pedidos a crédito</h3>
+                @if($dispatch->traspasos_cerrado_at)
+                    <span class="ml-auto px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700 font-medium">
+                        ✓ Cerrado {{ $dispatch->traspasos_cerrado_at->format('d/m H:i') }}
+                    </span>
+                @endif
             </div>
-            <div class="rounded-lg bg-orange-50 border border-orange-200 p-3 text-center">
-                <div class="text-lg font-semibold text-orange-700">{{ $dispatch->items->filter(fn($i) => $i->salesOrder?->status === 'NO_ENTREGADO')->count() }}</div>
-                <div class="text-xs text-orange-600">No entregados</div>
-            </div>
-            <div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-center">
-                <div class="text-lg font-semibold text-amber-700">${{ number_format($pedidosEfectivo, 2) }}</div>
-                <div class="text-xs text-amber-600">Efectivo pedidos</div>
-            </div>
-            <div class="rounded-lg bg-blue-50 border border-blue-200 p-3 text-center">
-                <div class="text-lg font-semibold text-blue-700">${{ number_format($cxcCobradas, 2) }}</div>
-                <div class="text-xs text-blue-600">CxC cobradas</div>
-            </div>
-        </div>
-        <form action="{{ route('admin.dispatches.cerrar', $dispatch) }}" method="POST">
-            @csrf
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">Monto entregado <span class="text-indigo-500">(sug: ${{ number_format($montoSugerido, 2) }})</span></label>
-                    <input type="number" name="monto_entregado" min="0" step="0.01" value="{{ $montoSugerido }}"
-                           class="w-full rounded-md border-gray-300 shadow-sm text-sm" required>
+            <p class="text-xs text-gray-500 mb-3">No toca dinero — solo confirma qué se entregó/transfirió.</p>
+
+            @if(!$dispatch->traspasos_cerrado_at)
+                @if(!$traspasosResueltos)
+                    <p class="text-sm text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-3 py-2 mb-3">
+                        Aún hay traspasos pendientes de marcar.
+                    </p>
+                @endif
+                @if($pedidosCreditoPendientes->count() > 0)
+                    <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-3">
+                        Faltan {{ $pedidosCreditoPendientes->count() }} pedido(s) a crédito por marcar.
+                    </p>
+                @endif
+
+                <div class="grid grid-cols-2 gap-3 text-sm mb-4">
+                    <div class="rounded-lg bg-indigo-50 border border-indigo-200 p-3 text-center">
+                        <div class="text-lg font-semibold text-indigo-700">{{ $traspasosCompletos }}/{{ $traspasosTotal }}</div>
+                        <div class="text-xs text-indigo-600">Traspasos completados</div>
+                    </div>
+                    <div class="rounded-lg bg-gray-50 border border-gray-200 p-3 text-center">
+                        <div class="text-lg font-semibold text-gray-700">{{ $pedidosCreditoPendientes->count() }}</div>
+                        <div class="text-xs text-gray-500">Pedidos a crédito pendientes</div>
+                    </div>
                 </div>
-                <div class="md:col-span-4">
-                    <label class="block text-xs text-gray-500 mb-1">Notas de cierre (opcional)</label>
-                    <input type="text" name="notas_cierre" maxlength="500"
-                           class="w-full rounded-md border-gray-300 shadow-sm text-sm">
+
+                <form action="{{ route('admin.dispatches.cerrar-traspasos', $dispatch) }}" method="POST">
+                    @csrf
+                    <button type="submit"
+                            {{ !$puedeCerrarTraspasos ? 'disabled' : '' }}
+                            class="inline-flex items-center px-4 py-2 text-sm rounded-md bg-indigo-700 text-white hover:bg-indigo-800 {{ !$puedeCerrarTraspasos ? 'opacity-50 cursor-not-allowed' : '' }}">
+                        Cerrar traspasos
+                    </button>
+                </form>
+            @endif
+        </x-wire-card>
+
+        {{-- Cierre B: Efectivo/contraentrega + CxC --}}
+        <x-wire-card>
+            <div class="flex items-center gap-2 mb-1">
+                <h3 class="font-semibold text-gray-800">Cerrar cobranza (efectivo + CxC)</h3>
+                @if($dispatch->cobranza_cerrado_at)
+                    <span class="ml-auto px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700 font-medium">
+                        ✓ Cerrado {{ $dispatch->cobranza_cerrado_at->format('d/m H:i') }}
+                    </span>
+                @endif
+            </div>
+            <p class="text-xs text-gray-500 mb-3">Concilia el dinero, registra en caja y liquida al chofer.</p>
+
+            @if(!$dispatch->cobranza_cerrado_at)
+                @if($pedidosEfectivoPendientesItems->count() > 0)
+                    <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-3">
+                        Faltan {{ $pedidosEfectivoPendientesItems->count() }} pedido(s) de efectivo/contraentrega por marcar.
+                    </p>
+                @endif
+                @if($cxcPendientes->count() > 0)
+                    <p class="text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded px-3 py-2 mb-3">
+                        Faltan {{ $cxcPendientes->count() }} CxC por resolver.
+                    </p>
+                @endif
+
+                <div class="grid grid-cols-2 gap-3 text-sm mb-4">
+                    <div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-center">
+                        <div class="text-lg font-semibold text-amber-700">${{ number_format($pedidosEfectivo, 2) }}</div>
+                        <div class="text-xs text-amber-600">Efectivo pedidos</div>
+                    </div>
+                    <div class="rounded-lg bg-blue-50 border border-blue-200 p-3 text-center">
+                        <div class="text-lg font-semibold text-blue-700">${{ number_format($cxcCobradas, 2) }}</div>
+                        <div class="text-xs text-blue-600">CxC cobradas</div>
+                    </div>
                 </div>
-            </div>
-            <div class="mt-4">
-                <button type="submit"
-                        {{ !$puedesCerrar ? 'disabled' : '' }}
-                        class="inline-flex items-center px-5 py-2 text-sm rounded-md bg-blue-700 text-white hover:bg-blue-800 {{ !$puedesCerrar ? 'opacity-50 cursor-not-allowed' : '' }}">
-                    Cerrar despacho y liquidar
-                </button>
-            </div>
-        </form>
-    </x-wire-card>
+
+                <form action="{{ route('admin.dispatches.cerrar-cobranza', $dispatch) }}" method="POST">
+                    @csrf
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Monto entregado <span class="text-indigo-500">(sug: ${{ number_format($montoSugerido, 2) }})</span></label>
+                            <input type="number" name="monto_entregado" min="0" step="0.01" value="{{ $montoSugerido }}"
+                                   class="w-full rounded-md border-gray-300 shadow-sm text-sm" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Caja donde se registra el ingreso (opcional)</label>
+                            <select name="pos_register_id" class="w-full rounded-md border-gray-300 shadow-sm text-sm">
+                                <option value="">— Sin registrar en caja —</option>
+                                @foreach($cajasAbiertas as $caja)
+                                    <option value="{{ $caja->id }}">Caja #{{ $caja->id }} — {{ $caja->user?->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Notas de cierre (opcional)</label>
+                            <input type="text" name="notas_cierre" maxlength="500"
+                                   class="w-full rounded-md border-gray-300 shadow-sm text-sm">
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <button type="submit"
+                                {{ !$puedeCerrarCobranza ? 'disabled' : '' }}
+                                class="inline-flex items-center px-4 py-2 text-sm rounded-md bg-blue-700 text-white hover:bg-blue-800 {{ !$puedeCerrarCobranza ? 'opacity-50 cursor-not-allowed' : '' }}">
+                            Cerrar cobranza
+                        </button>
+                    </div>
+                </form>
+            @endif
+        </x-wire-card>
+
+    </div>
     @endif
 
     @if($dispatch->status === 'CERRADO')

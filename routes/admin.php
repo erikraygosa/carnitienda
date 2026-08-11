@@ -210,7 +210,8 @@ Route::post('dispatches/{dispatch}/cargar',    [DispatchController::class,'carga
 Route::post('dispatches/{dispatch}/en-ruta',   [DispatchController::class,'enRuta'])->name('dispatches.enruta');
 Route::post('dispatches/{dispatch}/entregar',  [DispatchController::class,'entregar'])->name('dispatches.entregar');
 Route::post('dispatches/{dispatch}/cancelar',  [DispatchController::class,'cancelar'])->name('dispatches.cancelar');
-Route::post('dispatches/{dispatch}/cerrar',    [DispatchController::class,'cerrar'])->name('dispatches.cerrar');
+Route::post('dispatches/{dispatch}/cerrar-traspasos', [DispatchController::class,'cerrarTraspasos'])->name('dispatches.cerrar-traspasos');
+Route::post('dispatches/{dispatch}/cerrar-cobranza',   [DispatchController::class,'cerrarCobranza'])->name('dispatches.cerrar-cobranza');
 Route::post('dispatches/{dispatch}/cxc/{assignment}/no-cobrar', [DispatchController::class,'noCobrarCxc'])->name('dispatches.cxc.no-cobrar'); 
 
 // Acciones sobre pedidos individuales dentro del despacho

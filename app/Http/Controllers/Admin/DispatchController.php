@@ -49,7 +49,7 @@ class DispatchController extends Controller implements HasMiddleware
                 'cobrarCxc', 'noCobrarCxc',
                 'bulkTraspasos', 'bulkPedidos', 'bulkCxc',
             ]),
-            new Middleware('can:cerrar despachos', only: ['cerrar']),
+            new Middleware('can:cerrar despachos', only: ['cerrarTraspasos', 'cerrarCobranza']),
         ];
     }
 
@@ -570,7 +570,57 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
 
     // ── Cierre ────────────────────────────────────────────────────────────────
 
-    public function cerrar(Request $request, Dispatch $dispatch)
+    /**
+     * Cierre parcial 1/2: traspasos + pedidos a CRÉDITO (no efectivo/contraentrega).
+     * No toca dinero — es puramente logístico. Se puede hacer antes o después
+     * del cierre de cobranza, en cualquier orden.
+     */
+    public function cerrarTraspasos(Dispatch $dispatch)
+    {
+        if ($dispatch->traspasos_cerrado_at) {
+            return back()->with('swal', ['icon' => 'info', 'title' => 'Ya estaba cerrado', 'text' => 'Los traspasos ya se habían cerrado.']);
+        }
+
+        $dispatch->load('items.salesOrder', 'transferAssignments');
+
+        $pedidosCreditoPendientes = $dispatch->items->filter(
+            fn($i) => $i->salesOrder
+                && !in_array($i->salesOrder->payment_method, ['EFECTIVO', 'CONTRAENTREGA'])
+                && in_array($i->salesOrder->status, ['EN_RUTA', 'PROCESADO', 'DESPACHADO'])
+        );
+
+        if ($pedidosCreditoPendientes->count() > 0) {
+            return back()->with('swal', [
+                'icon'  => 'warning',
+                'title' => 'Pedidos a crédito pendientes',
+                'text'  => "Faltan {$pedidosCreditoPendientes->count()} pedido(s) a crédito por marcar.",
+            ]);
+        }
+
+        $traspasosPendientes = $dispatch->transferAssignments->whereNotIn('status', ['COMPLETADO', 'NO_COMPLETADO']);
+        if ($traspasosPendientes->count() > 0) {
+            return back()->with('swal', [
+                'icon'  => 'warning',
+                'title' => 'Traspasos pendientes',
+                'text'  => "Faltan {$traspasosPendientes->count()} traspaso(s) por marcar.",
+            ]);
+        }
+
+        $dispatch->update(['traspasos_cerrado_at' => now()]);
+        $this->log->log($dispatch, 'CIERRE_TRASPASOS', null, null, null, 'Traspasos y pedidos a crédito cerrados.');
+
+        $this->intentarFinalizarDespacho($dispatch);
+
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Traspasos cerrados', 'text' => 'Traspasos y pedidos a crédito quedaron cerrados.']);
+    }
+
+    /**
+     * Cierre parcial 2/2: efectivo/contraentrega + CxC. Aquí se concilia el
+     * dinero, se registra en caja y se liquida al chofer. Los pedidos de
+     * efectivo/contraentrega se marcan entregados junto con el cobro, porque
+     * para esos "entregar" y "cobrar" son el mismo momento.
+     */
+    public function cerrarCobranza(Request $request, Dispatch $dispatch)
     {
         $request->validate([
             'monto_entregado' => 'required|numeric|min:0',
@@ -580,16 +630,32 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
             'notas_cierre'    => 'nullable|string|max:500',
         ]);
 
-        $dispatch->load('items.salesOrder');
-        $pendientes = $dispatch->items->filter(
-            fn($i) => $i->salesOrder && in_array($i->salesOrder->status, ['EN_RUTA', 'PROCESADO', 'DESPACHADO'])
+        if ($dispatch->cobranza_cerrado_at) {
+            return back()->with('swal', ['icon' => 'info', 'title' => 'Ya estaba cerrado', 'text' => 'La cobranza ya se había cerrado.']);
+        }
+
+        $dispatch->load('items.salesOrder', 'arAssignments');
+
+        $pedidosEfectivoPendientes = $dispatch->items->filter(
+            fn($i) => $i->salesOrder
+                && in_array($i->salesOrder->payment_method, ['EFECTIVO', 'CONTRAENTREGA'])
+                && in_array($i->salesOrder->status, ['EN_RUTA', 'PROCESADO', 'DESPACHADO'])
         );
 
-        if ($pendientes->count() > 0) {
+        if ($pedidosEfectivoPendientes->count() > 0) {
             return back()->with('swal', [
                 'icon'  => 'warning',
-                'title' => 'Pedidos pendientes',
-                'text'  => "Faltan {$pendientes->count()} pedido(s) por marcar.",
+                'title' => 'Pedidos de efectivo pendientes',
+                'text'  => "Faltan {$pedidosEfectivoPendientes->count()} pedido(s) de efectivo/contraentrega por marcar.",
+            ]);
+        }
+
+        $cxcPendientes = $dispatch->arAssignments->whereIn('status', ['PENDIENTE', 'PARCIAL']);
+        if ($cxcPendientes->count() > 0) {
+            return back()->with('swal', [
+                'icon'  => 'warning',
+                'title' => 'CxC pendientes',
+                'text'  => "Faltan {$cxcPendientes->count()} cuenta(s) por cobrar por resolver.",
             ]);
         }
 
@@ -610,10 +676,9 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
             }
 
             $dispatch->update([
-                'status'          => 'CERRADO',
-                'cerrado_at'      => now(),
-                'monto_liquidado' => $monto,
-                'notas_cierre'    => $request->notas_cierre,
+                'cobranza_cerrado_at' => now(),
+                'monto_liquidado'     => $monto,
+                'notas_cierre'        => $request->notas_cierre,
             ]);
 
             // El cobro en efectivo/contraentrega del despacho ya se concilió (diferencia $0.00
@@ -636,8 +701,26 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
             }
         });
 
-        $this->log->log($dispatch, 'CAMBIO_ESTADO', 'EN_RUTA', 'CERRADO', null, 'Monto liquidado: $' . number_format((float)$request->monto_entregado, 2));
-        return back()->with('swal', ['icon' => 'success', 'title' => 'Despacho cerrado', 'text' => 'Liquidación completada.']);
+        $this->log->log($dispatch, 'CIERRE_COBRANZA', null, null, null, 'Monto liquidado: $' . number_format((float)$request->monto_entregado, 2));
+
+        $this->intentarFinalizarDespacho($dispatch);
+
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Cobranza cerrada', 'text' => 'Efectivo y CxC quedaron conciliados.']);
+    }
+
+    /**
+     * Cuando AMBOS cierres parciales están hechos (sin importar el orden),
+     * el despacho pasa a CERRADO automáticamente.
+     */
+    private function intentarFinalizarDespacho(Dispatch $dispatch): void
+    {
+        $dispatch->refresh();
+
+        if ($dispatch->traspasos_cerrado_at && $dispatch->cobranza_cerrado_at && $dispatch->status !== 'CERRADO') {
+            $old = $dispatch->status;
+            $dispatch->update(['status' => 'CERRADO', 'cerrado_at' => now()]);
+            $this->log->log($dispatch, 'CAMBIO_ESTADO', $old, 'CERRADO', null, 'Cierre completo: traspasos + cobranza.');
+        }
     }
 
     // ── Impresión ─────────────────────────────────────────────────────────────

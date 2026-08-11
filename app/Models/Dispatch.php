@@ -21,12 +21,16 @@ class Dispatch extends Model
         'cerrado_at',
         'monto_liquidado',
         'notas_cierre',
+        'traspasos_cerrado_at',
+        'cobranza_cerrado_at',
     ];
 
     protected $casts = [
-        'fecha'      => 'datetime',
-        'en_ruta_at' => 'datetime',
-        'cerrado_at' => 'datetime',
+        'fecha'                => 'datetime',
+        'en_ruta_at'            => 'datetime',
+        'cerrado_at'            => 'datetime',
+        'traspasos_cerrado_at'  => 'datetime',
+        'cobranza_cerrado_at'   => 'datetime',
     ];
 
     public function items(): HasMany
