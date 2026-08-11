@@ -112,8 +112,9 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
     public function cancel(Invoice $invoice, string $motivo, ?string $folioSustitucion = null): array
     {
         try {
-            if (! $invoice->uuid) {
-                return ['ok' => false, 'error' => 'La factura no tiene UUID para cancelar.'];
+            $facturapiId = $this->resolveFacturapiId($invoice);
+            if (! $facturapiId) {
+                return ['ok' => false, 'error' => 'No se pudo identificar el documento en Facturapi (sin factuapi_id ni UUID para buscarlo).'];
             }
 
             // Facturapi espera motive/substitution como query params del DELETE,
@@ -128,7 +129,7 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
 
             $response = $this->http()
                 ->withQueryParameters($query)
-                ->delete("/invoices/{$invoice->uuid}");
+                ->delete("/invoices/{$facturapiId}");
 
             if ($response->failed()) {
                 $error = $response->json('message') ?? 'Error al cancelar en Factuapi';
@@ -142,18 +143,49 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
         }
     }
 
+    /**
+     * El endpoint de cancelar/estatus necesita el ID interno de Facturapi
+     * (tipo ObjectId), NO el UUID fiscal del SAT — son formatos distintos.
+     * stamp() ya lo guarda en 'factuapi_id' para facturas nuevas; para las
+     * timbradas antes de ese fix (factuapi_id nulo) se recupera buscando
+     * por UUID en Facturapi y se guarda para la próxima vez.
+     */
+    protected function resolveFacturapiId(Invoice $invoice): ?string
+    {
+        if ($invoice->factuapi_id) {
+            return $invoice->factuapi_id;
+        }
+
+        if (! $invoice->uuid) {
+            return null;
+        }
+
+        $resp = $this->http()->get('/invoices', ['uuid' => $invoice->uuid]);
+        if ($resp->failed()) {
+            return null;
+        }
+
+        $id = $resp->json('data.0.id');
+        if ($id) {
+            $invoice->update(['factuapi_id' => $id]);
+        }
+
+        return $id;
+    }
+
     // ------------------------------------------------------------------
     // Estado en SAT
     // ------------------------------------------------------------------
     public function status(Invoice $invoice): array
     {
         try {
-            if (! $invoice->uuid) {
-                return ['ok' => false, 'error' => 'Sin UUID'];
+            $facturapiId = $this->resolveFacturapiId($invoice);
+            if (! $facturapiId) {
+                return ['ok' => false, 'error' => 'No se pudo identificar el documento en Facturapi'];
             }
 
             $response = $this->http()
-                ->get("/invoices/{$invoice->uuid}/status");
+                ->get("/invoices/{$facturapiId}/status");
 
             if ($response->failed()) {
                 return ['ok' => false, 'error' => $response->json('message') ?? 'Error'];

@@ -16,7 +16,8 @@ class Invoice extends Model
         'receptor_rfc','receptor_razon_social','receptor_cp',
         'forma_pago','metodo_pago','uso_cfdi','condiciones_pago','cuenta',
         'moneda','subtotal','impuestos','total',
-        'uuid','estatus','version_cfdi','xml_timbrado',
+        'uuid','factuapi_id','estatus','version_cfdi','xml_timbrado',
+        'sello_cfdi','sello_sat','numero_certificado_sat',
         'created_by','owner_id',
     ];
 

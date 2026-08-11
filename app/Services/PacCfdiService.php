@@ -96,6 +96,7 @@ class PacCfdiService
         if ($result['ok'] ?? false) {
             $invoice->update([
                 'uuid'                    => $result['uuid'],
+                'factuapi_id'             => $result['factuapi_id'] ?? null,
                 'xml_timbrado'            => $result['xml_timbrado'],
                 'numero_certificado_sat'  => $result['numero_certificado_sat'] ?? null,
                 'sello_cfdi'              => $result['sello_cfdi'] ?? null,
