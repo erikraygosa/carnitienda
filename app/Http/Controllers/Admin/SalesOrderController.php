@@ -458,6 +458,21 @@ public function data(Request $request)
             ]);
         });
 
+        // "Aprobar y procesar" desde la pantalla de edición manda el form completo
+        // con then_approve=1, para no perder cambios sin guardar (antes ese botón
+        // era un form aparte que solo aprobaba, ignorando cualquier edición pendiente).
+        if ($request->boolean('then_approve')) {
+            $resultado = $this->aprobarPedido($sales_order->fresh());
+            if (! $resultado['ok']) {
+                return back()->with('swal', [
+                    'icon'  => 'warning',
+                    'title' => 'Guardado, no se pudo aprobar',
+                    'text'  => 'Los cambios se guardaron. ' . $resultado['message'],
+                ]);
+            }
+            return back()->with('swal', ['icon' => 'success', 'title' => 'Guardado y aprobado', 'text' => $resultado['message']]);
+        }
+
         return back()->with('swal',['icon'=>'success','title'=>'Actualizado','text'=>'Pedido actualizado']);
     }
 
@@ -567,8 +582,25 @@ public function data(Request $request)
 
 public function approve(SalesOrder $order)
 {
+    $resultado = $this->aprobarPedido($order);
+    return back()->with('swal', [
+        'icon'  => $resultado['ok'] ? 'success' : 'error',
+        'title' => $resultado['ok'] ? 'Procesado' : ($resultado['title'] ?? 'No permitido'),
+        'text'  => $resultado['message'],
+    ]);
+}
+
+/**
+ * Aprobado + Procesado en un solo paso (no hay lógica intermedia en
+ * PREPARANDO). Compartido entre approve() (botón suelto) y update() cuando
+ * se manda then_approve=1 (botón "Aprobar y procesar" desde la edición).
+ *
+ * @return array{ok: bool, message: string, title?: string}
+ */
+private function aprobarPedido(SalesOrder $order): array
+{
     if ($order->status !== 'BORRADOR') {
-        return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR se puede aprobar.']);
+        return ['ok' => false, 'message' => 'Solo BORRADOR se puede aprobar.'];
     }
 
     if ($order->payment_method === 'CREDITO' && $order->client_id) {
@@ -578,21 +610,21 @@ public function approve(SalesOrder $order)
         if ($limite > 0) {
             $saldoActual = app(\App\Services\ArService::class)->saldoCliente($client->id);
             if (($saldoActual + $order->total) > $limite) {
-                return back()->with('swal', [
-                    'icon'  => 'error',
-                    'title' => 'Límite de crédito excedido',
-                    'text'  => 'Saldo pendiente: $' . number_format($saldoActual, 2)
+                return [
+                    'ok'      => false,
+                    'title'   => 'Límite de crédito excedido',
+                    'message' => 'Saldo pendiente: $' . number_format($saldoActual, 2)
                              . ' + Este pedido: $' . number_format($order->total, 2)
                              . ' › Límite: $' . number_format($limite, 2),
-                ]);
+                ];
             }
         }
     }
 
-    // Aprobado + Procesado en un solo paso (no hay lógica intermedia en PREPARANDO)
     $order->update(['status' => 'PROCESADO', 'despachado_at' => now()]);
     $this->log->log($order, 'CAMBIO_ESTADO', 'BORRADOR', 'PROCESADO');
-    return back()->with('swal', ['icon'=>'success','title'=>'Procesado','text'=>'Pedido aprobado y listo para salida de almacén.']);
+
+    return ['ok' => true, 'message' => 'Pedido aprobado y listo para salida de almacén.'];
 }
 
     public function startPreparing(SalesOrder $order)

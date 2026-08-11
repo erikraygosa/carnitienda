@@ -182,9 +182,6 @@
                         disabled>
                         Completar despacho
                     </button>
-                    <p class="text-xs text-center text-amber-600 mt-1" id="panel-aviso-incompleto">
-                        Guarda cada producto (con cantidad mayor a 0) antes de poder completar.
-                    </p>
                 </div>
             </x-wire-card>
         </div>

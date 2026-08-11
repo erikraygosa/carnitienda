@@ -93,6 +93,7 @@
               action="{{ route('admin.sales-orders.update',$order) }}"
               class="space-y-6">
             @csrf @method('PUT')
+            <input type="hidden" name="then_approve" id="then_approve" value="0">
 
             @if ($errors->any())
                 <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -388,9 +389,14 @@
 
             <div class="ml-auto flex items-center space-x-2">
                 @if($order->status === 'BORRADOR')
-                    <form action="{{ route('admin.sales-orders.approve',$order) }}" method="POST">@csrf
-                        <x-wire-button type="submit" green xs>Aprobar y procesar</x-wire-button>
-                    </form>
+                    {{-- Envía el form principal (guarda cualquier cambio pendiente) y de una
+                         vez marca then_approve=1 para que el servidor apruebe justo después
+                         de guardar — antes este botón era un form aparte que solo aprobaba,
+                         ignorando cualquier edición que no se hubiera guardado con "Actualizar". --}}
+                    <x-wire-button type="submit" form="so-edit-form" green xs
+                        onclick="document.getElementById('then_approve').value='1'">
+                        Aprobar y procesar
+                    </x-wire-button>
                     <form action="{{ route('admin.sales-orders.cancel',$order) }}" method="POST">@csrf
                         <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
                     </form>
