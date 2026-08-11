@@ -59,6 +59,12 @@
         .btn-close  { background: #e5e7eb; color: #333; }
         @media print { .btn-bar { display: none !important; } }
     </style>
+    {{-- @page no puede quedar condicionado a la clase .ticket (no es una regla
+         que acepte selectores) — sin esto, "Imprimir ticket 80mm" salía con el
+         tamaño de hoja por default (Carta/A4) y se partía en varias páginas.
+         printCarta()/printTicket() llenan este <style> con el @page correcto
+         antes de llamar a window.print(). --}}
+    <style id="page-size-style"></style>
 </head>
 <body id="body-root">
 <div class="page">
@@ -265,8 +271,16 @@
 </div>
 
 <script>
-function printCarta()  { document.getElementById('body-root').classList.remove('ticket'); window.print(); }
-function printTicket() { document.getElementById('body-root').classList.add('ticket');    window.print(); }
+function printCarta()  {
+    document.getElementById('body-root').classList.remove('ticket');
+    document.getElementById('page-size-style').textContent = '@page { size: auto; margin: 1cm; }';
+    window.print();
+}
+function printTicket() {
+    document.getElementById('body-root').classList.add('ticket');
+    document.getElementById('page-size-style').textContent = '@page { size: 72mm auto; margin: 0; }';
+    window.print();
+}
 </script>
 </body>
 </html>

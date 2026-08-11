@@ -5,6 +5,9 @@
     <title>Ticket Caja #{{ $register->id }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
+        {{-- Sin esto, el navegador imprime con el tamaño de hoja por default
+             (Carta/A4) y el ticket se parte en varias páginas al imprimir. --}}
+        @page { size: 80mm auto; margin: 0; }
         :root { --w: 80mm; }
         * { box-sizing: border-box; }
         body {

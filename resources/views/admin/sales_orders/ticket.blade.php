@@ -9,6 +9,9 @@
 <meta charset="UTF-8">
 <title>Ticket {{ $order->folio }}</title>
 <style>
+{{-- Sin esto, el navegador imprime con el tamaño de hoja por default
+     (Carta/A4) y el ticket se parte en varias páginas al imprimir. --}}
+@page { size: 72mm auto; margin: 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
     font-family: 'Courier New', monospace;
