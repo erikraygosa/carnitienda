@@ -367,7 +367,7 @@
                         Swal.fire({
                             icon: 'question',
                             title: '¿Deseas editar el pedido?',
-                            text: 'Está en estatus {{ $order->status_label }}. Esto regresará el pedido a Borrador.',
+                            text: 'Está en estatus {{ $order->status_label }}. Esto regresará el pedido a Borrador para poder agregar/quitar productos — las partidas ya surtidas quedan protegidas, no se tocan.',
                             showCancelButton: true,
                             confirmButtonText: 'Sí, editar',
                             cancelButtonText: 'Cancelar',

@@ -590,14 +590,13 @@ public function data(Request $request)
             ]);
         }
 
-        $enDespacho = DB::table('dispatch_items')->where('sales_order_id', $order->id)->exists();
-        if ($enDespacho) {
-            return back()->with('swal', [
-                'icon'  => 'error',
-                'title' => 'No permitido',
-                'text'  => 'Este pedido ya está asignado a un despacho, no se puede reabrir para editar.',
-            ]);
-        }
+        // Antes esto bloqueaba reabrir el pedido completo si CUALQUIER partida
+        // ya estaba asignada a un despacho — pero eso ahora es el caso normal
+        // en cuanto se guarda una sola línea en el Panel de Surtido. Ya no
+        // hace falta: las partidas ya surtidas con producto real quedan
+        // protegidas individualmente (solo lectura, tanto en la vista como en
+        // update()) sin importar el estatus del pedido, así que reabrir para
+        // agregar/editar las demás partidas es seguro.
 
         $order->update([
             'status'         => 'BORRADOR',
