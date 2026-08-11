@@ -7,10 +7,12 @@
     ]"
 >
     <x-slot name="action">
+        @can('ajustar inventario')
         <a href="{{ route('admin.stock.adjustments.create') }}"
            class="inline-flex px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50">
             Ajuste manual
         </a>
+        @endcan
         <a href="{{ route('admin.stock.transfers.create') }}"
            class="ml-2 inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
             Transferencia
@@ -125,8 +127,10 @@
                                     <div class="flex items-center gap-1">
                                         <a href="{{ route('admin.stock.kardex', ['product_id' => $row->product_id, 'warehouse_id' => $warehouseId]) }}"
                                            class="px-2 py-1 text-xs rounded border border-indigo-300 text-indigo-600 hover:bg-indigo-50">Kardex</a>
+                                        @can('ajustar inventario')
                                         <a href="{{ route('admin.stock.adjustments.create', ['product_id' => $row->product_id, 'warehouse_id' => $warehouseId]) }}"
                                            class="px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50">Ajuste</a>
+                                        @endcan
                                     </div>
                                 </td>
                             </tr>
