@@ -365,7 +365,7 @@
                 <script>
                     function confirmReopen() {
                         Swal.fire({
-                            icon: 'question',
+                            icon: 'warning',
                             title: '¿Deseas editar el pedido?',
                             text: 'Está en estatus {{ $order->status_label }}. Esto regresará el pedido a Borrador para poder agregar/quitar productos — las partidas ya surtidas quedan protegidas, no se tocan.',
                             showCancelButton: true,
