@@ -353,9 +353,16 @@ public function data(Request $request)
             ->pluck('sales_order_item_id')
             ->all();
 
+        // Comentarios capturados al surtir (panel de Salida de producto),
+        // por línea — para mostrarlos aquí y que no queden "perdidos".
+        $notasSurtidoPorItem = DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $order->id))
+            ->whereNotNull('nota')
+            ->where('nota', '!=', '')
+            ->pluck('nota', 'sales_order_item_id');
+
         return view('admin.sales_orders.edit', compact(
             'order','clients','priceLists','products','warehouses','drivers','routes',
-            'productsJson','overrides','listItems','itemsSurtidosIds'
+            'productsJson','overrides','listItems','itemsSurtidosIds','notasSurtidoPorItem'
         ));
     }
 

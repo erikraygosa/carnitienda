@@ -346,6 +346,16 @@
                         </td>
                         @endif
                     </tr>
+                    @php $notasSurtido = $item->lines->filter(fn($l) => filled($l->nota)); @endphp
+                    @if($notasSurtido->count() > 0)
+                    <tr class="border-b bg-amber-50">
+                        <td colspan="{{ $enRuta ? 7 : 6 }}" class="px-2 pb-2 text-xs text-amber-800">
+                            @foreach($notasSurtido as $ln)
+                                <div>📝 <strong>{{ strtoupper($ln->salesOrderItem?->product?->nombre ?? $ln->salesOrderItem?->descripcion ?? 'Producto') }}:</strong> {{ $ln->nota }}</div>
+                            @endforeach
+                        </td>
+                    </tr>
+                    @endif
                 @endforeach
                 </tbody>
                 <tfoot class="border-t bg-gray-50">

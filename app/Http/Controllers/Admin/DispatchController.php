@@ -218,6 +218,7 @@ class DispatchController extends Controller implements HasMiddleware
         $dispatch->load([
             'items.salesOrder.client',
             'items.salesOrder.items',
+            'items.lines.salesOrderItem.product',
             'arAssignments.client',
             'transferAssignments.stockTransfer.fromWarehouse',
             'transferAssignments.stockTransfer.toWarehouse',

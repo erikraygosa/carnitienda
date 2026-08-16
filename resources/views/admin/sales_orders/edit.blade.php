@@ -60,6 +60,8 @@
             // Ya se surtió con producto real en el Panel de Surtido — no se
             // puede volver a tocar desde aquí.
             'ya_surtido'      => in_array($i->id, $itemsSurtidosIds ?? []),
+            // Comentario capturado al surtir esta línea (panel de Salida de producto).
+            'nota_surtido'    => $notasSurtidoPorItem[$i->id] ?? null,
         ])->values()->toArray();
 
         $clientDefaults = $clients->mapWithKeys(fn($c) => [(string)$c->id => [
@@ -690,10 +692,12 @@
                               placeholder="Buscar por nombre o SKU..." autocomplete="off"
                               value="${escHtml(it._productoNombre||'')}">
                        <button type="button" class="btn-clear-product text-gray-400 hover:text-red-500 text-base leading-none px-1" title="Quitar producto">✕</button>
-                   </div>`
+                   </div>
+                   ${it.nota_surtido ? `<div class="mt-0.5 text-[11px] text-amber-700">📝 ${escHtml(it.nota_surtido)}</div>` : ''}`
                 : `<input type="hidden" name="items[${i}][product_id]" value="${escHtml(String(it.product_id||''))}">
                    <span class="text-sm text-gray-700">${escHtml(it._productoNombre||'—')}</span>
-                   ${surtido ? '<span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-medium align-middle">✓ Surtido</span>' : ''}`;
+                   ${surtido ? '<span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-medium align-middle">✓ Surtido</span>' : ''}
+                   ${it.nota_surtido ? `<div class="mt-0.5 text-[11px] text-amber-700">📝 ${escHtml(it.nota_surtido)}</div>` : ''}`;
 
             tr.innerHTML = `
                 <input type="hidden" name="items[${i}][id]" value="${it.id || ''}">
