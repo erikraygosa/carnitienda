@@ -49,7 +49,7 @@ class DispatchController extends Controller implements HasMiddleware
                 'cobrarCxc', 'noCobrarCxc',
                 'bulkTraspasos', 'bulkPedidos', 'bulkCxc',
             ]),
-            new Middleware('can:cerrar despachos', only: ['cerrarTraspasos', 'cerrarCobranza']),
+            new Middleware('can:cerrar despachos', only: ['cerrarTraspasos', 'cerrarCobranza', 'cerrarCompleto']),
         ];
     }
 
@@ -581,8 +581,23 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
      */
     public function cerrarTraspasos(Dispatch $dispatch)
     {
+        $error = $this->intentarCerrarTraspasos($dispatch);
+        if ($error) {
+            return back()->with('swal', $error);
+        }
+
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Traspasos cerrados', 'text' => 'Traspasos y pedidos a crédito quedaron cerrados.']);
+    }
+
+    /**
+     * Valida y cierra el lado de traspasos+crédito. Devuelve null si quedó
+     * cerrado (o ya lo estaba), o un array ['icon','title','text'] con el
+     * motivo del bloqueo si no se pudo cerrar.
+     */
+    private function intentarCerrarTraspasos(Dispatch $dispatch): ?array
+    {
         if ($dispatch->traspasos_cerrado_at) {
-            return back()->with('swal', ['icon' => 'info', 'title' => 'Ya estaba cerrado', 'text' => 'Los traspasos ya se habían cerrado.']);
+            return null;
         }
 
         $dispatch->load('items.salesOrder', 'transferAssignments');
@@ -594,20 +609,20 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
         );
 
         if ($pedidosCreditoPendientes->count() > 0) {
-            return back()->with('swal', [
+            return [
                 'icon'  => 'warning',
                 'title' => 'Pedidos a crédito pendientes',
                 'text'  => "Faltan {$pedidosCreditoPendientes->count()} pedido(s) a crédito por marcar.",
-            ]);
+            ];
         }
 
         $traspasosPendientes = $dispatch->transferAssignments->whereNotIn('status', ['COMPLETADO', 'NO_COMPLETADO']);
         if ($traspasosPendientes->count() > 0) {
-            return back()->with('swal', [
+            return [
                 'icon'  => 'warning',
                 'title' => 'Traspasos pendientes',
                 'text'  => "Faltan {$traspasosPendientes->count()} traspaso(s) por marcar.",
-            ]);
+            ];
         }
 
         $dispatch->update(['traspasos_cerrado_at' => now()]);
@@ -615,7 +630,7 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
 
         $this->intentarFinalizarDespacho($dispatch);
 
-        return back()->with('swal', ['icon' => 'success', 'title' => 'Traspasos cerrados', 'text' => 'Traspasos y pedidos a crédito quedaron cerrados.']);
+        return null;
     }
 
     /**
@@ -634,8 +649,23 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
             'notas_cierre'    => 'nullable|string|max:500',
         ]);
 
+        $error = $this->intentarCerrarCobranza($dispatch, $request);
+        if ($error) {
+            return back()->with('swal', $error);
+        }
+
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Cobranza cerrada', 'text' => 'Efectivo y CxC quedaron conciliados.']);
+    }
+
+    /**
+     * Valida y cierra el lado de cobranza (efectivo/contraentrega + CxC).
+     * Devuelve null si quedó cerrado (o ya lo estaba), o un array
+     * ['icon','title','text'] con el motivo del bloqueo si no se pudo cerrar.
+     */
+    private function intentarCerrarCobranza(Dispatch $dispatch, Request $request): ?array
+    {
         if ($dispatch->cobranza_cerrado_at) {
-            return back()->with('swal', ['icon' => 'info', 'title' => 'Ya estaba cerrado', 'text' => 'La cobranza ya se había cerrado.']);
+            return null;
         }
 
         $dispatch->load('items.salesOrder', 'arAssignments');
@@ -647,11 +677,11 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
         );
 
         if ($pedidosEfectivoPendientes->count() > 0) {
-            return back()->with('swal', [
+            return [
                 'icon'  => 'warning',
                 'title' => 'Pedidos de efectivo pendientes',
                 'text'  => "Faltan {$pedidosEfectivoPendientes->count()} pedido(s) de efectivo/contraentrega por marcar.",
-            ]);
+            ];
         }
 
         // Solo PENDIENTE (sin ningún abono) bloquea el cierre. PARCIAL ya se
@@ -659,11 +689,11 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
         // como CxC normal y no detiene la liquidación del chofer.
         $cxcSinResolver = $dispatch->arAssignments->where('status', 'PENDIENTE');
         if ($cxcSinResolver->count() > 0) {
-            return back()->with('swal', [
+            return [
                 'icon'  => 'warning',
                 'title' => 'CxC sin resolver',
                 'text'  => "Faltan {$cxcSinResolver->count()} cuenta(s) por cobrar sin ni siquiera un abono — cóbralas o márcalas como no cobradas.",
-            ]);
+            ];
         }
 
         DB::transaction(function () use ($dispatch, $request) {
@@ -712,7 +742,36 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
 
         $this->intentarFinalizarDespacho($dispatch);
 
-        return back()->with('swal', ['icon' => 'success', 'title' => 'Cobranza cerrada', 'text' => 'Efectivo y CxC quedaron conciliados.']);
+        return null;
+    }
+
+    /**
+     * Cierre completo en un solo clic: hace los dos cierres parciales
+     * (traspasos+crédito y cobranza) de una vez, usando los mismos datos
+     * del formulario de cobranza. Solo se muestra en la vista cuando ambos
+     * lados ya están listos para cerrarse, pero igual se revalida aquí.
+     */
+    public function cerrarCompleto(Request $request, Dispatch $dispatch)
+    {
+        $request->validate([
+            'monto_entregado' => 'required|numeric|min:0',
+            'payment_type_id' => 'nullable|exists:payment_types,id',
+            'pos_register_id' => 'nullable|exists:cash_registers,id',
+            'referencia'      => 'nullable|string|max:255',
+            'notas_cierre'    => 'nullable|string|max:500',
+        ]);
+
+        $errorTraspasos = $this->intentarCerrarTraspasos($dispatch);
+        if ($errorTraspasos) {
+            return back()->with('swal', $errorTraspasos);
+        }
+
+        $errorCobranza = $this->intentarCerrarCobranza($dispatch, $request);
+        if ($errorCobranza) {
+            return back()->with('swal', $errorCobranza);
+        }
+
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Despacho cerrado', 'text' => 'Traspasos y cobranza quedaron cerrados por completo.']);
     }
 
     /**

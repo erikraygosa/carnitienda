@@ -632,6 +632,30 @@
     </x-wire-card>
     @endif
 
+    {{-- ====== CIERRE COMPLETO EN UN CLIC ====== --}}
+    @if($dispatch->status === 'EN_RUTA' && $puedeCerrarTraspasos && $puedeCerrarCobranza && !($dispatch->traspasos_cerrado_at && $dispatch->cobranza_cerrado_at))
+    <x-wire-card class="mt-4 border-emerald-200 bg-emerald-50">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h3 class="font-semibold text-emerald-800">Todo listo para cerrar el despacho por completo</h3>
+                <p class="text-xs text-emerald-700 mt-0.5">
+                    Traspasos/crédito y cobranza ya se pueden cerrar. Este botón hace los dos cierres de un solo golpe
+                    (usa el monto sugerido de cobranza: ${{ number_format($montoSugerido, 2) }}), en vez de entrar a cada tarjeta.
+                </p>
+            </div>
+            <form action="{{ route('admin.dispatches.cerrar-completo', $dispatch) }}" method="POST">
+                @csrf
+                <input type="hidden" name="monto_entregado" value="{{ $montoSugerido }}">
+                <button type="button"
+                        onclick="return confirmarAccionMasiva(this, '¿Cerrar el despacho por completo (traspasos + cobranza)?')"
+                        class="inline-flex items-center px-4 py-2 text-sm rounded-md bg-emerald-700 text-white hover:bg-emerald-800 whitespace-nowrap">
+                    Cerrar despacho completo
+                </button>
+            </form>
+        </div>
+    </x-wire-card>
+    @endif
+
     {{-- ====== CIERRES PARCIALES (independientes, en cualquier orden) ====== --}}
     @if($dispatch->status === 'EN_RUTA')
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
