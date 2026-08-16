@@ -674,14 +674,61 @@
 
             @if(!$dispatch->traspasos_cerrado_at)
                 @if(!$traspasosResueltos)
-                    <p class="text-sm text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-3 py-2 mb-3">
-                        Aún hay traspasos pendientes de marcar.
-                    </p>
+                    @php $traspasosSinMarcar = $dispatch->transferAssignments->where('status', 'PENDIENTE'); @endphp
+                    <div class="mb-3">
+                        <p class="text-sm text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-t px-3 py-2">
+                            Aún hay {{ $traspasosSinMarcar->count() }} traspaso(s) pendientes de marcar:
+                        </p>
+                        <div class="border border-t-0 border-indigo-200 rounded-b divide-y">
+                            @foreach($traspasosSinMarcar as $ta)
+                            <div class="flex items-center justify-between gap-2 px-3 py-1.5 text-xs">
+                                <span class="text-gray-700">
+                                    {{ $ta->stockTransfer?->folio ?? '#'.$ta->id }}
+                                    <span class="text-gray-400">
+                                        ({{ $ta->stockTransfer?->fromWarehouse?->nombre ?? '—' }} → {{ $ta->stockTransfer?->toWarehouse?->nombre ?? '—' }})
+                                    </span>
+                                </span>
+                                <div class="flex items-center gap-1 shrink-0">
+                                    <form action="{{ route('admin.dispatches.traspasos.completar', [$dispatch, $ta]) }}" method="POST">
+                                        @csrf
+                                        <button type="submit" class="px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700">✓ Completar</button>
+                                    </form>
+                                    <form action="{{ route('admin.dispatches.traspasos.no-completar', [$dispatch, $ta]) }}" method="POST">
+                                        @csrf
+                                        <button type="submit" class="px-2 py-1 rounded bg-orange-500 text-white hover:bg-orange-600">✗</button>
+                                    </form>
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
+                    </div>
                 @endif
                 @if($pedidosCreditoPendientes->count() > 0)
-                    <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-3">
-                        Faltan {{ $pedidosCreditoPendientes->count() }} pedido(s) a crédito por marcar.
-                    </p>
+                    <div class="mb-3">
+                        <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-t px-3 py-2">
+                            Faltan {{ $pedidosCreditoPendientes->count() }} pedido(s) a crédito por marcar:
+                        </p>
+                        <div class="border border-t-0 border-amber-200 rounded-b divide-y">
+                            @foreach($pedidosCreditoPendientes as $pi)
+                            <div class="flex items-center justify-between gap-2 px-3 py-1.5 text-xs">
+                                <span class="text-gray-700">
+                                    {{ $pi->salesOrder?->folio ?? '#'.$pi->id }}
+                                    <span class="text-gray-400">({{ $pi->salesOrder?->client?->nombre ?? '—' }})</span>
+                                </span>
+                                <div class="flex items-center gap-1 shrink-0">
+                                    <form action="{{ route('admin.dispatches.pedido.entregar', [$dispatch, $pi]) }}" method="POST">
+                                        @csrf
+                                        <button type="submit" class="px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700">✓ Entregado</button>
+                                    </form>
+                                    <form action="{{ route('admin.dispatches.pedido.no-entregar', [$dispatch, $pi]) }}" method="POST">
+                                        @csrf
+                                        <button type="submit" class="px-2 py-1 rounded bg-orange-500 text-white hover:bg-orange-600">✗</button>
+                                    </form>
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
+                    </div>
                 @endif
 
                 <div class="grid grid-cols-2 gap-3 text-sm mb-4">
