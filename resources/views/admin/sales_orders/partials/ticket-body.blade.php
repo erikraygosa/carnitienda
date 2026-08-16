@@ -186,7 +186,7 @@
             @foreach($order->items as $it)
             <tr>
                 <td>{{ number_format((float)$it->cantidad, 2) }}
-                    {{ strtoupper($it->product->nombre ?? '#'.$it->product_id) }}</td>
+                    {{ strtoupper($it->descripcion ?: ($it->product->nombre ?? '#'.$it->product_id)) }}</td>
                 <td class="right">{{ number_format((float)$it->precio, 2) }}</td>
                 <td class="right bold">{{ number_format((float)$it->total, 2) }}</td>
             </tr>
@@ -226,6 +226,14 @@
             <td class="right">{{ number_format((float)$order->total, 2) }}</td>
         </tr>
     </table>
+
+    {{-- COMENTARIOS DEL PEDIDO --}}
+    @if($order->comentarios)
+    <div class="observaciones" style="margin-top:3mm;">
+        <div class="bold">COMENTARIOS:</div>
+        <div style="margin-top:2px;">{{ $order->comentarios }}</div>
+    </div>
+    @endif
 
     {{-- ESPACIO + OBSERVACIONES --}}
     <div style="margin-top:5mm;"></div>
