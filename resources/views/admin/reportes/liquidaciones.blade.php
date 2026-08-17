@@ -103,7 +103,7 @@
 
             if (!data.rutas || data.rutas.length === 0) {
                 body.innerHTML = `<div class="text-center py-8 text-gray-400">Sin resultados para los filtros seleccionados.</div>`
-                    + renderPendientes(data.pendientes_procesar || []);
+                    + renderPendientes(data.pendientes_procesar || [], data.pendientes_label);
                 return;
             }
 
@@ -173,12 +173,13 @@
                 </div>
             `;
 
-            html += renderPendientes(data.pendientes_procesar || []);
+            html += renderPendientes(data.pendientes_procesar || [], data.pendientes_label);
 
             body.innerHTML = html;
         }
 
-        function renderPendientes(pendientes) {
+        function renderPendientes(pendientes, label) {
+            label = label || 'pendientes por procesar';
             const rows = pendientes.map(p => `
                 <tr class="hover:bg-gray-50">
                     <td class="px-3 py-2 font-mono text-xs text-indigo-700 font-medium whitespace-nowrap">
@@ -197,7 +198,7 @@
                     <div class="flex items-center justify-between px-4 py-2.5 bg-amber-500">
                         <span class="text-sm font-bold text-white uppercase tracking-wide">
                             <i class="fa-solid fa-triangle-exclamation mr-1.5 opacity-75"></i>
-                            Pedidos pendientes por procesar
+                            Pedidos ${label}
                         </span>
                         <div class="flex items-center gap-3">
                             <span class="text-xs text-amber-100">${pendientes.length} pedido(s)</span>
@@ -208,7 +209,7 @@
                         </div>
                     </div>
                     ${pendientes.length === 0
-                        ? `<div class="text-center py-4 text-sm text-gray-400">No hay pedidos pendientes por procesar.</div>`
+                        ? `<div class="text-center py-4 text-sm text-gray-400">No hay pedidos ${label}.</div>`
                         : `<table class="min-w-full text-sm divide-y divide-gray-100">
                             <thead class="bg-gray-50">
                                 <tr>

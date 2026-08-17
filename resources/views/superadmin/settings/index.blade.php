@@ -260,6 +260,43 @@
     </div>
 
     <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-white font-semibold mb-1">Reportes</h3>
+        <p class="text-xs text-gray-500 mb-4">
+            Controla qué pedidos cuenta el aviso "Pedidos pendientes" en Reportes → Liquidaciones.
+        </p>
+
+        @php
+            $pendientesModo = $reportes['reportes.liquidaciones_pendientes_modo']?->valor ?? 'procesar';
+        @endphp
+
+        <div class="space-y-3">
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="radio" name="reportes_liquidaciones_pendientes_modo" value="procesar"
+                       {{ $pendientesModo === 'procesar' ? 'checked' : '' }}
+                       class="mt-1 bg-gray-800 border-gray-700 text-indigo-600 focus:ring-indigo-500">
+                <span>
+                    <span class="block text-sm text-white">Pendientes por procesar (Recomendado)</span>
+                    <span class="block text-xs text-gray-500 mt-0.5">
+                        Pedidos Aprobado/Preparando que todavía no pasan por el botón "Procesar".
+                    </span>
+                </span>
+            </label>
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="radio" name="reportes_liquidaciones_pendientes_modo" value="surtir"
+                       {{ $pendientesModo === 'surtir' ? 'checked' : '' }}
+                       class="mt-1 bg-gray-800 border-gray-700 text-indigo-600 focus:ring-indigo-500">
+                <span>
+                    <span class="block text-sm text-white">Pendientes por surtir</span>
+                    <span class="block text-xs text-gray-500 mt-0.5">
+                        Pedidos ya Procesados que siguen en Salida de producto sin terminar de despacharse —
+                        el mismo universo que ve el Panel de Surtido.
+                    </span>
+                </span>
+            </label>
+        </div>
+    </div>
+
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
         <h3 class="text-white font-semibold mb-1">Logística</h3>
         <p class="text-xs text-gray-500 mb-4">Controla acciones que pueden saltarse el flujo normal de despacho.</p>
 

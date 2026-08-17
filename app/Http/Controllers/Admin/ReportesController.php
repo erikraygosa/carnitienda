@@ -185,11 +185,31 @@ class ReportesController extends Controller implements HasMiddleware
         ];
     }
 
+    /**
+     * Configurable en Superadmin → Configuración → Reportes:
+     * 'procesar' (default) = pedidos APROBADO/PREPARANDO, que todavía no pasan
+     *   por el botón "Procesar" (una vez PROCESADO salen de esta lista).
+     * 'surtir' = pedidos PROCESADO que siguen en Salida de producto sin
+     *   terminar de despacharse — el mismo universo que ve el Panel de Surtido.
+     */
+    private function pendientesModo(): string
+    {
+        $modo = \App\Models\SystemSetting::get('reportes.liquidaciones_pendientes_modo', 'procesar');
+        return $modo === 'surtir' ? 'surtir' : 'procesar';
+    }
+
+    private function pendientesLabel(): string
+    {
+        return $this->pendientesModo() === 'surtir' ? 'pendientes por surtir' : 'pendientes por procesar';
+    }
+
     private function pendientesPorProcesar()
     {
-        // APROBADO/PREPARANDO: pedidos que todavía no pasan por "Procesar"
-        // (una vez PROCESADO, ya están listos para despachar y salen de esta lista).
-        return SalesOrder::whereIn('status', ['APROBADO', 'PREPARANDO'])
+        $estatuses = $this->pendientesModo() === 'surtir'
+            ? ['PROCESADO']
+            : ['APROBADO', 'PREPARANDO'];
+
+        return SalesOrder::whereIn('status', $estatuses)
             ->with(['client:id,nombre', 'route:id,nombre'])
             ->latest()
             ->limit(200)
@@ -512,6 +532,7 @@ class ReportesController extends Controller implements HasMiddleware
             'total'               => $items->count(),
             'total_monto'         => number_format((float)$items->sum('total'), 2),
             'pendientes_procesar' => $this->pendientesPorProcesar(),
+            'pendientes_label'    => $this->pendientesLabel(),
         ]);
     }
 
@@ -595,10 +616,11 @@ class ReportesController extends Controller implements HasMiddleware
         $sheet->getStyle("D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
         $row += 3; // blank space before the pending section
 
-        // Pedidos pendientes por procesar
+        // Pedidos pendientes (por procesar o por surtir, según configuración)
         $pendientes = $this->pendientesPorProcesar();
+        $label      = $this->pendientesLabel();
 
-        $sheet->setCellValue("A{$row}", 'PEDIDOS PENDIENTES POR PROCESAR');
+        $sheet->setCellValue("A{$row}", 'PEDIDOS ' . mb_strtoupper($label));
         $sheet->mergeCells("A{$row}:F{$row}");
         $sheet->getStyle("A{$row}")->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
@@ -607,7 +629,7 @@ class ReportesController extends Controller implements HasMiddleware
         $row++;
 
         if ($pendientes->isEmpty()) {
-            $sheet->setCellValue("A{$row}", 'No hay pedidos pendientes por procesar.');
+            $sheet->setCellValue("A{$row}", "No hay pedidos {$label}.");
             $sheet->mergeCells("A{$row}:F{$row}");
             $row++;
         } else {

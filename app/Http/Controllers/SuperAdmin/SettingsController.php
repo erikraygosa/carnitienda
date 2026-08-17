@@ -20,8 +20,9 @@ class SettingsController extends Controller
         $whatsapp    = SystemSetting::where('grupo', 'whatsapp')->get()->keyBy('clave');
         $precios     = SystemSetting::where('grupo', 'precios')->get()->keyBy('clave');
         $pedidos     = SystemSetting::where('grupo', 'pedidos')->get()->keyBy('clave');
+        $reportes    = SystemSetting::where('grupo', 'reportes')->get()->keyBy('clave');
 
-        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica', 'whatsapp', 'precios', 'pedidos'));
+        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica', 'whatsapp', 'precios', 'pedidos', 'reportes'));
     }
 
     public function update(Request $request)
@@ -95,6 +96,13 @@ class SettingsController extends Controller
             $request->boolean('pedidos_mostrar_iva') ? '1' : '0',
             'boolean',
             'pedidos'
+        );
+
+        SystemSetting::set(
+            'reportes.liquidaciones_pendientes_modo',
+            $request->input('reportes_liquidaciones_pendientes_modo') === 'surtir' ? 'surtir' : 'procesar',
+            'string',
+            'reportes'
         );
 
         // NOTA: este campo guarda el archivo pero hoy ninguna vista lo lee —

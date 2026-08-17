@@ -102,6 +102,9 @@ class SystemSetting extends Model
             // Pedidos
             ['clave' => 'pedidos.mostrar_iva', 'valor' => '1', 'tipo' => 'boolean', 'grupo' => 'pedidos', 'descripcion' => 'Muestra la columna de % IVA en la creación/edición de pedidos'],
 
+            // Reportes
+            ['clave' => 'reportes.liquidaciones_pendientes_modo', 'valor' => 'procesar', 'tipo' => 'string', 'grupo' => 'reportes', 'descripcion' => "Qué pedidos cuenta el widget 'pendientes' de Reportes → Liquidaciones: 'procesar' (APROBADO/PREPARANDO, aún no pasan por Procesar) o 'surtir' (PROCESADO, ya en Salida de producto pero sin terminar de despachar)"],
+
             // WhatsApp (Evolution API)
             ['clave' => 'whatsapp.base_url', 'valor' => env('EVO_API_BASE_URL', ''), 'tipo' => 'string', 'grupo' => 'whatsapp', 'descripcion' => 'URL base del servidor Evolution API, ej. https://evo.midominio.com'],
             ['clave' => 'whatsapp.instance', 'valor' => env('EVO_API_INSTANCE', ''), 'tipo' => 'string', 'grupo' => 'whatsapp', 'descripcion' => 'Nombre de la instancia de WhatsApp en Evolution API'],
