@@ -57,6 +57,39 @@
     </x-wire-card>
   </div>
 
+  <x-wire-card class="mt-6">
+    <h3 class="font-semibold mb-3">Ventas POS</h3>
+    <div class="overflow-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="border-b">
+            <th class="p-2 text-left">Hora</th>
+            <th class="p-2 text-left">Cliente</th>
+            <th class="p-2 text-left">Pago</th>
+            <th class="p-2 text-right">Total</th>
+            <th class="p-2 text-center">Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          @forelse($register->posSales->sortByDesc('fecha') as $venta)
+            <tr class="border-b">
+              <td class="p-2">{{ optional($venta->fecha)->format('H:i') }}</td>
+              <td class="p-2">{{ $venta->client->nombre ?? 'Público general' }}</td>
+              <td class="p-2">{{ $venta->metodo_pago }}</td>
+              <td class="p-2 text-right">${{ number_format($venta->total, 2) }}</td>
+              <td class="p-2 text-center">
+                <a href="{{ route('admin.pos.ticket', $venta) }}" target="_blank"
+                   class="text-indigo-600 hover:underline text-xs">Ver venta</a>
+              </td>
+            </tr>
+          @empty
+            <tr><td colspan="5" class="p-4 text-center text-gray-500">Sin ventas POS en esta caja</td></tr>
+          @endforelse
+        </tbody>
+      </table>
+    </div>
+  </x-wire-card>
+
   <div class="grid md:grid-cols-3 gap-4 mt-6">
     <x-wire-card class="md:col-span-2">
       <h3 class="font-semibold mb-3">Movimientos</h3>

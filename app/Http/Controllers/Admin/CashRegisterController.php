@@ -100,7 +100,7 @@ class CashRegisterController extends Controller implements HasMiddleware
     public function show(CashRegister $cash)
     {
         $this->authorizeOwnRegister($cash);
-        $cash->load('movements');
+        $cash->load('movements', 'posSales.client');
         return view('admin.cash.show', ['register' => $cash]);
     }
 
