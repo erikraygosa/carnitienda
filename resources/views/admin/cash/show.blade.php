@@ -9,9 +9,12 @@
   ]"
 >
   <x-slot name="action">
-    {{-- Botón imprimir ticket 80mm (nueva pestaña) --}}
+    {{-- Botones imprimir ticket 80mm (nueva pestaña) --}}
     <x-wire-button href="{{ route('admin.cash.ticket', $register) }}" target="_blank" rel="noopener noreferrer" outline class="no-print">
-      Imprimir ticket
+      Imprimir ticket completo
+    </x-wire-button>
+    <x-wire-button href="{{ route('admin.cash.ticket', ['cash' => $register, 'resumen' => 1]) }}" target="_blank" rel="noopener noreferrer" outline class="no-print">
+      Imprimir solo el corte
     </x-wire-button>
 
     @if($register->estatus === 'ABIERTO')

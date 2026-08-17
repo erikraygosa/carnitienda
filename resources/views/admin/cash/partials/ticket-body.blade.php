@@ -2,8 +2,12 @@
     Contenido del ticket de corte de caja, compartido entre la vista en
     pantalla (admin/cash/ticket.blade.php) y el PDF (ticket-pdf.blade.php)
     para que no se desincronicen. Espera $register (con movements/posSales
-    cargables) y $company.
+    cargables), $company y $resumen (bool — true = solo el corte, sin el
+    desglose de movimientos ni de notas de venta POS).
 --}}
+@php
+    $resumen = $resumen ?? false;
+@endphp
 <div class="center">
     @if($company?->logo_path)
         <img src="{{ $forPdf ? storage_path('app/public/' . $company->logo_path) : Storage::url($company->logo_path) }}"
@@ -54,6 +58,7 @@
     </tbody>
 </table>
 
+@unless($resumen)
 <hr class="mt-2">
 <div class="center xs bold">Movimientos</div>
 <table>
@@ -114,6 +119,7 @@
     </tbody>
 </table>
 @endif
+@endunless
 
 <hr class="mt-2">
 

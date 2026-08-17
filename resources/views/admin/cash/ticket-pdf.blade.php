@@ -21,6 +21,6 @@
     </style>
 </head>
 <body>
-    @include('admin.cash.partials.ticket-body', ['register' => $register, 'company' => $company, 'forPdf' => true])
+    @include('admin.cash.partials.ticket-body', ['register' => $register, 'company' => $company, 'forPdf' => true, 'resumen' => $resumen ?? false])
 </body>
 </html>

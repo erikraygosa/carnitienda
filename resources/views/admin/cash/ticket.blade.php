@@ -66,11 +66,11 @@
 </head>
 <body>
     <div class="wrap" id="ticket">
-        @include('admin.cash.partials.ticket-body', ['register' => $register, 'company' => $company, 'forPdf' => false])
+        @include('admin.cash.partials.ticket-body', ['register' => $register, 'company' => $company, 'forPdf' => false, 'resumen' => $resumen ?? false])
     </div>
 
     <div class="btns">
-        <a href="{{ route('admin.cash.ticket.pdf', $register) }}" target="_blank" class="btn btn-primary">
+        <a href="{{ route('admin.cash.ticket.pdf', array_filter(['cash' => $register->id, 'resumen' => ($resumen ?? false) ? 1 : null])) }}" target="_blank" class="btn btn-primary">
             🖨 Imprimir / PDF
         </a>
         <a href="{{ route('admin.cash.show', $register) }}" class="btn">Volver</a>

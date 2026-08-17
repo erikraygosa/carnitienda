@@ -113,22 +113,24 @@ class CashRegisterController extends Controller implements HasMiddleware
         return redirect()->route('admin.cash.index');
     }
 
-    public function ticket(CashRegister $cash)
+    public function ticket(Request $request, CashRegister $cash)
     {
         $this->authorizeOwnRegister($cash);
         $cash->load(['user:id,name', 'warehouse:id,nombre', 'movements', 'posSales.items.product']);
         $company = Company::first();
-        return view('admin.cash.ticket', ['register' => $cash, 'company' => $company]);
+        $resumen = $request->boolean('resumen');
+        return view('admin.cash.ticket', ['register' => $cash, 'company' => $company, 'resumen' => $resumen]);
     }
 
-    public function ticketPdf(CashRegister $cash)
+    public function ticketPdf(Request $request, CashRegister $cash)
     {
         $this->authorizeOwnRegister($cash);
         $cash->load(['movements', 'user', 'warehouse', 'posSales.items.product']);
         $company  = Company::first();
         $register = $cash;
+        $resumen  = $request->boolean('resumen');
 
-        $pdf = Pdf::loadView('admin.cash.ticket-pdf', compact('register', 'company'))
+        $pdf = Pdf::loadView('admin.cash.ticket-pdf', compact('register', 'company', 'resumen'))
             ->setPaper([0, 0, 226.77, 1200], 'portrait');
 
         return $pdf->stream("caja-{$cash->id}.pdf");
