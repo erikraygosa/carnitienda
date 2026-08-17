@@ -311,7 +311,7 @@
                     '<td class="px-2 py-2 text-center font-mono text-xs ' + difColor + '" id="dif-' + idx + '">' +
                         difStr +
                     '</td>' +
-                    '<td class="px-2 py-1 text-center whitespace-nowrap">' +
+                    '<td class="px-2 py-1 text-center">' +
                         (line.bloqueada
                             ? '<span class="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700">✓ Surtido</span>'
                         : line.sinExistencia
@@ -319,15 +319,17 @@
                         : line.cancelado
                             ? '<span class="px-2 py-1 text-xs rounded bg-orange-100 text-orange-700">Cancelado</span>'
                         :
-                            '<button type="button" onclick="guardarLinea(' + idx + ')"' +
-                            '   id="btn-linea-' + idx + '"' +
-                            '   class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">Guardar</button>' +
-                            '<button type="button" onclick="marcarSinExistencia(' + idx + ')"' +
-                            '   id="btn-sin-existencia-' + idx + '"' +
-                            '   class="ml-1 px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50">Sin existencia</button>' +
-                            '<button type="button" onclick="marcarCancelado(' + idx + ')"' +
-                            '   id="btn-cancelado-' + idx + '"' +
-                            '   class="ml-1 px-2 py-1 text-xs rounded border border-orange-300 text-orange-600 hover:bg-orange-50">Cancelado</button>'
+                            '<div class="flex flex-col gap-1 w-24 mx-auto">' +
+                                '<button type="button" onclick="guardarLinea(' + idx + ')"' +
+                                '   id="btn-linea-' + idx + '"' +
+                                '   class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">Guardar</button>' +
+                                '<button type="button" onclick="marcarSinExistencia(' + idx + ')"' +
+                                '   id="btn-sin-existencia-' + idx + '"' +
+                                '   class="px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50">Sin existencia</button>' +
+                                '<button type="button" onclick="marcarCancelado(' + idx + ')"' +
+                                '   id="btn-cancelado-' + idx + '"' +
+                                '   class="px-2 py-1 text-xs rounded border border-orange-300 text-orange-600 hover:bg-orange-50">Cancelado</button>' +
+                            '</div>'
                         ) +
                     '</td>';
                 tbody.appendChild(tr);
