@@ -33,7 +33,13 @@ class CashRegisterController extends Controller implements HasMiddleware
     {
         $search = request('search');
 
+        // El rol cajero solo ve sus propias cajas (abiertas y cerradas) — no
+        // las de otros usuarios ni de otros almacenes. Quien tenga un rol
+        // adicional con más alcance (ej. admin) sigue viendo todo.
+        $soloPropias = auth()->user()->hasRole('cajero') && !auth()->user()->hasRole('admin');
+
         $registers = CashRegister::with(['warehouse:id,nombre', 'user:id,name'])
+            ->when($soloPropias, fn($q) => $q->where('user_id', auth()->id()))
             ->when($search, function($q) use ($search) {
                 $q->where('fecha', 'like', "%{$search}%")
                   ->orWhereHas('warehouse', fn($q) => $q->where('nombre', 'like', "%{$search}%"))
