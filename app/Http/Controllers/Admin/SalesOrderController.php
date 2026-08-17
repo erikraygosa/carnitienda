@@ -183,10 +183,12 @@ public function data(Request $request)
         'entrega_cp'       => $c->entrega_igual_fiscal ? ($c->fiscal_cp      ?? '') : ($c->entrega_cp      ?? ''),
     ]])->toArray();
 
+    $mostrarIva = \App\Models\SystemSetting::get('pedidos.mostrar_iva', true);
+
     return view('admin.sales_orders.create', compact(
         'clients','priceLists','products','warehouses',
         'drivers','routes','overrides','listItems',
-        'mainWarehouseId','clientDefaults','productsJson'
+        'mainWarehouseId','clientDefaults','productsJson','mostrarIva'
     ));
 }
 
@@ -360,9 +362,11 @@ public function data(Request $request)
             ->where('nota', '!=', '')
             ->pluck('nota', 'sales_order_item_id');
 
+        $mostrarIva = \App\Models\SystemSetting::get('pedidos.mostrar_iva', true);
+
         return view('admin.sales_orders.edit', compact(
             'order','clients','priceLists','products','warehouses','drivers','routes',
-            'productsJson','overrides','listItems','itemsSurtidosIds','notasSurtidoPorItem'
+            'productsJson','overrides','listItems','itemsSurtidosIds','notasSurtidoPorItem','mostrarIva'
         ));
     }
 

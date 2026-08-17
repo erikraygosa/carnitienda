@@ -224,6 +224,28 @@
     </div>
 
     <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-white font-semibold mb-1">Pedidos</h3>
+        <p class="text-xs text-gray-500 mb-4">Controla qué campos aparecen al crear/editar un pedido.</p>
+
+        @php
+            $mostrarIvaPedidos = ($pedidos['pedidos.mostrar_iva']?->valor ?? '1') === '1';
+        @endphp
+
+        <label class="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" name="pedidos_mostrar_iva" value="1"
+                   {{ $mostrarIvaPedidos ? 'checked' : '' }}
+                   class="mt-1 rounded bg-gray-800 border-gray-700 text-indigo-600 focus:ring-indigo-500">
+            <span>
+                <span class="block text-sm text-white">Mostrar IVA en pedidos</span>
+                <span class="block text-xs text-gray-500 mt-0.5">
+                    Activado por defecto. Si lo desactivas, la columna "% IVA" y el renglón de "Impuestos"
+                    desaparecen de Pedidos → Crear/Editar (útil si el negocio no maneja IVA en sus productos).
+                </span>
+            </span>
+        </label>
+    </div>
+
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
         <h3 class="text-white font-semibold mb-1">Logística</h3>
         <p class="text-xs text-gray-500 mb-4">Controla acciones que pueden saltarse el flujo normal de despacho.</p>
 

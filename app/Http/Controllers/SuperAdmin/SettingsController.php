@@ -19,8 +19,9 @@ class SettingsController extends Controller
         $logistica   = SystemSetting::where('grupo', 'logistica')->get()->keyBy('clave');
         $whatsapp    = SystemSetting::where('grupo', 'whatsapp')->get()->keyBy('clave');
         $precios     = SystemSetting::where('grupo', 'precios')->get()->keyBy('clave');
+        $pedidos     = SystemSetting::where('grupo', 'pedidos')->get()->keyBy('clave');
 
-        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica', 'whatsapp', 'precios'));
+        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica', 'whatsapp', 'precios', 'pedidos'));
     }
 
     public function update(Request $request)
@@ -86,6 +87,14 @@ class SettingsController extends Controller
             $request->input('precios_modo') === 'almacen' ? 'almacen' : 'global',
             'string',
             'precios'
+        );
+
+        // Checkbox: si no viene en el request es porque está desmarcado.
+        SystemSetting::set(
+            'pedidos.mostrar_iva',
+            $request->boolean('pedidos_mostrar_iva') ? '1' : '0',
+            'boolean',
+            'pedidos'
         );
 
         if ($request->hasFile('app.logo')) {

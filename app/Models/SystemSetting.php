@@ -99,6 +99,9 @@ class SystemSetting extends Model
             // Logística
             ['clave' => 'logistica.permitir_completar_traspaso_directo', 'valor' => '0', 'tipo' => 'boolean', 'grupo' => 'logistica', 'descripcion' => 'Permite completar un traspaso sin pasar por un despacho (rompe el flujo normal PENDIENTE → ASIGNADO → EN_RUTA)'],
 
+            // Pedidos
+            ['clave' => 'pedidos.mostrar_iva', 'valor' => '1', 'tipo' => 'boolean', 'grupo' => 'pedidos', 'descripcion' => 'Muestra la columna de % IVA en la creación/edición de pedidos'],
+
             // WhatsApp (Evolution API)
             ['clave' => 'whatsapp.base_url', 'valor' => env('EVO_API_BASE_URL', ''), 'tipo' => 'string', 'grupo' => 'whatsapp', 'descripcion' => 'URL base del servidor Evolution API, ej. https://evo.midominio.com'],
             ['clave' => 'whatsapp.instance', 'valor' => env('EVO_API_INSTANCE', ''), 'tipo' => 'string', 'grupo' => 'whatsapp', 'descripcion' => 'Nombre de la instancia de WhatsApp en Evolution API'],

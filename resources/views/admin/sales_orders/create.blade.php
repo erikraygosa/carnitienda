@@ -232,7 +232,7 @@
                             <th class="p-2 text-center" title="Número aproximado de cajas (referencia)">Cajas</th>
                             <th class="p-2 text-right">Precio</th>
                             <th class="p-2 text-right">Desc.</th>
-                            <th class="p-2 text-right">% IVA</th>
+                            @if($mostrarIva)<th class="p-2 text-right">% IVA</th>@endif
                             <th class="p-2 text-right">Total</th>
                             <th class="p-2 w-8"></th>
                         </tr>
@@ -251,7 +251,7 @@
             <div class="text-right space-y-1 border-t pt-3">
                 <div class="text-sm text-gray-600">Subtotal: <span id="tot-subtotal" class="font-medium">0.00</span></div>
                 <div class="text-sm text-gray-600">Descuento: <span id="tot-desc" class="font-medium">0.00</span></div>
-                <div class="text-sm text-gray-600">Impuestos: <span id="tot-tax" class="font-medium">0.00</span></div>
+                @if($mostrarIva)<div class="text-sm text-gray-600">Impuestos: <span id="tot-tax" class="font-medium">0.00</span></div>@endif
                 <div class="text-lg font-bold text-gray-800">Total: $<span id="tot-grand">0.00</span></div>
             </div>
 
@@ -273,6 +273,7 @@
         const CLIENTS_EDIT_BASE    = '{{ url('admin/clients') }}';
         const CLIENT_PRICES_BASE   = '{{ url('admin/sales-orders/client-prices') }}';
         const PRODUCTS             = @json($productsJson);
+        const MOSTRAR_IVA          = @json($mostrarIva);
 
         let state = {
             items: [],
@@ -325,7 +326,7 @@
             });
             $('tot-subtotal').textContent = fmt(s);
             $('tot-desc').textContent     = fmt(d);
-            $('tot-tax').textContent      = fmt(t);
+            if ($('tot-tax')) $('tot-tax').textContent = fmt(t);
             $('tot-grand').textContent    = fmt(g);
             set('h-subtotal',  fmt(s));
             set('h-descuento', fmt(d));
@@ -503,13 +504,16 @@
                            class="w-24 border rounded p-1 text-right text-sm inp-descuento"
                            name="items[${i}][descuento]" value="${it.descuento}">
                 </td>
+                ${MOSTRAR_IVA ? `
                 <td class="p-2 text-right">
                     <input type="number" min="0" step="0.01"
                            class="w-20 border rounded p-1 text-right text-sm inp-iva"
                            value="${it.iva_pct}">
+                </td>` : ''}
+                <td class="p-2 text-right font-medium">
+                    <span class="td-total">${fmt(it.total)}</span>
                     <input type="hidden" class="hid-impuesto" name="items[${i}][impuesto]" value="${it.impuesto}">
                 </td>
-                <td class="p-2 text-right font-medium td-total">${fmt(it.total)}</td>
                 <td class="p-2 text-center">
                     <button type="button" class="text-red-500 hover:text-red-700 text-xs btn-remove">✕</button>
                 </td>
@@ -536,9 +540,11 @@
             tr.querySelector('.inp-descuento').addEventListener('input', function() {
                 state.items[i].descuento = parseFloat(this.value)||0; recalcRow(i);
             });
-            tr.querySelector('.inp-iva').addEventListener('input', function() {
-                state.items[i].iva_pct = parseFloat(this.value)||0; recalcRow(i);
-            });
+            if (MOSTRAR_IVA) {
+                tr.querySelector('.inp-iva').addEventListener('input', function() {
+                    state.items[i].iva_pct = parseFloat(this.value)||0; recalcRow(i);
+                });
+            }
             tr.querySelector('.inp-desc').addEventListener('input', function() {
                 state.items[i].descripcion = this.value;
             });
