@@ -7,11 +7,18 @@
 --}}
 @php
     $resumen = $resumen ?? false;
+    // Mismo logo que ya usan el sidebar y los PDFs de carta (invoice, quote,
+    // sales_order): un archivo fijo en public/logo.jpg, no un campo de BD.
+    // Se embebe en base64 para que funcione igual en pantalla y en el PDF.
+    $logoPath   = public_path('logo.jpg');
+    $logoExists = file_exists($logoPath);
+    if ($logoExists) {
+        $logoSrc = 'data:image/jpeg;base64,' . base64_encode(file_get_contents($logoPath));
+    }
 @endphp
 <div class="center">
-    @if($company?->logo_path)
-        <img src="{{ $forPdf ? storage_path('app/public/' . $company->logo_path) : Storage::url($company->logo_path) }}"
-             alt="Logo" class="logo">
+    @if($logoExists)
+        <img src="{{ $logoSrc }}" alt="Logo" class="logo">
     @endif
     <div class="bold">{{ $company?->nombre_comercial ?? $company?->razon_social ?? 'Mi Tienda' }}</div>
     @if($company?->razon_social && $company?->nombre_comercial)

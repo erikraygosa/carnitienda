@@ -2,12 +2,18 @@
     Contenido del ticket POS, compartido entre la vista en pantalla
     (admin/pos/ticket.blade.php) y el PDF (admin/pos/ticket-pdf.blade.php)
     para que no se desincronicen. Espera $sale (con items/client/user/
-    warehouse cargados), $company (con fiscalData cargada) y $forPdf
-    (bool — true cuando se renderiza para DomPDF, que necesita ruta de
-    archivo en vez de URL pública).
+    warehouse cargados) y $company (con fiscalData cargada).
 --}}
 @php
     $fd = $company?->fiscalData;
+    // Mismo logo que ya usan el sidebar y los PDFs de carta (invoice, quote,
+    // sales_order): un archivo fijo en public/logo.jpg, no un campo de BD.
+    // Se embebe en base64 para que funcione igual en pantalla y en el PDF.
+    $logoPath   = public_path('logo.jpg');
+    $logoExists = file_exists($logoPath);
+    if ($logoExists) {
+        $logoSrc = 'data:image/jpeg;base64,' . base64_encode(file_get_contents($logoPath));
+    }
 @endphp
 <style>
 {{-- Sin esto, el navegador/PDF imprime con el tamaño de hoja por default
@@ -47,9 +53,8 @@
 
     {{-- EMPRESA --}}
     <div class="center">
-        @if($company?->logo_path)
-            <img src="{{ $forPdf ? storage_path('app/public/' . $company->logo_path) : Storage::url($company->logo_path) }}"
-                 alt="Logo" class="logo">
+        @if($logoExists)
+            <img src="{{ $logoSrc }}" alt="Logo" class="logo">
         @endif
         @if($company?->nombre_comercial || $company?->razon_social)
             <div class="bold" style="font-size:13px;">

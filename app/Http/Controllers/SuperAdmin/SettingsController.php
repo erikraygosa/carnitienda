@@ -97,19 +97,13 @@ class SettingsController extends Controller
             'pedidos'
         );
 
+        // NOTA: este campo guarda el archivo pero hoy ninguna vista lo lee —
+        // tanto el sidebar/login como los tickets térmicos usan directamente
+        // public/logo.jpg. Se deja el guardado por si en el futuro se conecta,
+        // pero no reemplaza ese archivo automáticamente.
         if ($request->hasFile('app.logo')) {
             $path = $request->file('app.logo')->store('logos', 'public');
             SystemSetting::set('app.logo_path', $path, 'file', 'general');
-
-            // Este mismo logo es el que usan los tickets térmicos (POS,
-            // Pedidos, Corte de caja) — esas vistas leen $company->logo_path,
-            // no el setting de sistema, así que hay que guardarlo también ahí.
-            // Sin esto el campo "Logo del sistema" solo cambiaba el logo del
-            // sidebar/login, y en los tickets nunca aparecía nada.
-            $empresaActiva = app(\App\Services\CompanyService::class)->activa();
-            if ($empresaActiva) {
-                $empresaActiva->update(['logo_path' => $path]);
-            }
         }
 
         return back()->with('success', 'Configuración guardada correctamente.');

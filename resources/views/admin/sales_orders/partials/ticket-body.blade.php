@@ -9,6 +9,14 @@
     $client  = $order->client ?? null;
     $emp     = $empresa ?? null;
     $ef      = $emp?->fiscalData ?? null;
+    // Mismo logo que ya usan el sidebar y los PDFs de carta (invoice, quote,
+    // sales_order): un archivo fijo en public/logo.jpg, no un campo de BD.
+    // Se embebe en base64 para que funcione igual en pantalla y en el PDF.
+    $logoPath   = public_path('logo.jpg');
+    $logoExists = file_exists($logoPath);
+    if ($logoExists) {
+        $logoSrc = 'data:image/jpeg;base64,' . base64_encode(file_get_contents($logoPath));
+    }
 @endphp
 <style>
 {{-- Sin esto, el navegador/PDF imprime con el tamaño de hoja por default
@@ -72,9 +80,8 @@
 
     {{-- EMPRESA --}}
     <div class="center">
-        @if($emp?->logo_path)
-            <img src="{{ $forPdf ? storage_path('app/public/' . $emp->logo_path) : Storage::url($emp->logo_path) }}"
-                 alt="Logo" class="logo">
+        @if($logoExists)
+            <img src="{{ $logoSrc }}" alt="Logo" class="logo">
         @endif
         @if($emp?->nombre_comercial || $emp?->razon_social)
             <div class="bold" style="font-size:13px;">

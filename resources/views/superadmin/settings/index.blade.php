@@ -53,8 +53,9 @@
                        class="w-full text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0
                               file:text-sm file:font-medium file:bg-indigo-900 file:text-indigo-300 hover:file:bg-indigo-800">
                 <p class="text-xs text-gray-500 mt-1">
-                    Se usa en el sidebar/login y también es el logo que imprimen los tickets térmicos
-                    (POS, Pedidos, Corte de caja).
+                    Este campo aún no está conectado a ninguna pantalla — tanto el sidebar/login como los
+                    tickets térmicos (POS, Pedidos, Corte de caja) usan el archivo public/logo.jpg del
+                    servidor. Para cambiar el logo, reemplaza ese archivo directamente.
                 </p>
             </div>
         </div>
