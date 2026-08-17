@@ -89,7 +89,10 @@ class DispatchPanelController extends Controller
 
             return [
                 'sales_order_item_id' => $item->id,
-                'producto'            => $item->product?->nombre ?? $item->descripcion,
+                // Preferimos la descripción capturada en el pedido (ahí es
+                // donde se agregan detalles/comentarios, ej. "1 piezas") por
+                // encima del nombre pelón del producto.
+                'producto'            => $item->descripcion ?: ($item->product?->nombre ?? '—'),
                 'unidad'              => $item->product?->unidad,
                 'qty_solicitada'      => (float) $item->cantidad,
                 'num_cajas'           => $item->num_cajas,

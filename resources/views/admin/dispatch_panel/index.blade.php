@@ -81,7 +81,7 @@
                             <tr
                                 data-order-id="{{ $pedido->id }}"
                                 data-item-id="{{ $item->id }}"
-                                data-search="{{ strtolower($pedido->folio . ' ' . ($pedido->client?->nombre ?? '') . ' ' . ($item->product?->nombre ?? $item->descripcion ?? '')) }}"
+                                data-search="{{ strtolower($pedido->folio . ' ' . ($pedido->client?->nombre ?? '') . ' ' . ($item->descripcion ?: ($item->product?->nombre ?? ''))) }}"
                                 class="transition {{ $itemIdx === 0 ? 'border-t-2 border-gray-300' : 'border-t border-gray-100' }} {{ $yaDespachado ? 'bg-emerald-50 hover:bg-emerald-100' : 'hover:bg-indigo-50' }}"
                             >
                                 {{-- Folio solo en primera fila del pedido --}}
@@ -97,7 +97,7 @@
                                     {{ $itemIdx === 0 && $pedido->fecha ? $pedido->fecha->format('d/m/Y') : '' }}
                                 </td>
                                 <td class="px-3 py-2 {{ $yaDespachado ? 'text-emerald-800 font-medium' : 'text-gray-800' }}">
-                                    {{ $item->product?->nombre ?? $item->descripcion ?? '—' }}
+                                    {{ $item->descripcion ?: ($item->product?->nombre ?? '—') }}
                                     @if($yaDespachado)
                                         <span class="ml-1 text-emerald-600" title="Ya guardado">✓</span>
                                     @endif
