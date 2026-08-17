@@ -59,6 +59,7 @@
     margin-left: auto;
     margin-right: auto;
 }
+.ticket .logo { max-width: 55mm; max-height: 18mm; object-fit: contain; display: block; margin: 0 auto 4px; }
 
 @media print {
     .no-print { display: none !important; }
@@ -71,6 +72,10 @@
 
     {{-- EMPRESA --}}
     <div class="center">
+        @if($emp?->logo_path)
+            <img src="{{ $forPdf ? storage_path('app/public/' . $emp->logo_path) : Storage::url($emp->logo_path) }}"
+                 alt="Logo" class="logo">
+        @endif
         @if($emp?->nombre_comercial || $emp?->razon_social)
             <div class="bold" style="font-size:13px;">
                 ** {{ strtoupper($emp?->nombre_comercial ?? $emp?->razon_social) }} **

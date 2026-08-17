@@ -24,7 +24,7 @@
     </x-slot>
 
     <div class="mx-auto bg-white shadow" style="width:72mm;max-width:100%;">
-        @include('admin.pos.partials.ticket-body', ['sale' => $sale, 'company' => $company])
+        @include('admin.pos.partials.ticket-body', ['sale' => $sale, 'company' => $company, 'forPdf' => false])
     </div>
 
     {{-- Script directo, sin @push --}}

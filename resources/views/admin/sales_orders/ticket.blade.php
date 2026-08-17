@@ -15,7 +15,7 @@
        style="margin-left:12px;font-size:12px;color:#6b7280;text-decoration:none;">← Volver</a>
 </div>
 
-@include('admin.sales_orders.partials.ticket-body', ['order' => $order, 'empresa' => $empresa])
+@include('admin.sales_orders.partials.ticket-body', ['order' => $order, 'empresa' => $empresa, 'forPdf' => false])
 
 <script>
 // Auto-imprimir si se abrió desde el panel de despacho

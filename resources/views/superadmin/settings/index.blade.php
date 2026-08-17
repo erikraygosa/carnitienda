@@ -40,9 +40,22 @@
             </div>
             <div class="md:col-span-2">
                 <label class="block text-xs text-gray-500 mb-1">Logo del sistema</label>
+                @php
+                    $logoActual = $general['app.logo_path']?->valor ?? null;
+                @endphp
+                @if($logoActual)
+                    <div class="mb-2">
+                        <img src="{{ \Illuminate\Support\Facades\Storage::url($logoActual) }}" alt="Logo actual"
+                             class="h-12 rounded bg-white p-1">
+                    </div>
+                @endif
                 <input type="file" name="app.logo" accept="image/*"
                        class="w-full text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0
                               file:text-sm file:font-medium file:bg-indigo-900 file:text-indigo-300 hover:file:bg-indigo-800">
+                <p class="text-xs text-gray-500 mt-1">
+                    Se usa en el sidebar/login y también es el logo que imprimen los tickets térmicos
+                    (POS, Pedidos, Corte de caja).
+                </p>
             </div>
         </div>
     </div>

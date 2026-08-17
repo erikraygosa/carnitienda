@@ -5,6 +5,6 @@
     <title>Ticket POS #{{ $sale->id }}</title>
 </head>
 <body>
-    @include('admin.pos.partials.ticket-body', ['sale' => $sale, 'company' => $company])
+    @include('admin.pos.partials.ticket-body', ['sale' => $sale, 'company' => $company, 'forPdf' => true])
 </body>
 </html>

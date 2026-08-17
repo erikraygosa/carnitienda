@@ -5,6 +5,6 @@
     <title>Ticket {{ $order->folio ?? $order->id }}</title>
 </head>
 <body>
-    @include('admin.sales_orders.partials.ticket-body', ['order' => $order, 'empresa' => $empresa])
+    @include('admin.sales_orders.partials.ticket-body', ['order' => $order, 'empresa' => $empresa, 'forPdf' => true])
 </body>
 </html>

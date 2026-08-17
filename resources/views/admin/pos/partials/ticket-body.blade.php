@@ -2,7 +2,9 @@
     Contenido del ticket POS, compartido entre la vista en pantalla
     (admin/pos/ticket.blade.php) y el PDF (admin/pos/ticket-pdf.blade.php)
     para que no se desincronicen. Espera $sale (con items/client/user/
-    warehouse cargados) y $company (con fiscalData cargada).
+    warehouse cargados), $company (con fiscalData cargada) y $forPdf
+    (bool — true cuando se renderiza para DomPDF, que necesita ruta de
+    archivo en vez de URL pública).
 --}}
 @php
     $fd = $company?->fiscalData;
@@ -33,6 +35,7 @@
 .ticket .items td { font-size: 10px; padding: 1px 0; }
 .ticket .totals td { font-size: 10px; padding: 1px 0; }
 .ticket .total-final td { font-size: 14px; font-weight: bold; border-top: 2px solid #000; padding-top: 3px; }
+.ticket .logo { max-width: 55mm; max-height: 18mm; object-fit: contain; display: block; margin: 0 auto 4px; }
 @media print {
     .no-print { display: none !important; }
     body { margin: 0; }
@@ -44,6 +47,10 @@
 
     {{-- EMPRESA --}}
     <div class="center">
+        @if($company?->logo_path)
+            <img src="{{ $forPdf ? storage_path('app/public/' . $company->logo_path) : Storage::url($company->logo_path) }}"
+                 alt="Logo" class="logo">
+        @endif
         @if($company?->nombre_comercial || $company?->razon_social)
             <div class="bold" style="font-size:13px;">
                 ** {{ strtoupper($company?->nombre_comercial ?? $company?->razon_social) }} **
