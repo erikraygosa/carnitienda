@@ -266,9 +266,12 @@
             tbody.innerHTML = '';
             lines.forEach(function(line, idx) {
                 // Ya venía guardada de una sesión anterior (qty_despachada persistido,
-                // 0 incluido — un 0 guardado significa "sin existencia" confirmado).
+                // 0 incluido — un 0 guardado significa "sin existencia" o "cancelado"
+                // confirmado, se distingue por el prefijo que dejamos en la nota).
                 line.guardado      = line.qty_despachada !== null;
-                line.sinExistencia = line.guardado && line.qty_despachada === 0;
+                var esCero         = line.guardado && line.qty_despachada === 0;
+                line.cancelado     = esCero && (line.nota || '').indexOf('Cancelado por el cliente') === 0;
+                line.sinExistencia = esCero && !line.cancelado;
                 // Ya se surtió con producto real: no se puede volver a tocar.
                 line.bloqueada     = line.guardado && line.qty_despachada > 0;
 
@@ -313,13 +316,18 @@
                             ? '<span class="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700">✓ Surtido</span>'
                         : line.sinExistencia
                             ? '<span class="px-2 py-1 text-xs rounded bg-gray-200 text-gray-600">Sin existencia</span>'
+                        : line.cancelado
+                            ? '<span class="px-2 py-1 text-xs rounded bg-orange-100 text-orange-700">Cancelado</span>'
                         :
                             '<button type="button" onclick="guardarLinea(' + idx + ')"' +
                             '   id="btn-linea-' + idx + '"' +
                             '   class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">Guardar</button>' +
                             '<button type="button" onclick="marcarSinExistencia(' + idx + ')"' +
                             '   id="btn-sin-existencia-' + idx + '"' +
-                            '   class="ml-1 px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50">Sin existencia</button>'
+                            '   class="ml-1 px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50">Sin existencia</button>' +
+                            '<button type="button" onclick="marcarCancelado(' + idx + ')"' +
+                            '   id="btn-cancelado-' + idx + '"' +
+                            '   class="ml-1 px-2 py-1 text-xs rounded border border-orange-300 text-orange-600 hover:bg-orange-50">Cancelado</button>'
                         ) +
                     '</td>';
                 tbody.appendChild(tr);
@@ -372,13 +380,26 @@
         }
 
         // ── Pinta la fila de la lista principal (sin recargar) — verde si se
-        //    surtió con producto real, gris si quedó "sin existencia" ──────
-        function marcarFilaComoDespachadaEnLista(salesOrderItemId, sinExistencia) {
+        //    surtió con producto real, gris si quedó "sin existencia", naranja
+        //    si el cliente lo canceló ──────────────────────────────────────
+        function marcarFilaComoDespachadaEnLista(salesOrderItemId, motivo) {
             var tr = tbody.querySelector('tr[data-item-id="' + salesOrderItemId + '"]');
             if (!tr) return;
             tr.classList.remove('hover:bg-indigo-50');
             var celdaProducto = tr.children[3];
-            if (sinExistencia) {
+            if (motivo === 'cancelado') {
+                tr.classList.add('bg-orange-50', 'hover:bg-orange-50');
+                if (celdaProducto && !celdaProducto.querySelector('.marca-guardado')) {
+                    celdaProducto.classList.add('text-orange-600', 'line-through');
+                    var marcaNaranja = document.createElement('span');
+                    marcaNaranja.className = 'ml-1 text-orange-600 marca-guardado';
+                    marcaNaranja.title = 'Cancelado por el cliente';
+                    marcaNaranja.textContent = '(cancelado)';
+                    celdaProducto.appendChild(marcaNaranja);
+                }
+                return;
+            }
+            if (motivo === 'sin_existencia') {
                 tr.classList.add('bg-gray-50', 'hover:bg-gray-100');
                 if (celdaProducto && !celdaProducto.querySelector('.marca-guardado')) {
                     celdaProducto.classList.add('text-gray-500', 'line-through');
@@ -409,11 +430,11 @@
             var qty   = parseFloat(input.value) || 0;
 
             if (qty <= 0) {
-                Swal.fire('Cantidad inválida', 'La cantidad surtida no puede ser 0. Si el producto no está disponible, usa el botón "Sin existencia".', 'warning');
+                Swal.fire('Cantidad inválida', 'La cantidad surtida no puede ser 0. Si el producto no está disponible usa "Sin existencia"; si el cliente ya no lo quiere, usa "Cancelado".', 'warning');
                 return;
             }
 
-            enviarLinea(idx, qty, false);
+            enviarLinea(idx, qty, null);
         };
 
         // ── Marcar una línea sin existencia (guarda en 0, con nota) ──────
@@ -431,13 +452,36 @@
                 if (!result.isConfirmed) return;
                 var linea = linesData[idx];
                 linea.notaLinea = result.value || 'Sin existencia en almacén';
-                enviarLinea(idx, 0, true);
+                enviarLinea(idx, 0, 'sin_existencia');
             });
         };
 
-        function enviarLinea(idx, qty, sinExistencia) {
+        // ── Marcar una línea como cancelada por el cliente (guarda en 0) ─
+        window.marcarCancelado = function(idx) {
+            Swal.fire({
+                title: 'Cancelado por el cliente',
+                text: '¿Confirmas que el cliente ya no quiere este producto? Se guardará en 0 y el pedido se actualizará para reflejarlo.',
+                icon: 'warning',
+                input: 'text',
+                inputPlaceholder: 'Motivo (opcional)',
+                showCancelButton: true,
+                confirmButtonText: 'Confirmar',
+                confirmButtonColor: '#ea580c',
+                cancelButtonText: 'Cancelar',
+            }).then(function(result) {
+                if (!result.isConfirmed) return;
+                var linea = linesData[idx];
+                linea.notaLinea = 'Cancelado por el cliente' + (result.value ? ' — ' + result.value : '');
+                enviarLinea(idx, 0, 'cancelado');
+            });
+        };
+
+        function enviarLinea(idx, qty, motivo) {
             var line = linesData[idx];
-            var btn  = document.getElementById(sinExistencia ? 'btn-sin-existencia-' + idx : 'btn-linea-' + idx);
+            var btnId = motivo === 'cancelado' ? 'btn-cancelado-' + idx
+                      : motivo === 'sin_existencia' ? 'btn-sin-existencia-' + idx
+                      : 'btn-linea-' + idx;
+            var btn  = document.getElementById(btnId);
             if (btn) btn.disabled = true;
 
             fetch('/admin/despacho/pedido/' + currentOrderId + '/linea/' + line.sales_order_item_id + '/guardar', {
@@ -450,18 +494,19 @@
                 body: JSON.stringify({
                     qty_despachada: qty,
                     num_cajas:      line.num_cajas != null ? line.num_cajas : null,
-                    nota:           sinExistencia
+                    nota:           motivo
                         ? line.notaLinea
                         : (document.getElementById('panel-nota-global').value.trim() || null),
-                    sin_existencia: sinExistencia,
+                    sin_existencia: !!motivo,
                 }),
             })
             .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
             .then(function(res) {
                 if (res.status === 200 && res.data.ok) {
                     line.qty_despachada = qty;
+                    line.nota = motivo ? line.notaLinea : line.nota;
                     renderLines(linesData);
-                    marcarFilaComoDespachadaEnLista(line.sales_order_item_id, qty === 0);
+                    marcarFilaComoDespachadaEnLista(line.sales_order_item_id, qty === 0 ? (motivo || 'sin_existencia') : null);
                     actualizarProgreso();
                 } else {
                     var msg = (res.data.errors && res.data.errors.qty_despachada)
@@ -489,7 +534,7 @@
 
             var pendientes = linesData.filter(function(l) { return !l.guardado; });
             if (pendientes.length > 0) {
-                Swal.fire('Faltan productos', 'Guarda todos los productos (botón "Guardar" de cada línea, o "Sin existencia") antes de completar el surtido.', 'warning');
+                Swal.fire('Faltan productos', 'Guarda todos los productos (botón "Guardar" de cada línea, o "Sin existencia"/"Cancelado") antes de completar el surtido.', 'warning');
                 return;
             }
 
@@ -499,9 +544,10 @@
                     sales_order_item_id: line.sales_order_item_id,
                     qty_despachada:      line.qty_despachada,
                     num_cajas:           line.num_cajas != null ? line.num_cajas : null,
-                    // No pisar la nota de "sin existencia" ya guardada por línea
-                    // (line.nota = la que vino del server si se guardó en otra sesión).
-                    nota:                line.sinExistencia ? (line.notaLinea || line.nota || null) : notaGlobal,
+                    // No pisar la nota de "sin existencia"/"cancelado" ya guardada
+                    // por línea (line.nota = la que vino del server si se guardó
+                    // en otra sesión).
+                    nota:                (line.sinExistencia || line.cancelado) ? (line.notaLinea || line.nota || null) : notaGlobal,
                 };
             });
 
