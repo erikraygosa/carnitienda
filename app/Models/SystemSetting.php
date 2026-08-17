@@ -81,6 +81,7 @@ class SystemSetting extends Model
             // General
             ['clave' => 'app.nombre',          'valor' => config('app.name'), 'tipo' => 'string',  'grupo' => 'general',      'descripcion' => 'Nombre del sistema'],
             ['clave' => 'app.logo_path',        'valor' => null,              'tipo' => 'file',    'grupo' => 'general',      'descripcion' => 'Ruta del logo principal'],
+            ['clave' => 'tickets.mostrar_logo', 'valor' => '1',                'tipo' => 'boolean', 'grupo' => 'general',      'descripcion' => 'Imprime el logo en los tickets térmicos (POS, Pedidos, Corte de caja)'],
             ['clave' => 'app.timezone',         'valor' => 'America/Mexico_City', 'tipo' => 'string', 'grupo' => 'general',   'descripcion' => 'Zona horaria del sistema'],
 
             // Facturación

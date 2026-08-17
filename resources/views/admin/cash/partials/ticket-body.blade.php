@@ -10,10 +10,12 @@
     // Mismo logo que ya usan el sidebar y los PDFs de carta (invoice, quote,
     // sales_order): un archivo fijo en public/logo.jpg, no un campo de BD.
     // Se embebe en base64 para que funcione igual en pantalla y en el PDF.
+    // Configurable en Superadmin → Configuración ('tickets.mostrar_logo').
     $logoPath   = public_path('logo.jpg');
-    $logoExists = file_exists($logoPath);
+    $logoExists = file_exists($logoPath) && \App\Models\SystemSetting::get('tickets.mostrar_logo', true);
     if ($logoExists) {
-        $logoSrc = 'data:image/jpeg;base64,' . base64_encode(file_get_contents($logoPath));
+        $logoMime = mime_content_type($logoPath) ?: 'image/jpeg';
+        $logoSrc  = 'data:' . $logoMime . ';base64,' . base64_encode(file_get_contents($logoPath));
     }
 @endphp
 <div class="center">

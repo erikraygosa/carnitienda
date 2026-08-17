@@ -41,11 +41,12 @@
             <div class="md:col-span-2">
                 <label class="block text-xs text-gray-500 mb-1">Logo del sistema</label>
                 @php
-                    $logoActual = $general['app.logo_path']?->valor ?? null;
+                    $logoExisteAhora = file_exists(public_path('logo.jpg'));
+                    $mostrarLogoTickets = ($general['tickets.mostrar_logo']?->valor ?? '1') === '1';
                 @endphp
-                @if($logoActual)
+                @if($logoExisteAhora)
                     <div class="mb-2">
-                        <img src="{{ \Illuminate\Support\Facades\Storage::url($logoActual) }}" alt="Logo actual"
+                        <img src="{{ url('logo.jpg') }}?v={{ filemtime(public_path('logo.jpg')) }}" alt="Logo actual"
                              class="h-12 rounded bg-white p-1">
                     </div>
                 @endif
@@ -53,10 +54,23 @@
                        class="w-full text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0
                               file:text-sm file:font-medium file:bg-indigo-900 file:text-indigo-300 hover:file:bg-indigo-800">
                 <p class="text-xs text-gray-500 mt-1">
-                    Este campo aún no está conectado a ninguna pantalla — tanto el sidebar/login como los
-                    tickets térmicos (POS, Pedidos, Corte de caja) usan el archivo public/logo.jpg del
-                    servidor. Para cambiar el logo, reemplaza ese archivo directamente.
+                    Al subir una imagen aquí se reemplaza public/logo.jpg — el mismo archivo que usan el
+                    sidebar/login y los tickets térmicos (POS, Pedidos, Corte de caja).
                 </p>
+
+                <label class="flex items-start gap-3 cursor-pointer mt-4">
+                    <input type="checkbox" name="tickets_mostrar_logo" value="1"
+                           {{ $mostrarLogoTickets ? 'checked' : '' }}
+                           class="mt-1 rounded bg-gray-800 border-gray-700 text-indigo-600 focus:ring-indigo-500">
+                    <span>
+                        <span class="block text-sm text-white">Imprimir logo en los tickets</span>
+                        <span class="block text-xs text-gray-500 mt-0.5">
+                            Activado por defecto. Si lo desactivas, los tickets de POS, Pedidos y Corte de
+                            caja se imprimen sin el logo (no afecta al sidebar/login ni a las facturas/remisiones
+                            en carta).
+                        </span>
+                    </span>
+                </label>
             </div>
         </div>
     </div>

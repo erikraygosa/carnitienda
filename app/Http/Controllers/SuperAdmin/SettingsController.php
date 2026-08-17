@@ -105,13 +105,22 @@ class SettingsController extends Controller
             'reportes'
         );
 
-        // NOTA: este campo guarda el archivo pero hoy ninguna vista lo lee —
-        // tanto el sidebar/login como los tickets térmicos usan directamente
-        // public/logo.jpg. Se deja el guardado por si en el futuro se conecta,
-        // pero no reemplaza ese archivo automáticamente.
+        // Checkbox: si no viene en el request es porque está desmarcado.
+        SystemSetting::set(
+            'tickets.mostrar_logo',
+            $request->boolean('tickets_mostrar_logo') ? '1' : '0',
+            'boolean',
+            'general'
+        );
+
+        // El sidebar/login y los tickets térmicos (POS, Pedidos, Corte de
+        // caja) leen directamente el archivo public/logo.jpg — no un campo
+        // de base de datos. Por eso el upload reemplaza ese archivo tal
+        // cual, en vez de guardarlo en el disco 'public' de Storage (que
+        // nadie lee).
         if ($request->hasFile('app.logo')) {
-            $path = $request->file('app.logo')->store('logos', 'public');
-            SystemSetting::set('app.logo_path', $path, 'file', 'general');
+            $request->file('app.logo')->move(public_path(), 'logo.jpg');
+            SystemSetting::set('app.logo_path', 'logo.jpg', 'file', 'general');
         }
 
         return back()->with('success', 'Configuración guardada correctamente.');
