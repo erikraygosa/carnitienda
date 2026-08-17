@@ -29,14 +29,30 @@ class CashRegisterController extends Controller implements HasMiddleware
         ];
     }
 
+    /**
+     * El rol cajero solo puede ver/tocar sus propias cajas (abiertas y
+     * cerradas) — no las de otros usuarios ni de otros almacenes. Quien
+     * tenga un rol adicional con más alcance (ej. admin) sigue viendo todo.
+     */
+    private function soloPropias(): bool
+    {
+        return auth()->user()->hasRole('cajero') && !auth()->user()->hasRole('admin');
+    }
+
+    /**
+     * 403 si un cajero intenta entrar por URL directa a una caja que no es
+     * suya (index() ya la oculta de la lista, pero eso no bloquea /show/N).
+     */
+    private function authorizeOwnRegister(CashRegister $cash): void
+    {
+        abort_if($this->soloPropias() && $cash->user_id !== auth()->id(), 403, 'No tienes acceso a esta caja.');
+    }
+
     public function index()
     {
         $search = request('search');
 
-        // El rol cajero solo ve sus propias cajas (abiertas y cerradas) — no
-        // las de otros usuarios ni de otros almacenes. Quien tenga un rol
-        // adicional con más alcance (ej. admin) sigue viendo todo.
-        $soloPropias = auth()->user()->hasRole('cajero') && !auth()->user()->hasRole('admin');
+        $soloPropias = $this->soloPropias();
 
         $registers = CashRegister::with(['warehouse:id,nombre', 'user:id,name'])
             ->when($soloPropias, fn($q) => $q->where('user_id', auth()->id()))
@@ -83,12 +99,14 @@ class CashRegisterController extends Controller implements HasMiddleware
 
     public function show(CashRegister $cash)
     {
+        $this->authorizeOwnRegister($cash);
         $cash->load('movements');
         return view('admin.cash.show', ['register' => $cash]);
     }
 
     public function close(Request $r, CashRegister $cash)
     {
+        $this->authorizeOwnRegister($cash);
         $this->cash->close($cash);
         $this->log->log($cash, 'CAMBIO_ESTADO', 'ABIERTO', 'CERRADO');
         session()->flash('swal', ['icon' => 'success', 'title' => 'Caja cerrada', 'text' => 'Se cerró correctamente.']);
@@ -97,6 +115,7 @@ class CashRegisterController extends Controller implements HasMiddleware
 
     public function ticket(CashRegister $cash)
     {
+        $this->authorizeOwnRegister($cash);
         $cash->load(['user:id,name', 'warehouse:id,nombre', 'movements', 'posSales.items.product']);
         $company = Company::first();
         return view('admin.cash.ticket', ['register' => $cash, 'company' => $company]);
@@ -104,6 +123,7 @@ class CashRegisterController extends Controller implements HasMiddleware
 
     public function ticketPdf(CashRegister $cash)
     {
+        $this->authorizeOwnRegister($cash);
         $cash->load(['movements', 'user', 'warehouse', 'posSales.items.product']);
         $company  = Company::first();
         $register = $cash;
