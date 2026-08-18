@@ -368,6 +368,7 @@ Route::get('auditoria', [AuditoriaController::class, 'index'])->name('auditoria.
 Route::prefix('gestion-notas')->name('gestion-notas.')->group(function () {
     Route::get('/',                         [GestionNotasController::class, 'index'])->name('index');
     Route::post('/pedidos/{order}/cancelar', [GestionNotasController::class, 'cancelarPedido'])->name('pedidos.cancelar');
+    Route::post('/pedidos/{order}/revertir-a-procesado', [GestionNotasController::class, 'revertirAProcesado'])->name('pedidos.revertir-a-procesado');
     Route::post('/pos/{sale}/cancelar',      [GestionNotasController::class, 'cancelarPos'])->name('pos.cancelar');
 });
 

@@ -83,11 +83,20 @@
                             </td>
                             <td class="p-2 text-center whitespace-nowrap">
                                 <a href="{{ $r['url_ver'] }}" target="_blank" class="text-xs text-indigo-600 hover:underline mr-2">Ver{{ $r['tipo'] === 'pedido' ? ' / Editar' : '' }}</a>
+                                @if($r['tipo'] === 'pedido' && ($r['revertible'] ?? false) && auth()->user()->can('editar pedidos cerrados'))
+                                    <form action="{{ $r['url_revertir'] }}" method="POST" class="inline form-cancelar-nota">
+                                        @csrf
+                                        <input type="hidden" name="motivo" class="inp-motivo">
+                                        <button type="button"
+                                                onclick="confirmarAccion(this, '¿Regresar este pedido a Procesado?', 'Revierte el stock/CxC que ya se hubiera movido y lo deja pendiente en Salida de Producto, para surtirlo bien desde cero.')"
+                                                class="text-xs text-amber-600 hover:underline mr-2">Regresar a Procesado</button>
+                                    </form>
+                                @endif
                                 @if($r['cancelable'] && (($r['tipo'] === 'pedido' && auth()->user()->can('editar pedidos cerrados')) || ($r['tipo'] === 'pos' && auth()->user()->can('cancelar notas pos'))))
                                     <form action="{{ $r['url_cancelar'] }}" method="POST" class="inline form-cancelar-nota">
                                         @csrf
                                         <input type="hidden" name="motivo" class="inp-motivo">
-                                        <button type="button" onclick="confirmarCancelacion(this)"
+                                        <button type="button" onclick="confirmarAccion(this, '¿Cancelar esta nota?', 'Se revertirá el stock y, si aplica, el cargo a CxC o el efectivo de caja. Esta acción queda registrada en Auditoría.')"
                                                 class="text-xs text-rose-600 hover:underline">Cancelar</button>
                                     </form>
                                 @endif
@@ -102,16 +111,16 @@
     </x-wire-card>
 
     <script>
-    function confirmarCancelacion(btn) {
+    function confirmarAccion(btn, titulo, texto) {
         var form = btn.closest('form');
         Swal.fire({
-            title: '¿Cancelar esta nota?',
-            text: 'Se revertirá el stock y, si aplica, el cargo a CxC o el efectivo de caja. Esta acción queda registrada en Auditoría.',
+            title: titulo,
+            text: texto,
             icon: 'warning',
             input: 'text',
             inputPlaceholder: 'Motivo (opcional)',
             showCancelButton: true,
-            confirmButtonText: 'Sí, cancelar',
+            confirmButtonText: 'Sí, continuar',
             confirmButtonColor: '#e11d48',
             cancelButtonText: 'Volver',
         }).then(function (result) {

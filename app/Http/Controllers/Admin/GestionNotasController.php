@@ -121,8 +121,10 @@ class GestionNotasController extends Controller implements HasMiddleware
                     'total'      => (float) $o->total,
                     'estatus'    => $o->status,
                     'cancelable' => !in_array($o->status, ['CANCELADO']),
+                    'revertible' => in_array($o->status, ['EN_RUTA', 'ENTREGADO', 'NO_ENTREGADO']),
                     'url_ver'    => route('admin.sales-orders.edit', $o->id) . '?origen=gestion-notas',
                     'url_cancelar' => route('admin.gestion-notas.pedidos.cancelar', $o->id),
+                    'url_revertir' => route('admin.gestion-notas.pedidos.revertir-a-procesado', $o->id),
                 ]);
             $resultados = $resultados->concat($pedidos);
         }
@@ -216,6 +218,83 @@ class GestionNotasController extends Controller implements HasMiddleware
         );
 
         return back()->with('swal', ['icon' => 'success', 'title' => 'Pedido cancelado', 'text' => $notaStock . ' Se ajustó la CxC si aplicaba.']);
+    }
+
+    /**
+     * Regresa un pedido EN_RUTA/ENTREGADO/NO_ENTREGADO a PROCESADO — para el
+     * caso de "esto se marcó entregado por error, pero nunca pasó por Salida
+     * de Producto (o solo parcialmente)". A diferencia de cancelarPedido()
+     * (que lo da por perdido y lo cierra), esto lo regresa al punto justo
+     * antes de despachar para que se pueda surtir bien desde cero.
+     *
+     * Revierte el stock que ya se hubiera descontado y el cargo a CxC si
+     * aplicaba, y limpia cualquier línea de Salida de Producto que exista
+     * SIN cantidad real capturada (para que el Panel de Surtido lo vuelva a
+     * mostrar como pendiente, no como "ya tocado"). Si alguna partida ya
+     * tenía una cantidad real capturada, esa línea NO se toca — se respeta
+     * como ya surtida, igual que en el resto del sistema.
+     */
+    public function revertirAProcesado(Request $request, SalesOrder $order)
+    {
+        abort_unless(auth()->user()->can('editar pedidos cerrados'), 403);
+
+        if (!in_array($order->status, ['EN_RUTA', 'ENTREGADO', 'NO_ENTREGADO'])) {
+            return back()->with('swal', [
+                'icon' => 'info', 'title' => 'No aplica',
+                'text' => 'Solo tiene sentido para un pedido En ruta, Entregado o No entregado.',
+            ]);
+        }
+
+        $request->validate(['motivo' => ['nullable', 'string', 'max:255']]);
+
+        $order->load('items');
+        $oldStatus = $order->status;
+        $numMovs = 0;
+
+        DB::transaction(function () use ($order, $request, &$numMovs) {
+            $numMovs = $this->revertirStockMovements(SalesOrder::class, $order->id, 'REVERSA_A_PROCESADO', auth()->id(), $order);
+
+            if ($order->payment_method === 'CREDITO' && $order->client_id && $order->status === 'ENTREGADO') {
+                app(\App\Services\ArService::class)->charge(
+                    clientId: $order->client_id,
+                    monto:    -1 * (float) $order->total,
+                    desc:     "Reversa por regresar a Procesado el pedido {$order->folio}",
+                    source:   $order,
+                    fecha:    now()->toDateString(),
+                );
+            }
+
+            // Limpiar líneas de Salida de Producto sin cantidad real (o sea,
+            // que nunca se surtieron de verdad) para que el Panel de Surtido
+            // lo vuelva a mostrar pendiente. Las que sí tienen cantidad real
+            // capturada se dejan intactas — ya están protegidas en todo el
+            // sistema como "ya surtidas".
+            $dispatchItem = \App\Models\DispatchItem::where('sales_order_id', $order->id)->first();
+            if ($dispatchItem) {
+                $dispatchItem->lines()->whereNull('qty_despachada')->delete();
+                if ($dispatchItem->lines()->count() === 0) {
+                    $dispatchItem->delete();
+                }
+            }
+
+            $order->update([
+                'status'         => 'PROCESADO',
+                'en_ruta_at'     => null,
+                'entregado_at'   => null,
+                'no_entregado_at'=> null,
+            ]);
+        });
+
+        $notaStock = $numMovs > 0
+            ? "Se revirtieron {$numMovs} movimiento(s) de stock reales de este pedido."
+            : 'Este pedido no tenía movimientos de stock registrados (no llegó a descontar inventario) — no se tocó el stock.';
+
+        $this->log->log(
+            $order, 'REVERTIDO_A_PROCESADO', $oldStatus, 'PROCESADO',
+            note: "Regresado a Procesado desde Gestión de notas ({$oldStatus} → PROCESADO). {$notaStock} Motivo: " . ($request->input('motivo') ?: '(sin especificar)')
+        );
+
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Pedido regresado a Procesado', 'text' => "{$notaStock} Ya aparece pendiente en Salida de Producto."]);
     }
 
     /**
