@@ -112,6 +112,9 @@
               class="space-y-6">
             @csrf @method('PUT')
             <input type="hidden" name="then_approve" id="then_approve" value="0">
+            @if(request('origen') === 'gestion-notas')
+                <input type="hidden" name="origen" value="gestion-notas">
+            @endif
 
             @if ($errors->any())
                 <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">

@@ -68,7 +68,7 @@ class GestionNotasController extends Controller implements HasMiddleware
                     'total'      => (float) $o->total,
                     'estatus'    => $o->status,
                     'cancelable' => !in_array($o->status, ['CANCELADO']),
-                    'url_ver'    => route('admin.sales-orders.edit', $o->id),
+                    'url_ver'    => route('admin.sales-orders.edit', $o->id) . '?origen=gestion-notas',
                     'url_cancelar' => route('admin.gestion-notas.pedidos.cancelar', $o->id),
                 ]);
             $resultados = $resultados->concat($pedidos);

@@ -314,7 +314,7 @@ public function data(Request $request)
             ->with('swal',['icon'=>'success','title'=>'Creado','text'=>'Pedido creado']);
     }
 
-    public function edit(SalesOrder $sales_order)
+    public function edit(Request $request, SalesOrder $sales_order)
     {
         $order      = $sales_order->load('items.product','client','priceList','warehouse','driver','route');
 
@@ -348,10 +348,12 @@ public function data(Request $request)
             ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
             ->toArray();
 
-        // Quien tiene el permiso de Gestión de notas puede corregir un pedido
-        // aunque ya esté surtido/entregado — por eso el bloqueo normal de
-        // partidas ya surtidas y de estatus cerrado no aplica para él.
-        $puedeEditarCerrados = auth()->user()->can('editar pedidos cerrados');
+        // El desbloqueo de un pedido ENTREGADO solo aplica cuando se entra
+        // específicamente desde el módulo Gestión de notas (?origen=gestion-notas)
+        // — no en el flujo normal de Pedidos → Editar, aunque el usuario tenga
+        // el permiso. Así "Editar" en Pedidos se comporta igual que siempre.
+        $puedeEditarCerrados = $request->query('origen') === 'gestion-notas'
+            && auth()->user()->can('editar pedidos cerrados');
 
         // Partidas ya surtidas con producto real (Panel de Surtido) — no se
         // pueden volver a editar/quitar desde aquí, ya salieron del almacén.
@@ -378,10 +380,11 @@ public function data(Request $request)
 
     public function update(Request $request, SalesOrder $sales_order)
     {
-        // Quien tiene el permiso de Gestión de notas puede corregir un
-        // pedido ya ENTREGADO (error después del hecho) — CANCELADO se
-        // queda bloqueado siempre.
-        $puedeEditarCerrados = auth()->user()->can('editar pedidos cerrados');
+        // Mismo criterio que en edit(): el desbloqueo de un pedido ENTREGADO
+        // solo aplica viniendo del módulo Gestión de notas, no del flujo
+        // normal de Pedidos → Editar aunque el usuario tenga el permiso.
+        $puedeEditarCerrados = $request->input('origen') === 'gestion-notas'
+            && auth()->user()->can('editar pedidos cerrados');
         $editandoCerrado     = $puedeEditarCerrados && $sales_order->status === 'ENTREGADO';
 
         if ($sales_order->status === 'CANCELADO' || ($sales_order->status === 'ENTREGADO' && !$puedeEditarCerrados)) {
