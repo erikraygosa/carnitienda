@@ -265,27 +265,41 @@ body {
 </table>
 
 {{-- ══════════════ PARTIDAS ══════════════ --}}
+@php
+    $mostrarIva = $mostrarIva ?? true;
+@endphp
 <table class="items-table">
     <thead>
         <tr>
-            <th style="width:20%">Producto</th>
-            <th>Descripción</th>
-            <th class="r" style="width:9%">Cant.</th>
-            <th class="r" style="width:11%">Precio</th>
-            <th class="r" style="width:9%">Desc.</th>
-            <th class="r" style="width:9%">Impuesto</th>
-            <th class="r" style="width:11%">Total</th>
+            <th style="width:34%">Producto</th>
+            <th class="r" style="width:11%">Cant.</th>
+            <th class="r" style="width:14%">Precio</th>
+            <th class="r" style="width:11%">Desc.</th>
+            @if($mostrarIva)<th class="r" style="width:11%">Impuesto</th>@endif
+            <th class="r" style="width:14%">Total</th>
         </tr>
     </thead>
     <tbody>
         @foreach($order->items as $it)
+        @php
+            $nombreProducto = $it->product->nombre ?? null;
+            $descripcion    = $it->descripcion;
+            // Evita repetir el mismo texto dos veces cuando la descripción
+            // capturada es igual al nombre del producto — solo se muestra
+            // aparte cuando trae algo extra (ej. "PIERNA DE CERDO 1 piezas").
+            $mostrarAmbos = $descripcion && $nombreProducto && mb_strtoupper(trim($descripcion)) !== mb_strtoupper(trim($nombreProducto));
+        @endphp
         <tr>
-            <td>{{ $it->product->nombre ?? '—' }}</td>
-            <td>{{ $it->descripcion }}</td>
+            <td>
+                {{ $nombreProducto ?? $descripcion ?? '—' }}
+                @if($mostrarAmbos)
+                    <div style="font-size:8px;color:#777;">{{ $descripcion }}</div>
+                @endif
+            </td>
             <td class="r">{{ number_format((float)$it->cantidad, 3) }}</td>
             <td class="r">{{ number_format((float)$it->precio, 4) }}</td>
             <td class="r">{{ number_format((float)$it->descuento, 2) }}</td>
-            <td class="r">{{ number_format((float)$it->impuesto, 2) }}</td>
+            @if($mostrarIva)<td class="r">{{ number_format((float)$it->impuesto, 2) }}</td>@endif
             <td class="r" style="font-weight:bold">{{ number_format((float)$it->total, 2) }}</td>
         </tr>
         @endforeach
@@ -304,7 +318,7 @@ body {
         <td class="r">- {{ number_format((float)$order->descuento, 2) }}</td>
     </tr>
     @endif
-    @if((float)$order->impuestos > 0)
+    @if($mostrarIva && (float)$order->impuestos > 0)
     <tr class="sub-line">
         <td>Impuestos</td>
         <td class="r">{{ number_format((float)$order->impuestos, 2) }}</td>

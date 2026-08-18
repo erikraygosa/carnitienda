@@ -488,8 +488,9 @@ class SaleController extends Controller implements HasMiddleware
         $empresa = app(\App\Services\CompanyService::class)->activa();
 
         $pdf = Pdf::loadView('pdf.sales_note', [
-            'sale'    => $sale,
-            'empresa' => $empresa,
+            'sale'       => $sale,
+            'empresa'    => $empresa,
+            'mostrarIva' => \App\Models\SystemSetting::get('pedidos.mostrar_iva', true),
         ]);
         return $pdf->stream('nota-venta-'.$sale->id.'.pdf');
     }
@@ -500,8 +501,9 @@ class SaleController extends Controller implements HasMiddleware
         $empresa = app(\App\Services\CompanyService::class)->activa();
 
         $pdf = Pdf::loadView('pdf.sales_note', [
-            'sale'    => $sale,
-            'empresa' => $empresa,
+            'sale'       => $sale,
+            'empresa'    => $empresa,
+            'mostrarIva' => \App\Models\SystemSetting::get('pedidos.mostrar_iva', true),
         ]);
         return $pdf->download('nota-venta-'.$sale->id.'.pdf');
     }
@@ -527,7 +529,10 @@ class SaleController extends Controller implements HasMiddleware
         ]);
 
         $sale->load('client','items.product','warehouse','driver','route');
-        $pdf   = Pdf::loadView('pdf.sales_note', ['sale' => $sale]);
+        $pdf   = Pdf::loadView('pdf.sales_note', [
+            'sale'       => $sale,
+            'mostrarIva' => \App\Models\SystemSetting::get('pedidos.mostrar_iva', true),
+        ]);
         $raw   = $pdf->output();
         $fname = 'nota-venta-'.$sale->id.'.pdf';
 

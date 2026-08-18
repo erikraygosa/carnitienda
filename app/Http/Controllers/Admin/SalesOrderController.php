@@ -900,8 +900,9 @@ private function aprobarPedido(SalesOrder $order): array
     $empresa = app(\App\Services\CompanyService::class)->activa();
 
     $pdf = Pdf::loadView('pdf.sales_order', [
-        'order'   => $order,
-        'empresa' => $empresa,
+        'order'      => $order,
+        'empresa'    => $empresa,
+        'mostrarIva' => \App\Models\SystemSetting::get('pedidos.mostrar_iva', true),
     ]);
     return $pdf->stream('remision-pedido-' . $order->id . '.pdf');
 }
@@ -912,8 +913,9 @@ public function pdfDownload(SalesOrder $order)
     $empresa = app(\App\Services\CompanyService::class)->activa();
 
     $pdf = Pdf::loadView('pdf.sales_order', [
-        'order'   => $order,
-        'empresa' => $empresa,
+        'order'      => $order,
+        'empresa'    => $empresa,
+        'mostrarIva' => \App\Models\SystemSetting::get('pedidos.mostrar_iva', true),
     ]);
     return $pdf->download('remision-pedido-' . $order->id . '.pdf');
 }
@@ -950,7 +952,11 @@ public function pdfDownload(SalesOrder $order)
             ->setPaper([0, 0, 226.77, 1200], 'portrait');
         $fname = 'ticket-' . ($order->folio ?? $order->id) . '.pdf';
     } else {
-        $pdf   = Pdf::loadView('pdf.sales_order', ['order' => $order, 'empresa' => $empresa]);
+        $pdf   = Pdf::loadView('pdf.sales_order', [
+            'order'      => $order,
+            'empresa'    => $empresa,
+            'mostrarIva' => \App\Models\SystemSetting::get('pedidos.mostrar_iva', true),
+        ]);
         $fname = 'remision-' . ($order->folio ?? $order->id) . '.pdf';
     }
     $pdfRaw = $pdf->output();
