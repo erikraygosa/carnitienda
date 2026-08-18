@@ -272,8 +272,13 @@
                 var esCero         = line.guardado && line.qty_despachada === 0;
                 line.cancelado     = esCero && (line.nota || '').indexOf('Cancelado por el cliente') === 0;
                 line.sinExistencia = esCero && !line.cancelado;
-                // Ya se surtió con producto real: no se puede volver a tocar.
-                line.bloqueada     = line.guardado && line.qty_despachada > 0;
+                // Mientras el pedido siga Procesado, una línea ya guardada
+                // (aunque tenga cantidad real) se puede seguir corrigiendo —
+                // guardar aquí no descuenta inventario todavía, eso solo pasa
+                // al completar todo el surtido. bloqueada queda en false
+                // siempre; se deja la variable para no tocar el resto del
+                // código que la referencia.
+                line.bloqueada     = false;
 
                 var qty = line.qty_despachada !== null ? line.qty_despachada : line.qty_solicitada;
                 var dif = qty - line.qty_solicitada;
@@ -312,25 +317,27 @@
                         difStr +
                     '</td>' +
                     '<td class="px-2 py-1 text-center">' +
-                        (line.bloqueada
-                            ? '<span class="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700">✓ Surtido</span>'
-                        : line.sinExistencia
-                            ? '<span class="px-2 py-1 text-xs rounded bg-gray-200 text-gray-600">Sin existencia</span>'
-                        : line.cancelado
-                            ? '<span class="px-2 py-1 text-xs rounded bg-orange-100 text-orange-700">Cancelado</span>'
-                        :
-                            '<div class="flex flex-col gap-1 w-24 mx-auto">' +
-                                '<button type="button" onclick="guardarLinea(' + idx + ')"' +
-                                '   id="btn-linea-' + idx + '"' +
-                                '   class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">Guardar</button>' +
-                                '<button type="button" onclick="marcarSinExistencia(' + idx + ')"' +
-                                '   id="btn-sin-existencia-' + idx + '"' +
-                                '   class="px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50">Sin existencia</button>' +
-                                '<button type="button" onclick="marcarCancelado(' + idx + ')"' +
-                                '   id="btn-cancelado-' + idx + '"' +
-                                '   class="px-2 py-1 text-xs rounded border border-orange-300 text-orange-600 hover:bg-orange-50">Cancelado</button>' +
-                            '</div>'
+                        (line.guardado
+                            ? '<div class="mb-1">' + (
+                                line.sinExistencia
+                                    ? '<span class="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-600">Sin existencia</span>'
+                                : line.cancelado
+                                    ? '<span class="px-2 py-0.5 text-xs rounded bg-orange-100 text-orange-700">Cancelado</span>'
+                                    : '<span class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-700">✓ Guardado</span>'
+                              ) + '</div>'
+                            : ''
                         ) +
+                        '<div class="flex flex-col gap-1 w-24 mx-auto">' +
+                            '<button type="button" onclick="guardarLinea(' + idx + ')"' +
+                            '   id="btn-linea-' + idx + '"' +
+                            '   class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">' + (line.guardado ? 'Corregir' : 'Guardar') + '</button>' +
+                            '<button type="button" onclick="marcarSinExistencia(' + idx + ')"' +
+                            '   id="btn-sin-existencia-' + idx + '"' +
+                            '   class="px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50">Sin existencia</button>' +
+                            '<button type="button" onclick="marcarCancelado(' + idx + ')"' +
+                            '   id="btn-cancelado-' + idx + '"' +
+                            '   class="px-2 py-1 text-xs rounded border border-orange-300 text-orange-600 hover:bg-orange-50">Cancelado</button>' +
+                        '</div>' +
                     '</td>';
                 tbody.appendChild(tr);
             });

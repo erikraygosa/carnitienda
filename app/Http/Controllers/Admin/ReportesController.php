@@ -203,6 +203,18 @@ class ReportesController extends Controller implements HasMiddleware
         return $this->pendientesModo() === 'surtir' ? 'pendientes por surtir' : 'pendientes por procesar';
     }
 
+    /**
+     * A dónde manda el botón "Ir a pedidos" del aviso — si el modo es
+     * 'surtir', esos pedidos se resuelven en Salida de Producto, no en el
+     * listado de Pedidos (ahí ni siquiera hay botón de surtir).
+     */
+    private function pendientesUrl(): string
+    {
+        return $this->pendientesModo() === 'surtir'
+            ? route('admin.despacho.panel')
+            : route('admin.sales-orders.index');
+    }
+
     private function pendientesPorProcesar()
     {
         $estatuses = $this->pendientesModo() === 'surtir'
@@ -533,6 +545,7 @@ class ReportesController extends Controller implements HasMiddleware
             'total_monto'         => number_format((float)$items->sum('total'), 2),
             'pendientes_procesar' => $this->pendientesPorProcesar(),
             'pendientes_label'    => $this->pendientesLabel(),
+            'pendientes_url'      => $this->pendientesUrl(),
         ]);
     }
 

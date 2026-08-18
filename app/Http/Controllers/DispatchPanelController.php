@@ -138,13 +138,14 @@ class DispatchPanelController extends Controller
             'qty_despachada.min'      => 'La cantidad despachada no puede ser 0 — si el producto no está disponible, usa el botón "Sin existencia".',
         ]);
 
-        // Una línea ya surtida con producto real no se puede volver a tocar
-        // desde aquí (evita que se reduzca/borre después de haber salido).
-        $existente = DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $order->id))
-            ->where('sales_order_item_id', $item->id)
-            ->first();
-        if ($existente && (float) $existente->qty_despachada > 0) {
-            return response()->json(['ok' => false, 'message' => 'Este producto ya se surtió, no se puede modificar.'], 422);
+        // Mientras el pedido siga PROCESADO, guardar una línea aquí NO toca
+        // inventario (eso solo pasa al completar todo el surtido en
+        // saveDespacho()) — así que sí se puede corregir un error de
+        // cantidad/cajas las veces que haga falta antes de completar. Si el
+        // pedido ya avanzó de estatus (se completó el surtido en otra
+        // sesión), ahí sí ya es tarde para tocarlo desde aquí.
+        if ($order->status !== SalesOrder::S_PROCESADO) {
+            return response()->json(['ok' => false, 'message' => 'Este pedido ya no está Procesado — probablemente el surtido ya se completó.'], 422);
         }
 
         $dispatchItem = DispatchItem::firstOrCreate(

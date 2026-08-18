@@ -103,7 +103,7 @@
 
             if (!data.rutas || data.rutas.length === 0) {
                 body.innerHTML = `<div class="text-center py-8 text-gray-400">Sin resultados para los filtros seleccionados.</div>`
-                    + renderPendientes(data.pendientes_procesar || [], data.pendientes_label);
+                    + renderPendientes(data.pendientes_procesar || [], data.pendientes_label, data.pendientes_url);
                 return;
             }
 
@@ -173,13 +173,14 @@
                 </div>
             `;
 
-            html += renderPendientes(data.pendientes_procesar || [], data.pendientes_label);
+            html += renderPendientes(data.pendientes_procesar || [], data.pendientes_label, data.pendientes_url);
 
             body.innerHTML = html;
         }
 
-        function renderPendientes(pendientes, label) {
+        function renderPendientes(pendientes, label, url) {
             label = label || 'pendientes por procesar';
+            url = url || '{{ route('admin.sales-orders.index') }}';
             const rows = pendientes.map(p => `
                 <tr class="hover:bg-gray-50">
                     <td class="px-3 py-2 font-mono text-xs text-indigo-700 font-medium whitespace-nowrap">
@@ -202,7 +203,7 @@
                         </span>
                         <div class="flex items-center gap-3">
                             <span class="text-xs text-amber-100">${pendientes.length} pedido(s)</span>
-                            <a href="{{ route('admin.sales-orders.index') }}"
+                            <a href="${url}"
                                class="text-xs bg-white text-amber-700 font-semibold px-2 py-1 rounded hover:bg-amber-50">
                                 Ir a pedidos
                             </a>
