@@ -66,7 +66,7 @@
                     {!! $th('fecha','Fecha') !!}
                     {!! $th('status','Estatus') !!}
                     {!! $th('total','Total') !!}
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" style="min-width: 300px;">Acciones</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
