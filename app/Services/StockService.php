@@ -16,4 +16,13 @@ class StockService
     // aquí actualiza existencias reales si manejas tabla 'stocks'
     return $mov;
   }
+
+  public function in(int $warehouseId, int $productId, float $cantidad, string $motivo, $source=null): InventoryMovement {
+    $mov = new InventoryMovement([
+      'warehouse_id'=>$warehouseId,'product_id'=>$productId,'tipo'=>'IN','cantidad'=>$cantidad,'motivo'=>$motivo,'created_by'=>Auth::id()
+    ]);
+    if ($source) $mov->source()->associate($source);
+    $mov->save();
+    return $mov;
+  }
 }

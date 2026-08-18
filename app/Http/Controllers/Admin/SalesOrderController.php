@@ -442,10 +442,9 @@ public function data(Request $request)
             ->pluck('sales_order_item_id')
             ->all();
 
-        // Snapshot ANTES de tocar nada — para calcular el delta de stock/CxC
-        // si se está corrigiendo un pedido ya ENTREGADO.
-        $itemsAntes  = $editandoCerrado ? $sales_order->items()->get(['id','product_id','cantidad'])->keyBy('id') : collect();
-        $totalAntes  = (float) $sales_order->total;
+        // Snapshot del total ANTES de tocar nada — para ajustar la CxC por la
+        // diferencia si se está corrigiendo un pedido ya ENTREGADO.
+        $totalAntes = (float) $sales_order->total;
 
         DB::transaction(function () use ($sales_order, $data, $itemsSurtidosIds) {
             $subtotal=0; $descuento=0; $impuestos=0; $total=0;
@@ -524,43 +523,36 @@ public function data(Request $request)
         });
 
         // Corrección de un pedido ya ENTREGADO (permiso de Gestión de notas):
-        // el stock y (si aplica) la CxC ya se habían movido al entregarse —
-        // hay que ajustarlos por la diferencia, no repetirlos desde cero.
+        // el stock y (si aplica) la CxC ya se habían movido al entregarse.
+        //
+        // IMPORTANTE: no se puede calcular el ajuste de stock comparando
+        // cantidades por product_id de las partidas — cuando un producto es
+        // subproducto o compuesto (BOM), lo que en realidad se descontó fue
+        // el producto PADRE / sus componentes (ver InventoryService::
+        // consumeForOrderItem/consumeFromSubproduct), no el producto de la
+        // partida. Por eso aquí se revierten los movimientos de stock REALES
+        // que ya existan para este pedido (los que de verdad pasaron, sea
+        // cual sea el producto que tocaron) y se vuelven a aplicar desde
+        // cero con las partidas nuevas, usando la misma ruta de consumo que
+        // usa el Panel de Surtido — así el BOM/subproducto se resuelve igual
+        // de bien que en el flujo normal.
         if ($editandoCerrado) {
             $sales_order->refresh();
-            $itemsDespues = $sales_order->items()->get(['id', 'product_id', 'cantidad']);
 
-            $qtyAntes   = $itemsAntes->groupBy('product_id')->map(fn($g) => (float) $g->sum('cantidad'));
-            $qtyDespues = $itemsDespues->groupBy('product_id')->map(fn($g) => (float) $g->sum('cantidad'));
-            $productos  = collect($qtyAntes->keys())->merge($qtyDespues->keys())->unique()->filter();
-
-            foreach ($productos as $productId) {
-                $antes  = (float) ($qtyAntes[$productId] ?? 0);
-                $despues= (float) ($qtyDespues[$productId] ?? 0);
-                $delta  = round($despues - $antes, 3);
-                if (abs($delta) < 0.001) continue;
-
-                if ($delta > 0) {
-                    // Se pidió más de lo que ya se había surtido — sale más stock.
-                    $this->inv->stockOut(
-                        productId:   (int) $productId,
-                        warehouseId: $sales_order->warehouse_id,
-                        qty:         $delta,
-                        motivo:      'AJUSTE_EDICION_CERRADA',
-                        referencia:  $sales_order,
-                        userId:      auth()->id(),
-                    );
-                } else {
-                    // Se pidió menos (o se quitó la partida) — regresa stock.
-                    $this->inv->stockIn(
-                        productId:   (int) $productId,
-                        warehouseId: $sales_order->warehouse_id,
-                        qty:         abs($delta),
-                        motivo:      'AJUSTE_EDICION_CERRADA',
-                        referencia:  $sales_order,
-                        userId:      auth()->id(),
-                    );
+            $movimientosPrevios = \App\Models\StockMovement::where('referencia_type', SalesOrder::class)
+                ->where('referencia_id', $sales_order->id)
+                ->get();
+            foreach ($movimientosPrevios as $m) {
+                if ($m->tipo === 'OUT') {
+                    $this->inv->stockIn((int) $m->product_id, (int) $m->warehouse_id, (float) $m->cantidad, 'AJUSTE_EDICION_CERRADA', $sales_order, auth()->id());
+                } elseif ($m->tipo === 'IN') {
+                    $this->inv->stockOut((int) $m->product_id, (int) $m->warehouse_id, (float) $m->cantidad, 'AJUSTE_EDICION_CERRADA', $sales_order, auth()->id());
                 }
+            }
+
+            foreach ($sales_order->items()->get() as $itemNuevo) {
+                if (!$itemNuevo->product_id || (float) $itemNuevo->cantidad <= 0) continue;
+                $this->inv->consumeForOrderItem($itemNuevo, $sales_order->warehouse_id, $sales_order, auth()->id());
             }
 
             $deltaTotal = round((float) $sales_order->total - $totalAntes, 2);

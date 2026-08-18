@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\CashRegister;
+use App\Models\InventoryMovement;
 use App\Models\PosSale;
 use App\Models\SalesOrder;
+use App\Models\StockMovement;
 use App\Models\Warehouse;
 use App\Services\CashService;
 use App\Services\DocumentLogService;
 use App\Services\InventoryService;
+use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -27,7 +30,57 @@ class GestionNotasController extends Controller implements HasMiddleware
         private InventoryService $inv,
         private DocumentLogService $log,
         private CashService $cash,
+        private StockService $stock,
     ) {}
+
+    /**
+     * Revierte EXACTAMENTE los movimientos de stock_movements ya hechos para
+     * un documento (referencia_type/referencia_id), en vez de recalcular a
+     * partir de las partidas del pedido. Es obligatorio hacerlo así: cuando
+     * un producto es subproducto o compuesto (BOM), lo que en realidad se
+     * descontó fue el PADRE/los componentes — no el producto de la partida —
+     * así que reversar "a mano" por producto de la partida crea stock
+     * fantasma en un producto que nunca se tocó y deja sin revertir el que
+     * sí se movió.
+     */
+    private function revertirStockMovements(string $referenciaType, int $referenciaId, string $motivo, ?int $userId, $referenciaModel): int
+    {
+        $movimientos = StockMovement::where('referencia_type', $referenciaType)
+            ->where('referencia_id', $referenciaId)
+            ->get();
+
+        foreach ($movimientos as $m) {
+            if ($m->tipo === 'OUT') {
+                $this->inv->stockIn((int) $m->product_id, (int) $m->warehouse_id, (float) $m->cantidad, $motivo, $referenciaModel, $userId);
+            } elseif ($m->tipo === 'IN') {
+                $this->inv->stockOut((int) $m->product_id, (int) $m->warehouse_id, (float) $m->cantidad, $motivo, $referenciaModel, $userId);
+            }
+        }
+
+        return $movimientos->count();
+    }
+
+    /**
+     * Mismo principio que revertirStockMovements() pero para el ledger
+     * paralelo que usa el POS (inventory_movements vía StockService) — las
+     * ventas de POS no pasan por InventoryService/stock_movements.
+     */
+    private function revertirInventoryMovements(string $sourceType, int $sourceId, string $motivo): int
+    {
+        $movimientos = InventoryMovement::where('source_type', $sourceType)
+            ->where('source_id', $sourceId)
+            ->get();
+
+        foreach ($movimientos as $m) {
+            if ($m->tipo === 'OUT') {
+                $this->stock->in((int) $m->warehouse_id, (int) $m->product_id, (float) $m->cantidad, $motivo);
+            } elseif ($m->tipo === 'IN') {
+                $this->stock->out((int) $m->warehouse_id, (int) $m->product_id, (float) $m->cantidad, $motivo);
+            }
+        }
+
+        return $movimientos->count();
+    }
 
     public static function middleware(): array
     {
@@ -131,20 +184,13 @@ class GestionNotasController extends Controller implements HasMiddleware
 
         $order->load('items.product');
         $oldStatus = $order->status;
+        $numMovs = 0;
 
-        DB::transaction(function () use ($order, $request) {
-            // Revertir stock de las líneas que ya se hubieran surtido/entregado.
-            foreach ($order->items as $item) {
-                if (!$item->product_id || (float) $item->cantidad <= 0) continue;
-                $this->inv->stockIn(
-                    productId:   (int) $item->product_id,
-                    warehouseId: $order->warehouse_id,
-                    qty:         (float) $item->cantidad,
-                    motivo:      'CANCELACION_PEDIDO_CERRADO',
-                    referencia:  $order,
-                    userId:      auth()->id(),
-                );
-            }
+        DB::transaction(function () use ($order, $request, &$numMovs) {
+            // Revertir EXACTAMENTE los movimientos de stock que este pedido ya
+            // hubiera generado (VENTA_PADRE/CONSUMO_BOM/CONSUMO_SUBPRODUCTO...),
+            // no las partidas del pedido a ciegas (ver revertirStockMovements()).
+            $numMovs = $this->revertirStockMovements(SalesOrder::class, $order->id, 'CANCELACION_PEDIDO_CERRADO', auth()->id(), $order);
 
             // Revertir cargo a CxC si era crédito y ya se había cargado (al entregarse).
             if ($order->payment_method === 'CREDITO' && $order->client_id && in_array($order->status, ['ENTREGADO'])) {
@@ -160,12 +206,16 @@ class GestionNotasController extends Controller implements HasMiddleware
             $order->update(['status' => 'CANCELADO']);
         });
 
+        $notaStock = $numMovs > 0
+            ? "Se revirtieron {$numMovs} movimiento(s) de stock reales de este pedido."
+            : 'Este pedido no tenía movimientos de stock registrados (no llegó a descontar inventario) — no se tocó el stock.';
+
         $this->log->log(
             $order, 'CANCELADO_DESDE_GESTION_NOTAS', $oldStatus, 'CANCELADO',
-            note: 'Cancelado desde Gestión de notas (' . $oldStatus . ' → CANCELADO). Motivo: ' . ($request->input('motivo') ?: '(sin especificar)')
+            note: 'Cancelado desde Gestión de notas (' . $oldStatus . ' → CANCELADO). ' . $notaStock . ' Motivo: ' . ($request->input('motivo') ?: '(sin especificar)')
         );
 
-        return back()->with('swal', ['icon' => 'success', 'title' => 'Pedido cancelado', 'text' => 'Se revirtió el stock y, si aplicaba, el cargo a CxC.']);
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Pedido cancelado', 'text' => $notaStock . ' Se ajustó la CxC si aplicaba.']);
     }
 
     /**
@@ -186,19 +236,13 @@ class GestionNotasController extends Controller implements HasMiddleware
 
         $sale->load('items.product', 'cashRegister');
         $cajaTocada = false;
+        $numMovs = 0;
 
-        DB::transaction(function () use ($sale, $request, &$cajaTocada) {
-            foreach ($sale->items as $item) {
-                if (!$item->product_id || (float) $item->cantidad <= 0) continue;
-                $this->inv->stockIn(
-                    productId:   (int) $item->product_id,
-                    warehouseId: $sale->warehouse_id,
-                    qty:         (float) $item->cantidad,
-                    motivo:      'CANCELACION_VENTA_POS',
-                    referencia:  $sale,
-                    userId:      auth()->id(),
-                );
-            }
+        DB::transaction(function () use ($sale, $request, &$cajaTocada, &$numMovs) {
+            // El POS descuenta stock por un ledger aparte (inventory_movements
+            // vía StockService), no por InventoryService/stock_movements — hay
+            // que revertir ahí, mirando lo que de verdad se movió.
+            $numMovs = $this->revertirInventoryMovements(PosSale::class, $sale->id, 'Cancelación venta POS');
 
             $register = $sale->cashRegister;
             if ($register && $register->estatus === 'ABIERTO' && in_array($sale->metodo_pago, ['EFECTIVO', 'MIXTO'])) {
@@ -220,15 +264,18 @@ class GestionNotasController extends Controller implements HasMiddleware
             ]);
         });
 
+        $notaStock = $numMovs > 0
+            ? "Se revirtieron {$numMovs} movimiento(s) de stock reales de esta venta."
+            : 'Esta venta no tenía movimientos de stock registrados — no se tocó el stock.';
         $notaCaja = $cajaTocada
             ? 'Se descontó de la caja abierta.'
             : 'La caja de esta venta ya estaba cerrada (o no era efectivo) — no se ajustó, revisar manualmente si aplica.';
 
         $this->log->log(
             $sale, 'CANCELADO_DESDE_GESTION_NOTAS', 'COMPLETADA', 'CANCELADA',
-            note: "Venta POS #{$sale->id} cancelada desde Gestión de notas. {$notaCaja} Motivo: " . ($request->input('motivo') ?: '(sin especificar)')
+            note: "Venta POS #{$sale->id} cancelada desde Gestión de notas. {$notaStock} {$notaCaja} Motivo: " . ($request->input('motivo') ?: '(sin especificar)')
         );
 
-        return back()->with('swal', ['icon' => 'success', 'title' => 'Venta cancelada', 'text' => "Se regresó el stock. {$notaCaja}"]);
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Venta cancelada', 'text' => "{$notaStock} {$notaCaja}"]);
     }
 }
