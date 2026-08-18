@@ -43,7 +43,7 @@ body { font-size: 11px; color: #1a1a1a; padding: 28px 32px; }
 .info-grid { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
 .info-grid td { vertical-align: top; padding: 0 6px 0 0; }
 .info-grid td:last-child { padding-right: 0; }
-.card { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 5px; padding: 9px 11px; }
+.card { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 5px; padding: 9px 11px; height: 100%; box-sizing: border-box; }
 .card-title { font-size: 9px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.8px; color: #d4a000; margin-bottom: 5px; border-bottom: 1px solid #e5e7eb; padding-bottom: 3px; }
 .card .row { margin-bottom: 2px; font-size: 10px; line-height: 1.5; }
 .card .lbl { color: #777; }

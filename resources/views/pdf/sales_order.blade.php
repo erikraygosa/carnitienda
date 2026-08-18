@@ -88,6 +88,8 @@ body {
     border-radius: 5px;
     padding: 10px 13px;
     margin-right: 8px;
+    height: 100%;
+    box-sizing: border-box;
 }
 .card:last-child { margin-right: 0; }
 .card-title {

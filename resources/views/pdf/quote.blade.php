@@ -45,7 +45,7 @@ body { font-size: 11px; color: #1a1a1a; padding: 28px 32px; }
 .vigencia-box { background: #fef9c3; border: 1px solid #fde047; border-radius: 5px; padding: 8px 12px; margin-bottom: 14px; font-size: 10px; }
 .info-grid { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
 .info-grid td { vertical-align: top; padding: 0; }
-.card { background: #fafafa; border: 1px solid #e0e0e0; border-radius: 5px; padding: 10px 13px; }
+.card { background: #fafafa; border: 1px solid #e0e0e0; border-radius: 5px; padding: 10px 13px; height: 100%; box-sizing: border-box; }
 .card-title { font-size: 8.5px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #c89000; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; margin-bottom: 7px; }
 .card-row { font-size: 10px; margin-bottom: 3px; line-height: 1.5; color: #333; }
 .card-row .lbl { color: #888; }
