@@ -9,7 +9,7 @@
     <x-slot name="action">
         <a href="{{ route('admin.sales-orders.index') }}"
            class="inline-flex px-3 py-1.5 text-sm rounded-md border">Regresar</a>
-        @if(!in_array($order->status, ['ENTREGADO','CANCELADO']))
+        @if($order->status !== 'CANCELADO' && !($order->status === 'ENTREGADO' && !($puedeEditarCerrados ?? false)))
             <button form="so-edit-form" type="submit"
                     class="ml-2 inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white">
                 {{ $order->status === 'BORRADOR' ? 'Actualizar' : 'Guardar cambios' }}
@@ -18,9 +18,14 @@
     </x-slot>
 
     @php
-        $isLocked     = in_array($order->status, ['ENTREGADO','CANCELADO']);
+        $puedeEditarCerrados = $puedeEditarCerrados ?? false;
+        // Quien tiene permiso de Gestión de notas puede corregir un pedido
+        // ENTREGADO (error después del hecho) — CANCELADO se queda bloqueado
+        // siempre, es un caso distinto.
+        $isLocked     = $order->status === 'CANCELADO' || ($order->status === 'ENTREGADO' && !$puedeEditarCerrados);
         $canEditQty   = !$isLocked;
-        $canEditItems = $order->status === 'BORRADOR';
+        $canEditItems = $order->status === 'BORRADOR' || ($puedeEditarCerrados && $order->status === 'ENTREGADO');
+        $editandoCerrado = $puedeEditarCerrados && $order->status === 'ENTREGADO';
 
         $selClient    = (string) old('client_id',         $order->client_id);
         $selWarehouse = (string) old('warehouse_id',       $order->warehouse_id);
@@ -91,6 +96,14 @@
         $entregaEstado  = old('entrega_estado',   $order->entrega_estado   ?? '');
         $entregaCp      = old('entrega_cp',       $order->entrega_cp       ?? '');
     @endphp
+
+    @if($editandoCerrado)
+    <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        ⚠️ Este pedido ya está <strong>ENTREGADO</strong> — lo estás editando con permiso de Gestión de notas.
+        Si cambias cantidades, productos o los quitas, el sistema ajusta automáticamente el stock y (si es a
+        crédito) el saldo de CxC del cliente al guardar. Queda registrado en Auditoría.
+    </div>
+    @endif
 
     {{-- ====== FORMULARIO ====== --}}
     <x-wire-card>

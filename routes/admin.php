@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\StockTransferController;
 use App\Http\Controllers\Admin\PriceByWarehouseController;
 use App\Http\Controllers\Admin\QuoteController;
 use App\Http\Controllers\Admin\SalesOrderController;
+use App\Http\Controllers\Admin\GestionNotasController;
 use App\Http\Controllers\Admin\SaleController;
 use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\DispatchController;
@@ -363,6 +364,12 @@ Route::prefix('reportes')->name('reportes.')->group(function () {
 });
 
 Route::get('auditoria', [AuditoriaController::class, 'index'])->name('auditoria.index');
+
+Route::prefix('gestion-notas')->name('gestion-notas.')->group(function () {
+    Route::get('/',                         [GestionNotasController::class, 'index'])->name('index');
+    Route::post('/pedidos/{order}/cancelar', [GestionNotasController::class, 'cancelarPedido'])->name('pedidos.cancelar');
+    Route::post('/pos/{sale}/cancelar',      [GestionNotasController::class, 'cancelarPos'])->name('pos.cancelar');
+});
 
 Route::prefix('despacho')->name('despacho.')->middleware(['can:salida de producto'])->group(function () {
     Route::get('/',                        [DispatchPanelController::class, 'index'])->name('panel');

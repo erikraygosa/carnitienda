@@ -82,6 +82,9 @@ class RolesAndPermissionsSeeder extends Seeder
 
             // Configuración
             'ver configuracion', 'editar configuracion', 'gestionar roles',
+
+            // Gestión de notas (editar/cancelar documentos ya cerrados, cualquier sucursal)
+            'gestionar notas todas sucursales', 'editar pedidos cerrados', 'cancelar notas pos',
         ];
 
         foreach ($permisos as $permiso) {

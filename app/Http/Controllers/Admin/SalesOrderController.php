@@ -33,7 +33,7 @@ class SalesOrderController extends Controller implements HasMiddleware
 
     use AuthorizesRequests;
 
-    public function __construct(private DocumentLogService $log) {}
+    public function __construct(private DocumentLogService $log, private InventoryService $inv) {}
 
     public static function middleware(): array
     {
@@ -348,9 +348,14 @@ public function data(Request $request)
             ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
             ->toArray();
 
+        // Quien tiene el permiso de Gestión de notas puede corregir un pedido
+        // aunque ya esté surtido/entregado — por eso el bloqueo normal de
+        // partidas ya surtidas y de estatus cerrado no aplica para él.
+        $puedeEditarCerrados = auth()->user()->can('editar pedidos cerrados');
+
         // Partidas ya surtidas con producto real (Panel de Surtido) — no se
         // pueden volver a editar/quitar desde aquí, ya salieron del almacén.
-        $itemsSurtidosIds = DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $order->id))
+        $itemsSurtidosIds = $puedeEditarCerrados ? [] : DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $order->id))
             ->where('qty_despachada', '>', 0)
             ->pluck('sales_order_item_id')
             ->all();
@@ -366,13 +371,20 @@ public function data(Request $request)
 
         return view('admin.sales_orders.edit', compact(
             'order','clients','priceLists','products','warehouses','drivers','routes',
-            'productsJson','overrides','listItems','itemsSurtidosIds','notasSurtidoPorItem','mostrarIva'
+            'productsJson','overrides','listItems','itemsSurtidosIds','notasSurtidoPorItem','mostrarIva',
+            'puedeEditarCerrados'
         ));
     }
 
     public function update(Request $request, SalesOrder $sales_order)
     {
-        if (in_array($sales_order->status, ['ENTREGADO', 'CANCELADO'])) {
+        // Quien tiene el permiso de Gestión de notas puede corregir un
+        // pedido ya ENTREGADO (error después del hecho) — CANCELADO se
+        // queda bloqueado siempre.
+        $puedeEditarCerrados = auth()->user()->can('editar pedidos cerrados');
+        $editandoCerrado     = $puedeEditarCerrados && $sales_order->status === 'ENTREGADO';
+
+        if ($sales_order->status === 'CANCELADO' || ($sales_order->status === 'ENTREGADO' && !$puedeEditarCerrados)) {
             return back()->with('swal',['icon'=>'error','title'=>'Error','text'=>'Un pedido entregado o cancelado no puede editarse.']);
         }
 
@@ -420,10 +432,17 @@ public function data(Request $request)
         // Partidas ya surtidas con producto real (Panel de Surtido) — se
         // ignora lo que venga del form para ellas, se conservan tal cual
         // están en BD; ya salieron del almacén, no se pueden tocar aquí.
-        $itemsSurtidosIds = DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $sales_order->id))
+        // (Excepto si se está corrigiendo un pedido cerrado con permiso —
+        // ahí SÍ se pueden tocar, es justo el punto de la corrección.)
+        $itemsSurtidosIds = $editandoCerrado ? [] : DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $sales_order->id))
             ->where('qty_despachada', '>', 0)
             ->pluck('sales_order_item_id')
             ->all();
+
+        // Snapshot ANTES de tocar nada — para calcular el delta de stock/CxC
+        // si se está corrigiendo un pedido ya ENTREGADO.
+        $itemsAntes  = $editandoCerrado ? $sales_order->items()->get(['id','product_id','cantidad'])->keyBy('id') : collect();
+        $totalAntes  = (float) $sales_order->total;
 
         DB::transaction(function () use ($sales_order, $data, $itemsSurtidosIds) {
             $subtotal=0; $descuento=0; $impuestos=0; $total=0;
@@ -501,6 +520,67 @@ public function data(Request $request)
             ]);
         });
 
+        // Corrección de un pedido ya ENTREGADO (permiso de Gestión de notas):
+        // el stock y (si aplica) la CxC ya se habían movido al entregarse —
+        // hay que ajustarlos por la diferencia, no repetirlos desde cero.
+        if ($editandoCerrado) {
+            $sales_order->refresh();
+            $itemsDespues = $sales_order->items()->get(['id', 'product_id', 'cantidad']);
+
+            $qtyAntes   = $itemsAntes->groupBy('product_id')->map(fn($g) => (float) $g->sum('cantidad'));
+            $qtyDespues = $itemsDespues->groupBy('product_id')->map(fn($g) => (float) $g->sum('cantidad'));
+            $productos  = collect($qtyAntes->keys())->merge($qtyDespues->keys())->unique()->filter();
+
+            foreach ($productos as $productId) {
+                $antes  = (float) ($qtyAntes[$productId] ?? 0);
+                $despues= (float) ($qtyDespues[$productId] ?? 0);
+                $delta  = round($despues - $antes, 3);
+                if (abs($delta) < 0.001) continue;
+
+                if ($delta > 0) {
+                    // Se pidió más de lo que ya se había surtido — sale más stock.
+                    $this->inv->stockOut(
+                        productId:   (int) $productId,
+                        warehouseId: $sales_order->warehouse_id,
+                        qty:         $delta,
+                        motivo:      'AJUSTE_EDICION_CERRADA',
+                        referencia:  $sales_order,
+                        userId:      auth()->id(),
+                    );
+                } else {
+                    // Se pidió menos (o se quitó la partida) — regresa stock.
+                    $this->inv->stockIn(
+                        productId:   (int) $productId,
+                        warehouseId: $sales_order->warehouse_id,
+                        qty:         abs($delta),
+                        motivo:      'AJUSTE_EDICION_CERRADA',
+                        referencia:  $sales_order,
+                        userId:      auth()->id(),
+                    );
+                }
+            }
+
+            $deltaTotal = round((float) $sales_order->total - $totalAntes, 2);
+            if ($sales_order->payment_method === 'CREDITO' && $sales_order->client_id && abs($deltaTotal) >= 0.01) {
+                app(\App\Services\ArService::class)->charge(
+                    clientId: $sales_order->client_id,
+                    monto:    $deltaTotal,
+                    desc:     "Ajuste por edición de pedido cerrado {$sales_order->folio}",
+                    source:   $sales_order,
+                    fecha:    now()->toDateString(),
+                );
+            }
+
+            $this->log->log(
+                $sales_order, 'EDITADO_CERRADO', 'ENTREGADO', 'ENTREGADO',
+                note: sprintf(
+                    'Editado desde Gestión de notas. Total: $%s → $%s.%s',
+                    number_format($totalAntes, 2), number_format((float) $sales_order->total, 2),
+                    $sales_order->payment_method === 'CREDITO' ? ' Ajuste CxC: $' . number_format($deltaTotal, 2) : ''
+                )
+            );
+        }
+
         // "Aprobar y procesar" desde la pantalla de edición manda el form completo
         // con then_approve=1, para no perder cambios sin guardar (antes ese botón
         // era un form aparte que solo aprobaba, ignorando cualquier edición pendiente).
@@ -514,6 +594,10 @@ public function data(Request $request)
                 ]);
             }
             return back()->with('swal', ['icon' => 'success', 'title' => 'Guardado y aprobado', 'text' => $resultado['message']]);
+        }
+
+        if ($editandoCerrado) {
+            return back()->with('swal', ['icon' => 'success', 'title' => 'Pedido corregido', 'text' => 'Se actualizó el pedido y se ajustó el stock (y la CxC, si aplicaba).']);
         }
 
         return back()->with('swal',['icon'=>'success','title'=>'Actualizado','text'=>'Pedido actualizado']);
