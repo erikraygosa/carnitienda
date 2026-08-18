@@ -289,8 +289,49 @@ class DispatchController extends Controller implements HasMiddleware
 
     // ── Flujo de estados ──────────────────────────────────────────────────────
 
+    /**
+     * Pedidos asignados a este despacho que TODAVÍA no pasaron por Salida
+     * de Producto (Panel de Surtido) — es decir, no tienen una línea de
+     * despacho (qty_despachada no nula) por cada partida del pedido.
+     *
+     * Sin esta validación, un pedido se podía "Poner en ruta"/entregar
+     * directo desde Despachos sin pasar por Surtido, llegando a ENTREGADO
+     * sin haber descontado inventario nunca (bug real detectado: pedidos
+     * #28 y #34 quedaron así).
+     */
+    private function pedidosSinSurtir(Dispatch $dispatch): \Illuminate\Support\Collection
+    {
+        $dispatch->loadMissing('items.salesOrder.items', 'items.lines');
+
+        return $dispatch->items
+            ->filter(function ($item) {
+                $order = $item->salesOrder;
+                if (!$order) return false;
+                // Solo aplica a pedidos que de verdad necesitan pasar por
+                // Surtido (PROCESADO/DESPACHADO); si ya está más adelante o
+                // cancelado, no es este el lugar para bloquearlo.
+                if (!in_array($order->status, ['PROCESADO', 'DESPACHADO'])) return false;
+
+                $totalItems     = $order->items->count();
+                $itemsSurtidos  = $item->lines->whereNotNull('qty_despachada')->pluck('sales_order_item_id')->unique()->count();
+
+                return $totalItems === 0 || $itemsSurtidos < $totalItems;
+            })
+            ->map(fn ($item) => $item->salesOrder->folio ?? ('#' . $item->salesOrder->id))
+            ->values();
+    }
+
     public function preparar(Dispatch $dispatch)
     {
+        $pendientes = $this->pedidosSinSurtir($dispatch);
+        if ($pendientes->isNotEmpty()) {
+            return back()->with('swal', [
+                'icon'  => 'warning',
+                'title' => 'Faltan pedidos por surtir',
+                'text'  => 'No se puede poner en ruta — primero completa Salida de Producto para: ' . $pendientes->implode(', '),
+            ]);
+        }
+
         // Salta directo a EN_RUTA
         $oldStatus = $dispatch->status;
         DB::transaction(function () use ($dispatch) {
@@ -326,6 +367,15 @@ class DispatchController extends Controller implements HasMiddleware
 
     public function enRuta(Dispatch $dispatch)
     {
+        $pendientes = $this->pedidosSinSurtir($dispatch);
+        if ($pendientes->isNotEmpty()) {
+            return back()->with('swal', [
+                'icon'  => 'warning',
+                'title' => 'Faltan pedidos por surtir',
+                'text'  => 'No se puede poner en ruta — primero completa Salida de Producto para: ' . $pendientes->implode(', '),
+            ]);
+        }
+
         DB::transaction(function () use ($dispatch) {
             $dispatch->update(['status' => 'EN_RUTA', 'en_ruta_at' => now()]);
 

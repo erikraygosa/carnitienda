@@ -787,6 +787,23 @@ private function aprobarPedido(SalesOrder $order): array
         if (!$order->driver_id) {
             return back()->with('swal',['icon'=>'warning','title'=>'Sin chofer','text'=>'Asigna un chofer antes de salir a ruta.']);
         }
+        // Este botón manda el pedido a ruta sin pasar por Despachos — sin
+        // esta validación se podía "Salir a ruta" (y luego Entregar) sin
+        // haber pasado nunca por Salida de Producto, llegando a ENTREGADO
+        // sin descontar inventario (bug real detectado: pedidos #28 y #34).
+        $order->loadMissing('items');
+        $totalItems    = $order->items->count();
+        $itemsSurtidos = DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $order->id))
+            ->whereNotNull('qty_despachada')
+            ->distinct('sales_order_item_id')
+            ->count('sales_order_item_id');
+        if ($totalItems === 0 || $itemsSurtidos < $totalItems) {
+            return back()->with('swal', [
+                'icon'  => 'warning',
+                'title' => 'Falta surtir',
+                'text'  => 'Este pedido todavía no pasó completo por Salida de Producto — complétalo ahí antes de salir a ruta.',
+            ]);
+        }
         $order->update(['status'=>'EN_RUTA','en_ruta_at'=>now()]);
         $this->log->log($order, 'CAMBIO_ESTADO', 'PROCESADO', 'EN_RUTA');
         return back()->with('swal',['icon'=>'success','title'=>'En ruta','text'=>'El pedido salió a ruta.']);
