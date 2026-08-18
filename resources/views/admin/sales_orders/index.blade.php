@@ -84,7 +84,7 @@
                             class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100">
                             Total <span id="sort-total"></span>
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" style="min-width: 300px;">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="so-tbody" class="bg-white divide-y divide-gray-200">
@@ -139,9 +139,7 @@
                  </form>`;
 
             let html = btn(o.edit_url, 'Editar', 'border-indigo-300 text-indigo-700 hover:bg-indigo-50');
-            if (o.status !== 'CANCELADO') {
-                html += form(o.duplicate_url, 'Duplicar', 'border-gray-300 text-gray-600 hover:bg-gray-50');
-            }
+            html += form(o.duplicate_url, 'Duplicar', 'border-gray-300 text-gray-600 hover:bg-gray-50');
 
             const withPdf = ['PROCESADO','EN_RUTA','ENTREGADO','DESPACHADO'];
             if (withPdf.includes(o.status)) {
