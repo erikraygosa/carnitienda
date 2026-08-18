@@ -212,6 +212,11 @@ Route::post('dispatches/{dispatch}/cargar',    [DispatchController::class,'carga
 Route::post('dispatches/{dispatch}/en-ruta',   [DispatchController::class,'enRuta'])->name('dispatches.enruta');
 Route::post('dispatches/{dispatch}/entregar',  [DispatchController::class,'entregar'])->name('dispatches.entregar');
 Route::post('dispatches/{dispatch}/cancelar',  [DispatchController::class,'cancelar'])->name('dispatches.cancelar');
+
+// Quitar asignaciones hechas por error (solo mientras el despacho está PLANEADO)
+Route::post('dispatches/{dispatch}/pedido/{item}/quitar',       [DispatchController::class,'quitarPedido'])->name('dispatches.pedido.quitar');
+Route::post('dispatches/{dispatch}/traspaso/{assignment}/quitar', [DispatchController::class,'quitarTraspaso'])->name('dispatches.traspaso.quitar');
+Route::post('dispatches/{dispatch}/cxc/{assignment}/quitar',    [DispatchController::class,'quitarCxc'])->name('dispatches.cxc.quitar');
 Route::post('dispatches/{dispatch}/cerrar-traspasos', [DispatchController::class,'cerrarTraspasos'])->name('dispatches.cerrar-traspasos');
 Route::post('dispatches/{dispatch}/cerrar-cobranza',   [DispatchController::class,'cerrarCobranza'])->name('dispatches.cerrar-cobranza');
 Route::post('dispatches/{dispatch}/cerrar-completo',   [DispatchController::class,'cerrarCompleto'])->name('dispatches.cerrar-completo');

@@ -198,6 +198,7 @@
                         <th class="p-2 text-right">Productos</th>
                         <th class="p-2 text-center">Estatus</th>
                         @if($enRuta)<th class="p-2 text-center">Acción</th>@endif
+                        @if($dispatch->status === 'PLANEADO')<th class="p-2 text-center">Quitar</th>@endif
                     </tr>
                 </thead>
                 <tbody>
@@ -237,6 +238,19 @@
                                         <button type="submit" class="px-2 py-1 text-xs rounded bg-orange-500 text-white hover:bg-orange-600">✗</button>
                                     </form>
                                 </div>
+                            @else
+                                <span class="text-xs text-gray-400">—</span>
+                            @endif
+                        </td>
+                        @endif
+                        @if($dispatch->status === 'PLANEADO')
+                        <td class="p-2 text-center">
+                            @if($ta->status === 'PENDIENTE')
+                                <form action="{{ route('admin.dispatches.traspaso.quitar', [$dispatch, $ta]) }}" method="POST">
+                                    @csrf
+                                    <button type="button" onclick="return confirmarAccionMasiva(this, '¿Quitar este traspaso del despacho?')"
+                                            class="px-2 py-1 text-xs rounded border border-red-300 text-red-600 hover:bg-red-50">Quitar</button>
+                                </form>
                             @else
                                 <span class="text-xs text-gray-400">—</span>
                             @endif
@@ -285,6 +299,7 @@
                 </div>
             @endif
         </div>
+        @php $pedidosNumCols = 6 + ($enRuta ? 1 : 0) + ($dispatch->status === 'PLANEADO' ? 1 : 0); @endphp
         <div class="overflow-auto border rounded">
             <table class="min-w-full text-sm">
                 <thead class="border-b bg-gray-50">
@@ -296,6 +311,7 @@
                         <th class="p-2 text-left">Estatus</th>
                         <th class="p-2 text-left">Programado</th>
                         @if($enRuta)<th class="p-2 text-center">Acción</th>@endif
+                        @if($dispatch->status === 'PLANEADO')<th class="p-2 text-center">Quitar</th>@endif
                     </tr>
                 </thead>
                 <tbody>
@@ -309,8 +325,14 @@
                             'NO_ENTREGADO' => 'bg-orange-100 text-orange-700',
                             default        => 'bg-gray-100 text-gray-600',
                         };
+                        // ¿Ya pasó completo por Salida de Producto? (mismo criterio
+                        // que bloquea "En ruta" — ver DispatchController::pedidosSinSurtir())
+                        $totalItemsPedido   = $o?->items->count() ?? 0;
+                        $itemsSurtidosCount = $item->lines->whereNotNull('qty_despachada')->pluck('sales_order_item_id')->unique()->count();
+                        $faltaSurtir        = in_array($oStatus, ['PROCESADO','DESPACHADO']) && ($totalItemsPedido === 0 || $itemsSurtidosCount < $totalItemsPedido);
+                        $itemSinTocar       = $item->lines->whereNotNull('qty_despachada')->isEmpty();
                     @endphp
-                    <tr class="border-b hover:bg-gray-50">
+                    <tr class="border-b hover:bg-gray-50 {{ $faltaSurtir ? 'bg-amber-50' : '' }}">
                         <td class="p-2">
                             <a href="{{ route('admin.sales-orders.edit', $o) }}"
                                class="text-indigo-600 hover:underline font-mono text-xs">
@@ -322,6 +344,11 @@
                         <td class="p-2">{{ $o?->payment_method ?? '—' }}</td>
                         <td class="p-2">
                             <span class="px-2 py-0.5 rounded-full text-xs {{ $oStatusClass }}">{{ $oStatus }}</span>
+                            @if($faltaSurtir)
+                                <span class="ml-1 px-2 py-0.5 rounded-full text-xs bg-amber-200 text-amber-800" title="Faltan productos por surtir en Salida de Producto">
+                                    ⏳ Falta surtir ({{ $itemsSurtidosCount }}/{{ $totalItemsPedido }})
+                                </span>
+                            @endif
                         </td>
                         <td class="p-2 text-xs text-gray-400">{{ optional($o?->programado_para)->format('d/m/Y') ?? '—' }}</td>
                         @if($enRuta)
@@ -345,11 +372,24 @@
                             @endif
                         </td>
                         @endif
+                        @if($dispatch->status === 'PLANEADO')
+                        <td class="p-2 text-center">
+                            @if($itemSinTocar)
+                                <form action="{{ route('admin.dispatches.pedido.quitar', [$dispatch, $item]) }}" method="POST">
+                                    @csrf
+                                    <button type="button" onclick="return confirmarAccionMasiva(this, '¿Quitar este pedido del despacho?')"
+                                            class="px-2 py-1 text-xs rounded border border-red-300 text-red-600 hover:bg-red-50">Quitar</button>
+                                </form>
+                            @else
+                                <span class="text-xs text-gray-400" title="Ya tiene productos surtidos">—</span>
+                            @endif
+                        </td>
+                        @endif
                     </tr>
                     @php $notasSurtido = $item->lines->filter(fn($l) => filled($l->nota)); @endphp
                     @if($notasSurtido->count() > 0)
                     <tr class="border-b bg-amber-50">
-                        <td colspan="{{ $enRuta ? 7 : 6 }}" class="px-2 pb-2 text-xs text-amber-800">
+                        <td colspan="{{ $pedidosNumCols }}" class="px-2 pb-2 text-xs text-amber-800">
                             @foreach($notasSurtido as $ln)
                                 <div>📝 <strong>{{ strtoupper($ln->salesOrderItem?->product?->nombre ?? $ln->salesOrderItem?->descripcion ?? 'Producto') }}:</strong> {{ $ln->nota }}</div>
                             @endforeach
@@ -364,14 +404,14 @@
                         <td class="p-2 text-right font-semibold">
                             ${{ number_format($dispatch->items->sum(fn($i) => $i->salesOrder?->total ?? 0), 2) }}
                         </td>
-                        <td colspan="{{ $enRuta ? 4 : 3 }}"></td>
+                        <td colspan="{{ $pedidosNumCols - 3 }}"></td>
                     </tr>
                     <tr>
                         <td colspan="2" class="p-2 text-xs text-right text-gray-500">Solo efectivo/contraentrega:</td>
                         <td class="p-2 text-right text-sm font-semibold text-amber-700">
                             ${{ number_format($pedidosEfectivo, 2) }}
                         </td>
-                        <td colspan="{{ $enRuta ? 4 : 3 }}"></td>
+                        <td colspan="{{ $pedidosNumCols - 3 }}"></td>
                     </tr>
                 </tfoot>
             </table>
@@ -493,6 +533,13 @@
                             <span>Cobrar</span>
                             <span class="toggle-icon">▼</span>
                         </button>
+                    @endif
+                    @if($dispatch->status === 'PLANEADO' && $assignment->status === 'PENDIENTE' && (float) $assignment->monto_cobrado === 0.0)
+                        <form action="{{ route('admin.dispatches.cxc.quitar', [$dispatch, $assignment]) }}" method="POST">
+                            @csrf
+                            <button type="button" onclick="return confirmarAccionMasiva(this, '¿Quitar esta cuenta por cobrar del despacho?')"
+                                    class="px-2 py-1 text-xs rounded border border-red-300 text-red-600 hover:bg-red-50">Quitar</button>
+                        </form>
                     @endif
                 </div>
 

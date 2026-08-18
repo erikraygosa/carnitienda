@@ -422,6 +422,71 @@ class DispatchController extends Controller implements HasMiddleware
         return back()->with('swal', ['icon' => 'success', 'title' => 'Cancelado', 'text' => 'Despacho cancelado.']);
     }
 
+    // ── Quitar asignaciones hechas por error (solo mientras PLANEADO) ─────────
+
+    public function quitarPedido(Dispatch $dispatch, DispatchItem $item)
+    {
+        abort_unless($item->dispatch_id === $dispatch->id, 404);
+
+        if ($dispatch->status !== 'PLANEADO') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo se puede quitar un pedido mientras el despacho está Planeado.']);
+        }
+
+        $item->load('lines');
+        if ($item->lines->whereNotNull('qty_despachada')->isNotEmpty()) {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Este pedido ya tiene productos surtidos — no se puede quitar del despacho así.']);
+        }
+
+        $folio = $item->salesOrder?->folio ?? ('#' . $item->sales_order_id);
+        $item->lines()->delete();
+        $item->delete();
+
+        $this->log->log($dispatch, 'PEDIDO_QUITADO', null, null, null, "Pedido {$folio} quitado del despacho (asignado por error).");
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Quitado', 'text' => "Pedido {$folio} quitado del despacho."]);
+    }
+
+    public function quitarTraspaso(Dispatch $dispatch, DispatchTransferAssignment $assignment)
+    {
+        abort_unless($assignment->dispatch_id === $dispatch->id, 404);
+
+        if ($dispatch->status !== 'PLANEADO') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo se puede quitar un traspaso mientras el despacho está Planeado.']);
+        }
+
+        $transfer = $assignment->stockTransfer;
+        if ($transfer && $transfer->status === 'COMPLETADO') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Este traspaso ya se completó — no se puede quitar.']);
+        }
+
+        if ($transfer) {
+            $transfer->update(['status' => 'PENDIENTE', 'dispatch_id' => null]);
+        }
+        $folio = $transfer?->folio ?? ('#' . $assignment->stock_transfer_id);
+        $assignment->delete();
+
+        $this->log->log($dispatch, 'TRASPASO_QUITADO', null, null, null, "Traspaso {$folio} quitado del despacho (asignado por error).");
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Quitado', 'text' => "Traspaso {$folio} quitado del despacho — regresó a Pendiente."]);
+    }
+
+    public function quitarCxc(Dispatch $dispatch, DispatchArAssignment $assignment)
+    {
+        abort_unless($assignment->dispatch_id === $dispatch->id, 404);
+
+        if ($dispatch->status !== 'PLANEADO') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo se puede quitar una cuenta por cobrar mientras el despacho está Planeado.']);
+        }
+
+        if ((float) $assignment->monto_cobrado > 0) {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Esta cuenta ya tiene un cobro registrado — no se puede quitar.']);
+        }
+
+        $cliente = $assignment->client?->nombre ?? ('#' . $assignment->client_id);
+        $assignment->delete();
+
+        $this->log->log($dispatch, 'CXC_QUITADA', null, null, null, "CxC de {$cliente} quitada del despacho (asignada por error).");
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Quitada', 'text' => "CxC de {$cliente} quitada del despacho."]);
+    }
+
     // ── Pedidos individuales ──────────────────────────────────────────────────
 
     public function entregarPedido(Request $request, Dispatch $dispatch, DispatchItem $item)
