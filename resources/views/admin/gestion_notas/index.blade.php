@@ -5,12 +5,6 @@
         ['name'=>'Gestión de notas'],
     ]"
 >
-    <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        ⚠️ Aquí puedes editar o cancelar Pedidos y ventas de POS <strong>de cualquier sucursal, aunque ya estén
-        entregados/cerrados</strong>. Cancelar revierte automáticamente el stock (y el cargo a CxC o el efectivo de
-        caja cuando aplica). Todo queda registrado en Auditoría.
-    </div>
-
     <x-wire-card>
         <form method="GET" action="{{ route('admin.gestion-notas.index') }}" class="grid grid-cols-1 md:grid-cols-6 gap-3 mb-4">
             <div class="md:col-span-2">
