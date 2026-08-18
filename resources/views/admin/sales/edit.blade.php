@@ -336,6 +336,13 @@
                     <form method="POST" action="{{ route('admin.sales.cancel',$sale) }}">@csrf
                         <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
                     </form>
+                @elseif($sale->status === 'COMPLETADA')
+                    <form id="form-cancel-sale-edit" method="POST" action="{{ route('admin.sales.cancel',$sale) }}">@csrf
+                        <x-wire-button type="button" red xs
+                            onclick="Swal.fire({title:'¿Cancelar esta nota?',text:'Revierte el inventario y, si aplica, la CxC o el efectivo de caja.',icon:'warning',showCancelButton:true,confirmButtonText:'Sí, cancelar',confirmButtonColor:'#dc2626',cancelButtonText:'Volver'}).then(r=>{if(r.isConfirmed) document.getElementById('form-cancel-sale-edit').submit();})">
+                            Cancelar
+                        </x-wire-button>
+                    </form>
                 @elseif($sale->status === 'PREPARANDO')
                     <form method="POST" action="{{ route('admin.sales.process',$sale) }}">@csrf
                         <x-wire-button type="submit" teal xs>Procesar (descontar stock)</x-wire-button>

@@ -12,6 +12,7 @@ use App\Models\Warehouse;
 use App\Models\Driver;
 use App\Models\ShippingRoute;
 use App\Models\PosRegister;
+use App\Models\CashRegister;
 use App\Models\PaymentType;
 use App\Models\StockMovement;
 use Illuminate\Http\Request;
@@ -21,6 +22,9 @@ use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\SaleNoteMailable;
 use App\Services\WhatsappSender;
+use App\Services\ArService;
+use App\Services\CashService;
+use App\Services\InventoryService;
 
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -56,9 +60,12 @@ class SaleController extends Controller implements HasMiddleware
         $priceLists   = PriceList::orderBy('nombre')->get(['id','nombre']);
         $products     = Product::orderBy('nombre')->get(['id','nombre','precio_base']);
         $warehouses   = Warehouse::orderBy('nombre')->get(['id','nombre']);
-        $drivers      = Driver::orderBy('nombre')->get(['id','nombre']);
-        $routes       = ShippingRoute::orderBy('nombre')->get(['id','nombre']);
-        $posRegisters = PosRegister::orderBy('id')->get(['id','nombre']);
+        // Venta directa de mostrador: se amarra a una caja (cash_registers)
+        // ya ABIERTA — la misma que usan Cajas/POS, no el PosRegister viejo.
+        $cashRegisters = CashRegister::with(['warehouse:id,nombre', 'user:id,name'])
+            ->where('estatus', 'ABIERTO')
+            ->orderByDesc('id')
+            ->get();
 
         $payTypes = PaymentType::query()
             ->select('id','clave','descripcion')
@@ -101,12 +108,18 @@ class SaleController extends Controller implements HasMiddleware
         ]])->toArray();
 
         return view('admin.sales.create', compact(
-            'clients','priceLists','products','warehouses','drivers','routes',
-            'posRegisters','payTypes','overrides','listItems','clientDefaults'
+            'clients','priceLists','products','warehouses',
+            'cashRegisters','payTypes','overrides','listItems','clientDefaults'
         ));
     }
 
-    public function store(Request $request)
+    /**
+     * Venta directa de mostrador: no pasa por Aprobar/Preparar/En ruta —
+     * se crea ya COMPLETADA, descontando inventario (vía la misma ruta que
+     * usa el Panel de Surtido, para que productos compuestos/subproducto se
+     * resuelvan bien) y cargando la CxC del cliente si es a crédito.
+     */
+    public function store(Request $request, InventoryService $inv)
     {
         if ($request->input('price_list_id') === 'client') {
             $request->merge(['price_list_id' => null]);
@@ -114,25 +127,14 @@ class SaleController extends Controller implements HasMiddleware
 
         $data = $request->validate([
             'fecha'             => ['required','date'],
-            'pos_register_id'   => ['required','exists:pos_registers,id'],
+            'cash_register_id'  => ['required','exists:cash_registers,id'],
             'warehouse_id'      => ['required','exists:warehouses,id'],
             'client_id'         => ['nullable','exists:clients,id'],
             'payment_type_id'   => ['nullable','exists:payment_types,id'],
             'price_list_id'     => ['nullable','exists:price_lists,id'],
             'moneda'            => ['required','string','max:10'],
-            'tipo_venta'        => ['required','in:CONTADO,CREDITO,CONTRAENTREGA'],
+            'tipo_venta'        => ['required','in:CONTADO,CREDITO'],
             'credit_days'       => ['nullable','integer','min:0'],
-            'delivery_type'     => ['required','in:ENVIO,RECOGER'],
-            'entrega_nombre'    => ['nullable','string','max:255'],
-            'entrega_telefono'  => ['nullable','string','max:50'],
-            'entrega_calle'     => ['nullable','string','max:255'],
-            'entrega_numero'    => ['nullable','string','max:50'],
-            'entrega_colonia'   => ['nullable','string','max:255'],
-            'entrega_ciudad'    => ['nullable','string','max:255'],
-            'entrega_estado'    => ['nullable','string','max:255'],
-            'entrega_cp'        => ['nullable','string','max:10'],
-            'shipping_route_id' => ['nullable','exists:shipping_routes,id'],
-            'driver_id'         => ['nullable','exists:drivers,id'],
             'items'                 => ['required','array','min:1'],
             'items.*.product_id'    => ['required','exists:products,id'],
             'items.*.descripcion'   => ['required','string','max:255'],
@@ -142,9 +144,18 @@ class SaleController extends Controller implements HasMiddleware
             'items.*.impuesto'      => ['nullable','numeric','gte:0'],
         ]);
 
+        $cashRegister = CashRegister::find($data['cash_register_id']);
+        if (!$cashRegister || $cashRegister->estatus !== 'ABIERTO') {
+            return back()->withErrors(['cash_register_id' => 'Esa caja ya no está abierta — elige una caja abierta.'])->withInput();
+        }
+
+        if ($data['tipo_venta'] === 'CREDITO' && empty($data['client_id'])) {
+            return back()->withErrors(['client_id' => 'Una venta a crédito necesita cliente.'])->withInput();
+        }
+
         $sale = null;
 
-        DB::transaction(function () use (&$sale, $data) {
+        DB::transaction(function () use (&$sale, $data, $cashRegister, $inv) {
             $subtotal=0; $descuento=0; $impuestos=0; $total=0;
             foreach ($data['items'] as $it) {
                 $line_sub  = (float)$it['cantidad'] * (float)$it['precio'];
@@ -160,7 +171,7 @@ class SaleController extends Controller implements HasMiddleware
             $sale = Sale::create([
                 'folio'               => $folio,
                 'fecha'               => $data['fecha'],
-                'pos_register_id'     => $data['pos_register_id'],
+                'cash_register_id'    => $cashRegister->id,
                 'warehouse_id'        => $data['warehouse_id'],
                 'client_id'           => $data['client_id'] ?? null,
                 'payment_type_id'     => $data['payment_type_id'] ?? null,
@@ -168,24 +179,14 @@ class SaleController extends Controller implements HasMiddleware
                 'moneda'              => $data['moneda'],
                 'tipo_venta'          => $data['tipo_venta'],
                 'credit_days'         => $data['tipo_venta']==='CREDITO' ? ($data['credit_days'] ?? 0) : null,
-                'delivery_type'       => $data['delivery_type'],
-                'entrega_nombre'      => $data['entrega_nombre'] ?? null,
-                'entrega_telefono'    => $data['entrega_telefono'] ?? null,
-                'entrega_calle'       => $data['entrega_calle'] ?? null,
-                'entrega_numero'      => $data['entrega_numero'] ?? null,
-                'entrega_colonia'     => $data['entrega_colonia'] ?? null,
-                'entrega_ciudad'      => $data['entrega_ciudad'] ?? null,
-                'entrega_estado'      => $data['entrega_estado'] ?? null,
-                'entrega_cp'          => $data['entrega_cp'] ?? null,
-                'shipping_route_id'   => $data['shipping_route_id'] ?? null,
-                'driver_id'           => $data['driver_id'] ?? null,
+                'delivery_type'       => 'RECOGER',
                 'subtotal'            => $subtotal,
                 'impuestos'           => $impuestos,
                 'descuento'           => $descuento,
                 'total'               => $total,
-                'status'              => 'BORRADOR',
+                'status'              => Sale::S_COMPLETADA,
                 'user_id'             => auth()->id(),
-                'contraentrega_total' => $data['tipo_venta'] === 'CONTRAENTREGA' ? $total : 0,
+                'entregado_at'        => now(),
             ]);
 
             foreach ($data['items'] as $it) {
@@ -204,11 +205,32 @@ class SaleController extends Controller implements HasMiddleware
                     'impuesto'    => $line_tax,
                     'total'       => $line_tot,
                 ]);
+
+                // Descuenta inventario ya — misma ruta que Salida de Producto,
+                // para que subproducto/BOM se resuelvan sobre el producto real.
+                $inv->consumeForOrderItem(
+                    (object) ['product_id' => $it['product_id'], 'cantidad' => $it['cantidad']],
+                    $data['warehouse_id'],
+                    $sale,
+                    auth()->id()
+                );
+            }
+
+            if ($data['tipo_venta'] === 'CREDITO') {
+                app(ArService::class)->charge(
+                    clientId: (int) $data['client_id'],
+                    monto:    $total,
+                    desc:     "Nota de venta {$sale->folio}",
+                    source:   $sale,
+                    fecha:    now()->toDateString(),
+                );
+            } else {
+                app(CashService::class)->registerCashSale($cashRegister, $total);
             }
         });
 
         return redirect()->route('admin.sales.edit', $sale)
-            ->with('swal',['icon'=>'success','title'=>'Creada','text'=>'Nota de venta creada.']);
+            ->with('swal',['icon'=>'success','title'=>'Nota completada','text'=>'Se descontó el inventario y quedó registrada la venta.']);
     }
 
     public function edit(Sale $sale)
@@ -442,11 +464,50 @@ class SaleController extends Controller implements HasMiddleware
 
     public function cancel(Sale $sale)
     {
-        if (in_array($sale->status, ['EN_RUTA','ENTREGADA'])) {
+        if (in_array($sale->status, ['EN_RUTA','ENTREGADA','CANCELADA'])) {
             return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'No se puede cancelar en este estado.']);
         }
-        $sale->update(['status'=>'CANCELADA']);
-        return back()->with('swal',['icon'=>'success','title'=>'Cancelada','text'=>'Nota cancelada.']);
+
+        // Si ya estaba COMPLETADA, ya descontó inventario (y CxC si era
+        // crédito) al crearse — hay que revertir eso exacto, no solo cambiar
+        // el estatus. Se revierten los stock_movements REALES de esta nota
+        // (no las partidas a ciegas) por lo mismo que ya se corrigió en
+        // Pedidos: un producto subproducto/compuesto descuenta el padre o
+        // sus componentes, no el producto de la partida.
+        DB::transaction(function () use ($sale) {
+            if ($sale->status === Sale::S_COMPLETADA) {
+                $movimientos = StockMovement::where('referencia_type', Sale::class)
+                    ->where('referencia_id', $sale->id)
+                    ->get();
+                $inv = app(InventoryService::class);
+                foreach ($movimientos as $m) {
+                    if ($m->tipo === 'OUT') {
+                        $inv->stockIn((int) $m->product_id, (int) $m->warehouse_id, (float) $m->cantidad, 'CANCELACION_NOTA_VENTA', $sale, auth()->id());
+                    } elseif ($m->tipo === 'IN') {
+                        $inv->stockOut((int) $m->product_id, (int) $m->warehouse_id, (float) $m->cantidad, 'CANCELACION_NOTA_VENTA', $sale, auth()->id());
+                    }
+                }
+
+                if ($sale->tipo_venta === 'CREDITO' && $sale->client_id) {
+                    app(ArService::class)->charge(
+                        clientId: $sale->client_id,
+                        monto:    -1 * (float) $sale->total,
+                        desc:     "Reversa por cancelación de nota de venta {$sale->folio}",
+                        source:   $sale,
+                        fecha:    now()->toDateString(),
+                    );
+                } elseif ($sale->cash_register_id) {
+                    $cashRegister = $sale->cashRegister;
+                    if ($cashRegister && $cashRegister->estatus === 'ABIERTO') {
+                        app(CashService::class)->registerCashSale($cashRegister, -1 * (float) $sale->total);
+                    }
+                }
+            }
+
+            $sale->update(['status'=>'CANCELADA']);
+        });
+
+        return back()->with('swal',['icon'=>'success','title'=>'Cancelada','text'=>'Nota cancelada — se revirtió el inventario y, si aplicaba, la CxC o el efectivo de caja.']);
     }
 
     public function recordCash(Request $request, Sale $sale)

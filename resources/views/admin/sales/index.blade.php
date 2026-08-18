@@ -37,7 +37,7 @@
                 <label class="block text-xs font-medium text-gray-600 mb-1">Estatus</label>
                 <select name="status" class="w-full rounded-md border-gray-300">
                     <option value="">— Todos —</option>
-                    @foreach (['ABIERTA'=>'Abierta','CERRADA'=>'Cerrada','CANCELADA'=>'Cancelada'] as $k=>$v)
+                    @foreach (['ABIERTA'=>'Abierta','CERRADA'=>'Cerrada','COMPLETADA'=>'Completada','CANCELADA'=>'Cancelada'] as $k=>$v)
                         <option value="{{ $k }}" {{ $status===$k ? 'selected' : '' }}>{{ $v }}</option>
                     @endforeach
                 </select>
@@ -94,10 +94,11 @@
         <div class="mt-3 flex flex-wrap gap-2">
             @php
                 $tabs = [
-                    ''           => 'Todas',
-                    'ABIERTA'    => 'Abiertas',
-                    'CERRADA'    => 'Cerradas',
-                    'CANCELADA'  => 'Canceladas',
+                    ''            => 'Todas',
+                    'ABIERTA'     => 'Abiertas',
+                    'CERRADA'     => 'Cerradas',
+                    'COMPLETADA'  => 'Completadas',
+                    'CANCELADA'   => 'Canceladas',
                 ];
             @endphp
             @foreach($tabs as $key=>$label)

@@ -19,6 +19,9 @@ class Sale extends Model
     public const S_ENTREGADO    = 'ENTREGADO';
     public const S_NO_ENTREGADO = 'NO_ENTREGADO';
     public const S_CANCELADO    = 'CANCELADO';
+    // Venta directa de mostrador: se crea ya completa, sin pasar por el
+    // ciclo de aprobación/logística (ver SaleController::store()).
+    public const S_COMPLETADA   = 'COMPLETADA';
 
     // === Métodos de pago (útiles en lógica) ===
     public const PM_CREDITO       = 'CREDITO';
@@ -28,7 +31,7 @@ class Sale extends Model
 
     protected $fillable = [
         // originales
-        'fecha','pos_register_id','warehouse_id','client_id','payment_type_id',
+        'fecha','pos_register_id','cash_register_id','warehouse_id','client_id','payment_type_id',
         'tipo_venta','subtotal','impuestos','descuento','total','status',
         'driver_id','user_id',
         // entrega/CFDI que ya agregaste
@@ -72,6 +75,7 @@ class Sale extends Model
     public function route(): BelongsTo              { return $this->belongsTo(ShippingRoute::class, 'shipping_route_id'); }
     public function priceList(): BelongsTo          { return $this->belongsTo(PriceList::class, 'price_list_id'); }
     public function posRegister(): BelongsTo        { return $this->belongsTo(PosRegister::class); }
+    public function cashRegister(): BelongsTo       { return $this->belongsTo(CashRegister::class); }
     public function paymentType(): BelongsTo        { return $this->belongsTo(PaymentType::class, 'payment_type_id'); }
     public function cobradoConfirmadoPor(): BelongsTo { return $this->belongsTo(User::class,'cobrado_confirmado_por'); }
 
@@ -87,6 +91,7 @@ class Sale extends Model
             self::S_ENTREGADO    => 'Entregado',
             self::S_NO_ENTREGADO => 'No entregado',
             self::S_CANCELADO    => 'Cancelado',
+            self::S_COMPLETADA   => 'Completada',
         ][$this->status] ?? $this->status;
     }
 

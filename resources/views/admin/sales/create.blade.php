@@ -23,6 +23,11 @@
         $JS_CLIENT_DEFAULTS = json_encode($clientDefaults  ?? [], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
     @endphp
 
+    <div class="mb-4 rounded-md border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+        Venta directa de mostrador — al guardar, el inventario se descuenta de inmediato y la nota queda completa
+        (no pasa por aprobación ni logística).
+    </div>
+
     <x-wire-card>
         <form id="sale-form" method="POST" action="{{ route('admin.sales.store') }}" class="space-y-6">
             @csrf
@@ -33,11 +38,19 @@
                 {{-- Caja --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Caja</label>
-                    <select name="pos_register_id" class="w-full rounded-md border-gray-300 shadow-sm text-sm" required>
-                        @foreach($posRegisters as $pr)
-                            <option value="{{ $pr->id }}">{{ $pr->nombre ?? ('Caja #'.$pr->id) }}</option>
-                        @endforeach
-                    </select>
+                    @if($cashRegisters->isEmpty())
+                        <p class="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-md p-2">
+                            No hay ninguna caja abierta — abre una en
+                            <a href="{{ route('admin.cash.create') }}" class="underline">Cajas</a> antes de vender.
+                        </p>
+                        <input type="hidden" name="cash_register_id" value="">
+                    @else
+                        <select name="cash_register_id" class="w-full rounded-md border-gray-300 shadow-sm text-sm" required>
+                            @foreach($cashRegisters as $cr)
+                                <option value="{{ $cr->id }}">{{ $cr->warehouse?->nombre ?? ('Caja #'.$cr->id) }} — {{ $cr->user?->name }}</option>
+                            @endforeach
+                        </select>
+                    @endif
                 </div>
 
                 {{-- Almacén --}}
@@ -92,17 +105,6 @@
                            class="w-full rounded-md border-gray-300 bg-gray-50 shadow-sm text-sm" readonly>
                 </div>
 
-                {{-- Tipo de entrega --}}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de entrega</label>
-                    <select name="delivery_type" id="delivery_type"
-                            class="w-full rounded-md border-gray-300 shadow-sm text-sm"
-                            onchange="SNF.onDeliveryChange(this.value)">
-                        <option value="RECOGER">Recoger</option>
-                        <option value="ENVIO">Envío</option>
-                    </select>
-                </div>
-
                 {{-- Método de pago --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Método de pago</label>
@@ -110,7 +112,6 @@
                             class="w-full rounded-md border-gray-300 shadow-sm text-sm"
                             onchange="SNF.onTipoVentaChange(this.value)">
                         <option value="CONTADO">Contado</option>
-                        <option value="CONTRAENTREGA">Contraentrega</option>
                         <option value="CREDITO">Crédito</option>
                     </select>
                 </div>
@@ -122,55 +123,6 @@
                            class="w-full rounded-md border-gray-300 shadow-sm text-sm">
                 </div>
 
-                {{-- Ruta --}}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Ruta</label>
-                    <select name="shipping_route_id" id="shipping_route_id"
-                            class="w-full rounded-md border-gray-300 shadow-sm text-sm">
-                        <option value="">—</option>
-                        @foreach($routes as $r)
-                            <option value="{{ $r->id }}">{{ $r->nombre }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                {{-- Chofer --}}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Chofer</label>
-                    <select name="driver_id" class="w-full rounded-md border-gray-300 shadow-sm text-sm">
-                        <option value="">—</option>
-                        @foreach($drivers as $d)
-                            <option value="{{ $d->id }}">{{ $d->nombre }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-            </div>
-
-            {{-- ====== DIRECCIÓN DE ENTREGA ====== --}}
-            <div id="entrega-section"
-                 class="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4"
-                 style="display:none">
-                <div class="md:col-span-3">
-                    <p class="text-sm font-medium text-gray-700">Datos de entrega</p>
-                </div>
-                @foreach([
-                    ['entrega_nombre',   'Nombre quien recibe'],
-                    ['entrega_telefono', 'Teléfono'],
-                    ['entrega_calle',    'Calle'],
-                    ['entrega_numero',   'Número'],
-                    ['entrega_colonia',  'Colonia'],
-                    ['entrega_ciudad',   'Ciudad'],
-                    ['entrega_estado',   'Estado'],
-                    ['entrega_cp',       'CP'],
-                ] as [$fname, $flabel])
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ $flabel }}</label>
-                    <input type="text" name="{{ $fname }}" id="{{ $fname }}"
-                           value="{{ old($fname) }}"
-                           class="w-full rounded-md border-gray-300 shadow-sm text-sm">
-                </div>
-                @endforeach
             </div>
 
             {{-- ====== ALERTA precio cero ====== --}}
@@ -386,7 +338,6 @@
 
                 const d = CLIENT_DEFAULTS[clientId];
                 if (d) {
-                    if (d.shipping_route_id) set('shipping_route_id', d.shipping_route_id);
                     if (d.credito_dias > 0) {
                         set('tipo_venta', 'CREDITO');
                         set('credit_days', d.credito_dias);
@@ -399,16 +350,6 @@
                             info.classList.remove('hidden');
                         }
                     }
-                    const fields = {
-                        entrega_telefono: d.telefono,
-                        entrega_calle:    d.entrega_calle,
-                        entrega_numero:   d.entrega_numero,
-                        entrega_colonia:  d.entrega_colonia,
-                        entrega_ciudad:   d.entrega_ciudad,
-                        entrega_estado:   d.entrega_estado,
-                        entrega_cp:       d.entrega_cp,
-                    };
-                    Object.entries(fields).forEach(([id, val]) => { if(val) set(id, val); });
                 } else {
                     const info = $('credito-info');
                     if (info) info.classList.add('hidden');
@@ -425,10 +366,6 @@
 
             onTipoVentaChange(val) {
                 $('credito-wrap').style.display = val === 'CREDITO' ? '' : 'none';
-            },
-
-            onDeliveryChange(val) {
-                $('entrega-section').style.display = val === 'ENVIO' ? '' : 'none';
             },
 
             repriceAll() {

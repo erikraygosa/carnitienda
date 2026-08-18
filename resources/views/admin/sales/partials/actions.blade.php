@@ -10,12 +10,9 @@
     <x-wire-button href="{{ route('admin.sales.send.form',$sale) }}" violet xs>Enviar</x-wire-button>
 
     {{-- Acciones por estado --}}
-    @if($sale->status === 'ABIERTA')
-        <form action="{{ route('admin.sales.close',$sale) }}" method="POST" class="inline">@csrf
-            <x-wire-button type="submit" green xs>Cerrar</x-wire-button>
-        </form>
-        <form action="{{ route('admin.sales.cancel',$sale) }}" method="POST" class="inline">@csrf
-            <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
+    @if(!in_array($sale->status, ['EN_RUTA','ENTREGADA','CANCELADA']))
+        <form action="{{ route('admin.sales.cancel',$sale) }}" method="POST" class="inline form-cancel-sale">@csrf
+            <x-wire-button type="button" red xs onclick="Swal.fire({title:'¿Cancelar esta nota?',text:'Revierte el inventario y, si aplica, la CxC o el efectivo de caja.',icon:'warning',showCancelButton:true,confirmButtonText:'Sí, cancelar',confirmButtonColor:'#dc2626',cancelButtonText:'Volver'}).then(r=>{if(r.isConfirmed) this.closest('form').submit();})">Cancelar</x-wire-button>
         </form>
     @endif
 </div>
