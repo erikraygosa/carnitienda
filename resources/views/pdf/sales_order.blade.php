@@ -59,7 +59,7 @@ body {
 
 /* ── Header ── */
 .header-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
-.logo-img { height: 70px; width: auto; }
+.logo-img { max-width: 100%; max-height: 130px; width: auto; height: auto; }
 .logo-placeholder { height: 70px; line-height: 70px; font-size: 20px; font-weight: bold; color: #d63384; }
 .doc-tipo  { font-size: 20px; font-weight: bold; color: #222; text-transform: uppercase; letter-spacing: 1px; }
 .doc-folio { font-size: 14px; color: #c89000; font-weight: bold; margin-top: 4px; }

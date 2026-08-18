@@ -35,7 +35,7 @@
 <style>
 * { font-family: DejaVu Sans, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
 body { font-size: 11px; color: #1a1a1a; padding: 28px 32px; }
-.logo-img { height: 64px; }
+.logo-img { max-width: 100%; max-height: 130px; width: auto; height: auto; }
 .doc-tipo { font-size: 18px; font-weight: bold; color: #333; text-transform: uppercase; letter-spacing: 1px; }
 .doc-folio { font-size: 13px; color: #d4a000; font-weight: bold; margin-top: 3px; }
 .doc-fecha { font-size: 10px; color: #666; margin-top: 2px; }
