@@ -27,48 +27,56 @@ class SettingsController extends Controller
 
     public function update(Request $request)
     {
+        // IMPORTANTE: los <input name="..."> de este formulario NO pueden
+        // llevar puntos literales (ej. "app.nombre"). PHP convierte
+        // automáticamente los puntos (y espacios) a guión bajo en las claves
+        // de $_POST/$_FILES al parsear la petición — es un comportamiento
+        // del propio PHP, no de Laravel. Un campo name="app.logo" llega al
+        // servidor como $_FILES['app_logo'], nunca como $_FILES['app.logo'].
+        // Antes este formulario usaba puntos en varios campos y por eso
+        // nunca se guardaban (incluido el logo) sin ningún error visible.
+        // Por eso aquí los nombres de campo van con guión bajo, y se
+        // traducen a la clave real (con punto) de system_settings al guardar.
         $data = $request->validate([
-            'app.nombre'                 => ['nullable', 'string', 'max:100'],
-            'app.timezone'               => ['nullable', 'string', 'max:50'],
-            'app.logo'                   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            'facturacion.version_cfdi'   => ['nullable', 'string', 'max:5'],
-            'facturacion.exportacion'    => ['nullable', 'string', 'max:2'],
-            'facturacion.alerta_timbres' => ['nullable', 'integer', 'min:1'],
-            'correo.from_name'           => ['nullable', 'string', 'max:100'],
-            'correo.from_address'        => ['nullable', 'email', 'max:150'],
+            'app_nombre'                 => ['nullable', 'string', 'max:100'],
+            'app_timezone'               => ['nullable', 'string', 'max:50'],
+            'app_logo'                   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'facturacion_version_cfdi'   => ['nullable', 'string', 'max:5'],
+            'facturacion_exportacion'    => ['nullable', 'string', 'max:2'],
+            'facturacion_alerta_timbres' => ['nullable', 'integer', 'min:1'],
+            'correo_from_name'           => ['nullable', 'string', 'max:100'],
+            'correo_from_address'        => ['nullable', 'email', 'max:150'],
             'auth_login_mode'            => ['nullable', 'string', 'in:email,username'],
             'auth_username_domain'       => ['nullable', 'string', 'max:100'],
-            'whatsapp.base_url'          => ['nullable', 'string', 'max:255'],
-            'whatsapp.instance'          => ['nullable', 'string', 'max:100'],
-            'whatsapp.api_key'           => ['nullable', 'string', 'max:255'],
-            'precios_modo'                => ['nullable', 'string', 'in:global,almacen'],
+            'whatsapp_base_url'          => ['nullable', 'string', 'max:255'],
+            'whatsapp_instance'          => ['nullable', 'string', 'max:100'],
+            'whatsapp_api_key'           => ['nullable', 'string', 'max:255'],
+            'precios_modo'               => ['nullable', 'string', 'in:global,almacen'],
         ]);
 
-        // Grupo real de cada clave — SystemSetting::set() no lo infiere solo, y sin
-        // esto una fila nueva cae en el grupo 'general' por default de la tabla,
-        // quedando invisible en su sección aunque sí se guardó.
-        $gruposPorClave = [
-            'app.nombre'                 => 'general',
-            'app.timezone'               => 'general',
-            'facturacion.version_cfdi'   => 'facturacion',
-            'facturacion.exportacion'    => 'facturacion',
-            'facturacion.alerta_timbres' => 'facturacion',
-            'correo.from_name'           => 'correo',
-            'correo.from_address'        => 'correo',
-            'whatsapp.base_url'          => 'whatsapp',
-            'whatsapp.instance'          => 'whatsapp',
+        // Nombre de campo (guión bajo) → [clave real con punto, grupo]
+        $mapa = [
+            'app_nombre'                 => ['app.nombre', 'general'],
+            'app_timezone'               => ['app.timezone', 'general'],
+            'facturacion_version_cfdi'   => ['facturacion.version_cfdi', 'facturacion'],
+            'facturacion_exportacion'    => ['facturacion.exportacion', 'facturacion'],
+            'facturacion_alerta_timbres' => ['facturacion.alerta_timbres', 'facturacion'],
+            'correo_from_name'           => ['correo.from_name', 'correo'],
+            'correo_from_address'        => ['correo.from_address', 'correo'],
+            'whatsapp_base_url'          => ['whatsapp.base_url', 'whatsapp'],
+            'whatsapp_instance'          => ['whatsapp.instance', 'whatsapp'],
         ];
 
-        foreach ($data as $clave => $valor) {
-            if ($clave === 'whatsapp.api_key') continue; // se maneja aparte para no borrarla si se deja en blanco
-            if ($valor !== null && !($valor instanceof \Illuminate\Http\UploadedFile)) {
-                SystemSetting::set($clave, $valor, is_int($valor) ? 'integer' : 'string', $gruposPorClave[$clave] ?? null);
+        foreach ($mapa as $campo => [$clave, $grupo]) {
+            $valor = $data[$campo] ?? null;
+            if ($valor !== null) {
+                SystemSetting::set($clave, $valor, is_int($valor) ? 'integer' : 'string', $grupo);
             }
         }
 
         // El campo de API Key es tipo password: si llega vacío, se conserva la que ya estaba guardada.
-        if (filled($data['whatsapp.api_key'] ?? null)) {
-            SystemSetting::set('whatsapp.api_key', $data['whatsapp.api_key'], 'string', 'whatsapp');
+        if (filled($data['whatsapp_api_key'] ?? null)) {
+            SystemSetting::set('whatsapp.api_key', $data['whatsapp_api_key'], 'string', 'whatsapp');
         }
 
         // Campos de autenticación usan guión bajo en el formulario pero se almacenan con punto
@@ -118,8 +126,8 @@ class SettingsController extends Controller
         // de base de datos. Por eso el upload reemplaza ese archivo tal
         // cual, en vez de guardarlo en el disco 'public' de Storage (que
         // nadie lee).
-        if ($request->hasFile('app.logo')) {
-            $request->file('app.logo')->move(public_path(), 'logo.jpg');
+        if ($request->hasFile('app_logo')) {
+            $request->file('app_logo')->move(public_path(), 'logo.jpg');
             SystemSetting::set('app.logo_path', 'logo.jpg', 'file', 'general');
         }
 
