@@ -327,9 +327,15 @@
                         };
                         // ¿Ya pasó completo por Salida de Producto? (mismo criterio
                         // que bloquea "En ruta" — ver DispatchController::pedidosSinSurtir())
+                        // Solo aplica mientras el pedido sigue PROCESADO: llegar a
+                        // DESPACHADO exige haber pasado completo por saveDespacho(),
+                        // así que un pedido ya DESPACHADO nunca debe marcarse "falta
+                        // surtir" — de lo contrario un pedido re-asignado a otro
+                        // despacho (que crea un DispatchItem nuevo y vacío) se ve
+                        // como pendiente aunque ya esté surtido de verdad.
                         $totalItemsPedido   = $o?->items->count() ?? 0;
                         $itemsSurtidosCount = $item->lines->whereNotNull('qty_despachada')->pluck('sales_order_item_id')->unique()->count();
-                        $faltaSurtir        = in_array($oStatus, ['PROCESADO','DESPACHADO']) && ($totalItemsPedido === 0 || $itemsSurtidosCount < $totalItemsPedido);
+                        $faltaSurtir        = $oStatus === 'PROCESADO' && ($totalItemsPedido === 0 || $itemsSurtidosCount < $totalItemsPedido);
                         $itemSinTocar       = $item->lines->whereNotNull('qty_despachada')->isEmpty();
                     @endphp
                     <tr class="border-b hover:bg-gray-50 {{ $faltaSurtir ? 'bg-amber-50' : '' }}">

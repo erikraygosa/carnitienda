@@ -174,12 +174,23 @@ class DispatchController extends Controller implements HasMiddleware
             if (!empty($data['orders'])) {
                 $orders = SalesOrder::whereIn('id', $data['orders'])->get();
                 foreach ($orders as $o) {
-                    DispatchItem::create([
-                        'dispatch_id'    => $dispatch->id,
-                        'sales_order_id' => $o->id,
-                        'referencia'     => $o->folio,
-                        'status'         => 'ASIGNADO',
-                    ]);
+                    // Si el pedido ya se surtió antes de asignarlo a este
+                    // despacho (Panel de Surtido crea su propio DispatchItem
+                    // vía getOrCreateDispatch(), que puede caer en otro
+                    // despacho PLANEADO de hoy), NO crear uno nuevo y vacío
+                    // — eso dejaba las líneas reales de surtido colgadas del
+                    // despacho viejo mientras este quedaba con un duplicado
+                    // vacío marcando "falta surtir" por error. En vez de
+                    // eso, movemos el DispatchItem existente (con sus
+                    // líneas) a este despacho.
+                    DispatchItem::updateOrCreate(
+                        ['sales_order_id' => $o->id],
+                        [
+                            'dispatch_id' => $dispatch->id,
+                            'referencia'  => $o->folio,
+                            'status'      => 'ASIGNADO',
+                        ]
+                    );
                 }
             }
 
@@ -307,10 +318,14 @@ class DispatchController extends Controller implements HasMiddleware
             ->filter(function ($item) {
                 $order = $item->salesOrder;
                 if (!$order) return false;
-                // Solo aplica a pedidos que de verdad necesitan pasar por
-                // Surtido (PROCESADO/DESPACHADO); si ya está más adelante o
-                // cancelado, no es este el lugar para bloquearlo.
-                if (!in_array($order->status, ['PROCESADO', 'DESPACHADO'])) return false;
+                // Solo aplica a pedidos que TODAVÍA no pasan por Surtido
+                // (PROCESADO). Llegar a DESPACHADO exige haber completado
+                // saveDespacho() con cobertura total de items, así que un
+                // pedido ya DESPACHADO nunca debe volver a marcarse "falta
+                // surtir" — de lo contrario, un pedido reasignado a otro
+                // despacho (que crea un DispatchItem nuevo y vacío) se ve
+                // como pendiente aunque ya esté surtido de verdad.
+                if ($order->status !== 'PROCESADO') return false;
 
                 $totalItems     = $order->items->count();
                 $itemsSurtidos  = $item->lines->whereNotNull('qty_despachada')->pluck('sales_order_item_id')->unique()->count();
