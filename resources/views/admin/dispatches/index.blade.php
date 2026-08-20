@@ -205,6 +205,68 @@
         </div>
     </x-wire-card>
 
+    {{-- Pedidos PROCESADOS pendientes por asignar a un despacho --}}
+    <x-wire-card class="mt-4">
+        <div class="flex items-center gap-2 mb-3">
+            <h3 class="font-semibold text-gray-800">Pedidos pendientes por asignar a despacho</h3>
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                {{ $pedidosSinAsignar->count() }}
+            </span>
+            <a href="{{ route('admin.dispatches.create') }}"
+               class="ml-auto px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+                Asignar a despacho
+            </a>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-medium text-gray-500">Folio</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-500">Cliente</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-500">Ruta</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-500">Total</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-500">Pago</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-500">Programado</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    @forelse($pedidosSinAsignar as $pedido)
+                        <tr>
+                            <td class="px-4 py-3 font-mono text-xs text-indigo-600">{{ $pedido->folio }}</td>
+                            <td class="px-4 py-3 text-gray-700">{{ $pedido->client?->nombre ?? '—' }}</td>
+                            <td class="px-4 py-3 text-xs text-gray-500">
+                                @if($pedido->shipping_route_id)
+                                    <span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-xs">
+                                        {{ $pedido->route?->nombre ?? '#'.$pedido->shipping_route_id }}
+                                    </span>
+                                @else
+                                    <span class="text-gray-300">—</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-right font-medium">${{ number_format($pedido->total, 2) }}</td>
+                            <td class="px-4 py-3">
+                                <span class="px-1.5 py-0.5 rounded text-xs
+                                    {{ $pedido->payment_method === 'CREDITO' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600' }}">
+                                    {{ $pedido->payment_method }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-gray-400 text-xs">
+                                {{ optional($pedido->programado_para)->format('d/m/Y') ?? '—' }}
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">
+                                No hay pedidos pendientes por asignar.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </x-wire-card>
+
     <script>
     (function () {
         var tbody          = document.getElementById('dispatch-tbody');

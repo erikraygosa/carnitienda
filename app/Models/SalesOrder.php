@@ -79,6 +79,7 @@ class SalesOrder extends Model
     public function cobradoConfirmadoPor(): BelongsTo { return $this->belongsTo(User::class,'cobrado_confirmado_por'); }
     public function posRegister(): BelongsTo    { return $this->belongsTo(PosRegister::class,'pos_register_id'); }
     public function invoice(): HasOne           { return $this->hasOne(Invoice::class)->whereIn('tipo_comprobante', ['I','E']); }
+    public function dispatchItem(): HasOne      { return $this->hasOne(DispatchItem::class, 'sales_order_id'); }
 
     // === Etiquetas de estado ===
     public function getStatusLabelAttribute(): string
