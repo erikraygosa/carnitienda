@@ -690,7 +690,52 @@ class ReportesController extends Controller implements HasMiddleware
         ]);
         $sheet->getStyle("C{$row}:D{$row}")->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFFFFFFF'));
         $sheet->getStyle("D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
-        $row += 3; // blank space before the pending section
+        $row += 3; // blank space before the CxC section
+
+        // CxC asignadas al chofer (mismo filtro fecha/ruta/chofer) — cuáles ya se cobraron
+        $cxc = $this->cxcAsignadas($request);
+
+        $sheet->setCellValue("A{$row}", 'CXC ASIGNADAS AL CHOFER');
+        $sheet->mergeCells("A{$row}:F{$row}");
+        $sheet->getStyle("A{$row}")->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4F46E5']],
+        ]);
+        $row++;
+
+        if (empty($cxc['clientes']) || count($cxc['clientes']) === 0) {
+            $sheet->setCellValue("A{$row}", 'Sin CxC asignadas.');
+            $sheet->mergeCells("A{$row}:F{$row}");
+            $row++;
+        } else {
+            foreach (['Cliente','Notas pendientes','Saldo asignado','Cobrado','Estatus'] as $ci => $h) {
+                $cell = $this->col($ci + 1) . $row;
+                $sheet->setCellValue($cell, $h);
+                $sheet->getStyle($cell)->applyFromArray([
+                    'font' => ['bold' => true, 'color' => ['rgb' => '374151']],
+                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E5E7EB']],
+                ]);
+            }
+            $row++;
+
+            foreach ($cxc['clientes'] as $c) {
+                $sheet->setCellValue("A{$row}", $c['cliente']);
+                $sheet->setCellValue("B{$row}", $c['notas_pendientes']);
+                $sheet->setCellValue("C{$row}", $c['saldo_asignado']);
+                $sheet->setCellValue("D{$row}", $c['monto_cobrado']);
+                $sheet->setCellValue("E{$row}", $c['status']);
+                $sheet->getStyle("C{$row}:D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+                $row++;
+            }
+
+            $sheet->setCellValue("B{$row}", 'Totales:');
+            $sheet->setCellValue("C{$row}", $cxc['total_saldo']);
+            $sheet->setCellValue("D{$row}", $cxc['total_cobrado']);
+            $sheet->getStyle("B{$row}:D{$row}")->getFont()->setBold(true);
+            $sheet->getStyle("C{$row}:D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+            $row++;
+        }
+        $row += 2; // blank space before the pending section
 
         // Pedidos pendientes (por procesar o por surtir, según configuración)
         $pendientes = $this->pendientesPorProcesar();
