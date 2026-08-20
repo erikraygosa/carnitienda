@@ -69,7 +69,14 @@ class DispatchController extends Controller implements HasMiddleware
             ->orderBy('fecha', 'desc')
             ->get();
 
-        return view('admin.dispatches.index', compact('dispatches', 'fechaDesde', 'fechaHasta'));
+        // Pedidos PROCESADOS que aún no se han asignado a ningún despacho
+        $pedidosSinAsignar = SalesOrder::where('status', 'PROCESADO')
+            ->whereDoesntHave('dispatchItem')
+            ->with(['client:id,nombre', 'route:id,nombre'])
+            ->orderBy('programado_para')
+            ->get(['id', 'folio', 'client_id', 'shipping_route_id', 'total', 'payment_method', 'programado_para']);
+
+        return view('admin.dispatches.index', compact('dispatches', 'fechaDesde', 'fechaHasta', 'pedidosSinAsignar'));
     }
 
     // ── Create ────────────────────────────────────────────────────────────────

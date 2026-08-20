@@ -103,6 +103,7 @@
 
             if (!data.rutas || data.rutas.length === 0) {
                 body.innerHTML = `<div class="text-center py-8 text-gray-400">Sin resultados para los filtros seleccionados.</div>`
+                    + renderCxc(data.cxc_asignadas)
                     + renderPendientes(data.pendientes_procesar || [], data.pendientes_label, data.pendientes_url);
                 return;
             }
@@ -173,9 +174,69 @@
                 </div>
             `;
 
+            html += renderCxc(data.cxc_asignadas);
             html += renderPendientes(data.pendientes_procesar || [], data.pendientes_label, data.pendientes_url);
 
             body.innerHTML = html;
+        }
+
+        function cxcBadge(status) {
+            const cls = {
+                COBRADO:    'bg-emerald-100 text-emerald-700',
+                PARCIAL:    'bg-amber-100 text-amber-700',
+                NO_COBRADO: 'bg-red-100 text-red-700',
+                PENDIENTE:  'bg-gray-100 text-gray-600',
+            }[status] || 'bg-gray-100 text-gray-600';
+            return pedidoBadge(status, cls);
+        }
+
+        function renderCxc(cxc) {
+            if (!cxc || !cxc.clientes || cxc.clientes.length === 0) return '';
+
+            const rows = cxc.clientes.map(c => `
+                <div class="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 flex-wrap">
+                    <div class="flex-1 min-w-0">
+                        <div class="font-medium text-sm text-gray-800">${c.cliente}</div>
+                        <div class="text-xs text-gray-500 mt-0.5">
+                            ${c.notas_pendientes > 0 ? c.notas_pendientes + ' nota(s) pendiente(s)' : 'Sin notas pendientes'}
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs text-gray-400">Saldo asignado</div>
+                        <div class="font-semibold text-amber-700">${fmtMoney(c.saldo_asignado)}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs text-gray-400">Cobrado</div>
+                        <div class="font-semibold text-emerald-700">${c.monto_cobrado > 0 ? fmtMoney(c.monto_cobrado) : '—'}</div>
+                    </div>
+                    ${cxcBadge(c.status)}
+                </div>
+            `).join('');
+
+            return `
+                <div class="rounded-lg border border-gray-200 overflow-hidden">
+                    <div class="flex items-center justify-between px-4 py-2.5 bg-indigo-600">
+                        <span class="text-sm font-bold text-white uppercase tracking-wide">
+                            <i class="fa-solid fa-hand-holding-dollar mr-1.5 opacity-75"></i>CxC asignadas al chofer
+                        </span>
+                        <span class="text-xs text-indigo-200">${cxc.count} cliente(s)</span>
+                    </div>
+                    ${rows}
+                    <div class="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-t">
+                        <span class="text-xs font-semibold text-gray-600">Totales:</span>
+                        <div class="flex gap-6">
+                            <div class="text-right">
+                                <div class="text-xs text-gray-400">Saldo asignado</div>
+                                <div class="font-bold text-amber-700">${fmtMoney(cxc.total_saldo)}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xs text-gray-400">Cobrado</div>
+                                <div class="font-bold text-emerald-700">${fmtMoney(cxc.total_cobrado)}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
         function renderPendientes(pendientes, label, url) {

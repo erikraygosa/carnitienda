@@ -135,6 +135,68 @@ class ReportesController extends Controller implements HasMiddleware
             ->orderBy('dispatches.id');
     }
 
+    /**
+     * CxC asignadas a chofer/despacho para el mismo filtro (fecha/ruta/chofer)
+     * que las notas del concentrado — para mostrar, después de las notas
+     * entregadas por ruta, qué CxC ya se cobraron (o siguen pendientes).
+     */
+    private function cxcAsignadas(Request $request): array
+    {
+        $fecha    = $request->get('fecha', now()->toDateString());
+        $routeId  = $request->get('route_id', '');
+        $driverId = $request->get('driver_id', '');
+
+        $assignments = \App\Models\DispatchArAssignment::query()
+            ->join('dispatches', 'dispatches.id', '=', 'dispatch_ar_assignments.dispatch_id')
+            ->leftJoin('clients', 'clients.id', '=', 'dispatch_ar_assignments.client_id')
+            ->whereIn('dispatches.status', ['EN_RUTA', 'CERRADO', 'ENTREGADO'])
+            ->when($fecha,    fn($q) => $q->whereDate('dispatches.fecha', $fecha))
+            ->when($routeId,  fn($q) => $q->where('dispatches.shipping_route_id', $routeId))
+            ->when($driverId, fn($q) => $q->where('dispatches.driver_id', $driverId))
+            ->select(
+                'dispatch_ar_assignments.id',
+                'dispatch_ar_assignments.client_id',
+                'clients.nombre as cliente_nombre',
+                'dispatch_ar_assignments.saldo_asignado',
+                'dispatch_ar_assignments.monto_cobrado',
+                'dispatch_ar_assignments.status'
+            )
+            ->orderBy('clients.nombre')
+            ->get();
+
+        $cxcStatusClasses = [
+            'COBRADO'    => 'bg-emerald-100 text-emerald-700',
+            'PARCIAL'    => 'bg-amber-100 text-amber-700',
+            'NO_COBRADO' => 'bg-red-100 text-red-700',
+            'PENDIENTE'  => 'bg-gray-100 text-gray-600',
+        ];
+
+        $rows = $assignments->map(function ($a) use ($cxcStatusClasses) {
+            $notasPendientes = SalesOrder::where('client_id', $a->client_id)
+                ->where('payment_method', 'CREDITO')
+                ->where('status', 'ENTREGADO')
+                ->whereNull('cobrado_at')
+                ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
+                ->count();
+
+            return [
+                'cliente'          => $a->cliente_nombre ?? '—',
+                'saldo_asignado'   => (float) $a->saldo_asignado,
+                'monto_cobrado'    => (float) $a->monto_cobrado,
+                'status'           => $a->status,
+                'status_class'     => $cxcStatusClasses[$a->status] ?? 'bg-gray-100 text-gray-600',
+                'notas_pendientes' => $notasPendientes,
+            ];
+        })->values();
+
+        return [
+            'clientes'      => $rows,
+            'count'         => $rows->count(),
+            'total_saldo'   => $rows->sum('saldo_asignado'),
+            'total_cobrado' => $rows->sum('monto_cobrado'),
+        ];
+    }
+
     private function orderStatusLabels(): array
     {
         return [
@@ -543,6 +605,7 @@ class ReportesController extends Controller implements HasMiddleware
             'rutas'               => $grouped,
             'total'               => $items->count(),
             'total_monto'         => number_format((float)$items->sum('total'), 2),
+            'cxc_asignadas'       => $this->cxcAsignadas($request),
             'pendientes_procesar' => $this->pendientesPorProcesar(),
             'pendientes_label'    => $this->pendientesLabel(),
             'pendientes_url'      => $this->pendientesUrl(),
