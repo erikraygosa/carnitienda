@@ -101,10 +101,14 @@
         function renderConcentrado(data) {
             const body = $('lq-body');
 
+            const cxcPorRuta = {};
+            (data.cxc_asignadas || []).forEach(g => { cxcPorRuta[g.ruta] = g; });
+
             if (!data.rutas || data.rutas.length === 0) {
-                body.innerHTML = `<div class="text-center py-8 text-gray-400">Sin resultados para los filtros seleccionados.</div>`
-                    + renderCxc(data.cxc_asignadas)
-                    + renderPendientes(data.pendientes_procesar || [], data.pendientes_label, data.pendientes_url);
+                let sinRutasHtml = `<div class="text-center py-8 text-gray-400">Sin resultados para los filtros seleccionados.</div>`;
+                (data.cxc_asignadas || []).forEach(g => { sinRutasHtml += renderCxc(g); });
+                sinRutasHtml += renderPendientes(data.pendientes_procesar || [], data.pendientes_label, data.pendientes_url);
+                body.innerHTML = sinRutasHtml;
                 return;
             }
 
@@ -164,6 +168,12 @@
                         </table>
                     </div>
                 `;
+
+                // CxC asignadas al chofer de esta misma ruta/despacho
+                if (cxcPorRuta[grupo.ruta]) {
+                    html += renderCxc(cxcPorRuta[grupo.ruta]);
+                    delete cxcPorRuta[grupo.ruta];
+                }
             });
 
             // Grand total
@@ -174,7 +184,9 @@
                 </div>
             `;
 
-            html += renderCxc(data.cxc_asignadas);
+            // Cualquier CxC cuya ruta no tuvo notas en este filtro (caso raro) va al final
+            Object.values(cxcPorRuta).forEach(g => { html += renderCxc(g); });
+
             html += renderPendientes(data.pendientes_procesar || [], data.pendientes_label, data.pendientes_url);
 
             body.innerHTML = html;
@@ -198,7 +210,9 @@
                     <div class="flex-1 min-w-0">
                         <div class="font-medium text-sm text-gray-800">${c.cliente}</div>
                         <div class="text-xs text-gray-500 mt-0.5">
-                            ${c.notas_pendientes > 0 ? c.notas_pendientes + ' nota(s) pendiente(s)' : 'Sin notas pendientes'}
+                            ${c.notas_pendientes > 0
+                                ? c.notas_pendientes + ' nota(s) pendiente(s) — ' + (c.folios_pendientes || '')
+                                : 'Sin notas pendientes'}
                         </div>
                     </div>
                     <div class="text-right">
@@ -215,11 +229,11 @@
 
             return `
                 <div class="rounded-lg border border-gray-200 overflow-hidden">
-                    <div class="flex items-center justify-between px-4 py-2.5 bg-indigo-600">
+                    <div class="flex items-center justify-between px-4 py-2.5 bg-violet-600">
                         <span class="text-sm font-bold text-white uppercase tracking-wide">
-                            <i class="fa-solid fa-hand-holding-dollar mr-1.5 opacity-75"></i>CxC asignadas al chofer
+                            <i class="fa-solid fa-hand-holding-dollar mr-1.5 opacity-75"></i>CxC asignadas al chofer — ${cxc.ruta}
                         </span>
-                        <span class="text-xs text-indigo-200">${cxc.count} cliente(s)</span>
+                        <span class="text-xs text-violet-200">${cxc.count} cliente(s)</span>
                     </div>
                     ${rows}
                     <div class="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-t">

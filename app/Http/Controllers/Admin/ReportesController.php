@@ -137,10 +137,11 @@ class ReportesController extends Controller implements HasMiddleware
 
     /**
      * CxC asignadas a chofer/despacho para el mismo filtro (fecha/ruta/chofer)
-     * que las notas del concentrado — para mostrar, después de las notas
-     * entregadas por ruta, qué CxC ya se cobraron (o siguen pendientes).
+     * que las notas del concentrado — agrupadas por ruta, para mostrarse
+     * justo debajo de la tabla de notas de esa misma ruta (así se ve a qué
+     * despacho/chofer pertenece cada CxC).
      */
-    private function cxcAsignadas(Request $request): array
+    private function cxcAsignadas(Request $request)
     {
         $fecha    = $request->get('fecha', now()->toDateString());
         $routeId  = $request->get('route_id', '');
@@ -149,6 +150,7 @@ class ReportesController extends Controller implements HasMiddleware
         $assignments = \App\Models\DispatchArAssignment::query()
             ->join('dispatches', 'dispatches.id', '=', 'dispatch_ar_assignments.dispatch_id')
             ->leftJoin('clients', 'clients.id', '=', 'dispatch_ar_assignments.client_id')
+            ->leftJoin('shipping_routes', 'shipping_routes.id', '=', 'dispatches.shipping_route_id')
             ->whereIn('dispatches.status', ['EN_RUTA', 'CERRADO', 'ENTREGADO'])
             ->when($fecha,    fn($q) => $q->whereDate('dispatches.fecha', $fecha))
             ->when($routeId,  fn($q) => $q->where('dispatches.shipping_route_id', $routeId))
@@ -157,10 +159,12 @@ class ReportesController extends Controller implements HasMiddleware
                 'dispatch_ar_assignments.id',
                 'dispatch_ar_assignments.client_id',
                 'clients.nombre as cliente_nombre',
+                'shipping_routes.nombre as ruta_nombre',
                 'dispatch_ar_assignments.saldo_asignado',
                 'dispatch_ar_assignments.monto_cobrado',
                 'dispatch_ar_assignments.status'
             )
+            ->orderBy('shipping_routes.nombre')
             ->orderBy('clients.nombre')
             ->get();
 
@@ -172,29 +176,34 @@ class ReportesController extends Controller implements HasMiddleware
         ];
 
         $rows = $assignments->map(function ($a) use ($cxcStatusClasses) {
-            $notasPendientes = SalesOrder::where('client_id', $a->client_id)
+            $notas = SalesOrder::where('client_id', $a->client_id)
                 ->where('payment_method', 'CREDITO')
                 ->where('status', 'ENTREGADO')
                 ->whereNull('cobrado_at')
                 ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
-                ->count();
+                ->get(['folio']);
 
             return [
-                'cliente'          => $a->cliente_nombre ?? '—',
-                'saldo_asignado'   => (float) $a->saldo_asignado,
-                'monto_cobrado'    => (float) $a->monto_cobrado,
-                'status'           => $a->status,
-                'status_class'     => $cxcStatusClasses[$a->status] ?? 'bg-gray-100 text-gray-600',
-                'notas_pendientes' => $notasPendientes,
+                'ruta'              => $a->ruta_nombre ?? 'Sin ruta',
+                'cliente'           => $a->cliente_nombre ?? '—',
+                'saldo_asignado'    => (float) $a->saldo_asignado,
+                'monto_cobrado'     => (float) $a->monto_cobrado,
+                'status'            => $a->status,
+                'status_class'      => $cxcStatusClasses[$a->status] ?? 'bg-gray-100 text-gray-600',
+                'notas_pendientes'  => $notas->count(),
+                'folios_pendientes' => $notas->pluck('folio')->implode(', '),
+            ];
+        });
+
+        return $rows->groupBy('ruta')->map(function ($grupo, $ruta) {
+            return [
+                'ruta'          => $ruta,
+                'clientes'      => $grupo->values(),
+                'count'         => $grupo->count(),
+                'total_saldo'   => $grupo->sum('saldo_asignado'),
+                'total_cobrado' => $grupo->sum('monto_cobrado'),
             ];
         })->values();
-
-        return [
-            'clientes'      => $rows,
-            'count'         => $rows->count(),
-            'total_saldo'   => $rows->sum('saldo_asignado'),
-            'total_cobrado' => $rows->sum('monto_cobrado'),
-        ];
     }
 
     private function orderStatusLabels(): array
@@ -633,7 +642,8 @@ class ReportesController extends Controller implements HasMiddleware
         $totalGeneral = 0.0;
         $orderLabels = $this->orderStatusLabels();
 
-        $grouped = $items->groupBy('ruta_nombre');
+        $grouped   = $items->groupBy('ruta_nombre');
+        $cxcPorRuta = $this->cxcAsignadas($request)->keyBy('ruta');
 
         foreach ($grouped as $rutaNombre => $notas) {
             // Route header
@@ -676,9 +686,49 @@ class ReportesController extends Controller implements HasMiddleware
             $sheet->setCellValue("D{$row}", $subtotal);
             $sheet->getStyle("C{$row}:D{$row}")->getFont()->setBold(true);
             $sheet->getStyle("D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
-            $row += 2; // blank line between routes
+            $row += 2;
 
             $totalGeneral += $subtotal;
+
+            // CxC asignadas al chofer de esta misma ruta/despacho
+            $cxcRuta = $cxcPorRuta->get($ruta);
+            if ($cxcRuta && count($cxcRuta['clientes']) > 0) {
+                $sheet->setCellValue("A{$row}", 'CXC ASIGNADAS AL CHOFER — ' . strtoupper($ruta));
+                $sheet->mergeCells("A{$row}:G{$row}");
+                $sheet->getStyle("A{$row}")->applyFromArray([
+                    'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '7C3AED']],
+                ]);
+                $row++;
+
+                foreach (['Cliente','Folio','Notas pendientes','Saldo asignado','Cobrado','Estatus'] as $ci => $h) {
+                    $cell = $this->col($ci + 1) . $row;
+                    $sheet->setCellValue($cell, $h);
+                    $sheet->getStyle($cell)->applyFromArray([
+                        'font' => ['bold' => true, 'color' => ['rgb' => '374151']],
+                        'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E5E7EB']],
+                    ]);
+                }
+                $row++;
+
+                foreach ($cxcRuta['clientes'] as $c) {
+                    $sheet->setCellValue("A{$row}", $c['cliente']);
+                    $sheet->setCellValue("B{$row}", $c['folios_pendientes'] ?: '—');
+                    $sheet->setCellValue("C{$row}", $c['notas_pendientes']);
+                    $sheet->setCellValue("D{$row}", $c['saldo_asignado']);
+                    $sheet->setCellValue("E{$row}", $c['monto_cobrado']);
+                    $sheet->setCellValue("F{$row}", $c['status']);
+                    $sheet->getStyle("D{$row}:E{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+                    $row++;
+                }
+
+                $sheet->setCellValue("C{$row}", 'Totales:');
+                $sheet->setCellValue("D{$row}", $cxcRuta['total_saldo']);
+                $sheet->setCellValue("E{$row}", $cxcRuta['total_cobrado']);
+                $sheet->getStyle("C{$row}:E{$row}")->getFont()->setBold(true);
+                $sheet->getStyle("D{$row}:E{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+                $row += 2;
+            }
         }
 
         // Grand total
@@ -690,52 +740,7 @@ class ReportesController extends Controller implements HasMiddleware
         ]);
         $sheet->getStyle("C{$row}:D{$row}")->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFFFFFFF'));
         $sheet->getStyle("D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
-        $row += 3; // blank space before the CxC section
-
-        // CxC asignadas al chofer (mismo filtro fecha/ruta/chofer) — cuáles ya se cobraron
-        $cxc = $this->cxcAsignadas($request);
-
-        $sheet->setCellValue("A{$row}", 'CXC ASIGNADAS AL CHOFER');
-        $sheet->mergeCells("A{$row}:F{$row}");
-        $sheet->getStyle("A{$row}")->applyFromArray([
-            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
-            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4F46E5']],
-        ]);
-        $row++;
-
-        if (empty($cxc['clientes']) || count($cxc['clientes']) === 0) {
-            $sheet->setCellValue("A{$row}", 'Sin CxC asignadas.');
-            $sheet->mergeCells("A{$row}:F{$row}");
-            $row++;
-        } else {
-            foreach (['Cliente','Notas pendientes','Saldo asignado','Cobrado','Estatus'] as $ci => $h) {
-                $cell = $this->col($ci + 1) . $row;
-                $sheet->setCellValue($cell, $h);
-                $sheet->getStyle($cell)->applyFromArray([
-                    'font' => ['bold' => true, 'color' => ['rgb' => '374151']],
-                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E5E7EB']],
-                ]);
-            }
-            $row++;
-
-            foreach ($cxc['clientes'] as $c) {
-                $sheet->setCellValue("A{$row}", $c['cliente']);
-                $sheet->setCellValue("B{$row}", $c['notas_pendientes']);
-                $sheet->setCellValue("C{$row}", $c['saldo_asignado']);
-                $sheet->setCellValue("D{$row}", $c['monto_cobrado']);
-                $sheet->setCellValue("E{$row}", $c['status']);
-                $sheet->getStyle("C{$row}:D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
-                $row++;
-            }
-
-            $sheet->setCellValue("B{$row}", 'Totales:');
-            $sheet->setCellValue("C{$row}", $cxc['total_saldo']);
-            $sheet->setCellValue("D{$row}", $cxc['total_cobrado']);
-            $sheet->getStyle("B{$row}:D{$row}")->getFont()->setBold(true);
-            $sheet->getStyle("C{$row}:D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
-            $row++;
-        }
-        $row += 2; // blank space before the pending section
+        $row += 3; // blank space before the pending section
 
         // Pedidos pendientes (por procesar o por surtir, según configuración)
         $pendientes = $this->pendientesPorProcesar();
