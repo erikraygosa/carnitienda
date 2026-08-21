@@ -6,6 +6,10 @@
     ]"
 >
     <x-slot name="action">
+        <a href="{{ route('admin.clients.price-matrix') }}"
+           class="inline-flex items-center px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50 mr-2">
+            📊 Lista de precios
+        </a>
         <a href="{{ route('admin.clients.create') }}"
            class="inline-flex items-center px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700">
             Nuevo

@@ -318,4 +318,107 @@ public function pricesSave(Request $request, Client $client)
 
     return response()->json(['ok' => true, 'message' => 'Precios guardados correctamente.']);
 }
+
+    // ========= Matriz de precios personalizados (clientes x productos) =========
+    // Vista tipo hoja de cálculo: clientes en filas, productos en columnas,
+    // con costo/precio base como referencia arriba. Reemplaza el flujo de
+    // "un cliente a la vez" cuando lo que se necesita es ver/actualizar
+    // varios clientes de un jalón (igual que el Excel que manejaban antes).
+
+    public function priceMatrix()
+    {
+        return view('admin.clients.price-matrix');
+    }
+
+    private const PRICE_MATRIX_MAX_PRODUCTS = 60;
+
+    public function priceMatrixData(Request $request)
+    {
+        $clienteSearch  = trim((string) $request->get('cliente', ''));
+        $productoSearch = trim((string) $request->get('producto', ''));
+        $perPage        = in_array((int) $request->get('per_page'), [10, 25, 50, 100], true)
+            ? (int) $request->get('per_page') : 25;
+        $page           = max(1, (int) $request->get('page', 1));
+
+        $productsQuery = \App\Models\Product::select('id', 'sku', 'nombre', 'precio_base', 'costo_promedio')
+            ->active()
+            ->orderBy('nombre')
+            ->when($productoSearch, fn($q) => $q->where(fn($q) =>
+                $q->where('nombre', 'like', "%$productoSearch%")
+                  ->orWhere('sku', 'like', "%$productoSearch%")
+            ));
+
+        $totalProductos = $productsQuery->count();
+        $products       = $productsQuery->take(self::PRICE_MATRIX_MAX_PRODUCTS)->get();
+
+        $clientsQuery = Client::query()
+            ->orderBy('nombre')
+            ->when($clienteSearch, fn($q) => $q->where('nombre', 'like', "%$clienteSearch%"));
+
+        $totalClientes = $clientsQuery->count();
+        $clients       = $clientsQuery->skip(($page - 1) * $perPage)->take($perPage)
+            ->get(['id', 'nombre', 'activo', 'price_list_id']);
+
+        $clientIds  = $clients->pluck('id');
+        $productIds = $products->pluck('id');
+
+        $overrides = \Illuminate\Support\Facades\DB::table('client_price_overrides')
+            ->whereIn('client_id', $clientIds)
+            ->whereIn('product_id', $productIds)
+            ->get(['client_id', 'product_id', 'precio'])
+            ->groupBy('client_id')
+            ->map(fn($rows) => $rows->pluck('precio', 'product_id')->map(fn($v) => (float) $v));
+
+        return response()->json([
+            'products'         => $products,
+            'clients'          => $clients->map(fn($c) => [
+                'id'     => $c->id,
+                'nombre' => $c->nombre,
+                'activo' => (bool) $c->activo,
+            ]),
+            'overrides'        => $overrides,
+            'total_clientes'   => $totalClientes,
+            'total_productos'  => $totalProductos,
+            'productos_limitados' => $totalProductos > self::PRICE_MATRIX_MAX_PRODUCTS,
+            'page'             => $page,
+            'per_page'         => $perPage,
+            'last_page'        => max(1, (int) ceil($totalClientes / $perPage)),
+        ]);
+    }
+
+    public function priceMatrixSave(Request $request)
+    {
+        $data = $request->validate([
+            'client_id'  => ['required', 'integer', 'exists:clients,id'],
+            'product_id' => ['required', 'integer', 'exists:products,id'],
+            'precio'     => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $client  = Client::findOrFail($data['client_id']);
+        $product = \App\Models\Product::findOrFail($data['product_id']);
+        $precio  = round((float) $data['precio'], 4);
+
+        $anterior = \App\Models\ClientPriceOverride::where('client_id', $client->id)
+            ->where('product_id', $product->id)
+            ->value('precio');
+
+        \App\Models\ClientPriceOverride::updateOrCreate(
+            ['client_id' => $client->id, 'product_id' => $product->id],
+            ['precio' => $precio]
+        );
+
+        if ((float) ($anterior ?? 0) !== $precio) {
+            $this->log->log(
+                $client,
+                'PRECIO_PERSONALIZADO_ACTUALIZADO',
+                $anterior !== null ? number_format((float) $anterior, 2) : null,
+                number_format($precio, 2),
+                null,
+                "Producto: {$product->nombre}" . ($product->sku ? " ({$product->sku})" : ''),
+                ['product_id' => $product->id, 'producto' => $product->nombre, 'old' => $anterior, 'new' => $precio],
+            );
+        }
+
+        return response()->json(['ok' => true, 'precio' => $precio]);
+    }
 }
