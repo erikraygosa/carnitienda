@@ -71,7 +71,9 @@ class ArCobranzaController extends Controller implements HasMiddleware
                 $q->havingRaw('fecha_vencimiento <= ?', [$fechaVencHasta])
             )
             ->when($status === 'vencidas', fn($q) =>
-                $q->havingRaw('fecha_vencimiento < CURDATE()')
+                // Una nota ya cobrada (saldo $0) nunca es "vencida", sin
+                // importar qué tan atrás quedó su fecha de vencimiento.
+                $q->havingRaw('fecha_vencimiento < CURDATE() AND (sales_orders.saldo_pendiente IS NULL OR sales_orders.saldo_pendiente > 0)')
             )
             ->when($status === 'vigentes', fn($q) =>
                 $q->havingRaw('fecha_vencimiento >= CURDATE()')

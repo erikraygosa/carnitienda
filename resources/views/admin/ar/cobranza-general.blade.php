@@ -169,7 +169,7 @@
                                 $saldo  = $nota->saldo_pendiente ?? $nota->total;
                                 $cargos = (float) $nota->total;
                                 $abonos = $cargos - $saldo;
-                                $vencida = \Carbon\Carbon::parse($nota->fecha_vencimiento)->isPast();
+                                $vencida = $saldo > 0 && \Carbon\Carbon::parse($nota->fecha_vencimiento)->isPast();
                             @endphp
                             <tr class="hover:bg-gray-50 {{ $vencida ? 'bg-red-50' : '' }}">
                                 <td class="px-3 py-2 text-gray-600">Nota de venta</td>

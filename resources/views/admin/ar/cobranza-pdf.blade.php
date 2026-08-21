@@ -134,7 +134,7 @@ table.datos td.c { text-align: center; }
                     $saldo  = $nota->saldo_pendiente ?? $nota->total;
                     $cargos = (float) $nota->total;
                     $abonos = $cargos - $saldo;
-                    $vencida = \Carbon\Carbon::parse($nota->fecha_vencimiento)->isPast();
+                    $vencida = $saldo > 0 && \Carbon\Carbon::parse($nota->fecha_vencimiento)->isPast();
                 @endphp
                 <tr>
                     <td>Nota de venta</td>
