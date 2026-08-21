@@ -98,6 +98,14 @@
             return `<span class="px-2 py-0.5 text-xs rounded-full font-medium ${cls}">${label}</span>`;
         }
 
+        // Liquidación PENDIENTE + cliente conocido → link directo a Cobrar CxC
+        // ya con el cliente preseleccionado, para pagarla desde ahí mismo.
+        function liqBadge(n, arPaymentUrl) {
+            const badge = pedidoBadge(n.estatus, n.liq_class);
+            if (n.estatus !== 'PENDIENTE' || !n.client_id || !arPaymentUrl) return badge;
+            return `<a href="${arPaymentUrl}?client_id=${n.client_id}" class="hover:opacity-75" title="Cobrar CxC de este cliente">${badge}</a>`;
+        }
+
         function renderConcentrado(data) {
             const body = $('lq-body');
 
@@ -129,7 +137,7 @@
                         <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${n.fecha}</td>
                         <td class="px-3 py-2 text-sm text-right font-mono font-semibold text-gray-800">${fmtMoney(n.total)}</td>
                         <td class="px-3 py-2 text-center">${pedidoBadge(n.estatus_pedido, n.pedido_class)}</td>
-                        <td class="px-3 py-2 text-center">${pedidoBadge(n.estatus, n.liq_class)}</td>
+                        <td class="px-3 py-2 text-center">${liqBadge(n, data.ar_payment_url)}</td>
                     </tr>
                 `).join('');
 
