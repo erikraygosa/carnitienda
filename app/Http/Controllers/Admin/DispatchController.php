@@ -692,7 +692,13 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
 
             $updateData = ['saldo_pendiente' => $nuevoSaldo];
             if ($nuevoSaldo <= 0) {
-                $updateData['cobrado_at'] = now();
+                // Saldo en $0: la nota queda cobrada Y liquidada con el chofer
+                // (para pedidos a crédito no hay un paso de "Cerrar cobranza"
+                // separado como en efectivo/contraentrega — el cobro de la
+                // CxC ES la liquidación).
+                $updateData['cobrado_at']              = now();
+                $updateData['driver_settlement_status'] = 'LIQUIDADO';
+                $updateData['driver_settlement_at']     = now();
             }
 
             $orden->update($updateData);

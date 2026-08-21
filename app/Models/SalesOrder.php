@@ -42,7 +42,7 @@ class SalesOrder extends Model
         // liquidación chofer
         'driver_settlement_status','driver_settlement_at','pos_register_id',
         // auditoría
-        'created_by','owner_id','saldo_pendiente',
+        'created_by','owner_id','saldo_pendiente','cobrado_at',
         'comentarios',
         'ticket_impreso',
     ];
