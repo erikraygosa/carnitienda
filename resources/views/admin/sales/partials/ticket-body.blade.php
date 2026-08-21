@@ -1,0 +1,259 @@
+{{--
+    Contenido del ticket térmico de la nota de venta directa, compartido
+    entre la vista en pantalla (admin/sales/ticket.blade.php) y el PDF
+    (admin/sales/ticket-pdf.blade.php) para que no se desincronicen.
+    Calcado de admin/sales_orders/partials/ticket-body.blade.php.
+    Espera $sale (con client/items.product cargados) y $empresa (con
+    fiscalData cargada).
+--}}
+@php
+    $client  = $sale->client ?? null;
+    $emp     = $empresa ?? null;
+    $ef      = $emp?->fiscalData ?? null;
+    $logoPath   = public_path('logo.jpg');
+    $logoExists = file_exists($logoPath) && \App\Models\SystemSetting::get('tickets.mostrar_logo', true);
+    if ($logoExists) {
+        $logoMime = mime_content_type($logoPath) ?: 'image/jpeg';
+        $logoSrc  = 'data:' . $logoMime . ';base64,' . base64_encode(file_get_contents($logoPath));
+    }
+@endphp
+<style>
+@page { size: 72mm auto; margin: 0; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+.ticket {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #000;
+    background: #fff;
+    width: 72mm;
+    max-width: 72mm;
+    margin: 0 auto;
+    padding: 4mm 3mm;
+}
+.ticket .center  { text-align: center; }
+.ticket .right   { text-align: right; }
+.ticket .bold    { font-weight: bold; }
+.ticket .sm      { font-size: 9px; }
+.ticket .dashed  { border: 0; border-top: 1px dashed #000; margin: 3mm 0; }
+
+.ticket table { width: 100%; border-collapse: collapse; }
+.ticket td, .ticket th { vertical-align: top; }
+.ticket .items thead tr th { font-size: 9px; border-bottom: 1px solid #000; padding-bottom: 2px; }
+.ticket .items td { font-size: 10px; padding: 1px 0; }
+.ticket .totals td { font-size: 10px; padding: 1px 0; }
+.ticket .total-final td { font-size: 14px; font-weight: bold; border-top: 2px solid #000; padding-top: 3px; }
+
+.ticket .observaciones {
+    font-size: 9px;
+    line-height: 1.4;
+    margin: 3mm 0;
+}
+.ticket .pagare {
+    font-size: 9px;
+    line-height: 1.45;
+    text-align: justify;
+    margin: 2mm 0;
+}
+.ticket .firma-line {
+    border-top: 1px solid #000;
+    margin-top: 10mm;
+    padding-top: 2px;
+    font-size: 9px;
+    text-align: center;
+    width: 55mm;
+    margin-left: auto;
+    margin-right: auto;
+}
+.ticket .logo { max-width: 55mm; max-height: 18mm; object-fit: contain; display: block; margin: 0 auto 4px; }
+
+@media print {
+    .no-print { display: none !important; }
+    body { margin: 0; }
+    .ticket { margin: 0; padding: 2mm; }
+}
+</style>
+
+<div class="ticket">
+
+    {{-- EMPRESA --}}
+    <div class="center">
+        @if($logoExists)
+            <img src="{{ $logoSrc }}" alt="Logo" class="logo">
+        @endif
+        @if($emp?->nombre_comercial || $emp?->razon_social)
+            <div class="bold" style="font-size:13px;">
+                ** {{ strtoupper($emp?->nombre_comercial ?? $emp?->razon_social) }} **
+            </div>
+        @endif
+        @if($emp?->razon_social && $emp?->nombre_comercial)
+            <div class="sm">{{ strtoupper($emp->razon_social) }}</div>
+        @endif
+        @if($ef?->calle)
+            <div class="sm">{{ trim($ef->calle.' '.($ef->numero_exterior ?? '')) }}</div>
+        @endif
+        @if($ef?->colonia)
+            <div class="sm">{{ strtoupper($ef->colonia) }}</div>
+        @endif
+        @php
+            $ciudadEstado = trim(($ef?->municipio ?? '').', '.($ef?->estado ?? '').
+                            ($ef?->codigo_postal ? '    CP '.$ef->codigo_postal : ''));
+        @endphp
+        @if($ciudadEstado !== ',')
+            <div class="sm">{{ strtoupper($ciudadEstado) }}</div>
+        @endif
+        @if($emp?->representante ?? $ef?->nombre)
+            <div class="sm">{{ strtoupper($emp?->representante ?? '') }}</div>
+        @endif
+        @if($ef?->curp)
+            <div class="sm">CURP:  {{ $ef->curp }}</div>
+        @endif
+        @if($emp?->rfc)
+            <div class="sm">R.F.C. {{ $emp->rfc }}</div>
+        @endif
+        @if($emp?->telefono)
+            <div class="sm">TEL. ({{ substr($emp->telefono, 0, 3) }}) {{ substr($emp->telefono, 3) }}</div>
+        @endif
+    </div>
+
+    <hr class="dashed">
+
+    {{-- FOLIO / FECHA --}}
+    <table>
+        <tr>
+            <td>Nota no.:</td>
+            <td class="right bold">{{ $sale->folio }}</td>
+        </tr>
+        <tr>
+            <td>Fecha:</td>
+            <td class="right">{{ optional($sale->fecha)->format('d/m/Y') }}</td>
+        </tr>
+        <tr>
+            <td>Hora:</td>
+            <td class="right">{{ optional($sale->fecha)->format('h:i:s a') }}</td>
+        </tr>
+    </table>
+
+    <hr class="dashed">
+
+    {{-- CLIENTE --}}
+    @if($client)
+    @php
+        $efectiva = $client->getEntregaEfectiva();
+        $calle    = $sale->entrega_calle   ?? $efectiva['calle']   ?? '';
+        $numero   = $sale->entrega_numero  ?? $efectiva['numero']  ?? '';
+        $colonia  = $sale->entrega_colonia ?? $efectiva['colonia'] ?? '';
+        $ciudad   = $sale->entrega_ciudad  ?? $efectiva['ciudad']  ?? '';
+        $estado   = $sale->entrega_estado  ?? $efectiva['estado']  ?? '';
+        $cp       = $sale->entrega_cp      ?? $efectiva['cp']      ?? '';
+
+        $dirParts = array_filter([
+            trim($calle . ' ' . $numero),
+            $colonia,
+            trim($ciudad . ($estado ? ', ' . $estado : '') . ($cp ? '  CP ' . $cp : '')),
+        ]);
+
+        if (!count($dirParts) && $client->direccion) {
+            $dirParts = [$client->direccion];
+        }
+
+        $telEntrega = $sale->entrega_telefono ?? $client->telefono ?? '';
+    @endphp
+    <div>
+        <span class="sm">Cliente:</span>
+        <span class="sm">{{ $client->telefono ?? '' }}</span>
+        <div class="bold">{{ strtoupper($sale->entrega_nombre ?: $client->nombre) }}</div>
+        @if(count($dirParts))
+            <div class="sm">{{ implode(', ', $dirParts) }}</div>
+        @endif
+        @if($telEntrega)
+            <div class="sm">Teléfono: {{ $telEntrega }}</div>
+        @endif
+    </div>
+    @endif
+
+    <hr class="dashed">
+
+    {{-- PARTIDAS --}}
+    <div class="sm bold center" style="margin-bottom:3px;">Emisión de notas de Producto</div>
+    <table class="items">
+        <thead>
+            <tr>
+                <th style="text-align:left;">Cant&nbsp; Producto</th>
+                <th style="text-align:right;">Precio unit</th>
+                <th style="text-align:right;">Importe</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($sale->items as $it)
+            <tr>
+                <td>{{ number_format((float)$it->cantidad, 2) }}
+                    {{ strtoupper($it->descripcion ?: ($it->product->nombre ?? '#'.$it->product_id)) }}</td>
+                <td class="right">{{ number_format((float)$it->precio, 2) }}</td>
+                <td class="right bold">{{ number_format((float)$it->total, 2) }}</td>
+            </tr>
+            @if($it->product?->unidad)
+            <tr>
+                <td colspan="3" class="sm" style="padding-bottom:2px;">
+                    {{ strtoupper($it->product->unidad) }}
+                </td>
+            </tr>
+            @endif
+            @endforeach
+        </tbody>
+    </table>
+
+    <hr class="dashed">
+
+    {{-- TOTALES --}}
+    <table class="totals">
+        @if((float)$sale->descuento > 0)
+        <tr>
+            <td>Descuento</td>
+            <td class="right">-{{ number_format((float)$sale->descuento, 2) }}</td>
+        </tr>
+        @endif
+        @if((float)$sale->impuestos > 0)
+        <tr>
+            <td>Impuestos</td>
+            <td class="right">{{ number_format((float)$sale->impuestos, 2) }}</td>
+        </tr>
+        @endif
+        <tr>
+            <td>SubTotal</td>
+            <td class="right">{{ number_format((float)$sale->subtotal, 2) }}</td>
+        </tr>
+        <tr class="total-final">
+            <td>Total</td>
+            <td class="right">{{ number_format((float)$sale->total, 2) }}</td>
+        </tr>
+    </table>
+
+    {{-- ESPACIO + OBSERVACIONES --}}
+    <div style="margin-top:5mm;"></div>
+    <div class="observaciones">
+        <div class="bold">OBSERVACIONES:</div>
+        <div style="margin-top:2px;">
+            NOTA: Por Políticas de la empresa se manejan kilogramos de origen.
+        </div>
+        <div style="margin-top:3px;font-weight:bold;">Política de devoluciones y/o reclamaciones:</div>
+        <div>
+            Es responsabilidad del Cliente revisar al momento de la entrega que el producto vaya conforme fue solicitado, etiquetado y pesado, esto sin manipularlo, únicamente mediante inspección visual, después de que el chofer se retire no serán aceptadas devoluciones y/o reclamaciones.
+        </div>
+    </div>
+
+    <hr class="dashed">
+
+    {{-- PAGARÉ --}}
+    <div class="pagare">
+        DEBO(EMOS) Y PAGARE(MOS) INCONDICIONALMENTE EL IMPORTE QUE AMPARA ESTE DOCUMENTO A LA ORDEN DE
+        {{ strtoupper($emp?->razon_social ?? config('app.name')) }}
+        EL VALOR DE LAS MERCANCIAS RECIBIDAS A MI (NUESTRA) ENTERA SATISFACCION, LA FALTA DE PAGO AL VENCER EL DOCUMENTO CAUSARA INTERESES MORATORIOS, A RAZON DE ______%
+    </div>
+
+    {{-- FIRMA --}}
+    <div class="firma-line">FIRMA: ___________________________</div>
+
+    <hr class="dashed" style="margin-top:6mm;">
+    <div class="center bold" style="font-size:12px;margin-bottom:4mm;">Gracias por su compra!!!</div>
+
+</div>

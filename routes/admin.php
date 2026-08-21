@@ -156,6 +156,10 @@ Route::post('dispatches/{dispatch}/cxc/bulk',       [DispatchController::class, 
     Route::get ('sales/{sale}/pdf',                   [SaleController::class,'pdf'])->name('sales.pdf');
     Route::get ('sales/{sale}/pdf/download',          [SaleController::class,'pdfDownload'])->name('sales.pdf.download');
 
+    // Ticket térmico 80mm
+    Route::get ('sales/{sale}/ticket',                [SaleController::class,'ticket'])->name('sales.ticket');
+    Route::get ('sales/{sale}/ticket/pdf',            [SaleController::class,'ticketPdf'])->name('sales.ticket.pdf');
+
     // Envío (form + acción)
     Route::get ('sales/{sale}/send',                  [SaleController::class,'sendForm'])->name('sales.send.form');
     Route::post('sales/{sale}/send',                  [SaleController::class,'send'])->name('sales.send');

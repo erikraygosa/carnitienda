@@ -7,7 +7,13 @@
     ]"
 >
     <x-slot name="action">
-        <a href="{{ route('admin.sales.edit',$sale) }}" class="inline-flex px-3 py-1.5 text-sm rounded-md border">Regresar</a>
+        <div class="flex items-center gap-2">
+            <a href="{{ route('admin.sales.pdf',$sale) }}" target="_blank"
+               class="inline-flex px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50">👁 Ver carta</a>
+            <a href="{{ route('admin.sales.ticket.pdf',$sale) }}" target="_blank"
+               class="inline-flex px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50">🧾 Ver ticket</a>
+            <a href="{{ route('admin.sales.edit',$sale) }}" class="inline-flex px-3 py-1.5 text-sm rounded-md border">Regresar</a>
+        </div>
     </x-slot>
 
     <x-wire-card>
@@ -23,6 +29,18 @@
                 <label class="inline-flex items-center gap-2 ml-4">
                     <input type="checkbox" name="channels[]" value="whatsapp" class="rounded border-gray-300">
                     WhatsApp
+                </label>
+            </div>
+
+            <div class="space-y-2">
+                <div class="font-semibold">Formato</div>
+                <label class="inline-flex items-center gap-2">
+                    <input type="radio" name="formato" value="carta" class="border-gray-300" checked>
+                    📄 Carta
+                </label>
+                <label class="inline-flex items-center gap-2 ml-4">
+                    <input type="radio" name="formato" value="ticket" class="border-gray-300">
+                    🧾 Ticket 80mm
                 </label>
             </div>
 

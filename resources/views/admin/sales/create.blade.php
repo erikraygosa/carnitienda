@@ -58,7 +58,7 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">Almacén</label>
                     <select name="warehouse_id" class="w-full rounded-md border-gray-300 shadow-sm text-sm" required>
                         @foreach($warehouses as $w)
-                            <option value="{{ $w->id }}">{{ $w->nombre }}</option>
+                            <option value="{{ $w->id }}" {{ (string) old('warehouse_id', $mainWarehouseId ?? '') === (string) $w->id ? 'selected' : '' }}>{{ $w->nombre }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -67,11 +67,10 @@
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
                     <select name="client_id" id="client_id"
-                            class="w-full rounded-md border-gray-300 shadow-sm text-sm"
-                            onchange="SNF.onClientChange(this.value)">
+                            class="w-full rounded-md border-gray-300 shadow-sm text-sm">
                         <option value="">-- público general --</option>
                         @foreach($clients as $c)
-                            <option value="{{ $c->id }}">{{ $c->nombre }}</option>
+                            <option value="{{ $c->id }}" {{ (string) old('client_id') === (string) $c->id ? 'selected' : '' }}>{{ $c->nombre }}</option>
                         @endforeach
                     </select>
                     <p id="credito-info" class="mt-1 text-xs text-gray-500 hidden"></p>
@@ -178,7 +177,7 @@
         const INITIAL_ITEMS      = {!! $JS_INITIALITEMS !!};
         const CLIENT_DEFAULTS    = {!! $JS_CLIENT_DEFAULTS !!};
 
-        const PRODUCTS_OPTIONS = `@foreach($products as $p)<option value="{{ $p->id }}">{{ $p->nombre }}</option>@endforeach`;
+        const PRODUCTS = @json($productsJson);
 
         let state = {
             items: [],
@@ -240,17 +239,125 @@
             return String(str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
 
+        // ── Portal global para el autocomplete de producto (igual que Pedidos) ──
+        const PROD_PORTAL = document.createElement('ul');
+        PROD_PORTAL.id = 'product-dropdown-portal';
+        PROD_PORTAL.className = 'fixed z-[9999] bg-white border border-gray-200 rounded shadow-md hidden max-h-48 overflow-y-auto text-sm list-none py-1';
+        document.body.appendChild(PROD_PORTAL);
+
+        function hidePortal() { PROD_PORTAL.classList.add('hidden'); }
+
+        function positionPortal(input) {
+            const r = input.getBoundingClientRect();
+            PROD_PORTAL.style.left  = r.left + 'px';
+            PROD_PORTAL.style.top   = (r.bottom + 2) + 'px';
+            PROD_PORTAL.style.width = Math.max(r.width, 240) + 'px';
+        }
+
+        document.addEventListener('scroll', hidePortal, true);
+        document.addEventListener('click', function(e) {
+            if (!PROD_PORTAL.contains(e.target)) hidePortal();
+        });
+
+        function attachProductSearch(tr, i) {
+            const input  = tr.querySelector('.inp-product-search');
+            const hidden = tr.querySelector('.hid-product-id');
+
+            function selectProduct(p) {
+                hidden.value = p.id;
+                input.value  = p.nombre;
+
+                state.items[i].product_id      = p.id;
+                state.items[i]._productoNombre = p.nombre;
+
+                if (!state.items[i].descripcion) {
+                    state.items[i].descripcion = p.nombre;
+                    tr.querySelector('.inp-desc').value = p.nombre;
+                }
+
+                state.items[i].precio = getPrice(p.id);
+                tr.querySelector('.inp-precio').value = state.items[i].precio;
+
+                recalcRow(i);
+                hidePortal();
+                input.focus();
+            }
+
+            function clearProduct() {
+                hidden.value = '';
+                input.value  = '';
+                state.items[i].product_id      = '';
+                state.items[i]._productoNombre = '';
+                recalcRow(i);
+                input.focus();
+            }
+
+            function showDropdown(term) {
+                const t = term.toLowerCase().trim();
+                const matches = t.length === 0 ? [] : PRODUCTS.filter(p =>
+                    p.nombre.toLowerCase().includes(t) ||
+                    (p.sku && p.sku.toLowerCase().includes(t))
+                ).slice(0, 12);
+
+                PROD_PORTAL.innerHTML = '';
+                if (matches.length === 0) { hidePortal(); return; }
+
+                matches.forEach(p => {
+                    const li = document.createElement('li');
+                    li.className = 'px-3 py-1.5 hover:bg-indigo-50 cursor-pointer flex justify-between items-center';
+                    li.innerHTML = `<span class="truncate">${escHtml(p.nombre)}</span>`
+                                 + (p.sku ? `<span class="text-xs text-gray-400 ml-2 shrink-0">${escHtml(p.sku)}</span>` : '');
+                    li.addEventListener('mousedown', function(e) {
+                        e.preventDefault();
+                        selectProduct(p);
+                    });
+                    PROD_PORTAL.appendChild(li);
+                });
+
+                positionPortal(input);
+                PROD_PORTAL.classList.remove('hidden');
+            }
+
+            input.addEventListener('input', function() {
+                if (!this.value.trim()) {
+                    hidden.value = '';
+                    state.items[i].product_id      = '';
+                    state.items[i]._productoNombre = '';
+                }
+                showDropdown(this.value);
+            });
+
+            input.addEventListener('focus', function() {
+                if (this.value.trim()) showDropdown(this.value);
+            });
+
+            input.addEventListener('blur', function() {
+                setTimeout(hidePortal, 150);
+            });
+
+            tr.querySelector('.btn-clear-product').addEventListener('click', clearProduct);
+        }
+
         function renderRow(i) {
             const it = state.items[i];
+            if (!it._productoNombre && it.product_id) {
+                const prod = PRODUCTS.find(p => p.id == it.product_id);
+                if (prod) it._productoNombre = prod.nombre;
+            }
             const tr = document.createElement('tr');
             tr.className   = 'border-b';
             tr.dataset.idx = i;
             tr.innerHTML = `
                 <td class="p-2">
-                    <select class="w-48 border rounded p-1 text-sm sel-product" name="items[${i}][product_id]">
-                        <option value="">—</option>
-                        ${PRODUCTS_OPTIONS}
-                    </select>
+                    <input type="hidden" class="hid-product-id" name="items[${i}][product_id]" value="${escHtml(String(it.product_id || ''))}">
+                    <div class="flex items-center gap-1">
+                        <input type="text"
+                               class="w-48 border rounded p-1 text-sm inp-product-search"
+                               placeholder="Buscar por nombre o SKU..."
+                               autocomplete="off"
+                               value="${escHtml(it._productoNombre || '')}">
+                        <button type="button" class="btn-clear-product text-gray-400 hover:text-red-500 text-base leading-none px-1" title="Quitar producto">✕</button>
+                    </div>
                 </td>
                 <td class="p-2">
                     <input type="text" class="w-64 border rounded p-1 text-sm inp-desc"
@@ -283,20 +390,8 @@
                 </td>
             `;
 
-            const sel = tr.querySelector('.sel-product');
-            if (it.product_id) sel.value = it.product_id;
+            attachProductSearch(tr, i);
 
-            sel.addEventListener('change', function() {
-                state.items[i].product_id = this.value;
-                const txt = this.options[this.selectedIndex]?.text || '';
-                if (!state.items[i].descripcion) {
-                    state.items[i].descripcion = txt;
-                    tr.querySelector('.inp-desc').value = txt;
-                }
-                state.items[i].precio = getPrice(this.value);
-                tr.querySelector('.inp-precio').value = state.items[i].precio;
-                recalcRow(i);
-            });
             tr.querySelector('.inp-cantidad').addEventListener('input', function() {
                 state.items[i].cantidad = parseFloat(this.value)||0; recalcRow(i);
             });
@@ -384,5 +479,44 @@
         renderAll();
     })();
     </script>
+
+@push('css')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<style>
+.select2-container .select2-selection--single { height: 38px !important; border-color: #d1d5db !important; border-radius: 6px !important; }
+.select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 36px !important; font-size: 0.875rem; color: #374151; padding-left: 10px; }
+.select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px !important; }
+.select2-dropdown { border-color: #d1d5db; border-radius: 6px; font-size: 0.875rem; }
+.select2-container--default .select2-search--dropdown .select2-search__field { border-color: #d1d5db; border-radius: 4px; padding: 4px 8px; }
+</style>
+@endpush
+
+@push('js')
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(function () {
+    $('#client_id').select2({
+        placeholder: '-- público general --',
+        allowClear: true,
+        width: '100%',
+        language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
+    }).on('change', function () {
+        window.SNF && SNF.onClientChange(this.value);
+    });
+
+    // Bug conocido de select2: al dar clic en la "x" de limpiar, el mismo clic
+    // se propaga y vuelve a abrir el dropdown.
+    $(document).on('select2:unselecting', function(e) {
+        $(e.target).data('unselecting', true);
+    }).on('select2:opening', function(e) {
+        if ($(e.target).data('unselecting')) {
+            $(e.target).removeData('unselecting');
+            e.preventDefault();
+        }
+    });
+});
+</script>
+@endpush
 
 </x-admin-layout>

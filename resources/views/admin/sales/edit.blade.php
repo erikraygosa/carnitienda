@@ -307,6 +307,7 @@
             <div class="ml-auto flex items-center space-x-2">
                 <x-wire-button href="{{ route('admin.sales.pdf',$sale) }}" gray outline xs target="_blank">Ver PDF</x-wire-button>
                 <x-wire-button href="{{ route('admin.sales.pdf.download',$sale) }}" gray xs>Descargar PDF</x-wire-button>
+                <x-wire-button href="{{ route('admin.sales.ticket',$sale) }}" gray outline xs target="_blank">🧾 Imprimir ticket</x-wire-button>
                 <x-wire-button href="{{ route('admin.sales.send.form',$sale) }}" violet xs>Enviar</x-wire-button>
 
                 @if($sale->status === 'BORRADOR')

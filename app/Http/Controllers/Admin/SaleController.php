@@ -36,7 +36,7 @@ class SaleController extends Controller implements HasMiddleware
         return [
             new Middleware('can:ver pedidos', only: ['index', 'create']),
             new Middleware('can:crear pedidos', only: ['store']),
-            new Middleware('can:editar pedidos', only: ['edit', 'update', 'approve', 'startPreparing', 'process', 'dispatchToRoute', 'deliver', 'notDelivered', 'recordCash', 'settleDriver', 'sendForm', 'send', 'pdf', 'pdfDownload']),
+            new Middleware('can:editar pedidos', only: ['edit', 'update', 'approve', 'startPreparing', 'process', 'dispatchToRoute', 'deliver', 'notDelivered', 'recordCash', 'settleDriver', 'sendForm', 'send', 'pdf', 'pdfDownload', 'ticket', 'ticketPdf']),
             new Middleware('can:cancelar pedidos', only: ['cancel', 'destroy']),
         ];
     }
@@ -58,8 +58,18 @@ class SaleController extends Controller implements HasMiddleware
         ]);
 
         $priceLists   = PriceList::orderBy('nombre')->get(['id','nombre']);
-        $products     = Product::orderBy('nombre')->get(['id','nombre','precio_base']);
+        $products     = Product::where('activo', 1)->orderBy('nombre')->get(['id','nombre','precio_base','sku','unidad']);
+        $productsJson = $products->map(fn($p) => [
+            'id'     => $p->id,
+            'nombre' => $p->nombre,
+            'sku'    => $p->sku ?? '',
+            'precio' => (float) $p->precio_base,
+            'unidad' => $p->unidad ?? '',
+        ])->values();
         $warehouses   = Warehouse::orderBy('nombre')->get(['id','nombre']);
+        // Almacén por default: MATRIZ (el marcado is_primary), igual que Pedidos.
+        $mainWarehouseId = DB::table('warehouses')->where('is_primary', 1)->value('id')
+            ?? DB::table('warehouses')->orderBy('id')->value('id');
         // Venta directa de mostrador: se amarra a una caja (cash_registers)
         // ya ABIERTA — la misma que usan Cajas/POS, no el PosRegister viejo.
         $cashRegisters = CashRegister::with(['warehouse:id,nombre', 'user:id,name'])
@@ -108,7 +118,7 @@ class SaleController extends Controller implements HasMiddleware
         ]])->toArray();
 
         return view('admin.sales.create', compact(
-            'clients','priceLists','products','warehouses',
+            'clients','priceLists','products','productsJson','warehouses','mainWarehouseId',
             'cashRegisters','payTypes','overrides','listItems','clientDefaults'
         ));
     }
@@ -543,6 +553,31 @@ class SaleController extends Controller implements HasMiddleware
         return back()->with('swal',['icon'=>'success','title'=>'Liquidada','text'=>'Liquidación de chofer completada.']);
     }
 
+    // ========= TICKET TÉRMICO (80mm) =========
+    public function ticket(Sale $sale)
+    {
+        $sale->load('client', 'items.product', 'warehouse');
+        $empresa = app(\App\Services\CompanyService::class)->activa();
+
+        return view('admin.sales.ticket', compact('sale', 'empresa'));
+    }
+
+    public function ticketPdf(Sale $sale)
+    {
+        $sale->load('client', 'items.product', 'warehouse');
+        $empresa = app(\App\Services\CompanyService::class)->activa();
+
+        // Página de 80mm para que el ticket (72mm) tenga margen y no se
+        // corte el contenido del lado derecho, igual que en Pedidos/POS.
+        $ancho = 226.77;
+        $alto  = 1200;
+
+        $pdf = Pdf::loadView('admin.sales.ticket-pdf', compact('sale', 'empresa'))
+            ->setPaper([0, 0, $ancho, $alto], 'portrait');
+
+        return $pdf->stream('ticket-nota-' . ($sale->folio ?? $sale->id) . '.pdf');
+    }
+
     public function pdf(Sale $sale)
     {
         $sale->load('client','items.product','warehouse','driver','route');
@@ -584,18 +619,28 @@ class SaleController extends Controller implements HasMiddleware
         $request->validate([
             'channels'   => ['required','array','min:1'],
             'channels.*' => ['in:email,whatsapp'],
+            'formato'    => ['nullable','in:carta,ticket'],
             'email'      => ['nullable','email'],
             'telefono'   => ['nullable','string'],
             'mensaje'    => ['nullable','string','max:500'],
         ]);
 
         $sale->load('client','items.product','warehouse','driver','route');
-        $pdf   = Pdf::loadView('pdf.sales_note', [
-            'sale'       => $sale,
-            'mostrarIva' => \App\Models\SystemSetting::get('pedidos.mostrar_iva', true),
-        ]);
+        $empresa = app(\App\Services\CompanyService::class)->activa();
+        $formato = $request->input('formato', 'carta');
+
+        if ($formato === 'ticket') {
+            $pdf = Pdf::loadView('admin.sales.ticket-pdf', ['sale' => $sale, 'empresa' => $empresa])
+                ->setPaper([0, 0, 226.77, 1200], 'portrait');
+            $fname = 'ticket-' . ($sale->folio ?? $sale->id) . '.pdf';
+        } else {
+            $pdf   = Pdf::loadView('pdf.sales_note', [
+                'sale'       => $sale,
+                'mostrarIva' => \App\Models\SystemSetting::get('pedidos.mostrar_iva', true),
+            ]);
+            $fname = 'nota-venta-' . ($sale->folio ?? $sale->id) . '.pdf';
+        }
         $raw   = $pdf->output();
-        $fname = 'nota-venta-'.$sale->id.'.pdf';
 
         $errors = [];
 
