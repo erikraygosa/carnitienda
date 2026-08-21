@@ -48,6 +48,7 @@ class DispatchController extends Controller implements HasMiddleware
                 'completarTraspaso', 'noCompletarTraspaso',
                 'cobrarCxc', 'noCobrarCxc',
                 'bulkTraspasos', 'bulkPedidos', 'bulkCxc',
+                'agregarPedidos', 'agregarCxc',
             ]),
             new Middleware('can:cerrar despachos', only: ['cerrarTraspasos', 'cerrarCobranza', 'cerrarCompleto']),
         ];
@@ -261,10 +262,107 @@ class DispatchController extends Controller implements HasMiddleware
             'CANCELADO'  => 'bg-rose-100 text-rose-700',
         ];
 
+        // Mientras el despacho sigue PLANEADO se puede seguir agregando
+        // pedidos/CxC (no solo al crearlo) — candidatos: pedidos PROCESADOS
+        // que no estén ya en ningún despacho, y clientes con saldo pendiente
+        // que no estén ya asignados a ESTE despacho.
+        $pedidosDisponibles = collect();
+        $clientesConSaldoDisponibles = collect();
+        if ($dispatch->status === 'PLANEADO') {
+            $pedidosDisponibles = SalesOrder::whereIn('status', ['PROCESADO', 'DESPACHADO'])
+                ->whereDoesntHave('dispatchItem')
+                ->with(['client:id,nombre', 'route:id,nombre'])
+                ->orderByDesc('fecha')
+                ->limit(200)
+                ->get(['id','folio','client_id','shipping_route_id','status','total','programado_para','payment_method','ticket_impreso']);
+
+            $yaAsignados = $dispatch->arAssignments->pluck('client_id');
+            $clientesConSaldoDisponibles = DB::table('ar_movements')
+                ->join('clients', 'clients.id', '=', 'ar_movements.client_id')
+                ->selectRaw("
+                    ar_movements.client_id,
+                    clients.nombre,
+                    SUM(CASE WHEN ar_movements.tipo = 'CARGO' THEN ar_movements.monto ELSE -ar_movements.monto END) as saldo
+                ")
+                ->groupBy('ar_movements.client_id', 'clients.nombre')
+                ->havingRaw("SUM(CASE WHEN ar_movements.tipo = 'CARGO' THEN ar_movements.monto ELSE -ar_movements.monto END) > 0")
+                ->whereNotIn('ar_movements.client_id', $yaAsignados->isNotEmpty() ? $yaAsignados : [0])
+                ->orderBy('clients.nombre')
+                ->get();
+        }
+
         return view('admin.dispatches.edit', compact(
             'dispatch', 'warehouses', 'routes', 'drivers',
-            'statusClasses', 'paymentTypes', 'cajasAbiertas'
+            'statusClasses', 'paymentTypes', 'cajasAbiertas',
+            'pedidosDisponibles', 'clientesConSaldoDisponibles'
         ));
+    }
+
+    // ── Agregar pedidos/CxC a un despacho ya creado (mientras sigue PLANEADO) ──
+
+    public function agregarPedidos(Request $request, Dispatch $dispatch)
+    {
+        if ($dispatch->status !== 'PLANEADO') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo se pueden agregar pedidos mientras el despacho está Planeado.']);
+        }
+
+        $data = $request->validate([
+            'orders'   => ['required', 'array', 'min:1'],
+            'orders.*' => ['integer', 'exists:sales_orders,id'],
+        ], [
+            'orders.required' => 'Selecciona al menos un pedido.',
+        ]);
+
+        $orders = SalesOrder::whereIn('id', $data['orders'])->get();
+        foreach ($orders as $o) {
+            DispatchItem::updateOrCreate(
+                ['sales_order_id' => $o->id],
+                ['dispatch_id' => $dispatch->id, 'referencia' => $o->folio, 'status' => 'ASIGNADO']
+            );
+        }
+
+        $this->log->log($dispatch, 'PEDIDOS_AGREGADOS', null, null, null, count($orders) . ' pedido(s) agregado(s) al despacho.');
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Agregado', 'text' => count($orders) . ' pedido(s) agregado(s) al despacho.']);
+    }
+
+    public function agregarCxc(Request $request, Dispatch $dispatch)
+    {
+        if ($dispatch->status !== 'PLANEADO') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo se pueden agregar CxC mientras el despacho está Planeado.']);
+        }
+
+        $data = $request->validate([
+            'clientes_ar'   => ['required', 'array', 'min:1'],
+            'clientes_ar.*' => ['integer', 'exists:clients,id'],
+        ], [
+            'clientes_ar.required' => 'Selecciona al menos un cliente.',
+        ]);
+
+        $yaAsignados = $dispatch->arAssignments()->pluck('client_id')->all();
+        $nuevos      = array_diff($data['clientes_ar'], $yaAsignados);
+
+        if (empty($nuevos)) {
+            return back()->with('swal', ['icon' => 'info', 'title' => 'Sin cambios', 'text' => 'Esos clientes ya estaban asignados a este despacho.']);
+        }
+
+        $saldos = DB::table('ar_movements')
+            ->whereIn('client_id', $nuevos)
+            ->selectRaw("client_id, SUM(CASE WHEN tipo='CARGO' THEN monto ELSE -monto END) as saldo")
+            ->groupBy('client_id')
+            ->pluck('saldo', 'client_id');
+
+        foreach ($nuevos as $clientId) {
+            DispatchArAssignment::create([
+                'dispatch_id'    => $dispatch->id,
+                'client_id'      => $clientId,
+                'saldo_asignado' => (float) ($saldos[$clientId] ?? 0),
+                'monto_cobrado'  => 0,
+                'status'         => 'PENDIENTE',
+            ]);
+        }
+
+        $this->log->log($dispatch, 'CXC_AGREGADAS', null, null, null, count($nuevos) . ' cliente(s) con CxC agregado(s) al despacho.');
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Agregado', 'text' => count($nuevos) . ' cliente(s) agregado(s) al despacho.']);
     }
 
     // ── Update ────────────────────────────────────────────────────────────────

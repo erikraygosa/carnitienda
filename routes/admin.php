@@ -220,6 +220,10 @@ Route::post('dispatches/{dispatch}/en-ruta',   [DispatchController::class,'enRut
 Route::post('dispatches/{dispatch}/entregar',  [DispatchController::class,'entregar'])->name('dispatches.entregar');
 Route::post('dispatches/{dispatch}/cancelar',  [DispatchController::class,'cancelar'])->name('dispatches.cancelar');
 
+// Agregar pedidos/CxC a un despacho ya creado (solo mientras está PLANEADO)
+Route::post('dispatches/{dispatch}/pedidos/agregar', [DispatchController::class,'agregarPedidos'])->name('dispatches.pedidos.agregar');
+Route::post('dispatches/{dispatch}/cxc/agregar',     [DispatchController::class,'agregarCxc'])->name('dispatches.cxc.agregar');
+
 // Quitar asignaciones hechas por error (solo mientras el despacho está PLANEADO)
 Route::post('dispatches/{dispatch}/pedido/{item}/quitar',       [DispatchController::class,'quitarPedido'])->name('dispatches.pedido.quitar');
 Route::post('dispatches/{dispatch}/traspaso/{assignment}/quitar', [DispatchController::class,'quitarTraspaso'])->name('dispatches.traspaso.quitar');

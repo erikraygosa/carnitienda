@@ -270,6 +270,12 @@
             <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">2</span>
             <h3 class="font-semibold text-gray-800">Pedidos</h3>
             <span class="text-sm font-normal text-gray-500">({{ $dispatch->items->count() }} en total)</span>
+            @if($dispatch->status === 'PLANEADO')
+                <button type="button" id="btn-toggle-add-pedidos"
+                        class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">
+                    + Agregar pedidos
+                </button>
+            @endif
             @if($enRuta && $pedidosPendientesItems->count() > 0)
                 <div class="ml-auto flex gap-2">
                     <form action="{{ route('admin.dispatches.pedidos.bulk', $dispatch) }}" method="POST">
@@ -422,15 +428,75 @@
                 </tfoot>
             </table>
         </div>
+
+        {{-- Panel para agregar más pedidos mientras el despacho sigue PLANEADO --}}
+        @if($dispatch->status === 'PLANEADO')
+        <div id="panel-add-pedidos" class="hidden mt-4 border-t pt-4">
+            <form action="{{ route('admin.dispatches.pedidos.agregar', $dispatch) }}" method="POST">
+                @csrf
+                <div class="flex items-center gap-2 mb-2">
+                    <input type="text" id="buscar-pedido-disponible" placeholder="Buscar por folio o cliente..."
+                           class="flex-1 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <span class="text-xs text-gray-400"><span id="pedidos-disp-count">0</span> seleccionado(s)</span>
+                    <button type="submit"
+                            class="inline-flex items-center px-3 py-1.5 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+                        Agregar seleccionados
+                    </button>
+                </div>
+                @if($pedidosDisponibles->isEmpty())
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-400 text-center">
+                        No hay pedidos PROCESADOS sin asignar por el momento.
+                    </div>
+                @else
+                    <div class="overflow-auto border rounded max-h-72">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-gray-50 border-b sticky top-0">
+                                <tr>
+                                    <th class="p-2 w-8"></th>
+                                    <th class="p-2 text-left">Folio</th>
+                                    <th class="p-2 text-left">Cliente</th>
+                                    <th class="p-2 text-right">Total</th>
+                                    <th class="p-2 text-left">Pago</th>
+                                    <th class="p-2 text-left">Programado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($pedidosDisponibles as $pd)
+                                <tr class="border-b hover:bg-gray-50 pedido-disp-row"
+                                    data-search="{{ strtolower($pd->folio.' '.($pd->client?->nombre ?? '')) }}">
+                                    <td class="p-2">
+                                        <input type="checkbox" name="orders[]" value="{{ $pd->id }}" class="pedido-disp-check rounded border-gray-300">
+                                    </td>
+                                    <td class="p-2 font-mono text-xs text-indigo-600">{{ $pd->folio }}</td>
+                                    <td class="p-2">{{ $pd->client?->nombre ?? '—' }}</td>
+                                    <td class="p-2 text-right font-medium">${{ number_format($pd->total, 2) }}</td>
+                                    <td class="p-2 text-xs">{{ $pd->payment_method }}</td>
+                                    <td class="p-2 text-gray-400 text-xs">{{ optional($pd->programado_para)->format('d/m/Y') ?? '—' }}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </form>
+        </div>
+        @endif
     </x-wire-card>
 
     {{-- ══ 3. CXC ══ --}}
-    @if($dispatch->arAssignments->count() > 0)
+    @if($dispatch->arAssignments->count() > 0 || ($dispatch->status === 'PLANEADO' && $clientesConSaldoDisponibles->count() > 0))
     <x-wire-card class="mt-4">
         <div class="flex items-center gap-2 mb-3">
             <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">3</span>
             <h3 class="font-semibold text-gray-800">CxC asignadas al chofer</h3>
             <span class="text-sm font-normal text-gray-400">({{ $dispatch->arAssignments->count() }} cliente(s))</span>
+
+            @if($dispatch->status === 'PLANEADO')
+                <button type="button" id="btn-toggle-add-cxc"
+                        class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">
+                    + Agregar CxC
+                </button>
+            @endif
 
             @if($enRuta && $cxcPendientes->count() > 0)
                 <div class="ml-auto relative">
@@ -665,6 +731,53 @@
                 </div>
             </div>
         </div>
+
+        {{-- Panel para agregar más CxC mientras el despacho sigue PLANEADO --}}
+        @if($dispatch->status === 'PLANEADO')
+        <div id="panel-add-cxc" class="hidden mt-4 border-t pt-4">
+            <form action="{{ route('admin.dispatches.cxc.agregar', $dispatch) }}" method="POST">
+                @csrf
+                <div class="flex items-center gap-2 mb-2">
+                    <input type="text" id="buscar-cxc-disponible" placeholder="Buscar cliente..."
+                           class="flex-1 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <span class="text-xs text-gray-400"><span id="cxc-disp-count">0</span> seleccionado(s)</span>
+                    <button type="submit"
+                            class="inline-flex items-center px-3 py-1.5 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+                        Agregar seleccionados
+                    </button>
+                </div>
+                @if($clientesConSaldoDisponibles->isEmpty())
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-400 text-center">
+                        No hay clientes con saldo pendiente sin asignar por el momento.
+                    </div>
+                @else
+                    <div class="overflow-auto border rounded max-h-72">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-gray-50 border-b sticky top-0">
+                                <tr>
+                                    <th class="p-2 w-8"></th>
+                                    <th class="p-2 text-left">Cliente</th>
+                                    <th class="p-2 text-right">Saldo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($clientesConSaldoDisponibles as $cd)
+                                <tr class="border-b hover:bg-gray-50 cxc-disp-row"
+                                    data-search="{{ strtolower($cd->nombre) }}">
+                                    <td class="p-2">
+                                        <input type="checkbox" name="clientes_ar[]" value="{{ $cd->client_id }}" class="cxc-disp-check rounded border-gray-300">
+                                    </td>
+                                    <td class="p-2">{{ $cd->nombre }}</td>
+                                    <td class="p-2 text-right font-mono font-semibold text-amber-700">${{ number_format($cd->saldo, 2) }}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </form>
+        </div>
+        @endif
     </x-wire-card>
     @endif
 
@@ -977,6 +1090,62 @@
                 if (icon) icon.textContent = isHidden ? '▲' : '▼';
             });
         });
+
+        // ── Agregar pedidos (mientras el despacho sigue PLANEADO) ─────────
+        (function() {
+            var btnToggle = document.getElementById('btn-toggle-add-pedidos');
+            var panel     = document.getElementById('panel-add-pedidos');
+            if (btnToggle && panel) {
+                btnToggle.addEventListener('click', function() {
+                    panel.classList.toggle('hidden');
+                });
+            }
+
+            var buscar = document.getElementById('buscar-pedido-disponible');
+            if (buscar) {
+                buscar.addEventListener('input', function() {
+                    var term = this.value.toLowerCase().trim();
+                    document.querySelectorAll('.pedido-disp-row').forEach(function(row) {
+                        row.style.display = row.dataset.search.includes(term) ? '' : 'none';
+                    });
+                });
+            }
+
+            var countEl = document.getElementById('pedidos-disp-count');
+            document.querySelectorAll('.pedido-disp-check').forEach(function(chk) {
+                chk.addEventListener('change', function() {
+                    if (countEl) countEl.textContent = document.querySelectorAll('.pedido-disp-check:checked').length;
+                });
+            });
+        })();
+
+        // ── Agregar CxC (mientras el despacho sigue PLANEADO) ──────────────
+        (function() {
+            var btnToggle = document.getElementById('btn-toggle-add-cxc');
+            var panel     = document.getElementById('panel-add-cxc');
+            if (btnToggle && panel) {
+                btnToggle.addEventListener('click', function() {
+                    panel.classList.toggle('hidden');
+                });
+            }
+
+            var buscar = document.getElementById('buscar-cxc-disponible');
+            if (buscar) {
+                buscar.addEventListener('input', function() {
+                    var term = this.value.toLowerCase().trim();
+                    document.querySelectorAll('.cxc-disp-row').forEach(function(row) {
+                        row.style.display = row.dataset.search.includes(term) ? '' : 'none';
+                    });
+                });
+            }
+
+            var countEl = document.getElementById('cxc-disp-count');
+            document.querySelectorAll('.cxc-disp-check').forEach(function(chk) {
+                chk.addEventListener('change', function() {
+                    if (countEl) countEl.textContent = document.querySelectorAll('.cxc-disp-check:checked').length;
+                });
+            });
+        })();
 
         // ── Auto-sumar notas seleccionadas ────────────────────────────────
         document.querySelectorAll('.nota-chk').forEach(function(chk) {

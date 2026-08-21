@@ -153,9 +153,12 @@
                     <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">2</span>
                     <h3 class="font-semibold text-gray-800">Pedidos candidatos</h3>
                     <span class="text-sm font-normal text-gray-400">(PROCESADOS)</span>
+                    <input type="text" id="buscar-pedido"
+                           placeholder="Buscar por folio o cliente..."
+                           class="ml-auto w-64 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <button type="button"
                             id="btn-select-route"
-                            class="ml-auto inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
                             style="{{ $selR ? '' : 'display:none' }}">
                         ✓ Seleccionar todos de la ruta
                     </button>
@@ -180,7 +183,8 @@
                         <tbody>
                             @forelse($orders as $o)
                             <tr class="border-b hover:bg-gray-50 order-row"
-                                data-route="{{ $o->shipping_route_id ?? '' }}">
+                                data-route="{{ $o->shipping_route_id ?? '' }}"
+                                data-search="{{ strtolower($o->folio.' '.($o->client?->nombre ?? '')) }}">
                                 <td class="p-2">
                                     <input type="checkbox" name="orders[]"
                                            value="{{ $o->id }}"
@@ -245,6 +249,9 @@
                     <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">3</span>
                     <h3 class="font-semibold text-gray-800">Cuentas por cobrar pendientes</h3>
                     <span class="text-sm font-normal text-gray-400">(el chofer las cobra en ruta)</span>
+                    <input type="text" id="buscar-cxc"
+                           placeholder="Buscar cliente..."
+                           class="ml-auto w-64 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                 </div>
 
                 @if($clientesConSaldo->isEmpty())
@@ -252,7 +259,7 @@
                         No hay clientes con saldo pendiente.
                     </div>
                 @else
-                    <div class="space-y-2">
+                    <div class="space-y-2" id="cxc-list">
                         @foreach($clientesConSaldo as $cs)
                         @php
                             $notasPendientesCliente = \App\Models\SalesOrder::where('client_id', $cs->client_id)
@@ -264,7 +271,7 @@
                                 })
                                 ->get(['id','folio','fecha','total','saldo_pendiente']);
                         @endphp
-                        <div class="border rounded-lg overflow-hidden">
+                        <div class="border rounded-lg overflow-hidden cxc-row" data-search="{{ strtolower($cs->nombre) }}">
                             {{-- Fila cliente --}}
                             <div class="flex items-center gap-3 px-4 py-3 bg-gray-50">
                                 <input type="checkbox"
@@ -440,6 +447,27 @@
                 this.textContent = isHidden ? 'Ocultar ▲' : 'Ver notas ▼';
             });
         });
+
+        // ── Buscadores ────────────────────────────────────────────────────
+        var buscarPedido = document.getElementById('buscar-pedido');
+        if (buscarPedido) {
+            buscarPedido.addEventListener('input', function() {
+                var term = this.value.toLowerCase().trim();
+                document.querySelectorAll('.order-row').forEach(function(row) {
+                    row.style.display = row.dataset.search.includes(term) ? '' : 'none';
+                });
+            });
+        }
+
+        var buscarCxc = document.getElementById('buscar-cxc');
+        if (buscarCxc) {
+            buscarCxc.addEventListener('input', function() {
+                var term = this.value.toLowerCase().trim();
+                document.querySelectorAll('.cxc-row').forEach(function(row) {
+                    row.style.display = row.dataset.search.includes(term) ? '' : 'none';
+                });
+            });
+        }
 
         // Init
         updateCounters();
