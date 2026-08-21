@@ -99,12 +99,28 @@
         }
 
         // Liquidación PENDIENTE + cliente conocido → link directo a Cobrar CxC
-        // ya con el cliente preseleccionado, para pagarla desde ahí mismo.
+        // ya con el cliente preseleccionado. Se abre en ventana aparte y, al
+        // cerrarla (ya sea que se cobró o no), este reporte se recarga solo
+        // para reflejar el estatus actualizado — sin que el usuario tenga
+        // que refrescar a mano.
         function liqBadge(n, arPaymentUrl) {
             const badge = pedidoBadge(n.estatus, n.liq_class);
             if (n.estatus !== 'PENDIENTE' || !n.client_id || !arPaymentUrl) return badge;
-            return `<a href="${arPaymentUrl}?client_id=${n.client_id}" class="hover:opacity-75" title="Cobrar CxC de este cliente">${badge}</a>`;
+            const url = `${arPaymentUrl}?client_id=${n.client_id}`;
+            return `<a href="${url}" onclick="abrirCobroCxc(event, '${url}')" class="hover:opacity-75" title="Cobrar CxC de este cliente">${badge}</a>`;
         }
+
+        window.abrirCobroCxc = function (event, url) {
+            event.preventDefault();
+            const win = window.open(url, 'cobro-cxc', 'width=1100,height=800');
+            if (!win) { window.location.href = url; return; }
+            const timer = setInterval(function () {
+                if (win.closed) {
+                    clearInterval(timer);
+                    load();
+                }
+            }, 500);
+        };
 
         function renderConcentrado(data) {
             const body = $('lq-body');
