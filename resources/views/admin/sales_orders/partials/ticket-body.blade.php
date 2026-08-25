@@ -265,10 +265,6 @@
     <div class="observaciones">
         <div class="bold">OBSERVACIONES:</div>
         <div style="margin-top:2px;">
-            NOTA: Por Políticas de la empresa se manejan kilogramos de origen.
-        </div>
-        <div style="margin-top:3px;font-weight:bold;">Política de devoluciones y/o reclamaciones:</div>
-        <div>
             Es responsabilidad del Cliente revisar al momento de la entrega que el producto vaya conforme fue solicitado, después de que el chofer se retire no serán aceptadas devoluciones y/o reclamaciones.
         </div>
     </div>
