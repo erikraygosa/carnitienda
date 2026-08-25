@@ -159,7 +159,7 @@ body { font-size: 11px; color: #1a1a1a; background: #fff; padding: 28px 32px; }
     margin-top: 10px; padding: 6px 8px;
     background: #f9f9f9; border: 1px solid #e0e0e0;
     border-radius: 3px; font-size: 7.5px;
-    color: #999; word-break: break-all; line-height: 1.4;
+    color: #999; word-break: break-all; white-space: pre-wrap; line-height: 1.4;
 }
 </style>
 </head>
@@ -444,20 +444,24 @@ body { font-size: 11px; color: #1a1a1a; background: #fff; padding: 28px 32px; }
         // Fórmula fija del Anexo 20 del SAT: ||1.1|UUID|FechaTimbrado|SelloCFDI|NoCertificadoSAT||
         $cadenaComplemento = ($invoice->sello_cfdi && $invoice->numero_certificado_sat)
             ? "||1.1|{$invoice->uuid}|{$fechaTimbrado}|{$invoice->sello_cfdi}|{$invoice->numero_certificado_sat}||"
-            : null;
+            : ('||' . ($invoice->version_cfdi ?? '4.0') . '|' . $invoice->uuid . '|' . $fechaTimbrado . '|' . $emisor?->rfc . '|' . number_format((float)$invoice->total, 6, '.', '') . '||');
+
+        // dompdf no respeta word-break:break-all de forma confiable en bloques
+        // largos sin espacios (base64) — se corta manualmente para forzar el wrap.
+        $partir = fn (?string $s, int $ancho = 95) => $s ? wordwrap($s, $ancho, "\n", true) : $s;
     @endphp
 <div class="sello-box">
     <div style="margin-bottom:4px"><strong>Cadena original del complemento de certificación digital del SAT:</strong></div>
-    <div>{{ $cadenaComplemento ?? '||' . ($invoice->version_cfdi ?? '4.0') . '|' . $invoice->uuid . '|' . $fechaTimbrado . '|' . $emisor?->rfc . '|' . number_format((float)$invoice->total, 6, '.', '') . '||' }}</div>
+    <div>{{ $partir($cadenaComplemento) }}</div>
 
     @if($invoice->sello_cfdi ?? null)
     <div style="margin-top:6px"><strong>Sello digital del CFDI:</strong></div>
-    <div style="word-break:break-all">{{ $invoice->sello_cfdi }}</div>
+    <div>{{ $partir($invoice->sello_cfdi) }}</div>
     @endif
 
     @if($invoice->sello_sat ?? null)
     <div style="margin-top:6px"><strong>Sello del SAT:</strong></div>
-    <div style="word-break:break-all">{{ $invoice->sello_sat }}</div>
+    <div>{{ $partir($invoice->sello_sat) }}</div>
     @endif
 
     @if($invoice->rfc_provider_cert ?? null)
