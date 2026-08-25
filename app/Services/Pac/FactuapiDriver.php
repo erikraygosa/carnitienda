@@ -86,14 +86,30 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
 
             $data = $response->json();
 
+            // El XML timbrado no viene en la respuesta de creación — hay que
+            // pedirlo aparte al endpoint /invoices/{id}/xml (devuelve XML crudo,
+            // no JSON).
+            $xmlTimbrado = null;
+            if (! empty($data['id'])) {
+                $xmlResponse = $this->http()->get("/invoices/{$data['id']}/xml");
+                if ($xmlResponse->successful()) {
+                    $xmlTimbrado = $xmlResponse->body();
+                }
+            }
+
             return [
-                'ok'                    => true,
-                'uuid'                  => $data['uuid'] ?? null,
-                'xml_timbrado'          => $data['xml'] ?? null,
-                'numero_certificado_sat'=> $data['stamp']['sat_cert_number'] ?? null,
-                'sello_cfdi'            => $data['stamp']['cfdi_sign'] ?? null,
-                'sello_sat'             => $data['stamp']['sat_sign'] ?? null,
-                'factuapi_id'           => $data['id'] ?? null,
+                'ok'                     => true,
+                'uuid'                   => $data['uuid'] ?? null,
+                'xml_timbrado'           => $xmlTimbrado,
+                // Nombres reales del JSON de Facturapi (verificado contra su API):
+                // stamp.signature = sello digital del emisor, stamp.sat_signature = sello del SAT.
+                // Los nombres anteriores (cfdi_sign / sat_sign) no existen en su respuesta
+                // y por eso estos dos campos siempre se guardaban en NULL.
+                'numero_certificado_sat' => $data['stamp']['sat_cert_number'] ?? null,
+                'sello_cfdi'             => $data['stamp']['signature'] ?? null,
+                'sello_sat'              => $data['stamp']['sat_signature'] ?? null,
+                'rfc_provider_cert'      => $data['stamp']['rfc_provider_cert'] ?? null,
+                'factuapi_id'            => $data['id'] ?? null,
             ];
 
         } catch (\Throwable $e) {

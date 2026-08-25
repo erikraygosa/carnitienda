@@ -438,17 +438,39 @@ body { font-size: 11px; color: #1a1a1a; background: #fff; padding: 28px 32px; }
 </table>
 {{-- ══════════════ SELLOS ══════════════ --}}
 @if($invoice->uuid)
+    @php
+        $fechaTimbrado = optional($invoice->fecha)->format('Y-m-d\TH:i:s');
+        // Cadena original del complemento de certificación digital del SAT.
+        // Fórmula fija del Anexo 20 del SAT: ||1.1|UUID|FechaTimbrado|SelloCFDI|NoCertificadoSAT||
+        $cadenaComplemento = ($invoice->sello_cfdi && $invoice->numero_certificado_sat)
+            ? "||1.1|{$invoice->uuid}|{$fechaTimbrado}|{$invoice->sello_cfdi}|{$invoice->numero_certificado_sat}||"
+            : null;
+    @endphp
 <div class="sello-box">
-    <div style="margin-bottom:4px"><strong>Cadena original SAT:</strong></div>
-    <div>||{{ $invoice->version_cfdi ?? '4.0' }}|{{ $invoice->uuid }}|{{ optional($invoice->fecha)->format('Y-m-d\TH:i:s') }}|{{ $emisor?->rfc }}|{{ number_format((float)$invoice->total, 6, '.', '') }}||</div>
+    <div style="margin-bottom:4px"><strong>Cadena original del complemento de certificación digital del SAT:</strong></div>
+    <div>{{ $cadenaComplemento ?? '||' . ($invoice->version_cfdi ?? '4.0') . '|' . $invoice->uuid . '|' . $fechaTimbrado . '|' . $emisor?->rfc . '|' . number_format((float)$invoice->total, 6, '.', '') . '||' }}</div>
+
     @if($invoice->sello_cfdi ?? null)
-    <div style="margin-top:5px"><strong>Sello digital emisor:</strong></div>
-    <div>{{ substr($invoice->sello_cfdi, 0, 100) }}...</div>
+    <div style="margin-top:6px"><strong>Sello digital del CFDI:</strong></div>
+    <div style="word-break:break-all">{{ $invoice->sello_cfdi }}</div>
     @endif
+
     @if($invoice->sello_sat ?? null)
-    <div style="margin-top:5px"><strong>Sello SAT:</strong></div>
-    <div>{{ substr($invoice->sello_sat, 0, 100) }}...</div>
+    <div style="margin-top:6px"><strong>Sello del SAT:</strong></div>
+    <div style="word-break:break-all">{{ $invoice->sello_sat }}</div>
     @endif
+
+    @if($invoice->rfc_provider_cert ?? null)
+    <div style="margin-top:6px"><strong>Prov. Cert.</strong> {{ $invoice->rfc_provider_cert }}</div>
+    @endif
+
+    @if($invoice->numero_certificado_sat ?? null)
+    <div style="margin-top:6px"><strong>Serie del CSD del SAT:</strong></div>
+    <div>{{ $invoice->numero_certificado_sat }}</div>
+    @endif
+</div>
+<div style="text-align:center;font-size:8px;color:#2563eb;margin-top:8px">
+    Este documento es una representación impresa de un CFDI
 </div>
 @endif
 

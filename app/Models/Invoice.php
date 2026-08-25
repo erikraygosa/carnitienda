@@ -17,7 +17,7 @@ class Invoice extends Model
         'forma_pago','metodo_pago','uso_cfdi','condiciones_pago','cuenta',
         'moneda','subtotal','impuestos','total',
         'uuid','factuapi_id','estatus','version_cfdi','xml_timbrado',
-        'sello_cfdi','sello_sat','numero_certificado_sat',
+        'sello_cfdi','sello_sat','numero_certificado_sat','rfc_provider_cert',
         'created_by','owner_id',
     ];
 

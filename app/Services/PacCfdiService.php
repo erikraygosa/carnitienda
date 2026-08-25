@@ -101,6 +101,7 @@ class PacCfdiService
                 'numero_certificado_sat'  => $result['numero_certificado_sat'] ?? null,
                 'sello_cfdi'              => $result['sello_cfdi'] ?? null,
                 'sello_sat'               => $result['sello_sat'] ?? null,
+                'rfc_provider_cert'       => $result['rfc_provider_cert'] ?? null,
                 'estatus'                 => 'TIMBRADA',
             ]);
 
