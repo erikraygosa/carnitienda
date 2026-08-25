@@ -32,7 +32,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 .ticket {
     font-family: 'Courier New', monospace;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: bold;
     color: #000;
     background: #fff;
@@ -44,14 +44,14 @@
 .ticket .center { text-align: center; }
 .ticket .right  { text-align: right; }
 .ticket .bold   { font-weight: bold; }
-.ticket .sm     { font-size: 9px; }
+.ticket .sm     { font-size: 11px; }
 .ticket .dashed { border: 0; border-top: 1px dashed #000; margin: 3mm 0; }
 .ticket table { width: 100%; border-collapse: collapse; }
 .ticket td, .ticket th { vertical-align: top; }
-.ticket .items thead tr th { font-size: 9px; border-bottom: 1px solid #000; padding-bottom: 2px; }
-.ticket .items td { font-size: 10px; padding: 1px 0; }
-.ticket .totals td { font-size: 10px; padding: 1px 0; }
-.ticket .total-final td { font-size: 14px; font-weight: bold; border-top: 2px solid #000; padding-top: 3px; }
+.ticket .items thead tr th { font-size: 11px; border-bottom: 1px solid #000; padding-bottom: 2px; }
+.ticket .items td { font-size: 12px; padding: 1px 0; }
+.ticket .totals td { font-size: 12px; padding: 1px 0; }
+.ticket .total-final td { font-size: 16px; font-weight: bold; border-top: 2px solid #000; padding-top: 3px; }
 .ticket .logo { max-width: 55mm; max-height: 18mm; object-fit: contain; display: block; margin: 0 auto 4px; }
 @media print {
     .no-print { display: none !important; }
@@ -68,7 +68,7 @@
             <img src="{{ $logoSrc }}" alt="Logo" class="logo">
         @endif
         @if($company?->nombre_comercial || $company?->razon_social)
-            <div class="bold" style="font-size:13px;">
+            <div class="bold" style="font-size:15px;">
                 ** {{ strtoupper($company?->nombre_comercial ?? $company?->razon_social) }} **
             </div>
         @endif
