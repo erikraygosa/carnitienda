@@ -213,8 +213,11 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
                 return ['ok' => false, 'error' => 'No se pudo identificar el documento en Facturapi'];
             }
 
+            // Factuapi no tiene un endpoint dedicado "/status": el estatus y
+            // cancellation_status vienen dentro del objeto factura completo
+            // en GET /invoices/{id} (el sufijo "/status" regresa 404).
             $response = $this->http()
-                ->get("/invoices/{$facturapiId}/status");
+                ->get("/invoices/{$facturapiId}");
 
             if ($response->failed()) {
                 return ['ok' => false, 'error' => $response->json('message') ?? 'Error'];
