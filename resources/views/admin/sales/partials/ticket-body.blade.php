@@ -246,7 +246,7 @@
         </div>
         <div style="margin-top:3px;font-weight:bold;">Política de devoluciones y/o reclamaciones:</div>
         <div>
-            Es responsabilidad del Cliente revisar al momento de la entrega que el producto vaya conforme fue solicitado, etiquetado y pesado, esto sin manipularlo, únicamente mediante inspección visual, después de que el chofer se retire no serán aceptadas devoluciones y/o reclamaciones.
+            Es responsabilidad del Cliente revisar al momento de la entrega que el producto vaya conforme fue solicitado, después de que el chofer se retire no serán aceptadas devoluciones y/o reclamaciones.
         </div>
     </div>
 
