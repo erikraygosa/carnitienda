@@ -31,9 +31,9 @@
      que el ancho (72mm) quede como lado corto sí o sí, sea cual sea la
      orientación que la impresora/driver haya dejado seleccionada. --}}
 @media print {
-    @page { size: 72mm 2000mm portrait; margin: 0; }
+    @page { size: 72mm auto; margin: 0; }
 }
-@page { size: 72mm 2000mm portrait; margin: 0; }
+@page { size: 72mm auto; margin: 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 .ticket {
     font-family: 'Courier New', monospace;

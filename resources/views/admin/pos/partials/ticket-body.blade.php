@@ -26,9 +26,9 @@
      el ticket en varias hojas. Con altura fija y holgada, el ancho (72mm)
      queda como lado corto sin importar la orientación seleccionada. --}}
 @media print {
-    @page { size: 72mm 2000mm portrait; margin: 0; }
+    @page { size: 72mm auto; margin: 0; }
 }
-@page { size: 72mm 2000mm portrait; margin: 0; }
+@page { size: 72mm auto; margin: 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 .ticket {
     font-family: 'Courier New', monospace;
