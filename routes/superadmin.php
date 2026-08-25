@@ -9,6 +9,7 @@
     use App\Http\Controllers\SuperAdmin\SeriesController as SuperSeries;
     use App\Http\Controllers\SuperAdmin\SettingsController as SuperSettings;
     use App\Http\Controllers\SuperAdmin\ResetController as SuperReset;
+    use App\Http\Controllers\SuperAdmin\ProductCatalogController as SuperProducts;
 
     Route::get('/', [SuperDashboard::class, 'index'])->name('dashboard');
 
@@ -37,6 +38,13 @@
         Route::put('/{serie}',    [SuperSeries::class, 'update'])->name('update');
         Route::delete('/{serie}', [SuperSeries::class, 'destroy'])->name('destroy');
         Route::post('/{serie}/reset', [SuperSeries::class, 'reset'])->name('reset');
+    });
+
+    Route::prefix('productos')->name('products.')->group(function () {
+        Route::get('/',           [SuperProducts::class, 'index'])->name('index');
+        Route::get('/exportar',   [SuperProducts::class, 'export'])->name('export');
+        Route::get('/importar',   [SuperProducts::class, 'importForm'])->name('import.form');
+        Route::post('/importar',  [SuperProducts::class, 'import'])->name('import');
     });
 
     Route::get('/settings',  [SuperSettings::class, 'index'])->name('settings.index');
