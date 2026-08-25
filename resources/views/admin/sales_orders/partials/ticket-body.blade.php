@@ -22,12 +22,23 @@
 @endphp
 <style>
 {{-- Sin esto, el navegador/PDF imprime con el tamaño de hoja por default
-     (Carta/A4) y el ticket se parte en varias páginas al imprimir. --}}
-@page { size: 72mm auto; margin: 0; }
+     (Carta/A4) y el ticket se parte en varias páginas al imprimir.
+     "auto" de alto + orientación explícita "portrait": algunos drivers de
+     impresoras de ticket (sobre todo de cinta/matriz de punto) ignoran el
+     ancho de 72mm y abren el diálogo en Horizontal por default — ahí el
+     ticket completo ya no cabe en una sola "página" de 72mm de alto y se
+     reparte en 2-3 hojas. Fijar una altura holgada en vez de "auto" fuerza
+     que el ancho (72mm) quede como lado corto sí o sí, sea cual sea la
+     orientación que la impresora/driver haya dejado seleccionada. --}}
+@media print {
+    @page { size: 72mm 2000mm portrait; margin: 0; }
+}
+@page { size: 72mm 2000mm portrait; margin: 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 .ticket {
     font-family: 'Courier New', monospace;
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: bold;
     color: #000;
     background: #fff;
     width: 72mm;
