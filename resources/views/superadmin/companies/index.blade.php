@@ -64,6 +64,10 @@
                                 class="text-xs px-2 py-1 rounded border border-indigo-800 text-indigo-400 hover:bg-indigo-900/30">
                             + Timbres
                         </button>
+                        <a href="{{ route('superadmin.companies.consumo', $company) }}"
+                           class="text-xs px-2 py-1 rounded border border-gray-700 text-gray-400 hover:bg-gray-800">
+                            <i class="fa-solid fa-chart-column"></i> Consumo
+                        </a>
                     </div>
 
                     {{-- Modal --}}

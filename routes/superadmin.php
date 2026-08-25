@@ -28,6 +28,7 @@
         Route::get('/',                       [SuperCompany::class, 'index'])->name('index');
         Route::post('/{company}/toggle',      [SuperCompany::class, 'toggle'])->name('toggle');
         Route::post('/{company}/timbres',     [SuperCompany::class, 'addTimbres'])->name('timbres');
+        Route::get('/{company}/consumo',      [SuperCompany::class, 'consumo'])->name('consumo');
     });
 
     Route::prefix('series')->name('series.')->group(function () {

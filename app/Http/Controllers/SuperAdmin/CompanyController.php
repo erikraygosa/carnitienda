@@ -4,6 +4,7 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Models\Invoice;
 use App\Models\StampCounter;
 use Illuminate\Http\Request;
 
@@ -56,5 +57,47 @@ class CompanyController extends Controller
         ]);
 
         return back()->with('success', "{$data['cantidad']} timbres agregados a {$company->nombre_display}.");
+    }
+
+    public function consumo(Request $request, Company $company)
+    {
+        $desde = $request->input('desde', now()->subDays(29)->format('Y-m-d'));
+        $hasta = $request->input('hasta', now()->format('Y-m-d'));
+
+        // Agrupar por día si el rango es corto, por mes si es largo (evita cientos de barras)
+        $dias      = \Carbon\Carbon::parse($desde)->diffInDays(\Carbon\Carbon::parse($hasta)) + 1;
+        $porMes    = $dias > 92;
+        $formatoSql = $porMes ? '%Y-%m' : '%Y-%m-%d';
+
+        $filas = Invoice::where('company_id', $company->id)
+            ->whereIn('estatus', ['TIMBRADA', 'CANCELADA'])
+            ->whereBetween('fecha', [$desde, $hasta . ' 23:59:59'])
+            ->selectRaw("DATE_FORMAT(fecha, '{$formatoSql}') as periodo, estatus, COUNT(*) as total")
+            ->groupBy('periodo', 'estatus')
+            ->orderBy('periodo')
+            ->get();
+
+        $periodos = $filas->pluck('periodo')->unique()->sort()->values();
+
+        $timbradas  = $periodos->map(fn ($p) => (int) $filas->firstWhere(fn ($f) => $f->periodo === $p && $f->estatus === 'TIMBRADA')?->total ?? 0);
+        $canceladas = $periodos->map(fn ($p) => (int) $filas->firstWhere(fn ($f) => $f->periodo === $p && $f->estatus === 'CANCELADA')?->total ?? 0);
+
+        $totalTimbradas  = $timbradas->sum();
+        $totalCanceladas = $canceladas->sum();
+
+        $counter = StampCounter::activoParaEmpresa($company->id);
+
+        return view('superadmin.companies.consumo', [
+            'company'         => $company,
+            'desde'           => $desde,
+            'hasta'           => $hasta,
+            'porMes'          => $porMes,
+            'periodos'        => $periodos,
+            'timbradas'       => $timbradas,
+            'canceladas'      => $canceladas,
+            'totalTimbradas'  => $totalTimbradas,
+            'totalCanceladas' => $totalCanceladas,
+            'counter'         => $counter,
+        ]);
     }
 }
