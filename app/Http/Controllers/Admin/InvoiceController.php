@@ -64,7 +64,7 @@ class InvoiceController extends Controller implements HasMiddleware
             new Middleware('can:ver facturas', only: ['index', 'edit', 'pdf', 'pdfDownload', 'sendForm', 'send']),
             new Middleware('can:crear facturas', only: ['create', 'store', 'update', 'fromSalesOrder', 'fromSale']),
             new Middleware('can:timbrar facturas', only: ['stamp']),
-            new Middleware('can:cancelar facturas', only: ['cancel']),
+            new Middleware('can:cancelar facturas', only: ['cancel', 'refreshCancellation']),
             new Middleware('can:ver facturas', only: ['download']),
         ];
     }
@@ -399,9 +399,46 @@ public function store(Request $request)
             return back()->with('swal',['icon'=>'error','title'=>'Error PAC','text'=>$resp['error'] ?? 'Fallo al cancelar.']);
         }
 
-        $invoice->update(['estatus'=>'CANCELADA']);
+        // $pac->cancel() ya actualizó $invoice->estatus (CANCELADA o
+        // CANCELACION_PENDIENTE, según lo que haya confirmado el PAC).
+        $invoice->refresh();
+
+        if ($invoice->isCancellationPending()) {
+            $this->log->log($invoice, 'CAMBIO_ESTADO', 'TIMBRADA', 'CANCELACION_PENDIENTE', null, 'Motivo: ' . $data['motivo']);
+            return back()->with('swal', [
+                'icon'  => 'info',
+                'title' => 'Cancelación pendiente',
+                'text'  => 'El SAT requiere que el receptor acepte la cancelación (hasta 72h). La factura sigue vigente mientras tanto; usa "Verificar estatus" para actualizarla.',
+            ]);
+        }
+
         $this->log->log($invoice, 'CAMBIO_ESTADO', 'TIMBRADA', 'CANCELADA', null, 'Motivo: ' . $data['motivo']);
         return back()->with('swal',['icon'=>'success','title'=>'Cancelada','text'=>'Factura cancelada en SAT.']);
+    }
+
+    // Consulta al PAC el estatus real de una factura en CANCELACION_PENDIENTE
+    // y actualiza el estatus local si ya se resolvió (aceptada/rechazada).
+    public function refreshCancellation(Invoice $invoice, PacCfdiService $pac)
+    {
+        if (!$invoice->isCancellationPending()) {
+            return back()->with('swal',['icon'=>'info','title'=>'Sin cambios','text'=>'Esta factura no tiene una cancelación pendiente.']);
+        }
+
+        $estatusAnterior = $invoice->estatus;
+        $resp = $pac->refreshCancellationStatus($invoice);
+
+        if (!($resp['ok'] ?? false)) {
+            return back()->with('swal',['icon'=>'error','title'=>'Error PAC','text'=>$resp['error'] ?? 'No se pudo consultar el estatus.']);
+        }
+
+        $invoice->refresh();
+
+        if ($invoice->estatus === $estatusAnterior) {
+            return back()->with('swal',['icon'=>'info','title'=>'Sigue pendiente','text'=>'El SAT aún no resuelve la cancelación.']);
+        }
+
+        $this->log->log($invoice, 'CAMBIO_ESTADO', $estatusAnterior, $invoice->estatus, null, 'Verificación de estatus PAC');
+        return back()->with('swal',['icon'=>'success','title'=>'Actualizada','text'=>"Estatus actualizado a {$invoice->estatus}."]);
     }
 
     // PDF y envío (opcional: usa tu layout PDF)

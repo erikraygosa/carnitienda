@@ -63,4 +63,5 @@ class Invoice extends Model
     public function isDraft()     { return $this->estatus === 'BORRADOR'; }
     public function isStamped()   { return $this->estatus === 'TIMBRADA'; }
     public function isCanceled()  { return $this->estatus === 'CANCELADA'; }
+    public function isCancellationPending() { return $this->estatus === 'CANCELACION_PENDIENTE'; }
 }

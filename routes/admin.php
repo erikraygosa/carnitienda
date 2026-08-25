@@ -185,6 +185,7 @@ Route::resource('invoices', InvoiceController::class)->except(['destroy'])->name
 // Acciones CFDI
 Route::post('invoices/{invoice}/stamp',   [InvoiceController::class, 'stamp'])->name('invoices.stamp');
 Route::post('invoices/{invoice}/cancel',  [InvoiceController::class, 'cancel'])->name('invoices.cancel');
+Route::post('invoices/{invoice}/refresh-cancellation', [InvoiceController::class, 'refreshCancellation'])->name('invoices.refresh-cancellation');
 Route::get ('invoices/{invoice}/pdf',     [InvoiceController::class, 'pdf'])->name('invoices.pdf');
 Route::get ('invoices/{invoice}/download',[InvoiceController::class, 'download'])->name('invoices.download');
 

@@ -22,6 +22,7 @@
                 <option value="">Todos los estatus</option>
                 <option value="BORRADOR">Borrador</option>
                 <option value="TIMBRADA">Timbrada</option>
+                <option value="CANCELACION_PENDIENTE">Cancelación pendiente</option>
                 <option value="CANCELADA">Cancelada</option>
             </select>
         </div>
@@ -82,9 +83,10 @@
                         'N' => 'bg-violet-100 text-violet-700',
                     ];
                     $statusClasses = [
-                        'BORRADOR'  => 'bg-gray-100 text-gray-700',
-                        'TIMBRADA'  => 'bg-emerald-100 text-emerald-700',
-                        'CANCELADA' => 'bg-rose-100 text-rose-700',
+                        'BORRADOR'              => 'bg-gray-100 text-gray-700',
+                        'TIMBRADA'              => 'bg-emerald-100 text-emerald-700',
+                        'CANCELACION_PENDIENTE' => 'bg-yellow-100 text-yellow-700',
+                        'CANCELADA'             => 'bg-rose-100 text-rose-700',
                     ];
                 @endphp
                 @forelse($invoices as $invoice)
