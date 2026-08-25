@@ -18,11 +18,20 @@
     }
 @endphp
 <style>
-@page { size: 72mm auto; margin: 0; }
+{{-- "auto" de alto + orientación explícita "portrait": algunos drivers de
+     impresoras de ticket (sobre todo de cinta/matriz de punto) ignoran el
+     ancho de 72mm y abren el diálogo en Horizontal por default, partiendo
+     el ticket en varias hojas. Con altura fija y holgada, el ancho (72mm)
+     queda como lado corto sin importar la orientación seleccionada. --}}
+@media print {
+    @page { size: 72mm 2000mm portrait; margin: 0; }
+}
+@page { size: 72mm 2000mm portrait; margin: 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 .ticket {
     font-family: 'Courier New', monospace;
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: bold;
     color: #000;
     background: #fff;
     width: 72mm;
