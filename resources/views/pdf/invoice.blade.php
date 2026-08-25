@@ -156,11 +156,13 @@ body { font-size: 11px; color: #1a1a1a; background: #fff; padding: 28px 32px; }
     padding-top: 8px; font-size: 9px; color: #aaa;
 }
 .sello-box {
-    margin-top: 10px; padding: 6px 8px;
+    margin-top: 8px; padding: 5px 8px;
     background: #f9f9f9; border: 1px solid #e0e0e0;
-    border-radius: 3px; font-size: 7.5px;
-    color: #999; word-break: break-all; white-space: pre-wrap; line-height: 1.4;
+    border-radius: 3px; font-size: 6.8px;
+    color: #999; word-break: break-all; line-height: 1.25;
 }
+.sello-box strong { display: block; color: #777; font-size: 6.8px; margin-top: 3px; }
+.sello-box strong:first-child { margin-top: 0; }
 </style>
 </head>
 <body>
@@ -447,33 +449,27 @@ body { font-size: 11px; color: #1a1a1a; background: #fff; padding: 28px 32px; }
             : ('||' . ($invoice->version_cfdi ?? '4.0') . '|' . $invoice->uuid . '|' . $fechaTimbrado . '|' . $emisor?->rfc . '|' . number_format((float)$invoice->total, 6, '.', '') . '||');
 
         // dompdf no respeta word-break:break-all de forma confiable en bloques
-        // largos sin espacios (base64) — se corta manualmente para forzar el wrap.
-        $partir = fn (?string $s, int $ancho = 95) => $s ? wordwrap($s, $ancho, "\n", true) : $s;
+        // largos sin espacios (base64) — se corta manualmente para forzar el wrap,
+        // y se convierte a <br> real (nl2br) en vez de depender de white-space:pre,
+        // que también capturaba los saltos de línea del propio código Blade.
+        $partir = fn (?string $s, int $ancho = 130) => $s ? nl2br(e(wordwrap($s, $ancho, "\n", true))) : '';
     @endphp
 <div class="sello-box">
-    <div style="margin-bottom:4px"><strong>Cadena original del complemento de certificación digital del SAT:</strong></div>
-    <div>{{ $partir($cadenaComplemento) }}</div>
-
     @if($invoice->sello_cfdi ?? null)
-    <div style="margin-top:6px"><strong>Sello digital del CFDI:</strong></div>
-    <div>{{ $partir($invoice->sello_cfdi) }}</div>
+    <strong>Sello digital del CFDI:</strong>{!! $partir($invoice->sello_cfdi) !!}
     @endif
-
     @if($invoice->sello_sat ?? null)
-    <div style="margin-top:6px"><strong>Sello del SAT:</strong></div>
-    <div>{{ $partir($invoice->sello_sat) }}</div>
+    <strong>Sello del SAT:</strong>{!! $partir($invoice->sello_sat) !!}
     @endif
-
-    @if($invoice->rfc_provider_cert ?? null)
-    <div style="margin-top:6px"><strong>Prov. Cert.</strong> {{ $invoice->rfc_provider_cert }}</div>
-    @endif
-
+    <strong>Cadena original del complemento de certificación digital del SAT:</strong>{!! $partir($cadenaComplemento) !!}
     @if($invoice->numero_certificado_sat ?? null)
-    <div style="margin-top:6px"><strong>Serie del CSD del SAT:</strong></div>
-    <div>{{ $invoice->numero_certificado_sat }}</div>
+    <strong>Serie del CSD del SAT:</strong>{{ $invoice->numero_certificado_sat }}
+    @endif
+    @if($invoice->rfc_provider_cert ?? null)
+    <strong>Prov. Cert.</strong>{{ $invoice->rfc_provider_cert }}
     @endif
 </div>
-<div style="text-align:center;font-size:8px;color:#2563eb;margin-top:8px">
+<div style="text-align:center;font-size:8px;color:#2563eb;margin-top:6px">
     Este documento es una representación impresa de un CFDI
 </div>
 @endif
