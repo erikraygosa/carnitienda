@@ -119,12 +119,17 @@
                                            class="perm-chk rounded border-gray-300 text-indigo-600"
                                            {{ $selectedRole->permissions->contains('name', $perm->name) ? 'checked' : '' }}>
                                     <span class="text-gray-700">{{ $perm->name }}</span>
-                                    <form action="{{ route('admin.roles.permissions.destroy', $perm) }}" method="POST"
-                                          class="ml-auto"
-                                          onsubmit="return confirm('¿Eliminar permiso?')">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="text-xs text-red-400 hover:text-red-600">✕</button>
-                                    </form>
+                                    {{-- No se puede anidar un <form> aquí dentro (ya estamos dentro
+                                         del <form> grande de "Guardar permisos") — el HTML no permite
+                                         forms anidados y el navegador cierra el form grande de golpe
+                                         en el primer permiso, dejando fuera todo lo que sigue
+                                         (incluido el botón de Guardar). Este botón usa form= para
+                                         enviarse al form compartido que está fuera, más abajo. --}}
+                                    <button type="submit"
+                                            form="perm-delete-form"
+                                            formaction="{{ route('admin.roles.permissions.destroy', $perm) }}"
+                                            onclick="return confirm('¿Eliminar permiso?')"
+                                            class="ml-auto text-xs text-red-400 hover:text-red-600">✕</button>
                                 </label>
                                 @endforeach
                             </div>
@@ -137,6 +142,13 @@
                                 Guardar permisos
                             </button>
                         </div>
+                    </form>
+                    {{-- Form compartido y vacío: los botones "✕" de arriba le apuntan
+                         via form="perm-delete-form" + formaction, ya que no pueden traer
+                         su propio <form> anidado dentro del form grande de permisos. --}}
+                    <form id="perm-delete-form" method="POST" style="display:none">
+                        @csrf @method('DELETE')
+                        <input type="hidden" name="role" value="{{ $selectedRole->id }}">
                     </form>
                 @else
                     <div class="py-12 text-center text-gray-400 text-sm">

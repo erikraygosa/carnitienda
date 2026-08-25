@@ -143,7 +143,7 @@ class RoleController extends Controller implements HasMiddleware
         $role->syncPermissions($data['permissions'] ?? []);
 
         session()->flash('swal', ['icon' => 'success', 'title' => 'Permisos actualizados']);
-        return redirect()->route('admin.roles.index');
+        return redirect()->route('admin.roles.index', ['role' => $role->id]);
     }
 
     public function destroy(Role $role)
@@ -170,10 +170,10 @@ class RoleController extends Controller implements HasMiddleware
         return redirect()->route('admin.roles.index');
     }
 
-    public function destroyPermission(Permission $permission)
+    public function destroyPermission(Request $request, Permission $permission)
     {
         $permission->delete();
         session()->flash('swal', ['icon' => 'success', 'title' => 'Permiso eliminado']);
-        return redirect()->route('admin.roles.index');
+        return redirect()->route('admin.roles.index', $request->filled('role') ? ['role' => $request->input('role')] : []);
     }
 }
