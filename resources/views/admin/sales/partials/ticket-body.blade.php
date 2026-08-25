@@ -30,7 +30,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 .ticket {
     font-family: 'Courier New', monospace;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: bold;
     color: #000;
     background: #fff;
@@ -42,23 +42,23 @@
 .ticket .center  { text-align: center; }
 .ticket .right   { text-align: right; }
 .ticket .bold    { font-weight: bold; }
-.ticket .sm      { font-size: 11px; }
+.ticket .sm      { font-size: 16px; }
 .ticket .dashed  { border: 0; border-top: 1px dashed #000; margin: 3mm 0; }
 
 .ticket table { width: 100%; border-collapse: collapse; }
 .ticket td, .ticket th { vertical-align: top; }
-.ticket .items thead tr th { font-size: 11px; border-bottom: 1px solid #000; padding-bottom: 2px; }
-.ticket .items td { font-size: 12px; padding: 1px 0; }
-.ticket .totals td { font-size: 12px; padding: 1px 0; }
+.ticket .items thead tr th { font-size: 16px; border-bottom: 1px solid #000; padding-bottom: 2px; }
+.ticket .items td { font-size: 16px; padding: 1px 0; }
+.ticket .totals td { font-size: 16px; padding: 1px 0; }
 .ticket .total-final td { font-size: 16px; font-weight: bold; border-top: 2px solid #000; padding-top: 3px; }
 
 .ticket .observaciones {
-    font-size: 11px;
+    font-size: 16px;
     line-height: 1.4;
     margin: 3mm 0;
 }
 .ticket .pagare {
-    font-size: 10px;
+    font-size: 16px;
     line-height: 1.45;
     text-align: justify;
     margin: 2mm 0;
@@ -67,7 +67,7 @@
     border-top: 1px solid #000;
     margin-top: 10mm;
     padding-top: 2px;
-    font-size: 11px;
+    font-size: 16px;
     text-align: center;
     width: 55mm;
     margin-left: auto;
