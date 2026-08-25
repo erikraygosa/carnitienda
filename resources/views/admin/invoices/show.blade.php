@@ -18,7 +18,11 @@
                 <x-wire-button href="{{ route('invoices.pdf',$invoice) }}" gray outline target="_blank">PDF</x-wire-button>
                 <x-wire-button href="{{ route('invoices.download',$invoice) }}" gray>Descargar</x-wire-button>
                 <x-wire-button href="{{ route('invoices.send.form',$invoice) }}" violet>Enviar</x-wire-button>
-                @if($invoice->estatus !== 'CANCELADA')
+                @if($invoice->estatus === 'CANCELACION_PENDIENTE')
+                    <form action="{{ route('invoices.refresh-cancellation',$invoice) }}" method="POST">@csrf
+                        <x-wire-button type="submit" amber>Verificar estatus</x-wire-button>
+                    </form>
+                @elseif($invoice->estatus !== 'CANCELADA')
                     <form action="{{ route('invoices.cancel',$invoice) }}" method="POST" onsubmit="return confirm('¿Cancelar CFDI?')">@csrf
                         <x-wire-button type="submit" red>Cancelar</x-wire-button>
                     </form>
@@ -29,10 +33,11 @@
 
     @php
         $statusClasses = [
-            'BORRADOR'  =>'bg-amber-100 text-amber-700',
-            'TIMBRADA'  =>'bg-emerald-100 text-emerald-700',
-            'ENVIADA'   =>'bg-blue-100 text-blue-700',
-            'CANCELADA' =>'bg-rose-100 text-rose-700',
+            'BORRADOR'              =>'bg-amber-100 text-amber-700',
+            'TIMBRADA'              =>'bg-emerald-100 text-emerald-700',
+            'ENVIADA'               =>'bg-blue-100 text-blue-700',
+            'CANCELACION_PENDIENTE' =>'bg-yellow-100 text-yellow-700',
+            'CANCELADA'             =>'bg-rose-100 text-rose-700',
         ];
         $statusClass = $statusClasses[$invoice->estatus] ?? 'bg-slate-100 text-slate-700';
     @endphp

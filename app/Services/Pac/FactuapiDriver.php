@@ -152,7 +152,20 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
                 return ['ok' => false, 'error' => $error];
             }
 
-            return ['ok' => true];
+            $data = $response->json();
+
+            // Facturapi no siempre cancela de inmediato: cuando el motivo/monto
+            // lo exige ante el SAT, el receptor debe aceptar o rechazar la
+            // cancelación (hasta 72h). En ese caso el HTTP responde 200 pero
+            // el CFDI sigue "valid" con cancellation_status "pending" — NO es
+            // una cancelación definitiva y no debe tratarse como tal.
+            // status: 'valid' | 'canceled'
+            // cancellation_status: 'none' | 'pending' | 'accepted' | 'rejected' | 'expired'
+            return [
+                'ok'                  => true,
+                'status'              => $data['status'] ?? 'canceled',
+                'cancellation_status' => $data['cancellation_status'] ?? 'accepted',
+            ];
 
         } catch (\Throwable $e) {
             return ['ok' => false, 'error' => 'Error de conexión: ' . $e->getMessage()];
@@ -207,7 +220,14 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
                 return ['ok' => false, 'error' => $response->json('message') ?? 'Error'];
             }
 
-            return ['ok' => true, 'data' => $response->json()];
+            $data = $response->json();
+
+            return [
+                'ok'                  => true,
+                'status'              => $data['status'] ?? null,
+                'cancellation_status' => $data['cancellation_status'] ?? null,
+                'data'                => $data,
+            ];
 
         } catch (\Throwable $e) {
             return ['ok' => false, 'error' => $e->getMessage()];

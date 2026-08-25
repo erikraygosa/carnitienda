@@ -426,7 +426,8 @@
             <span class="ml-auto px-2 py-1 text-xs rounded-full font-medium
                 {{ $invoice->estatus === 'TIMBRADA'  ? 'bg-emerald-100 text-emerald-700' :
                    ($invoice->estatus === 'CANCELADA' ? 'bg-rose-100 text-rose-700' :
-                   'bg-slate-100 text-slate-700') }}">
+                   ($invoice->estatus === 'CANCELACION_PENDIENTE' ? 'bg-yellow-100 text-yellow-700' :
+                   'bg-slate-100 text-slate-700')) }}">
                 {{ $invoice->estatus }}
             </span>
 

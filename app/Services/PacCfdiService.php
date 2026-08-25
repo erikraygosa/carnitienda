@@ -121,15 +121,27 @@ class PacCfdiService
         $result = $driver->cancel($invoice, $motivo, $folioSustitucion);
 
         if ($result['ok'] ?? false) {
-            $invoice->update(['estatus' => 'CANCELADA']);
+            // El PAC puede responder ok=true sin que el CFDI quede cancelado
+            // de inmediato: cuando el SAT exige aceptación del receptor, el
+            // status regresa 'valid' con cancellation_status 'pending' y el
+            // CFDI sigue vigente hasta que el receptor responda (o expire el
+            // plazo). Solo se marca CANCELADA cuando el PAC confirma
+            // status === 'canceled'; en cualquier otro caso queda en espera.
+            $status = $result['status'] ?? 'canceled';
 
-            // Registrar cancelación en contador
-            $company = $invoice->company
-                ?? app(CompanyService::class)->activa();
+            if ($status === 'canceled') {
+                $invoice->update(['estatus' => 'CANCELADA']);
 
-            if ($company) {
-                $counter = StampCounter::activoParaEmpresa($company->id);
-                $counter?->registrarCancelacion();
+                // Registrar cancelación en contador
+                $company = $invoice->company
+                    ?? app(CompanyService::class)->activa();
+
+                if ($company) {
+                    $counter = StampCounter::activoParaEmpresa($company->id);
+                    $counter?->registrarCancelacion();
+                }
+            } else {
+                $invoice->update(['estatus' => 'CANCELACION_PENDIENTE']);
             }
         }
 
@@ -142,6 +154,43 @@ class PacCfdiService
     public function status(Invoice $invoice): array
     {
         return $this->driver()->status($invoice);
+    }
+
+    // ------------------------------------------------------------------
+    // Refrescar el estatus local de una factura en CANCELACION_PENDIENTE
+    // consultando al PAC si el receptor ya aceptó/rechazó o si expiró el plazo.
+    // ------------------------------------------------------------------
+    public function refreshCancellationStatus(Invoice $invoice): array
+    {
+        $result = $this->status($invoice);
+
+        if (! ($result['ok'] ?? false)) {
+            return $result;
+        }
+
+        $status = $result['status'] ?? null;
+
+        if ($status === 'canceled') {
+            $invoice->update(['estatus' => 'CANCELADA']);
+
+            $company = $invoice->company
+                ?? app(CompanyService::class)->activa();
+
+            if ($company) {
+                $counter = StampCounter::activoParaEmpresa($company->id);
+                $counter?->registrarCancelacion();
+            }
+        } elseif ($status === 'valid') {
+            // El receptor rechazó la cancelación (o el intento nunca llegó
+            // a "pending") y el CFDI sigue vigente en el SAT.
+            $cancellationStatus = $result['cancellation_status'] ?? null;
+            if (in_array($cancellationStatus, ['rejected', 'none'], true)) {
+                $invoice->update(['estatus' => 'TIMBRADA']);
+            }
+            // Si sigue 'pending', se deja el estatus local como está.
+        }
+
+        return $result;
     }
 
     // ------------------------------------------------------------------
