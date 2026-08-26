@@ -134,10 +134,12 @@
                 <th class="px-5 py-3 text-left text-xs text-gray-500 uppercase tracking-wide">Fecha</th>
                 <th class="px-5 py-3 text-right text-xs text-gray-500 uppercase tracking-wide">Total</th>
                 <th class="px-5 py-3 text-right text-xs text-gray-500 uppercase tracking-wide">Saldo</th>
+                <th class="px-5 py-3 text-right text-xs text-gray-500 uppercase tracking-wide">Acciones</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-gray-800">
             @forelse($migradas as $orden)
+            @php $sinAbonos = abs((float)$orden->total - (float)$orden->saldo_pendiente) < 0.005; @endphp
             <tr>
                 <td class="px-5 py-3 text-white">{{ $orden->client?->nombre ?? '—' }}</td>
                 <td class="px-5 py-3 font-mono text-gray-400 text-xs">{{ $orden->folio }}</td>
@@ -146,9 +148,28 @@
                 <td class="px-5 py-3 text-right {{ (float)$orden->saldo_pendiente > 0 ? 'text-amber-400' : 'text-emerald-400' }}">
                     ${{ number_format($orden->saldo_pendiente, 2) }}
                 </td>
+                <td class="px-5 py-3 text-right">
+                    @if($sinAbonos)
+                        <div class="flex items-center justify-end gap-2">
+                            <a href="{{ route('superadmin.ar-migration.edit', $orden) }}"
+                               class="text-xs px-2 py-1 rounded border border-indigo-800 text-indigo-400 hover:bg-indigo-900/30">
+                                Editar
+                            </a>
+                            <form action="{{ route('superadmin.ar-migration.destroy', $orden) }}" method="POST"
+                                  onsubmit="return confirm('¿Eliminar esta CxC migrada? Esta acción no se puede deshacer.')">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="text-xs px-2 py-1 rounded border border-red-800 text-red-400 hover:bg-red-900/30">
+                                    Eliminar
+                                </button>
+                            </form>
+                        </div>
+                    @else
+                        <span class="text-xs text-gray-600" title="Ya tiene abonos aplicados">Con abonos</span>
+                    @endif
+                </td>
             </tr>
             @empty
-            <tr><td colspan="5" class="px-5 py-8 text-center text-gray-500 text-sm">Aún no hay CxC migradas.</td></tr>
+            <tr><td colspan="6" class="px-5 py-8 text-center text-gray-500 text-sm">Aún no hay CxC migradas.</td></tr>
             @endforelse
         </tbody>
     </table>

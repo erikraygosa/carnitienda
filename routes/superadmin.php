@@ -49,10 +49,13 @@
     });
 
     Route::prefix('cxc-migradas')->name('ar-migration.')->group(function () {
-        Route::get('/',           [SuperArMigration::class, 'index'])->name('index');
-        Route::post('/',          [SuperArMigration::class, 'store'])->name('store');
-        Route::get('/plantilla',  [SuperArMigration::class, 'plantilla'])->name('plantilla');
-        Route::post('/importar',  [SuperArMigration::class, 'importar'])->name('importar');
+        Route::get('/',              [SuperArMigration::class, 'index'])->name('index');
+        Route::post('/',             [SuperArMigration::class, 'store'])->name('store');
+        Route::get('/plantilla',     [SuperArMigration::class, 'plantilla'])->name('plantilla');
+        Route::post('/importar',     [SuperArMigration::class, 'importar'])->name('importar');
+        Route::get('/{order}/editar', [SuperArMigration::class, 'edit'])->name('edit');
+        Route::put('/{order}',        [SuperArMigration::class, 'update'])->name('update');
+        Route::delete('/{order}',     [SuperArMigration::class, 'destroy'])->name('destroy');
     });
 
     Route::get('/settings',  [SuperSettings::class, 'index'])->name('settings.index');

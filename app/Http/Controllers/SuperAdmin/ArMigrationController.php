@@ -132,6 +132,107 @@ class ArMigrationController extends Controller
         });
     }
 
+    /**
+     * Solo dejamos editar/borrar mientras nadie le ha aplicado un cobro
+     * todavía (saldo_pendiente == total, tal como se creó). Si ya se le
+     * cobró algo en ruta, tocarla aquí desde SuperAdmin dejaría descuadrado
+     * el ar_movements / dispatch_ar_assignments de esa cobranza real — a
+     * partir de ahí ya se maneja como cualquier otra CxC, desde Cobranza.
+     */
+    private function puedeEditarse(SalesOrder $order): bool
+    {
+        return str_starts_with($order->folio, self::FOLIO_PREFIX)
+            && abs((float) $order->total - (float) $order->saldo_pendiente) < 0.005;
+    }
+
+    public function edit(SalesOrder $order)
+    {
+        abort_unless(str_starts_with($order->folio, self::FOLIO_PREFIX), 404);
+
+        if (! $this->puedeEditarse($order)) {
+            session()->flash('swal', ['icon' => 'error', 'title' => 'No se puede editar', 'text' => 'Esta CxC ya tiene abonos aplicados — edítala desde Cobranza General.']);
+            return redirect()->route('superadmin.ar-migration.index');
+        }
+
+        $clientes = Client::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
+
+        return view('superadmin.ar-migration.edit', compact('order', 'clientes'));
+    }
+
+    public function update(Request $request, SalesOrder $order)
+    {
+        abort_unless(str_starts_with($order->folio, self::FOLIO_PREFIX), 404);
+
+        if (! $this->puedeEditarse($order)) {
+            session()->flash('swal', ['icon' => 'error', 'title' => 'No se puede editar', 'text' => 'Esta CxC ya tiene abonos aplicados.']);
+            return redirect()->route('superadmin.ar-migration.index');
+        }
+
+        $data = $request->validate([
+            'client_id'        => 'required|exists:clients,id',
+            'referencia'       => 'nullable|string|max:60',
+            'fecha'            => 'required|date',
+            'total'            => 'required|numeric|min:0.01',
+            'saldo_pendiente'  => 'required|numeric|min:0|lte:total',
+            'comentario'       => 'nullable|string|max:255',
+        ]);
+
+        DB::transaction(function () use ($data, $order) {
+            $partesComentario = ['Migrado desde sistema anterior'];
+            if (! empty($data['referencia'])) $partesComentario[] = 'Folio/ref. anterior: ' . $data['referencia'];
+            if (! empty($data['comentario'])) $partesComentario[] = $data['comentario'];
+            $comentario = implode(' — ', $partesComentario);
+
+            $order->update([
+                'client_id'       => $data['client_id'],
+                'fecha'           => $data['fecha'],
+                'entregado_at'    => $data['fecha'],
+                'subtotal'        => $data['total'],
+                'total'           => $data['total'],
+                'saldo_pendiente' => $data['saldo_pendiente'],
+                'comentarios'     => $comentario,
+            ]);
+
+            // El ar_movement viejo ya no aplica (cambió cliente y/o monto) —
+            // se recrea desde cero en vez de intentar actualizarlo a medias.
+            ArMovement::where('source_type', SalesOrder::class)->where('source_id', $order->id)->delete();
+
+            if ((float) $data['saldo_pendiente'] > 0) {
+                ArMovement::create([
+                    'client_id'   => $data['client_id'],
+                    'fecha'       => $data['fecha'],
+                    'tipo'        => 'CARGO',
+                    'monto'       => $data['saldo_pendiente'],
+                    'descripcion' => $comentario . ' (folio ' . $order->folio . ')',
+                    'source_type' => SalesOrder::class,
+                    'source_id'   => $order->id,
+                    'created_by'  => auth()->id(),
+                ]);
+            }
+        });
+
+        session()->flash('swal', ['icon' => 'success', 'title' => 'CxC actualizada']);
+        return redirect()->route('superadmin.ar-migration.index');
+    }
+
+    public function destroy(SalesOrder $order)
+    {
+        abort_unless(str_starts_with($order->folio, self::FOLIO_PREFIX), 404);
+
+        if (! $this->puedeEditarse($order)) {
+            session()->flash('swal', ['icon' => 'error', 'title' => 'No se puede eliminar', 'text' => 'Esta CxC ya tiene abonos aplicados.']);
+            return redirect()->route('superadmin.ar-migration.index');
+        }
+
+        DB::transaction(function () use ($order) {
+            ArMovement::where('source_type', SalesOrder::class)->where('source_id', $order->id)->delete();
+            $order->delete();
+        });
+
+        session()->flash('swal', ['icon' => 'success', 'title' => 'CxC eliminada']);
+        return redirect()->route('superadmin.ar-migration.index');
+    }
+
     public function plantilla()
     {
         $spreadsheet = new Spreadsheet();
