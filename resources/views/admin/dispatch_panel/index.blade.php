@@ -144,7 +144,7 @@
         </x-wire-card>
 
         {{-- Panel lateral de despacho --}}
-        <div id="panel-despacho" class="hidden w-[420px] shrink-0">
+        <div id="panel-despacho" class="hidden w-[520px] shrink-0">
             <x-wire-card>
                 <div class="flex items-center justify-between mb-3">
                     <div>
@@ -171,7 +171,6 @@
                                 <th class="px-2 py-2 text-center text-xs text-gray-500">Surtido</th>
                                 <th class="px-2 py-2 text-center text-xs text-gray-500">Cajas</th>
                                 <th class="px-2 py-2 text-center text-xs text-gray-500">Dif.</th>
-                                <th class="px-2 py-2 text-center text-xs text-gray-500"></th>
                             </tr>
                         </thead>
                         <tbody id="panel-lines" class="divide-y divide-gray-100"></tbody>
@@ -315,33 +314,62 @@
                     '</td>' +
                     '<td class="px-2 py-2 text-center font-mono text-xs ' + difColor + '" id="dif-' + idx + '">' +
                         difStr +
-                    '</td>' +
-                    '<td class="px-2 py-1 text-center">' +
-                        (line.guardado
-                            ? '<div class="mb-1">' + (
-                                line.sinExistencia
-                                    ? '<span class="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-600">Sin existencia</span>'
-                                : line.cancelado
-                                    ? '<span class="px-2 py-0.5 text-xs rounded bg-orange-100 text-orange-700">Cancelado</span>'
-                                    : '<span class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-700">✓ Guardado</span>'
-                              ) + '</div>'
-                            : ''
-                        ) +
-                        '<div class="flex flex-col gap-1 w-24 mx-auto">' +
-                            '<button type="button" onclick="guardarLinea(' + idx + ')"' +
-                            '   id="btn-linea-' + idx + '"' +
-                            '   class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">' + (line.guardado ? 'Corregir' : 'Guardar') + '</button>' +
-                            '<button type="button" onclick="marcarSinExistencia(' + idx + ')"' +
-                            '   id="btn-sin-existencia-' + idx + '"' +
-                            '   class="px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50">Sin existencia</button>' +
-                            '<button type="button" onclick="marcarCancelado(' + idx + ')"' +
-                            '   id="btn-cancelado-' + idx + '"' +
-                            '   class="px-2 py-1 text-xs rounded border border-orange-300 text-orange-600 hover:bg-orange-50">Cancelado</button>' +
-                        '</div>' +
                     '</td>';
                 tbody.appendChild(tr);
+
+                // Fila de acciones aparte, debajo del producto y con los 3
+                // botones alineados horizontalmente en todo el ancho — antes
+                // iban apilados en una columna angosta dentro de la misma
+                // fila y se cortaban / había que scrollear para verlos bien.
+                var trAcc = document.createElement('tr');
+                trAcc.id = 'linea-acciones-' + idx;
+                trAcc.className = 'bg-gray-50/50';
+                trAcc.innerHTML = accionesHtml(idx, line);
+                tbody.appendChild(trAcc);
             });
             actualizarProgreso();
+        }
+
+        function accionesHtml(idx, line) {
+            return '<td colspan="5" class="px-2 pb-2 pt-0">' +
+                '<div class="flex items-center gap-2 flex-wrap">' +
+                    (line.guardado
+                        ? (
+                            line.sinExistencia
+                                ? '<span class="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-600">Sin existencia</span>'
+                            : line.cancelado
+                                ? '<span class="px-2 py-0.5 text-xs rounded bg-orange-100 text-orange-700">Cancelado</span>'
+                                : '<span class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-700">✓ Guardado</span>'
+                          )
+                        : ''
+                    ) +
+                    '<button type="button" onclick="guardarLinea(' + idx + ')"' +
+                    '   id="btn-linea-' + idx + '"' +
+                    '   class="px-3 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">' + (line.guardado ? 'Corregir' : 'Guardar') + '</button>' +
+                    '<button type="button" onclick="marcarSinExistencia(' + idx + ')"' +
+                    '   id="btn-sin-existencia-' + idx + '"' +
+                    '   class="px-3 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50">Sin existencia</button>' +
+                    '<button type="button" onclick="marcarCancelado(' + idx + ')"' +
+                    '   id="btn-cancelado-' + idx + '"' +
+                    '   class="px-3 py-1 text-xs rounded border border-orange-300 text-orange-600 hover:bg-orange-50">Cancelado</button>' +
+                '</div>' +
+            '</td>';
+        }
+
+        // Actualiza SOLO la fila de acciones + el input de cantidad de esta
+        // línea tras guardar — a propósito NO se toca renderLines() completo
+        // aquí: eso reconstruía las 3 filas de golpe, y si el usuario ya
+        // había escrito una cantidad nueva en OTRA línea pero todavía no le
+        // daba clic fuera del campo (blur), ese re-render la borraba y
+        // dejaba otra vez el valor viejo — al guardar esa otra línea después,
+        // el sistema sí guardaba, pero guardaba el valor viejo sin que se
+        // notara ("aparece que se guardó pero no fue lo que capturaste").
+        function refrescarFilaGuardada(idx, qtyConfirmada) {
+            var line = linesData[idx];
+            var input = document.querySelector('#panel-lines input[data-idx="' + idx + '"]');
+            if (input) input.value = qtyConfirmada.toFixed(3);
+            var trAcc = document.getElementById('linea-acciones-' + idx);
+            if (trAcc) trAcc.innerHTML = accionesHtml(idx, line);
         }
 
         window.actualizarCajas = function(input, idx) {
@@ -365,12 +393,11 @@
         };
 
         function marcarLineaComoPendiente(idx) {
-            linesData[idx].guardado = false;
-            var btn = document.getElementById('btn-linea-' + idx);
-            if (btn) {
-                btn.textContent = 'Guardar';
-                btn.className = 'px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700';
-            }
+            linesData[idx].guardado      = false;
+            linesData[idx].sinExistencia = false;
+            linesData[idx].cancelado     = false;
+            var trAcc = document.getElementById('linea-acciones-' + idx);
+            if (trAcc) trAcc.innerHTML = accionesHtml(idx, linesData[idx]);
             actualizarProgreso();
         }
 
@@ -513,8 +540,11 @@
             .then(function(res) {
                 if (res.status === 200 && res.data.ok) {
                     line.qty_despachada = qty;
-                    line.nota = motivo ? line.notaLinea : line.nota;
-                    renderLines(linesData);
+                    line.nota           = motivo ? line.notaLinea : line.nota;
+                    line.guardado       = true;
+                    line.sinExistencia  = motivo === 'sin_existencia';
+                    line.cancelado      = motivo === 'cancelado';
+                    refrescarFilaGuardada(idx, qty);
                     marcarFilaComoDespachadaEnLista(line.sales_order_item_id, qty === 0 ? (motivo || 'sin_existencia') : null);
                     actualizarProgreso();
                 } else {
