@@ -43,8 +43,8 @@
             @csrf
             <div>
                 <label class="block text-xs text-gray-500 mb-1">Cliente</label>
-                <select name="client_id" required
-                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                <select name="client_id" id="client_id_migracion" required
+                        class="w-full">
                     <option value="">— selecciona —</option>
                     @foreach($clientes as $c)
                         <option value="{{ $c->id }}" {{ old('client_id') == $c->id ? 'selected' : '' }}>{{ $c->nombre }}</option>
@@ -53,15 +53,22 @@
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-xs text-gray-500 mb-1">Folio (del sistema anterior)</label>
-                    <input type="text" name="folio" required value="{{ old('folio') }}"
-                           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                    <label class="block text-xs text-gray-500 mb-1">Folio (serie exclusiva de migración)</label>
+                    <input type="text" value="{{ $siguienteFolio }}" readonly
+                           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400 cursor-not-allowed">
+                    <p class="text-xs text-gray-600 mt-1">Se asigna automático, en su propia serie (MIG-####), para no chocar con folios reales.</p>
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Fecha</label>
                     <input type="date" name="fecha" required value="{{ old('fecha', now()->format('Y-m-d')) }}"
                            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
                 </div>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Folio/Referencia del sistema anterior (opcional)</label>
+                <input type="text" name="referencia" maxlength="60" value="{{ old('referencia') }}"
+                       placeholder="ej: FACT-00123"
+                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
@@ -103,7 +110,8 @@
                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-indigo-600 file:text-white file:text-xs hover:file:bg-indigo-700 focus:border-indigo-500 focus:outline-none">
             <p class="text-xs text-gray-500">
                 El cliente se busca por <strong>nombre exacto</strong> (sin distinguir mayúsculas) — debe coincidir
-                con el nombre ya registrado en el sistema.
+                con el nombre ya registrado en el sistema. El folio de cada fila se asigna automático en la
+                serie MIG-#### (el folio/columna del sistema anterior se guarda solo como referencia).
             </p>
             <button type="submit" class="w-full px-4 py-2.5 text-sm rounded-lg bg-gray-700 text-white hover:bg-gray-800 font-medium">
                 Subir e importar
@@ -150,4 +158,36 @@
     </div>
     @endif
 </div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<style>
+/* Select2 con la paleta oscura del panel de SuperAdmin */
+.select2-container .select2-selection--single {
+    height: 38px !important; background: #1f2937 !important; border-color: #374151 !important; border-radius: 8px !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 36px !important; font-size: 0.875rem; color: #fff; padding-left: 10px;
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px !important; }
+.select2-dropdown { background: #1f2937; border-color: #374151; border-radius: 8px; font-size: 0.875rem; }
+.select2-container--default .select2-results__option { color: #e5e7eb; }
+.select2-container--default .select2-results__option--highlighted[aria-selected] { background: #4f46e5 !important; }
+.select2-search--dropdown { background: #1f2937; }
+.select2-container--default .select2-search--dropdown .select2-search__field {
+    background: #111827; border-color: #374151; color: #fff; border-radius: 4px; padding: 4px 8px;
+}
+.select2-container--default .select2-results { background: #1f2937; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(function () {
+    $('#client_id_migracion').select2({
+        placeholder: '-- seleccionar cliente --',
+        allowClear: true,
+        width: '100%',
+        language: { searching: function () { return 'Buscando...'; }, noResults: function () { return 'Sin resultados'; } },
+    });
+});
+</script>
 @endsection

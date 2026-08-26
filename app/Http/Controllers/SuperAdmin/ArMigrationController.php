@@ -17,20 +17,41 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class ArMigrationController extends Controller
 {
-    private const COLUMNAS = ['Cliente (nombre exacto)', 'Folio', 'Fecha (AAAA-MM-DD)', 'Total original', 'Saldo pendiente', 'Comentario'];
+    // Serie de folios exclusiva para las CxC migradas, para no chocar ni
+    // mezclarse con los folios reales de pedidos (SO-...) del sistema.
+    private const FOLIO_PREFIX = 'MIG-';
+
+    private const COLUMNAS = ['Cliente (nombre exacto)', 'Folio/Referencia del sistema anterior (opcional)', 'Fecha (AAAA-MM-DD)', 'Total original', 'Saldo pendiente', 'Comentario'];
 
     public function index()
     {
-        $migradas = SalesOrder::where('comentarios', 'like', 'Migrado%')
+        $migradas = SalesOrder::where('folio', 'like', self::FOLIO_PREFIX . '%')
             ->with('client')
             ->latest('fecha')
             ->paginate(20);
 
-        $totalMigrado = SalesOrder::where('comentarios', 'like', 'Migrado%')->sum('saldo_pendiente');
+        $totalMigrado = SalesOrder::where('folio', 'like', self::FOLIO_PREFIX . '%')->sum('saldo_pendiente');
 
         $clientes = Client::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
 
-        return view('superadmin.ar-migration.index', compact('migradas', 'totalMigrado', 'clientes'));
+        $siguienteFolio = $this->siguienteFolio();
+
+        return view('superadmin.ar-migration.index', compact('migradas', 'totalMigrado', 'clientes', 'siguienteFolio'));
+    }
+
+    /**
+     * Siguiente folio disponible de la serie MIG-####, buscando el
+     * consecutivo más alto ya usado.
+     */
+    private function siguienteFolio(): string
+    {
+        $ultimo = SalesOrder::where('folio', 'like', self::FOLIO_PREFIX . '%')
+            ->orderByRaw('CAST(SUBSTRING(folio, ?) AS UNSIGNED) DESC', [strlen(self::FOLIO_PREFIX) + 1])
+            ->value('folio');
+
+        $numero = $ultimo ? ((int) substr($ultimo, strlen(self::FOLIO_PREFIX))) + 1 : 1;
+
+        return self::FOLIO_PREFIX . str_pad((string) $numero, 4, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -49,7 +70,7 @@ class ArMigrationController extends Controller
     {
         $data = $request->validate([
             'client_id'        => 'required|exists:clients,id',
-            'folio'            => 'required|string|max:60|unique:sales_orders,folio',
+            'referencia'       => 'nullable|string|max:60',
             'fecha'            => 'required|date',
             'total'            => 'required|numeric|min:0.01',
             'saldo_pendiente'  => 'required|numeric|min:0|lte:total',
@@ -65,11 +86,16 @@ class ArMigrationController extends Controller
     private function crearCxcMigrada(array $data): SalesOrder
     {
         return DB::transaction(function () use ($data) {
-            $comentario = 'Migrado desde sistema anterior' . ($data['comentario'] ?? '' ? ' — ' . $data['comentario'] : '');
+            $folio = $data['folio'] ?? $this->siguienteFolio();
+
+            $partesComentario = ['Migrado desde sistema anterior'];
+            if (! empty($data['referencia'])) $partesComentario[] = 'Folio/ref. anterior: ' . $data['referencia'];
+            if (! empty($data['comentario'])) $partesComentario[] = $data['comentario'];
+            $comentario = implode(' — ', $partesComentario);
 
             $order = SalesOrder::create([
                 'client_id'       => $data['client_id'],
-                'folio'           => $data['folio'],
+                'folio'           => $folio,
                 'fecha'           => $data['fecha'],
                 'delivery_type'   => 'ENVIO',
                 'payment_method'  => SalesOrder::PM_CREDITO,
@@ -95,7 +121,7 @@ class ArMigrationController extends Controller
                     'fecha'       => $data['fecha'],
                     'tipo'        => 'CARGO',
                     'monto'       => $data['saldo_pendiente'],
-                    'descripcion' => $comentario . ' (folio ' . $data['folio'] . ')',
+                    'descripcion' => $comentario . ' (folio ' . $folio . ')',
                     'source_type' => SalesOrder::class,
                     'source_id'   => $order->id,
                     'created_by'  => auth()->id(),
@@ -120,11 +146,11 @@ class ArMigrationController extends Controller
                 'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4F46E5']],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
             ]);
-            $sheet->getColumnDimension($this->col($i + 1))->setWidth(24);
+            $sheet->getColumnDimension($this->col($i + 1))->setWidth(26);
         }
 
         // Fila de ejemplo, para que quede claro el formato
-        $sheet->fromArray(['Juan Pérez', 'MIG-0001', now()->format('Y-m-d'), 1500, 1500, 'Saldo del sistema anterior'], null, 'A2');
+        $sheet->fromArray(['Juan Pérez', 'FACT-00123 (sistema viejo)', now()->format('Y-m-d'), 1500, 1500, 'Saldo del sistema anterior'], null, 'A2');
         $sheet->getStyle('A2:F2')->getFont()->setItalic(true);
 
         $tmpPath = tempnam(sys_get_temp_dir(), 'cxc') . '.xlsx';
@@ -146,35 +172,26 @@ class ArMigrationController extends Controller
         $creadas = 0;
         $errores = [];
 
+        // Consecutivo local para toda la tanda — evita repetir folio entre
+        // filas del mismo archivo (si consultáramos la BD en cada vuelta,
+        // dos filas seguidas podrían calcular el mismo "siguiente" folio
+        // porque la anterior aún no se ha guardado al momento de calcularlo).
+        $siguienteNumero = (int) substr($this->siguienteFolio(), strlen(self::FOLIO_PREFIX));
+
         foreach ($filas as $i => $fila) {
             $numFila = $i + 2;
-            [$nombreCliente, $folio, $fecha, $total, $saldo, $comentario] = array_pad($fila, 6, null);
+            [$nombreCliente, $referencia, $fecha, $total, $saldo, $comentario] = array_pad($fila, 6, null);
 
             $nombreCliente = trim((string) $nombreCliente);
-            $folio         = trim((string) $folio);
-
-            if ($nombreCliente === '' && $folio === '') {
-                continue; // fila vacía
-            }
+            $referencia    = trim((string) $referencia);
 
             if ($nombreCliente === '') {
-                $errores[] = "Fila {$numFila}: falta el nombre del cliente.";
-                continue;
+                continue; // fila vacía
             }
 
             $client = Client::whereRaw('LOWER(nombre) = ?', [mb_strtolower($nombreCliente)])->first();
             if (! $client) {
                 $errores[] = "Fila {$numFila}: cliente \"{$nombreCliente}\" no encontrado (nombre debe coincidir exacto con el registrado).";
-                continue;
-            }
-
-            if ($folio === '') {
-                $errores[] = "Fila {$numFila}: falta el folio.";
-                continue;
-            }
-
-            if (SalesOrder::where('folio', $folio)->exists()) {
-                $errores[] = "Fila {$numFila}: el folio \"{$folio}\" ya existe, se omitió.";
                 continue;
             }
 
@@ -189,7 +206,6 @@ class ArMigrationController extends Controller
                 continue;
             }
 
-            $fechaParsed = null;
             try {
                 $fechaParsed = \Carbon\Carbon::parse($fecha ?: now())->format('Y-m-d');
             } catch (\Throwable $e) {
@@ -197,9 +213,13 @@ class ArMigrationController extends Controller
                 continue;
             }
 
+            $folio = self::FOLIO_PREFIX . str_pad((string) $siguienteNumero, 4, '0', STR_PAD_LEFT);
+            $siguienteNumero++;
+
             $this->crearCxcMigrada([
                 'client_id'       => $client->id,
                 'folio'           => $folio,
+                'referencia'      => $referencia ?: null,
                 'fecha'           => $fechaParsed,
                 'total'           => (float) $total,
                 'saldo_pendiente' => $saldo,
