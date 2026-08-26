@@ -24,6 +24,8 @@
         .section-num { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #1a1a1a; color: #fff; font-size: 9px; font-weight: bold; margin-right: 4px; }
         .traspaso-ok  { background: #eff6ff; }
         .traspaso-no  { background: #fff7ed; }
+        .nota-row td { background: #fffdf5; font-size: 10px; color: #6b7280; padding: 3px 8px 3px 24px; border-bottom: 1px dashed #eee; }
+        .nota-row .folio-nota { font-family: monospace; color: #4f46e5; }
         .summary-box { border: 2px solid #333; border-radius: 6px; padding: 12px 16px; margin: 14px 0; }
         .summary-box .row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }
         .summary-box .row.big { font-size: 16px; font-weight: bold; border-top: 1px solid #ccc; margin-top: 6px; padding-top: 6px; }
@@ -205,6 +207,18 @@
         </thead>
         <tbody>
             @foreach($dispatch->arAssignments as $a)
+                @php
+                    // Notas de este cliente que aún quedan pendientes después del
+                    // cierre — si el cobro fue total no debería quedar ninguna;
+                    // si fue parcial, aquí se ve exactamente qué folio(s) siguen
+                    // debiendo (antes esto no se mostraba, solo el total).
+                    $notasPendientesCliente = \App\Models\SalesOrder::where('client_id', $a->client_id)
+                        ->where('payment_method', 'CREDITO')
+                        ->whereIn('status', ['ENTREGADO'])
+                        ->whereNull('cobrado_at')
+                        ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
+                        ->get(['id', 'folio', 'fecha', 'total', 'saldo_pendiente']);
+                @endphp
                 <tr class="{{ $a->status === 'COBRADO' ? 'highlight' : 'alert' }}">
                     <td>{{ $a->client?->nombre ?? '—' }}</td>
                     <td class="text-right">${{ number_format($a->saldo_asignado, 2) }}</td>
@@ -215,6 +229,20 @@
                         {{ $a->status }}
                     </td>
                 </tr>
+                @if($notasPendientesCliente->count() > 0)
+                <tr class="nota-row">
+                    <td colspan="4">Notas de {{ $a->client?->nombre }} aún pendientes de cobro:</td>
+                </tr>
+                @foreach($notasPendientesCliente as $nota)
+                    @php $saldoN = ((float)($nota->saldo_pendiente ?? 0) > 0) ? (float)$nota->saldo_pendiente : (float)$nota->total; @endphp
+                    <tr class="nota-row">
+                        <td><span class="folio-nota">{{ $nota->folio }}</span> — {{ \Carbon\Carbon::parse($nota->fecha)->format('d/m/Y') }}</td>
+                        <td class="text-right">${{ number_format($saldoN, 2) }}</td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                @endforeach
+                @endif
             @endforeach
             <tr class="total-row">
                 <td>Total CxC cobrado:</td>

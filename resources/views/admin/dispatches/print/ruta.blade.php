@@ -27,6 +27,8 @@
         .tel    { font-size: 10px; color: #6b7280; }
         .dir    { font-size: 10px; color: #555; }
         .prods  { font-size: 10px; color: #374151; }
+        .nota-row td { background: #fffdf5; font-size: 10px; color: #6b7280; padding: 3px 8px 3px 24px; border-bottom: 1px dashed #eee; }
+        .nota-row .folio-nota { font-family: monospace; color: #4f46e5; }
 
         @media print {
             body.ticket .page { max-width: 72mm; padding: 4mm; font-size: 10px; }
@@ -196,12 +198,34 @@
         <tbody>
             @php $totalCxc = 0; @endphp
             @foreach($dispatch->arAssignments as $a)
-                @php $totalCxc += $a->saldo_asignado; @endphp
+                @php
+                    $totalCxc += $a->saldo_asignado;
+                    // Notas (pedidos a crédito) que componen el saldo asignado — sin
+                    // esto solo se veía el total del cliente, sin decir de qué
+                    // folio(s) sale ese monto.
+                    $notasCliente = \App\Models\SalesOrder::where('client_id', $a->client_id)
+                        ->where('payment_method', 'CREDITO')
+                        ->whereIn('status', ['ENTREGADO'])
+                        ->whereNull('cobrado_at')
+                        ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
+                        ->get(['id', 'folio', 'fecha', 'total', 'saldo_pendiente']);
+                @endphp
                 <tr>
                     <td>{{ $a->client?->nombre ?? '—' }}</td>
                     <td class="text-right">${{ number_format($a->saldo_asignado, 2) }}</td>
                     <td class="text-center no-ticket">☐</td>
                 </tr>
+                @foreach($notasCliente as $nota)
+                    @php $saldoN = ((float)($nota->saldo_pendiente ?? 0) > 0) ? (float)$nota->saldo_pendiente : (float)$nota->total; @endphp
+                    <tr class="nota-row">
+                        <td>
+                            <span class="folio-nota">{{ $nota->folio }}</span>
+                            — {{ \Carbon\Carbon::parse($nota->fecha)->format('d/m/Y') }}
+                        </td>
+                        <td class="text-right">${{ number_format($saldoN, 2) }}</td>
+                        <td class="no-ticket"></td>
+                    </tr>
+                @endforeach
             @endforeach
             <tr class="total-row">
                 <td>Total CxC:</td>
