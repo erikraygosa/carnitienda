@@ -35,6 +35,7 @@
                     ['route' => 'superadmin.pac.index',       'icon' => 'fa-solid fa-plug',     'label' => 'PAC / Timbrado'],
                     ['route' => 'superadmin.companies.index', 'icon' => 'fa-solid fa-building', 'label' => 'Empresas'],
                     ['route' => 'superadmin.products.index',  'icon' => 'fa-solid fa-box-open', 'label' => 'Catálogo productos'],
+                    ['route' => 'superadmin.ar-migration.index', 'icon' => 'fa-solid fa-file-invoice-dollar', 'label' => 'CxC migradas'],
                     ['route' => 'superadmin.series.index',    'icon' => 'fa-solid fa-list-ol',  'label' => 'Series y folios'],
                     ['route' => 'superadmin.settings.index',  'icon' => 'fa-solid fa-sliders',  'label' => 'Configuración'],
                     ['route' => 'superadmin.reset.index',     'icon' => 'fa-solid fa-rotate-left', 'label' => 'Reiniciar datos'],

@@ -10,6 +10,7 @@
     use App\Http\Controllers\SuperAdmin\SettingsController as SuperSettings;
     use App\Http\Controllers\SuperAdmin\ResetController as SuperReset;
     use App\Http\Controllers\SuperAdmin\ProductCatalogController as SuperProducts;
+    use App\Http\Controllers\SuperAdmin\ArMigrationController as SuperArMigration;
 
     Route::get('/', [SuperDashboard::class, 'index'])->name('dashboard');
 
@@ -45,6 +46,13 @@
         Route::get('/exportar',   [SuperProducts::class, 'export'])->name('export');
         Route::get('/importar',   [SuperProducts::class, 'importForm'])->name('import.form');
         Route::post('/importar',  [SuperProducts::class, 'import'])->name('import');
+    });
+
+    Route::prefix('cxc-migradas')->name('ar-migration.')->group(function () {
+        Route::get('/',           [SuperArMigration::class, 'index'])->name('index');
+        Route::post('/',          [SuperArMigration::class, 'store'])->name('store');
+        Route::get('/plantilla',  [SuperArMigration::class, 'plantilla'])->name('plantilla');
+        Route::post('/importar',  [SuperArMigration::class, 'importar'])->name('importar');
     });
 
     Route::get('/settings',  [SuperSettings::class, 'index'])->name('settings.index');
