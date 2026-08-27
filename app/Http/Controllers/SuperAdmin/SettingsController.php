@@ -4,6 +4,8 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\SystemSetting;
+use App\Models\Warehouse;
+use App\Services\AiChatService;
 use App\Services\WhatsappSender;
 use App\Services\ZplLabelService;
 use Illuminate\Http\Request;
@@ -23,8 +25,10 @@ class SettingsController extends Controller
         $pedidos     = SystemSetting::where('grupo', 'pedidos')->get()->keyBy('clave');
         $reportes    = SystemSetting::where('grupo', 'reportes')->get()->keyBy('clave');
         $etiquetas   = SystemSetting::where('grupo', 'etiquetas')->get()->keyBy('clave');
+        $asistente   = SystemSetting::where('grupo', 'asistente')->get()->keyBy('clave');
+        $warehouses  = Warehouse::orderBy('nombre')->get(['id', 'nombre']);
 
-        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica', 'whatsapp', 'precios', 'pedidos', 'reportes', 'etiquetas'));
+        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica', 'whatsapp', 'precios', 'pedidos', 'reportes', 'etiquetas', 'asistente', 'warehouses'));
     }
 
     public function update(Request $request)
@@ -57,6 +61,10 @@ class SettingsController extends Controller
             'etiquetas_modo_impresion'   => ['nullable', 'string', 'in:ticket,zpl'],
             'etiquetas_impresora_ip'     => ['nullable', 'string', 'max:100'],
             'etiquetas_impresora_puerto' => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'openai_api_key'             => ['nullable', 'string', 'max:255'],
+            'openai_model'               => ['nullable', 'string', 'max:100'],
+            'openai_base_url'            => ['nullable', 'string', 'max:255'],
+            'pedidos_asistente_almacen_id' => ['nullable', 'exists:warehouses,id'],
         ]);
 
         // Nombre de campo (guión bajo) → [clave real con punto, grupo]
@@ -70,6 +78,8 @@ class SettingsController extends Controller
             'correo_from_address'        => ['correo.from_address', 'correo'],
             'whatsapp_base_url'          => ['whatsapp.base_url', 'whatsapp'],
             'whatsapp_instance'          => ['whatsapp.instance', 'whatsapp'],
+            'openai_model'               => ['openai.model', 'asistente'],
+            'openai_base_url'            => ['openai.base_url', 'asistente'],
         ];
 
         foreach ($mapa as $campo => [$clave, $grupo]) {
@@ -83,6 +93,19 @@ class SettingsController extends Controller
         if (filled($data['whatsapp_api_key'] ?? null)) {
             SystemSetting::set('whatsapp.api_key', $data['whatsapp_api_key'], 'string', 'whatsapp');
         }
+
+        if (filled($data['openai_api_key'] ?? null)) {
+            SystemSetting::set('openai.api_key', $data['openai_api_key'], 'string', 'asistente');
+        }
+
+        // Almacén por defecto del chat de asistencia: si lo dejan en blanco
+        // ("usar el almacén principal del sistema"), se borra el override.
+        SystemSetting::set(
+            'pedidos.asistente_almacen_id',
+            $request->input('pedidos_asistente_almacen_id') ?: null,
+            'integer',
+            'asistente'
+        );
 
         // Campos de autenticación usan guión bajo en el formulario pero se almacenan con punto
         SystemSetting::set('auth.login_mode',       $request->input('auth_login_mode', 'email'), 'string', 'auth');
@@ -192,6 +215,15 @@ class SettingsController extends Controller
         }
 
         return back()->with('error', 'WhatsApp respondió ' . ($resp['status'] ?? '?') . ': ' . (is_string($resp['body']) ? $resp['body'] : json_encode($resp['body'] ?? [])));
+    }
+
+    public function testAssistant(AiChatService $ai)
+    {
+        $resultado = $ai->testConnection();
+
+        return $resultado['ok']
+            ? back()->with('success', '✓ ' . $resultado['message'])
+            : back()->with('error', $resultado['message']);
     }
 
     public function testPrinter(ZplLabelService $zpl)

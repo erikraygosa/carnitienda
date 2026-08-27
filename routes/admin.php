@@ -37,6 +37,7 @@ use App\Http\Controllers\Admin\ReportesController;
 use App\Http\Controllers\Admin\AuditoriaController;
 use App\Http\Controllers\Admin\ShippingRouteController;
 use App\Http\Controllers\Admin\DriverController;
+use App\Http\Controllers\Admin\AssistantChatController;
 
 
 Route::get('/', [DashboardController::class, 'index'])
@@ -387,6 +388,15 @@ Route::prefix('gestion-notas')->name('gestion-notas.')->group(function () {
     Route::post('/pedidos/{order}/cancelar', [GestionNotasController::class, 'cancelarPedido'])->name('pedidos.cancelar');
     Route::post('/pedidos/{order}/revertir-a-procesado', [GestionNotasController::class, 'revertirAProcesado'])->name('pedidos.revertir-a-procesado');
     Route::post('/pos/{sale}/cancelar',      [GestionNotasController::class, 'cancelarPos'])->name('pos.cancelar');
+});
+
+// Chat de asistencia (widget flotante global) — disponible para cualquier
+// usuario autenticado; crear/confirmar/cancelar un pedido real sigue
+// exigiendo el permiso 'crear pedidos', validado dentro del servicio.
+Route::prefix('asistente')->name('asistente.')->group(function () {
+    Route::post('mensaje',                   [AssistantChatController::class, 'mensaje'])->name('mensaje');
+    Route::post('pedidos/{order}/confirmar', [AssistantChatController::class, 'confirmar'])->name('pedidos.confirmar');
+    Route::post('pedidos/{order}/cancelar',  [AssistantChatController::class, 'cancelar'])->name('pedidos.cancelar');
 });
 
 Route::prefix('despacho')->name('despacho.')->middleware(['can:salida de producto'])->group(function () {

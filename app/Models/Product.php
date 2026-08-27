@@ -186,6 +186,7 @@ class Product extends Model
     public function quoteItems()     { return $this->hasMany(QuoteItem::class, 'product_id'); }
     public function stockMovements() { return $this->hasMany(StockMovement::class, 'product_id'); }
     public function warehousePrices() { return $this->hasMany(ProductWarehousePrice::class); }
+    public function aliases()         { return $this->hasMany(ProductAlias::class); }
 
     // ── Scopes ────────────────────────────────────────────────────────────────
 

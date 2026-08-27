@@ -35,6 +35,7 @@ class Client extends Model
     public function paymentType()   { return $this->belongsTo(PaymentType::class); }
     public function priceList()     { return $this->belongsTo(PriceList::class); }
     public function priceOverrides(){ return $this->hasMany(ClientPriceOverride::class); }
+    public function aliases()       { return $this->hasMany(ClientAlias::class); }
 
 
         public function salesOrders()

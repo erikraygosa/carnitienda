@@ -215,6 +215,69 @@
     </div>
 
     <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-white font-semibold mb-1">Chat de asistencia (IA)</h3>
+        <p class="text-xs text-gray-500 mb-2">
+            Motor de IA usado por el widget de chat flotante para interpretar pedidos en lenguaje
+            natural ("Angel Galera, 10 kilos de panza, 10 de pata") y armar el borrador. Compatible
+            con la API "chat completions" de OpenAI o cualquier proveedor compatible.
+        </p>
+
+        @php
+            $aiApiKey  = $asistente['openai.api_key']?->valor ?? '';
+            $aiModel   = $asistente['openai.model']?->valor ?? 'gpt-4o-mini';
+            $aiBaseUrl = $asistente['openai.base_url']?->valor ?? 'https://api.openai.com/v1';
+            $aiAlmacen = $asistente['pedidos.asistente_almacen_id']?->valor ?? '';
+        @endphp
+        <p class="text-xs mb-4">
+            @if(filled($aiApiKey))
+                <span class="text-emerald-400">✓ Configurado.</span>
+            @else
+                <span class="text-amber-400">⚠ Falta guardar la API Key.</span>
+            @endif
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="md:col-span-2">
+                <label class="block text-xs text-gray-500 mb-1">
+                    API Key
+                    @if(filled($aiApiKey))
+                        <span class="text-emerald-500">(ya configurada — deja en blanco para conservarla)</span>
+                    @endif
+                </label>
+                <input type="password" name="openai_api_key" autocomplete="new-password"
+                       placeholder="{{ filled($aiApiKey) ? '••••••••••••' : 'sk-...' }}"
+                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Modelo</label>
+                <input type="text" name="openai_model" value="{{ $aiModel }}"
+                       placeholder="gpt-4o-mini"
+                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">URL base de la API</label>
+                <input type="text" name="openai_base_url" value="{{ $aiBaseUrl }}"
+                       placeholder="https://api.openai.com/v1"
+                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs text-gray-500 mb-1">Almacén por defecto para pedidos del chat</label>
+                <select name="pedidos_asistente_almacen_id"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                    <option value="">— Usar el almacén principal del sistema —</option>
+                    @foreach($warehouses as $w)
+                        <option value="{{ $w->id }}" {{ (string) $aiAlmacen === (string) $w->id ? 'selected' : '' }}>{{ $w->nombre }}</option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-xs text-gray-600">
+                    Los pedidos que arma el chat siempre quedan en Borrador — el resto de los datos
+                    (entrega, forma de pago, etc.) se ajustan después en el sistema antes de aprobar.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
         <h3 class="text-white font-semibold mb-1">Precios</h3>
         <p class="text-xs text-gray-500 mb-4">
             Controla si el precio de venta del Punto de Venta (POS) es el mismo en todos los
@@ -435,6 +498,18 @@
         <button type="submit"
                 class="px-4 py-2 text-sm rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 font-medium">
             Enviar prueba
+        </button>
+    </form>
+</div>
+
+<div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+    <h3 class="text-white font-semibold mb-1">Probar chat de asistencia</h3>
+    <p class="text-xs text-gray-500 mb-4">Guarda la configuración de arriba primero; verifica que la API Key y el modelo respondan correctamente.</p>
+    <form action="{{ route('superadmin.settings.assistant.test') }}" method="POST">
+        @csrf
+        <button type="submit"
+                class="px-4 py-2 text-sm rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 font-medium">
+            Probar conexión
         </button>
     </form>
 </div>

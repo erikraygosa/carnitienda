@@ -116,6 +116,15 @@ class SystemSetting extends Model
             ['clave' => 'whatsapp.base_url', 'valor' => env('EVO_API_BASE_URL', ''), 'tipo' => 'string', 'grupo' => 'whatsapp', 'descripcion' => 'URL base del servidor Evolution API, ej. https://evo.midominio.com'],
             ['clave' => 'whatsapp.instance', 'valor' => env('EVO_API_INSTANCE', ''), 'tipo' => 'string', 'grupo' => 'whatsapp', 'descripcion' => 'Nombre de la instancia de WhatsApp en Evolution API'],
             ['clave' => 'whatsapp.api_key',  'valor' => env('EVO_API_KEY', ''),      'tipo' => 'string', 'grupo' => 'whatsapp', 'descripcion' => 'API Key de la instancia'],
+
+            // Chat de asistencia (proveedor de IA tipo OpenAI)
+            ['clave' => 'openai.api_key',  'valor' => env('OPENAI_API_KEY', ''),                      'tipo' => 'string', 'grupo' => 'asistente', 'descripcion' => 'API key del proveedor de IA usado por el chat de asistencia'],
+            ['clave' => 'openai.model',    'valor' => env('OPENAI_MODEL', 'gpt-4o-mini'),              'tipo' => 'string', 'grupo' => 'asistente', 'descripcion' => 'Modelo usado por el chat de asistencia'],
+            ['clave' => 'openai.base_url', 'valor' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'), 'tipo' => 'string', 'grupo' => 'asistente', 'descripcion' => 'URL base de la API del proveedor de IA'],
+
+            // Almacén que usa el chat de asistencia al crear un pedido en borrador,
+            // si no se define, cae al almacén marcado is_primary o al primero activo.
+            ['clave' => 'pedidos.asistente_almacen_id', 'valor' => null, 'tipo' => 'integer', 'grupo' => 'asistente', 'descripcion' => 'Almacén por defecto para pedidos creados desde el chat de asistencia'],
         ];
 
         foreach ($defaults as $setting) {

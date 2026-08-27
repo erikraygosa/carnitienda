@@ -87,6 +87,10 @@
     </script>
     @endif
 
+    @auth
+        @include('partials.assistant-widget')
+    @endauth
+
     @stack('js')
 
 </body>
