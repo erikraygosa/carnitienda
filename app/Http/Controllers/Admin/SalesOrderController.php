@@ -40,7 +40,7 @@ class SalesOrderController extends Controller implements HasMiddleware
         return [
             new Middleware('can:ver pedidos', only: ['index', 'data']),
             new Middleware('can:crear pedidos', only: ['create', 'store']),
-            new Middleware('can:editar pedidos', only: ['edit', 'update', 'reopen', 'approve', 'startPreparing', 'dispatchToRoute', 'deliver', 'notDelivered', 'recordCash', 'settleDriver', 'sendForm', 'send', 'pdf', 'pdfDownload', 'ticketPdf']),
+            new Middleware('can:editar pedidos', only: ['edit', 'update', 'updateRuta', 'reopen', 'approve', 'startPreparing', 'dispatchToRoute', 'deliver', 'notDelivered', 'recordCash', 'settleDriver', 'sendForm', 'send', 'pdf', 'pdfDownload', 'ticketPdf']),
             new Middleware('can:cancelar pedidos', only: ['cancel']),
             // process() is gated by $this->authorize('procesar pedidos') inline
         ];
@@ -958,6 +958,33 @@ private function aprobarPedido(SalesOrder $order): array
         $order->update(['status'=>'CANCELADO']);
         $this->log->log($order, 'CAMBIO_ESTADO', $old, 'CANCELADO');
         return back()->with('swal',['icon'=>'success','title'=>'Cancelado','text'=>'Pedido cancelado']);
+    }
+
+    /**
+     * Corrige la ruta de UN pedido puntual (ej. desde "Nuevo despacho", al
+     * armar la lista de pedidos pendientes). Se refleja también en el
+     * cliente, para que sus próximos pedidos ya nazcan con la ruta
+     * correcta y no haya que repetir la corrección cada vez.
+     */
+    public function updateRuta(Request $request, SalesOrder $order)
+    {
+        $data = $request->validate([
+            'shipping_route_id' => ['required', 'exists:shipping_routes,id'],
+        ]);
+
+        $order->update(['shipping_route_id' => $data['shipping_route_id']]);
+
+        if ($order->client_id) {
+            Client::where('id', $order->client_id)->update(['shipping_route_id' => $data['shipping_route_id']]);
+        }
+
+        $route = ShippingRoute::find($data['shipping_route_id']);
+
+        return response()->json([
+            'ok'         => true,
+            'route_id'   => $route->id,
+            'route_name' => $route->nombre,
+        ]);
     }
 
     // ========= TICKET TÉRMICO =========

@@ -13,6 +13,7 @@ use App\Models\SalesOrderItem;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\DocumentLogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -26,6 +27,8 @@ class OrderAssistantService
 {
     private const UMBRAL_CONFIANZA = 0.85;
     private const UMBRAL_MINIMO    = 0.55;
+
+    public function __construct(private DocumentLogService $log) {}
 
     /**
      * Busca un cliente por nombre/apodo. Devuelve:
@@ -204,6 +207,8 @@ class OrderAssistantService
             }
         });
 
+        $this->log->log($order, 'CREADO', null, $order->status, $user->id, 'Creado desde el chat de asistencia.');
+
         return ['ok' => true, 'order' => $order->fresh(['items.product', 'client'])];
     }
 
@@ -216,6 +221,8 @@ class OrderAssistantService
         if ($order->status !== SalesOrder::S_BORRADOR) {
             return ['ok' => false, 'message' => 'Este pedido ya no está en borrador.'];
         }
+
+        $this->log->log($order, 'CONFIRMADO_ASISTENTE', null, null, $user->id, "Confirmado por {$user->name} vía chat de asistencia.");
 
         return [
             'ok'      => true,
@@ -232,6 +239,8 @@ class OrderAssistantService
         if ($order->status !== SalesOrder::S_BORRADOR) {
             return ['ok' => false, 'message' => 'Solo se puede descartar un pedido que sigue en borrador.'];
         }
+
+        $this->log->log($order, 'CAMBIO_ESTADO', $order->status, 'CANCELADO', $user->id, 'Descartado desde el chat de asistencia.');
 
         $order->items()->delete();
         $order->delete();

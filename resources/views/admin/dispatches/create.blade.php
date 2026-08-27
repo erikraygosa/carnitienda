@@ -200,14 +200,33 @@
                                         {{ $o->payment_method }}
                                     </span>
                                 </td>
-                                <td class="p-2 text-xs text-gray-500">
-                                    @if($o->shipping_route_id)
-                                        <span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-xs">
-                                            {{ $o->route?->nombre ?? '#'.$o->shipping_route_id }}
-                                        </span>
-                                    @else
-                                        <span class="text-gray-300">—</span>
-                                    @endif
+                                <td class="p-2 text-xs text-gray-500 ruta-cell">
+                                    <span class="ruta-display inline-flex items-center gap-1">
+                                        @if($o->shipping_route_id)
+                                            <span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-xs ruta-badge">
+                                                {{ $o->route?->nombre ?? '#'.$o->shipping_route_id }}
+                                            </span>
+                                        @else
+                                            <span class="text-gray-300 ruta-badge">—</span>
+                                        @endif
+                                        <button type="button" class="btn-edit-ruta text-gray-300 hover:text-indigo-600"
+                                                data-order-id="{{ $o->id }}" title="Corregir ruta de este pedido">
+                                            <i class="fa-solid fa-pen text-[10px]"></i>
+                                        </button>
+                                    </span>
+                                    <span class="ruta-edit hidden items-center gap-1">
+                                        <select class="ruta-select text-xs rounded border-gray-300 py-0.5">
+                                            @foreach($routes as $r)
+                                                <option value="{{ $r->id }}" {{ (string)$o->shipping_route_id === (string)$r->id ? 'selected' : '' }}>{{ $r->nombre }}</option>
+                                            @endforeach
+                                        </select>
+                                        <button type="button" class="btn-save-ruta text-emerald-600 hover:text-emerald-800" title="Guardar">
+                                            <i class="fa-solid fa-check text-xs"></i>
+                                        </button>
+                                        <button type="button" class="btn-cancel-ruta text-gray-400 hover:text-red-600" title="Cancelar">
+                                            <i class="fa-solid fa-xmark text-xs"></i>
+                                        </button>
+                                    </span>
                                 </td>
                                 <td class="p-2 text-gray-400 text-xs">
                                     {{ optional($o->programado_para)->format('d/m/Y') ?? '—' }}
@@ -418,6 +437,83 @@
         document.getElementById('check-all-orders')?.addEventListener('change', function() {
             document.querySelectorAll('.order-check').forEach(function(c) { c.checked = this.checked; }.bind(this));
             updateCounters();
+        });
+
+        function escHtml(str) {
+            return String(str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function showToast(msg) {
+            var toast = document.getElementById('dispatch-toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'dispatch-toast';
+                toast.className = 'fixed bottom-6 right-6 bg-gray-800 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50';
+                document.body.appendChild(toast);
+            }
+            toast.textContent = msg;
+            toast.style.display = '';
+            clearTimeout(toast._t);
+            toast._t = setTimeout(function() { toast.style.display = 'none'; }, 2500);
+        }
+
+        // ── Corregir ruta de un pedido puntual (se refleja también en el
+        //    cliente, del lado del servidor) ─────────────────────────────
+        document.querySelectorAll('.btn-edit-ruta').forEach(function(btn) {
+            var cell    = btn.closest('.ruta-cell');
+            var display = cell.querySelector('.ruta-display');
+            var edit    = cell.querySelector('.ruta-edit');
+
+            btn.addEventListener('click', function() {
+                display.classList.add('hidden');
+                edit.classList.remove('hidden');
+                edit.classList.add('flex');
+            });
+
+            cell.querySelector('.btn-cancel-ruta').addEventListener('click', function() {
+                edit.classList.add('hidden');
+                edit.classList.remove('flex');
+                display.classList.remove('hidden');
+            });
+
+            cell.querySelector('.btn-save-ruta').addEventListener('click', function() {
+                var select    = cell.querySelector('.ruta-select');
+                var orderId   = btn.dataset.orderId;
+                var routeId   = select.value;
+                var routeName = select.options[select.selectedIndex].text;
+                var saveBtn   = cell.querySelector('.btn-save-ruta');
+                saveBtn.disabled = true;
+
+                fetch('{{ url("admin/sales-orders") }}/' + orderId + '/ruta', {
+                    method:  'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept':       'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body: JSON.stringify({ shipping_route_id: routeId }),
+                })
+                .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
+                .then(function(res) {
+                    saveBtn.disabled = false;
+                    if (res.status === 200 && res.data.ok) {
+                        var row = cell.closest('.order-row');
+                        row.dataset.route = String(res.data.route_id);
+                        cell.querySelector('.ruta-badge').outerHTML =
+                            '<span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-xs ruta-badge">' + escHtml(res.data.route_name) + '</span>';
+                        edit.classList.add('hidden');
+                        edit.classList.remove('flex');
+                        display.classList.remove('hidden');
+                        showToast('Ruta actualizada — también en el cliente');
+                    } else {
+                        alert(res.data.message || 'No se pudo actualizar la ruta.');
+                    }
+                })
+                .catch(function() {
+                    saveBtn.disabled = false;
+                    alert('No se pudo actualizar la ruta.');
+                });
+            });
         });
 
         // ── CxC ───────────────────────────────────────────────────────────

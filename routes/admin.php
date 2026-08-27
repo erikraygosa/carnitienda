@@ -135,6 +135,7 @@ Route::resource('sales-orders', SalesOrderController::class)->except(['show']);
     Route::post('sales-orders/{order}/cobrar',        [SalesOrderController::class,'recordCash'])->name('sales-orders.cobrar');
     Route::post('sales-orders/{order}/liquidar',      [SalesOrderController::class,'settleDriver'])->name('sales-orders.liquidar');
     Route::post('sales-orders/{order}/cancelar',      [SalesOrderController::class,'cancel'])->name('sales-orders.cancel');
+    Route::post('sales-orders/{order}/ruta',          [SalesOrderController::class,'updateRuta'])->name('sales-orders.ruta');
 
 
     Route::post('/{dispatch}/traspasos/{assignment}/completar',
