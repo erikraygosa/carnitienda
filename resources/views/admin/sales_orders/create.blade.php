@@ -16,7 +16,7 @@
         $selWarehouse  = (string) old('warehouse_id', $mainWarehouseId ?? '');
         $selRoute      = (string) old('shipping_route_id', '');
         $valueFecha    = old('fecha', now()->format('Y-m-d\TH:i'));
-        $valueProg     = old('programado_para', now()->format('Y-m-d'));
+        $valueProg     = old('programado_para', now()->addDay()->format('Y-m-d'));
         $valueMoneda   = old('moneda', 'MXN');
         $deliveryType  = old('delivery_type', 'ENVIO');
         $paymentMethod = old('payment_method', 'CREDITO');

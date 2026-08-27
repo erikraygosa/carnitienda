@@ -260,14 +260,12 @@
         }
 
         // ── Agregar producto ────────────────────────────────────────────
+        // Siempre agrega una línea nueva y separada, aunque el producto ya
+        // esté en la lista — útil para traspasar el mismo producto en más
+        // de un lote/caja con cantidad, número de cajas o comentario
+        // distintos (antes se sumaba a la línea existente y no dejaba
+        // tener dos líneas separadas del mismo producto).
         function addProduct(product, qty = 1) {
-            const existing = items.find(it => it.product_id == product.id);
-            if (existing) {
-                existing.qty += qty;
-                renderAll();
-                showToast(`+${qty} a ${product.nombre}`);
-                return;
-            }
             items.push({ product_id: product.id, nombre: product.nombre, qty, num_cajas: null, comentarios: '' });
             renderAll();
             showToast(`✓ ${product.nombre} agregado`);

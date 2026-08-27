@@ -167,6 +167,8 @@ class OrderAssistantService
                 'price_list_id'             => $clientModel?->price_list_id,
                 'folio'                     => 'TEMP-' . uniqid(),
                 'fecha'                     => now(),
+                // Mismo default que el formulario manual de Crear pedido: al día siguiente.
+                'programado_para'           => now()->addDay()->format('Y-m-d'),
                 'delivery_type'             => $deliveryType,
                 'shipping_route_id'         => $clientModel?->shipping_route_id,
                 'payment_method'            => SalesOrder::PM_CONTRAENTREGA,
