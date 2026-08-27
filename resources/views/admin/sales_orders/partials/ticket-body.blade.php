@@ -140,8 +140,12 @@
             <td class="right bold">{{ $order->folio }}</td>
         </tr>
         <tr>
+            {{-- La nota debe mostrar la fecha en que se va a entregar
+                 (programado_para), no la fecha/hora en que se capturó el
+                 pedido — antes salía la de creación y no coincidía con
+                 cuándo de verdad iba a salir el pedido. --}}
             <td>Fecha:</td>
-            <td class="right">{{ optional($order->fecha)->format('d/m/Y') }}</td>
+            <td class="right">{{ optional($order->programado_para ?? $order->fecha)->format('d/m/Y') }}</td>
         </tr>
         <tr>
             <td>Hora:</td>

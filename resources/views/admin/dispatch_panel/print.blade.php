@@ -100,7 +100,8 @@
             <span>{{ $pedido->client?->nombre ?? '—' }}</span>
         </div>
         <div class="meta">
-            {{ optional($pedido->fecha)->format('d/m/Y') }}
+            {{-- Fecha programada de entrega, no la de captura --}}
+            {{ optional($pedido->programado_para ?? $pedido->fecha)->format('d/m/Y') }}
             &nbsp;·&nbsp; {{ $pedido->items->count() }} partida(s)
             &nbsp;·&nbsp; ${{ number_format($pedido->total, 2) }}
         </div>

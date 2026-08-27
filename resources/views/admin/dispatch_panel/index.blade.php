@@ -92,9 +92,10 @@
                                 <td class="px-3 py-2 text-gray-700 text-xs">
                                     {{ $itemIdx === 0 ? ($pedido->client?->nombre ?? '—') : '' }}
                                 </td>
-                                {{-- Fecha solo en primera fila --}}
+                                {{-- Fecha solo en primera fila — la programada de entrega, no la de captura --}}
+                                @php $fechaMostrar = $pedido->programado_para ?? $pedido->fecha; @endphp
                                 <td class="px-3 py-2 text-gray-500 text-xs whitespace-nowrap">
-                                    {{ $itemIdx === 0 && $pedido->fecha ? $pedido->fecha->format('d/m/Y') : '' }}
+                                    {{ $itemIdx === 0 && $fechaMostrar ? $fechaMostrar->format('d/m/Y') : '' }}
                                 </td>
                                 <td class="px-3 py-2 {{ $yaDespachado ? 'text-emerald-800 font-medium' : 'text-gray-800' }}">
                                     {{ $item->descripcion ?: ($item->product?->nombre ?? '—') }}
