@@ -682,20 +682,25 @@ class ReportesController extends Controller implements HasMiddleware
 
             $subtotal = 0.0;
             foreach ($notas as $s) {
-                $monto = (float)$s->total;
-                $subtotal += $monto;
+                $monto      = (float)$s->total;
+                $liqLabel   = $this->liquidacionEstatus($s->order_status, $s->driver_settlement_status)['label'];
+                // El subtotal de la ruta solo debe reflejar lo ya liquidado/abonado
+                // por el chofer, no lo que sigue PENDIENTE de cobrarle.
+                if (in_array($liqLabel, ['LIQUIDADO', 'PARCIAL'], true)) {
+                    $subtotal += $monto;
+                }
                 $sheet->setCellValue("A{$row}", $s->folio);
                 $sheet->setCellValue("B{$row}", $s->cliente_nombre ?? '');
                 $sheet->setCellValue("C{$row}", $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '');
                 $sheet->setCellValue("D{$row}", $monto);
                 $sheet->setCellValue("E{$row}", $orderLabels[$s->order_status] ?? $s->order_status);
-                $sheet->setCellValue("F{$row}", $this->liquidacionEstatus($s->order_status, $s->driver_settlement_status)['label']);
+                $sheet->setCellValue("F{$row}", $liqLabel);
                 $sheet->getStyle("D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
                 $row++;
             }
 
-            // Subtotal row
-            $sheet->setCellValue("C{$row}", "Subtotal {$ruta}:");
+            // Subtotal row (solo notas liquidadas/abonadas)
+            $sheet->setCellValue("C{$row}", "Subtotal {$ruta} (liquidado/abonado):");
             $sheet->setCellValue("D{$row}", $subtotal);
             $sheet->getStyle("C{$row}:D{$row}")->getFont()->setBold(true);
             $sheet->getStyle("D{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
