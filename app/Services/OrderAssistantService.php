@@ -181,7 +181,6 @@ class OrderAssistantService
                 'origen'                    => 'chat_asistente',
                 'assistant_conversation_id' => $conversationId,
                 'contraentrega_total'       => $subtotal,
-                'comentarios'               => 'Pedido creado desde el chat de asistencia. Revisa almacén, entrega y forma de pago antes de aprobar.',
             ]);
 
             $order->updateQuietly([
@@ -215,10 +214,6 @@ class OrderAssistantService
         if ($order->status !== SalesOrder::S_BORRADOR) {
             return ['ok' => false, 'message' => 'Este pedido ya no está en borrador.'];
         }
-
-        $order->update([
-            'comentarios' => trim(($order->comentarios ?? '') . "\nConfirmado por {$user->name} vía chat de asistencia."),
-        ]);
 
         return [
             'ok'      => true,
