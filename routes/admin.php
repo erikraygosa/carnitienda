@@ -53,6 +53,7 @@ Route::get('clients/data', [ClientController::class, 'data'])->name('clients.dat
 Route::get ('clients/price-matrix',      [ClientController::class, 'priceMatrix'])->name('clients.price-matrix')->middleware('can:ver clientes');
 Route::get ('clients/price-matrix/data', [ClientController::class, 'priceMatrixData'])->name('clients.price-matrix.data')->middleware('can:ver clientes');
 Route::post('clients/price-matrix/save', [ClientController::class, 'priceMatrixSave'])->name('clients.price-matrix.save')->middleware('can:editar clientes');
+Route::get ('clients/price-history',     [ClientController::class, 'priceHistory'])->name('clients.price-history')->middleware('can:ver clientes');
 Route::resource('clients', ClientController::class)->names('clients');
 Route::resource('providers', ProviderController::class)->names('providers');
 Route::resource('warehouses', WarehouseController::class)->names('warehouses');

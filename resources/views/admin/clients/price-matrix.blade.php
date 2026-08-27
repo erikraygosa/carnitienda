@@ -7,6 +7,7 @@
     ]"
 >
     <x-slot name="action">
+        <a href="{{ route('admin.clients.price-history') }}" class="inline-flex px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50 mr-2">🕒 Historial</a>
         <a href="{{ route('admin.clients.index') }}" class="inline-flex px-3 py-1.5 text-sm rounded-md border">Volver</a>
     </x-slot>
 

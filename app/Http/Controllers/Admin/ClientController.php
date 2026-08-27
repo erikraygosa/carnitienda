@@ -23,7 +23,7 @@ class ClientController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('can:ver clientes', only: ['index', 'pricesData']),
+            new Middleware('can:ver clientes', only: ['index', 'pricesData', 'priceHistory']),
             new Middleware('can:crear clientes', only: ['create', 'store']),
             new Middleware('can:editar clientes', only: ['edit', 'update', 'pricesSave']),
             new Middleware('can:eliminar clientes', only: ['destroy']),
@@ -306,15 +306,46 @@ public function pricesSave(Request $request, Client $client)
 {
     $prices = $request->input('prices', []);
 
-    \Illuminate\Support\Facades\DB::transaction(function () use ($client, $prices) {
+    $cambios = [];
+
+    \Illuminate\Support\Facades\DB::transaction(function () use ($client, $prices, &$cambios) {
         foreach ($prices as $productId => $precio) {
-            $precio = is_numeric($precio) ? (float) $precio : 0.0;
+            $productId = (int) $productId;
+            $precio    = is_numeric($precio) ? round((float) $precio, 4) : 0.0;
+
+            $anterior = \Illuminate\Support\Facades\DB::table('client_price_overrides')
+                ->where('client_id', $client->id)
+                ->where('product_id', $productId)
+                ->value('precio');
+
             \Illuminate\Support\Facades\DB::table('client_price_overrides')->updateOrInsert(
-                ['client_id' => $client->id, 'product_id' => (int)$productId],
+                ['client_id' => $client->id, 'product_id' => $productId],
                 ['precio' => $precio, 'updated_at' => now(), 'created_at' => now()]
             );
+
+            if ((float) ($anterior ?? 0) !== $precio) {
+                $cambios[] = ['product_id' => $productId, 'old' => $anterior, 'new' => $precio];
+            }
         }
     });
+
+    if ($cambios) {
+        $productos = \App\Models\Product::whereIn('id', array_column($cambios, 'product_id'))
+            ->pluck('nombre', 'id');
+
+        foreach ($cambios as $c) {
+            $nombreProducto = $productos[$c['product_id']] ?? "#{$c['product_id']}";
+            $this->log->log(
+                $client,
+                'PRECIO_PERSONALIZADO_ACTUALIZADO',
+                $c['old'] !== null ? number_format((float) $c['old'], 2) : null,
+                number_format($c['new'], 2),
+                null,
+                "Producto: {$nombreProducto}",
+                ['product_id' => $c['product_id'], 'producto' => $nombreProducto, 'old' => $c['old'], 'new' => $c['new']],
+            );
+        }
+    }
 
     return response()->json(['ok' => true, 'message' => 'Precios guardados correctamente.']);
 }
@@ -420,5 +451,41 @@ public function pricesSave(Request $request, Client $client)
         }
 
         return response()->json(['ok' => true, 'precio' => $precio]);
+    }
+
+    // ========= Historial de modificaciones de precios de clientes =========
+
+    public function priceHistory(Request $request)
+    {
+        $clienteSearch = trim((string) $request->input('cliente', ''));
+        $producto      = trim((string) $request->input('producto', ''));
+        $userId        = $request->input('user_id');
+        $desde         = $request->input('desde');
+        $hasta         = $request->input('hasta');
+
+        $logs = \App\Models\DocumentActivityLog::with('user')
+            ->where('document_type', Client::class)
+            ->where('action', 'PRECIO_PERSONALIZADO_ACTUALIZADO')
+            ->when($clienteSearch, fn($q) => $q->whereIn(
+                'document_id',
+                Client::where('nombre', 'like', "%{$clienteSearch}%")->pluck('id')
+            ))
+            ->when($producto, fn($q) => $q->whereRaw(
+                "JSON_UNQUOTE(JSON_EXTRACT(changes, '$.producto')) LIKE ?",
+                ["%{$producto}%"]
+            ))
+            ->when($userId, fn($q) => $q->where('user_id', $userId))
+            ->when($desde,  fn($q) => $q->whereDate('created_at', '>=', $desde))
+            ->when($hasta,  fn($q) => $q->whereDate('created_at', '<=', $hasta))
+            ->latest()
+            ->paginate(50)
+            ->withQueryString();
+
+        $clienteIds = $logs->pluck('document_id')->unique();
+        $clientes   = Client::whereIn('id', $clienteIds)->pluck('nombre', 'id');
+
+        $usuarios = \App\Models\User::orderBy('name')->get(['id', 'name']);
+
+        return view('admin.clients.price-history', compact('logs', 'clientes', 'usuarios'));
     }
 }
