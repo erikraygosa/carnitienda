@@ -333,6 +333,82 @@
         </label>
     </div>
 
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-white font-semibold mb-1">Etiquetas de surtido</h3>
+        <p class="text-xs text-gray-500 mb-4">
+            Controla qué imprime el Panel de Surtido: el ticket de siempre (vía navegador),
+            o etiquetas ZPL mandadas directo a una impresora térmica de etiquetas (Zebra
+            GK420d/GC420d o equivalente compatible ZPL II) en la red local.
+        </p>
+
+        @php
+            $modoImpresion   = $etiquetas['etiquetas.modo_impresion']?->valor ?? 'ticket';
+            $porCajas        = ($etiquetas['etiquetas.imprimir_por_cajas']?->valor ?? '0') === '1';
+            $impresoraIp     = $etiquetas['etiquetas.impresora_ip']?->valor ?? '';
+            $impresoraPuerto = $etiquetas['etiquetas.impresora_puerto']?->valor ?? '9100';
+        @endphp
+
+        <div class="space-y-3">
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="radio" name="etiquetas_modo_impresion" value="ticket" id="modo_ticket"
+                       {{ $modoImpresion === 'ticket' ? 'checked' : '' }}
+                       class="mt-1 bg-gray-800 border-gray-700 text-indigo-600 focus:ring-indigo-500">
+                <span>
+                    <span class="block text-sm text-white">Ticket (default)</span>
+                    <span class="block text-xs text-gray-500 mt-0.5">
+                        Comportamiento actual — imprime vía el diálogo del navegador, a cualquier impresora normal o de tickets.
+                    </span>
+                </span>
+            </label>
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="radio" name="etiquetas_modo_impresion" value="zpl" id="modo_zpl"
+                       {{ $modoImpresion === 'zpl' ? 'checked' : '' }}
+                       class="mt-1 bg-gray-800 border-gray-700 text-indigo-600 focus:ring-indigo-500">
+                <span>
+                    <span class="block text-sm text-white">Etiqueta ZPL</span>
+                    <span class="block text-xs text-gray-500 mt-0.5">
+                        El Panel de Surtido manda el ZPL directo por red (socket TCP) a la IP de la
+                        impresora — sin diálogo de navegador ni drivers.
+                    </span>
+                </span>
+            </label>
+        </div>
+
+        <div id="zpl-wrap" class="mt-4 space-y-4 {{ $modoImpresion === 'zpl' ? '' : 'hidden' }}">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-xs text-gray-500 mb-1">IP de la impresora</label>
+                    <input type="text" name="etiquetas_impresora_ip"
+                           value="{{ $impresoraIp }}"
+                           placeholder="192.168.1.50"
+                           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Puerto</label>
+                    <input type="number" name="etiquetas_impresora_puerto" min="1" max="65535"
+                           value="{{ $impresoraPuerto }}"
+                           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                    <p class="mt-1 text-xs text-gray-600">9100 = estándar RAW en la mayoría de impresoras ZPL.</p>
+                </div>
+            </div>
+
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" name="etiquetas_imprimir_por_cajas" value="1"
+                       {{ $porCajas ? 'checked' : '' }}
+                       class="mt-1 rounded bg-gray-800 border-gray-700 text-indigo-600 focus:ring-indigo-500">
+                <span>
+                    <span class="block text-sm text-white">Imprimir una etiqueta por cada caja</span>
+                    <span class="block text-xs text-gray-500 mt-0.5">
+                        Desactivado por defecto (una sola etiqueta resumen por línea de producto). Si lo
+                        activas, en el Panel de Surtido aparece un campo de peso por cada caja capturada
+                        en "# cajas" — y se imprime una etiqueta individual por caja ("Caja 1 de 3", etc.)
+                        con su propio peso.
+                    </span>
+                </span>
+            </label>
+        </div>
+    </div>
+
     <div class="flex justify-end">
         <button type="submit"
                 class="px-6 py-2.5 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium">
@@ -363,6 +439,18 @@
     </form>
 </div>
 
+<div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+    <h3 class="text-white font-semibold mb-1">Probar impresora de etiquetas</h3>
+    <p class="text-xs text-gray-500 mb-4">Guarda la configuración de arriba primero (modo ZPL, IP y puerto); manda una etiqueta de prueba a esa IP.</p>
+    <form action="{{ route('superadmin.settings.printer.test') }}" method="POST">
+        @csrf
+        <button type="submit"
+                class="px-4 py-2 text-sm rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 font-medium">
+            Imprimir etiqueta de prueba
+        </button>
+    </form>
+</div>
+
 <script>
 (function () {
     var radios      = document.querySelectorAll('input[name="auth_login_mode"]');
@@ -371,6 +459,15 @@
     radios.forEach(function (r) {
         r.addEventListener('change', function () {
             domainWrap.classList.toggle('hidden', this.value !== 'username');
+        });
+    });
+
+    var modoRadios = document.querySelectorAll('input[name="etiquetas_modo_impresion"]');
+    var zplWrap     = document.getElementById('zpl-wrap');
+
+    modoRadios.forEach(function (r) {
+        r.addEventListener('change', function () {
+            zplWrap.classList.toggle('hidden', this.value !== 'zpl');
         });
     });
 })();

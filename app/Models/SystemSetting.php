@@ -106,6 +106,12 @@ class SystemSetting extends Model
             // Reportes
             ['clave' => 'reportes.liquidaciones_pendientes_modo', 'valor' => 'procesar', 'tipo' => 'string', 'grupo' => 'reportes', 'descripcion' => "Qué pedidos cuenta el widget 'pendientes' de Reportes → Liquidaciones: 'procesar' (APROBADO/PREPARANDO, aún no pasan por Procesar) o 'surtir' (PROCESADO, ya en Salida de producto pero sin terminar de despachar)"],
 
+            // Etiquetas de surtido (impresora ZPL en el panel de surtido)
+            ['clave' => 'etiquetas.modo_impresion',    'valor' => 'ticket', 'tipo' => 'string',  'grupo' => 'etiquetas', 'descripcion' => "Qué imprime el Panel de Surtido: 'ticket' (comportamiento actual, vía navegador) o 'zpl' (etiquetas ZPL enviadas directo a una impresora térmica de etiquetas)"],
+            ['clave' => 'etiquetas.imprimir_por_cajas', 'valor' => '0',      'tipo' => 'boolean', 'grupo' => 'etiquetas', 'descripcion' => 'Con modo ZPL activo: imprime una etiqueta por cada caja (pide el peso de cada una) en vez de una sola etiqueta resumen por línea'],
+            ['clave' => 'etiquetas.impresora_ip',       'valor' => '',       'tipo' => 'string',  'grupo' => 'etiquetas', 'descripcion' => 'IP en la red local de la impresora de etiquetas ZPL'],
+            ['clave' => 'etiquetas.impresora_puerto',   'valor' => '9100',   'tipo' => 'integer', 'grupo' => 'etiquetas', 'descripcion' => 'Puerto TCP de la impresora de etiquetas (9100 = estándar RAW en la mayoría de impresoras ZPL)'],
+
             // WhatsApp (Evolution API)
             ['clave' => 'whatsapp.base_url', 'valor' => env('EVO_API_BASE_URL', ''), 'tipo' => 'string', 'grupo' => 'whatsapp', 'descripcion' => 'URL base del servidor Evolution API, ej. https://evo.midominio.com'],
             ['clave' => 'whatsapp.instance', 'valor' => env('EVO_API_INSTANCE', ''), 'tipo' => 'string', 'grupo' => 'whatsapp', 'descripcion' => 'Nombre de la instancia de WhatsApp en Evolution API'],

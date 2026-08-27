@@ -193,7 +193,10 @@
 
 
     <script>
-    var TICKET_BASE_URL = '{{ url('admin/sales-orders') }}';
+    var TICKET_BASE_URL     = '{{ url('admin/sales-orders') }}';
+    // Config de SuperAdmin → Configuración → Etiquetas de surtido.
+    var IMPRESION_ZPL_ACTIVA = @json($impresionZplActiva);
+    var IMPRIMIR_POR_CAJAS   = @json($imprimirPorCajas);
     (function () {
         // ── Filtro + paginación ──────────────────────────────────────────
         var tbody     = document.getElementById('pedidos-tbody');
@@ -317,6 +320,17 @@
                     '</td>';
                 tbody.appendChild(tr);
 
+                // Fila de pesos por caja — solo si el modo ZPL "por cajas"
+                // está activo en SuperAdmin. Un input de peso por cada caja
+                // capturada en "# cajas", necesarios para imprimir una
+                // etiqueta individual por caja.
+                if (IMPRESION_ZPL_ACTIVA && IMPRIMIR_POR_CAJAS) {
+                    var trPesos = document.createElement('tr');
+                    trPesos.id = 'linea-pesos-' + idx;
+                    trPesos.innerHTML = pesosCajasHtml(idx, line);
+                    tbody.appendChild(trPesos);
+                }
+
                 // Fila de acciones aparte, debajo del producto y con los 3
                 // botones alineados horizontalmente en todo el ancho — antes
                 // iban apilados en una columna angosta dentro de la misma
@@ -329,6 +343,37 @@
             });
             actualizarProgreso();
         }
+
+        // ── Fila de pesos por caja (solo modo ZPL "por cajas") ───────────
+        function pesosCajasHtml(idx, line) {
+            var n = line.num_cajas || 0;
+            if (n <= 0) {
+                return '<td colspan="5" class="px-2 pb-1 pt-0 text-xs text-gray-400">Captura "# cajas" para poder registrar el peso de cada una.</td>';
+            }
+            var pesos = Array.isArray(line.pesos_cajas) ? line.pesos_cajas : [];
+            var inputs = '';
+            for (var i = 0; i < n; i++) {
+                var val = pesos[i] != null ? pesos[i] : '';
+                inputs +=
+                    '<div class="flex items-center gap-1">' +
+                        '<span class="text-xs text-gray-500">Caja ' + (i+1) + ':</span>' +
+                        '<input type="number" step="0.001" min="0" placeholder="kg"' +
+                        '   class="w-20 text-center rounded border border-gray-300 px-1 py-0.5 text-xs focus:ring-1 focus:ring-indigo-400"' +
+                        '   value="' + val + '"' +
+                        '   data-peso-idx="' + idx + '" data-peso-caja="' + i + '"' +
+                        '   onchange="actualizarPesoCaja(this, ' + idx + ', ' + i + ')"' +
+                        '/>' +
+                    '</div>';
+            }
+            return '<td colspan="5" class="px-2 pb-2 pt-0"><div class="flex items-center gap-3 flex-wrap">' + inputs + '</div></td>';
+        }
+
+        window.actualizarPesoCaja = function(input, idx, cajaI) {
+            var line = linesData[idx];
+            if (!Array.isArray(line.pesos_cajas)) line.pesos_cajas = [];
+            var val = input.value !== '' ? parseFloat(input.value) : null;
+            line.pesos_cajas[cajaI] = val;
+        };
 
         function accionesHtml(idx, line) {
             return '<td colspan="5" class="px-2 pb-2 pt-0">' +
@@ -352,6 +397,12 @@
                     '<button type="button" onclick="marcarCancelado(' + idx + ')"' +
                     '   id="btn-cancelado-' + idx + '"' +
                     '   class="px-3 py-1 text-xs rounded border border-orange-300 text-orange-600 hover:bg-orange-50">Cancelado</button>' +
+                    (IMPRESION_ZPL_ACTIVA
+                        ? '<button type="button" onclick="imprimirEtiqueta(' + idx + ')"' +
+                          '   id="btn-etiqueta-' + idx + '"' +
+                          '   class="px-3 py-1 text-xs rounded border border-indigo-300 text-indigo-600 hover:bg-indigo-50">🏷️ Imprimir etiqueta' + (IMPRIMIR_POR_CAJAS ? 's' : '') + '</button>'
+                        : ''
+                    ) +
                 '</div>' +
             '</td>';
         }
@@ -373,7 +424,17 @@
         }
 
         window.actualizarCajas = function(input, idx) {
-            linesData[idx].num_cajas = input.value !== '' ? parseInt(input.value) : null;
+            var line = linesData[idx];
+            line.num_cajas = input.value !== '' ? parseInt(input.value) : null;
+
+            if (IMPRESION_ZPL_ACTIVA && IMPRIMIR_POR_CAJAS) {
+                // Recorta o conserva los pesos ya capturados si el número de
+                // cajas cambia, en vez de perderlos por completo.
+                var n = line.num_cajas || 0;
+                line.pesos_cajas = Array.isArray(line.pesos_cajas) ? line.pesos_cajas.slice(0, n) : [];
+                var trPesos = document.getElementById('linea-pesos-' + idx);
+                if (trPesos) trPesos.innerHTML = pesosCajasHtml(idx, line);
+            }
         };
 
         window.actualizarDif = function(input, idx) {
@@ -530,6 +591,7 @@
                 body: JSON.stringify({
                     qty_despachada: qty,
                     num_cajas:      line.num_cajas != null ? line.num_cajas : null,
+                    pesos_cajas:    line.pesos_cajas || null,
                     nota:           motivo
                         ? line.notaLinea
                         : (document.getElementById('panel-nota-global').value.trim() || null),
@@ -561,6 +623,49 @@
             });
         }
 
+        // ── Imprime etiqueta(s) ZPL de una línea, directo a la impresora
+        //    configurada en SuperAdmin (independiente de "Guardar") ───────
+        window.imprimirEtiqueta = function(idx) {
+            var line = linesData[idx];
+            var btn  = document.getElementById('btn-etiqueta-' + idx);
+
+            if (IMPRIMIR_POR_CAJAS) {
+                var n = line.num_cajas || 0;
+                var pesos = Array.isArray(line.pesos_cajas) ? line.pesos_cajas.slice(0, n) : [];
+                if (n <= 0 || pesos.length < n || pesos.some(function(p) { return p == null || p === '' || p <= 0; })) {
+                    Swal.fire('Faltan pesos', 'Captura el peso de cada caja (arriba de los botones) antes de imprimir.', 'warning');
+                    return;
+                }
+            }
+
+            if (btn) btn.disabled = true;
+
+            fetch('/admin/despacho/pedido/' + currentOrderId + '/linea/' + line.sales_order_item_id + '/imprimir', {
+                method:  'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept':       'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({
+                    pesos_cajas: IMPRIMIR_POR_CAJAS ? line.pesos_cajas : null,
+                }),
+            })
+            .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
+            .then(function(res) {
+                if (btn) btn.disabled = false;
+                if (res.status === 200 && res.data.ok) {
+                    Swal.fire({ icon: 'success', title: 'Etiqueta enviada', text: res.data.message, timer: 1800, showConfirmButton: false });
+                } else {
+                    Swal.fire('No se pudo imprimir', res.data.message || 'Error al mandar la etiqueta a la impresora.', 'error');
+                }
+            })
+            .catch(function() {
+                if (btn) btn.disabled = false;
+                Swal.fire('Error', 'No se pudo mandar la etiqueta a la impresora.', 'error');
+            });
+        };
+
         window.cerrarPanel = function() {
             document.getElementById('panel-despacho').classList.add('hidden');
             currentOrderId = null;
@@ -583,6 +688,7 @@
                     sales_order_item_id: line.sales_order_item_id,
                     qty_despachada:      line.qty_despachada,
                     num_cajas:           line.num_cajas != null ? line.num_cajas : null,
+                    pesos_cajas:         line.pesos_cajas || null,
                     // No pisar la nota de "sin existencia"/"cancelado" ya guardada
                     // por línea (line.nota = la que vino del server si se guardó
                     // en otra sesión).

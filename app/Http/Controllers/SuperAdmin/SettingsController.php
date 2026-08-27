@@ -5,6 +5,7 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\SystemSetting;
 use App\Services\WhatsappSender;
+use App\Services\ZplLabelService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
@@ -21,8 +22,9 @@ class SettingsController extends Controller
         $precios     = SystemSetting::where('grupo', 'precios')->get()->keyBy('clave');
         $pedidos     = SystemSetting::where('grupo', 'pedidos')->get()->keyBy('clave');
         $reportes    = SystemSetting::where('grupo', 'reportes')->get()->keyBy('clave');
+        $etiquetas   = SystemSetting::where('grupo', 'etiquetas')->get()->keyBy('clave');
 
-        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica', 'whatsapp', 'precios', 'pedidos', 'reportes'));
+        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica', 'whatsapp', 'precios', 'pedidos', 'reportes', 'etiquetas'));
     }
 
     public function update(Request $request)
@@ -52,6 +54,9 @@ class SettingsController extends Controller
             'whatsapp_instance'          => ['nullable', 'string', 'max:100'],
             'whatsapp_api_key'           => ['nullable', 'string', 'max:255'],
             'precios_modo'               => ['nullable', 'string', 'in:global,almacen'],
+            'etiquetas_modo_impresion'   => ['nullable', 'string', 'in:ticket,zpl'],
+            'etiquetas_impresora_ip'     => ['nullable', 'string', 'max:100'],
+            'etiquetas_impresora_puerto' => ['nullable', 'integer', 'min:1', 'max:65535'],
         ]);
 
         // Nombre de campo (guión bajo) → [clave real con punto, grupo]
@@ -121,6 +126,38 @@ class SettingsController extends Controller
             'general'
         );
 
+        // Etiquetas de surtido (impresora ZPL en el Panel de Surtido)
+        SystemSetting::set(
+            'etiquetas.modo_impresion',
+            $request->input('etiquetas_modo_impresion') === 'zpl' ? 'zpl' : 'ticket',
+            'string',
+            'etiquetas'
+        );
+
+        // Checkbox: si no viene en el request es porque está desmarcado. Solo
+        // tiene efecto cuando modo_impresion = zpl, pero se guarda igual para
+        // no perder la preferencia si luego reactivan el modo ZPL.
+        SystemSetting::set(
+            'etiquetas.imprimir_por_cajas',
+            $request->boolean('etiquetas_imprimir_por_cajas') ? '1' : '0',
+            'boolean',
+            'etiquetas'
+        );
+
+        SystemSetting::set(
+            'etiquetas.impresora_ip',
+            trim((string) $request->input('etiquetas_impresora_ip', '')),
+            'string',
+            'etiquetas'
+        );
+
+        SystemSetting::set(
+            'etiquetas.impresora_puerto',
+            (string) ($request->input('etiquetas_impresora_puerto') ?: 9100),
+            'integer',
+            'etiquetas'
+        );
+
         // El sidebar/login y los tickets térmicos (POS, Pedidos, Corte de
         // caja) leen directamente el archivo public/logo.jpg — no un campo
         // de base de datos. Por eso el upload reemplaza ese archivo tal
@@ -155,5 +192,26 @@ class SettingsController extends Controller
         }
 
         return back()->with('error', 'WhatsApp respondió ' . ($resp['status'] ?? '?') . ': ' . (is_string($resp['body']) ? $resp['body'] : json_encode($resp['body'] ?? [])));
+    }
+
+    public function testPrinter(ZplLabelService $zpl)
+    {
+        // Usa lo que esté guardado en ese momento en BD, no lo que haya sin
+        // guardar en el formulario — igual que el botón de prueba de WhatsApp.
+        $etiqueta = $zpl->construirEtiqueta([
+            'folio'      => 'PRUEBA-001',
+            'cliente'    => 'Cliente de prueba',
+            'producto'   => 'Etiqueta de prueba',
+            'cantidad'   => '1',
+            'caja_num'   => 1,
+            'caja_total' => 1,
+            'peso'       => 1.0,
+        ]);
+
+        $resultado = $zpl->enviar([$etiqueta]);
+
+        return $resultado['ok']
+            ? back()->with('success', '✓ ' . $resultado['message'])
+            : back()->with('error', $resultado['message']);
     }
 }

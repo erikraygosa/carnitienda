@@ -191,6 +191,9 @@ class DispatchController extends Controller implements HasMiddleware
                     // vacío marcando "falta surtir" por error. En vez de
                     // eso, movemos el DispatchItem existente (con sus
                     // líneas) a este despacho.
+                    $itemExistente   = DispatchItem::where('sales_order_id', $o->id)->first();
+                    $dispatchOrigenId = $itemExistente?->dispatch_id;
+
                     DispatchItem::updateOrCreate(
                         ['sales_order_id' => $o->id],
                         [
@@ -199,6 +202,12 @@ class DispatchController extends Controller implements HasMiddleware
                             'status'      => 'ASIGNADO',
                         ]
                     );
+
+                    // Si ese pedido era el último que le quedaba al despacho
+                    // AUTO- del que lo movimos, ese despacho ya quedó vacío
+                    // y de adorno — se limpia solo en vez de acumularse como
+                    // basura "PLANEADO"/"CANCELADO" sin ruta ni chofer.
+                    $this->limpiarDespachoAutoSiQuedaVacio($dispatchOrigenId, $dispatch->id);
                 }
             }
 
@@ -315,14 +324,47 @@ class DispatchController extends Controller implements HasMiddleware
 
         $orders = SalesOrder::whereIn('id', $data['orders'])->get();
         foreach ($orders as $o) {
+            $itemExistente    = DispatchItem::where('sales_order_id', $o->id)->first();
+            $dispatchOrigenId = $itemExistente?->dispatch_id;
+
             DispatchItem::updateOrCreate(
                 ['sales_order_id' => $o->id],
                 ['dispatch_id' => $dispatch->id, 'referencia' => $o->folio, 'status' => 'ASIGNADO']
             );
+
+            $this->limpiarDespachoAutoSiQuedaVacio($dispatchOrigenId, $dispatch->id);
         }
 
         $this->log->log($dispatch, 'PEDIDOS_AGREGADOS', null, null, null, count($orders) . ' pedido(s) agregado(s) al despacho.');
         return back()->with('swal', ['icon' => 'success', 'title' => 'Agregado', 'text' => count($orders) . ' pedido(s) agregado(s) al despacho.']);
+    }
+
+    /**
+     * Los despachos "AUTO-..." los crea el Panel de Surtido solo para llevar
+     * el registro mientras se surte (sin ruta/almacén/chofer todavía). En
+     * cuanto un pedido se mueve de ahí a un despacho real, si era el último
+     * que le quedaba, el AUTO- queda vacío y de adorno — antes se quedaba
+     * para siempre en el listado (PLANEADO o CANCELADO, con "—" en todo).
+     * Se borra solo, y solo si de verdad no le queda nada de nada.
+     */
+    private function limpiarDespachoAutoSiQuedaVacio(?int $dispatchOrigenId, int $dispatchDestinoId): void
+    {
+        if (! $dispatchOrigenId || $dispatchOrigenId === $dispatchDestinoId) {
+            return;
+        }
+
+        $origen = Dispatch::find($dispatchOrigenId);
+        if (! $origen || ! str_starts_with((string) $origen->folio, 'AUTO-')) {
+            return;
+        }
+
+        $sigueTeniendoAlgo = $origen->items()->exists()
+            || $origen->transferAssignments()->exists()
+            || $origen->arAssignments()->exists();
+
+        if (! $sigueTeniendoAlgo) {
+            $origen->delete();
+        }
     }
 
     public function agregarCxc(Request $request, Dispatch $dispatch)

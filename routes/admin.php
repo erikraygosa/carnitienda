@@ -395,6 +395,7 @@ Route::prefix('despacho')->name('despacho.')->middleware(['can:salida de product
     Route::get('/poll-count',              [DispatchPanelController::class, 'pollCount'])->name('poll-count');
     Route::get('/pedido/{order}',          [DispatchPanelController::class, 'show'])->name('show');
     Route::post('/pedido/{order}/linea/{item}/guardar', [DispatchPanelController::class, 'saveLine'])->name('linea.guardar');
+    Route::post('/pedido/{order}/linea/{item}/imprimir', [DispatchPanelController::class, 'imprimirEtiqueta'])->name('linea.imprimir');
     Route::post('/pedido/{order}/guardar', [DispatchPanelController::class, 'saveDespacho'])->name('guardar');
 });
 

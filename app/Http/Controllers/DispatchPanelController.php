@@ -10,7 +10,9 @@ use App\Models\DispatchItem;
 use App\Models\DispatchItemLine;
 use App\Models\DocumentActivityLog;
 use App\Models\ShippingRoute;
+use App\Models\SystemSetting;
 use App\Services\InventoryService;
+use App\Services\ZplLabelService;
 
 class DispatchPanelController extends Controller
 {
@@ -41,7 +43,13 @@ class DispatchPanelController extends Controller
             ->pluck('sales_order_item_id')
             ->flip();
 
-        return view('admin.dispatch_panel.index', compact('pedidos', 'rutas', 'rutaId', 'itemsDespachadosIds'));
+        // Config de impresión de etiquetas (SuperAdmin → Configuración →
+        // Etiquetas de surtido) — el JS del panel la usa para decidir si
+        // muestra los campos de peso por caja y el botón "Imprimir etiqueta".
+        $impresionZplActiva = SystemSetting::get('etiquetas.modo_impresion', 'ticket') === 'zpl';
+        $imprimirPorCajas   = (bool) SystemSetting::get('etiquetas.imprimir_por_cajas', false);
+
+        return view('admin.dispatch_panel.index', compact('pedidos', 'rutas', 'rutaId', 'itemsDespachadosIds', 'impresionZplActiva', 'imprimirPorCajas'));
     }
 
     // ── Polling: conteo de pedidos PROCESADOS para notificaciones ───
@@ -96,6 +104,7 @@ class DispatchPanelController extends Controller
                 'unidad'              => $item->product?->unidad,
                 'qty_solicitada'      => (float) $item->cantidad,
                 'num_cajas'           => $item->num_cajas,
+                'pesos_cajas'         => $item->pesos_cajas,
                 'qty_despachada'      => $line ? (float) $line->qty_despachada : null,
                 'nota'                => $line?->nota,
                 'precio'              => (float) $item->precio,
@@ -130,9 +139,11 @@ class DispatchPanelController extends Controller
         $sinExistencia = $request->boolean('sin_existencia');
 
         $request->validate([
-            'qty_despachada' => ['required', 'numeric', $sinExistencia ? 'min:0' : 'min:0.001'],
-            'num_cajas'      => ['nullable', 'integer', 'min:0'],
-            'nota'           => ['nullable', 'string', 'max:255'],
+            'qty_despachada'  => ['required', 'numeric', $sinExistencia ? 'min:0' : 'min:0.001'],
+            'num_cajas'       => ['nullable', 'integer', 'min:0'],
+            'pesos_cajas'     => ['nullable', 'array'],
+            'pesos_cajas.*'   => ['nullable', 'numeric', 'min:0'],
+            'nota'            => ['nullable', 'string', 'max:255'],
         ], [
             'qty_despachada.required' => 'Captura la cantidad despachada.',
             'qty_despachada.min'      => 'La cantidad despachada no puede ser 0 — si el producto no está disponible, usa el botón "Sin existencia".',
@@ -166,15 +177,84 @@ class DispatchPanelController extends Controller
             ]
         );
 
-        if ($request->has('num_cajas')) {
-            $item->update([
-                'num_cajas' => $request->num_cajas !== null && $request->num_cajas !== ''
+        if ($request->has('num_cajas') || $request->has('pesos_cajas')) {
+            $update = [];
+            if ($request->has('num_cajas')) {
+                $update['num_cajas'] = $request->num_cajas !== null && $request->num_cajas !== ''
                     ? (int) $request->num_cajas
-                    : null,
-            ]);
+                    : null;
+            }
+            if ($request->has('pesos_cajas')) {
+                $update['pesos_cajas'] = $request->pesos_cajas ?: null;
+            }
+            $item->update($update);
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    // ── 2c. Imprime etiqueta(s) ZPL de una línea, mandándolas directo por
+    //       socket a la impresora configurada en SuperAdmin. Solo disponible
+    //       cuando etiquetas.modo_impresion = 'zpl'. No toca inventario ni
+    //       el estatus del pedido — es independiente de guardar la línea.
+    public function imprimirEtiqueta(Request $request, SalesOrder $order, SalesOrderItem $item, ZplLabelService $zpl)
+    {
+        $this->authorize('salida de producto');
+
+        abort_if($item->sales_order_id !== $order->id, 404);
+
+        if (!$zpl->modoZplActivo()) {
+            return response()->json(['ok' => false, 'message' => 'El modo de etiquetas ZPL no está activo — actívalo en SuperAdmin → Configuración → Etiquetas de surtido.'], 422);
+        }
+
+        $porCajas = $zpl->imprimirPorCajas();
+
+        $folio    = $order->folio;
+        $cliente  = $order->client?->nombre ?? '—';
+        $producto = $item->descripcion ?: ($item->product?->nombre ?? '—');
+
+        $etiquetas = [];
+
+        if ($porCajas) {
+            $request->validate([
+                'pesos_cajas'   => ['required', 'array', 'min:1'],
+                'pesos_cajas.*' => ['required', 'numeric', 'min:0.001'],
+            ], [
+                'pesos_cajas.required' => 'Captura el peso de cada caja antes de imprimir.',
+            ]);
+
+            $pesos     = array_values($request->pesos_cajas);
+            $cajaTotal = count($pesos);
+
+            foreach ($pesos as $i => $peso) {
+                $etiquetas[] = $zpl->construirEtiqueta([
+                    'folio'      => $folio,
+                    'cliente'    => $cliente,
+                    'producto'   => $producto,
+                    'caja_num'   => $i + 1,
+                    'caja_total' => $cajaTotal,
+                    'peso'       => (float) $peso,
+                ]);
+            }
+
+            // Se persiste junto con la impresión — así si vuelven a abrir la
+            // línea después, los pesos ya capturados siguen ahí.
+            $item->update([
+                'num_cajas'   => $cajaTotal,
+                'pesos_cajas' => $pesos,
+            ]);
+        } else {
+            $etiquetas[] = $zpl->construirEtiqueta([
+                'folio'    => $folio,
+                'cliente'  => $cliente,
+                'producto' => $producto,
+                'cantidad' => rtrim(rtrim(number_format((float) $item->cantidad, 3), '0'), '.') . ($item->product?->unidad ? ' ' . $item->product->unidad : ''),
+            ]);
+        }
+
+        $resultado = $zpl->enviar($etiquetas);
+
+        return response()->json($resultado, $resultado['ok'] ? 200 : 422);
     }
 
     // ── 3. Completa el despacho: exige que TODOS los productos ya se hayan
@@ -188,6 +268,8 @@ class DispatchPanelController extends Controller
             'lines.*.sales_order_item_id' => 'required|integer|exists:sales_order_items,id',
             'lines.*.qty_despachada'      => ['required', 'numeric', 'min:0'],
             'lines.*.num_cajas'           => 'nullable|integer|min:0',
+            'lines.*.pesos_cajas'         => 'nullable|array',
+            'lines.*.pesos_cajas.*'       => 'nullable|numeric|min:0',
             'lines.*.nota'                => 'nullable|string|max:255',
         ]);
 
@@ -281,6 +363,9 @@ class DispatchPanelController extends Controller
                 ];
                 if (array_key_exists('num_cajas', $lineData)) {
                     $updateData['num_cajas'] = $lineData['num_cajas'] !== null ? (int) $lineData['num_cajas'] : null;
+                }
+                if (array_key_exists('pesos_cajas', $lineData)) {
+                    $updateData['pesos_cajas'] = $lineData['pesos_cajas'] ?: null;
                 }
                 $orderItem->update($updateData);
 
