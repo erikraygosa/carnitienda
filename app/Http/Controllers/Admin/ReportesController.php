@@ -119,6 +119,7 @@ class ReportesController extends Controller implements HasMiddleware
         return $base
             ->whereIn('dispatch_items.id', $latestItemIds)
             ->select(
+                'sales_orders.id as sales_order_id',
                 'sales_orders.folio',
                 'sales_orders.client_id',
                 'clients.nombre as cliente_nombre',
@@ -595,6 +596,7 @@ class ReportesController extends Controller implements HasMiddleware
                     $liq = $this->liquidacionEstatus($s->order_status, $s->driver_settlement_status);
                     return [
                         'folio'          => $s->folio,
+                        'url'            => route('admin.sales-orders.edit', $s->sales_order_id),
                         'client_id'      => $s->client_id,
                         'cliente'        => $s->cliente_nombre ?? '—',
                         'fecha'          => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',

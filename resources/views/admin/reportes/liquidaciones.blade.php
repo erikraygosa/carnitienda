@@ -148,7 +148,9 @@
             data.rutas.forEach(grupo => {
                 const rows = grupo.notas.map(n => `
                     <tr class="hover:bg-gray-50">
-                        <td class="px-3 py-2 font-mono text-xs text-indigo-700 font-medium whitespace-nowrap">${n.folio}</td>
+                        <td class="px-3 py-2 font-mono text-xs text-indigo-700 font-medium whitespace-nowrap">
+                            <a href="${n.url}" class="hover:underline" title="Ir al pedido">${n.folio}</a>
+                        </td>
                         <td class="px-3 py-2 text-sm text-gray-700">${n.cliente}</td>
                         <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${n.fecha}</td>
                         <td class="px-3 py-2 text-sm text-right font-mono font-semibold text-gray-800">${fmtMoney(n.total)}</td>
