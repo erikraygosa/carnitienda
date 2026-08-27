@@ -211,7 +211,7 @@
                                         @endif
                                         <button type="button" class="btn-edit-ruta text-gray-300 hover:text-indigo-600"
                                                 data-order-id="{{ $o->id }}" title="Corregir ruta de este pedido">
-                                            <i class="fa-solid fa-pen text-[10px]"></i>
+                                            <i class="fa-solid fa-pen text-xs"></i>
                                         </button>
                                     </span>
                                     <span class="ruta-edit hidden items-center gap-1">
