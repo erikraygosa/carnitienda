@@ -45,6 +45,7 @@ class SalesOrder extends Model
         'created_by','owner_id','saldo_pendiente','cobrado_at',
         'comentarios',
         'ticket_impreso',
+        'origen','assistant_conversation_id',
     ];
 
     protected $casts = [
@@ -80,6 +81,7 @@ class SalesOrder extends Model
     public function posRegister(): BelongsTo    { return $this->belongsTo(PosRegister::class,'pos_register_id'); }
     public function invoice(): HasOne           { return $this->hasOne(Invoice::class)->whereIn('tipo_comprobante', ['I','E']); }
     public function dispatchItem(): HasOne      { return $this->hasOne(DispatchItem::class, 'sales_order_id'); }
+    public function assistantConversation(): BelongsTo { return $this->belongsTo(AssistantConversation::class); }
 
     // === Etiquetas de estado ===
     public function getStatusLabelAttribute(): string

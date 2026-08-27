@@ -62,5 +62,6 @@
     Route::put('/settings',  [SuperSettings::class, 'update'])->name('settings.update');
     Route::post('/settings/whatsapp/test', [SuperSettings::class, 'testWhatsapp'])->name('settings.whatsapp.test');
     Route::post('/settings/printer/test',  [SuperSettings::class, 'testPrinter'])->name('settings.printer.test');
+    Route::post('/settings/assistant/test', [SuperSettings::class, 'testAssistant'])->name('settings.assistant.test');
 
 
