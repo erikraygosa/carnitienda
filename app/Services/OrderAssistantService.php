@@ -156,9 +156,15 @@ class OrderAssistantService
 
         $deliveryType = ($clientModel && $clientModel->shipping_route_id) ? 'ENVIO' : 'RECOGER';
 
+        // Mismo default que el formulario manual de Crear pedido: a crédito.
+        // Solo cae a contraentrega cuando no se pudo identificar un cliente
+        // registrado (no se le puede dar crédito a alguien sin catálogo).
+        $paymentMethod = $clientModel ? SalesOrder::PM_CREDITO : SalesOrder::PM_CONTRAENTREGA;
+        $creditDays    = $clientModel ? (int) ($clientModel->credito_dias ?? 0) : null;
+
         $order = null;
 
-        DB::transaction(function () use (&$order, $clientModel, $lineItems, $warehouseId, $deliveryType, $user, $conversationId) {
+        DB::transaction(function () use (&$order, $clientModel, $lineItems, $warehouseId, $deliveryType, $paymentMethod, $creditDays, $user, $conversationId) {
             $subtotal = 0.0;
             foreach ($lineItems as $it) {
                 $subtotal += $it['cantidad'] * $it['precio'];
@@ -174,7 +180,8 @@ class OrderAssistantService
                 'programado_para'           => now()->addDay()->format('Y-m-d'),
                 'delivery_type'             => $deliveryType,
                 'shipping_route_id'         => $clientModel?->shipping_route_id,
-                'payment_method'            => SalesOrder::PM_CONTRAENTREGA,
+                'payment_method'            => $paymentMethod,
+                'credit_days'               => $creditDays,
                 'moneda'                    => 'MXN',
                 'subtotal'                  => $subtotal,
                 'impuestos'                 => 0,
@@ -185,7 +192,7 @@ class OrderAssistantService
                 'owner_id'                  => $user->id,
                 'origen'                    => 'chat_asistente',
                 'assistant_conversation_id' => $conversationId,
-                'contraentrega_total'       => $subtotal,
+                'contraentrega_total'       => $paymentMethod === SalesOrder::PM_CONTRAENTREGA ? $subtotal : 0,
             ]);
 
             $order->updateQuietly([
