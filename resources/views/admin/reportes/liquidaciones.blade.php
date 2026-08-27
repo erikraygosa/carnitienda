@@ -242,8 +242,8 @@
                         </div>
                     </div>
                     <div class="text-right">
-                        <div class="text-xs text-gray-400">Saldo asignado</div>
-                        <div class="font-semibold text-amber-700">${fmtMoney(c.saldo_asignado)}</div>
+                        <div class="text-xs text-gray-400">Saldo pendiente</div>
+                        <div class="font-semibold text-amber-700">${fmtMoney(c.saldo_pendiente)}</div>
                     </div>
                     <div class="text-right">
                         <div class="text-xs text-gray-400">Cobrado</div>
@@ -266,7 +266,7 @@
                         <span class="text-xs font-semibold text-gray-600">Totales:</span>
                         <div class="flex gap-6">
                             <div class="text-right">
-                                <div class="text-xs text-gray-400">Saldo asignado</div>
+                                <div class="text-xs text-gray-400">Saldo pendiente</div>
                                 <div class="font-bold text-amber-700">${fmtMoney(cxc.total_saldo)}</div>
                             </div>
                             <div class="text-right">

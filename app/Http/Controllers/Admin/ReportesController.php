@@ -185,11 +185,18 @@ class ReportesController extends Controller implements HasMiddleware
                 ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
                 ->get(['folio']);
 
+            $saldoAsignado  = (float) $a->saldo_asignado;
+            $montoCobrado   = (float) $a->monto_cobrado;
+            // Lo que realmente falta cobrar, no el total que se esperaba al asignar
+            // la ruta (ese monto no baja aunque el chofer ya haya cobrado parte).
+            $saldoPendiente = max(0, round($saldoAsignado - $montoCobrado, 2));
+
             return [
                 'ruta'              => $a->ruta_nombre ?? 'Sin ruta',
                 'cliente'           => $a->cliente_nombre ?? '—',
-                'saldo_asignado'    => (float) $a->saldo_asignado,
-                'monto_cobrado'     => (float) $a->monto_cobrado,
+                'saldo_asignado'    => $saldoAsignado,
+                'saldo_pendiente'   => $saldoPendiente,
+                'monto_cobrado'     => $montoCobrado,
                 'status'            => $a->status,
                 'status_class'      => $cxcStatusClasses[$a->status] ?? 'bg-gray-100 text-gray-600',
                 'notas_pendientes'  => $notas->count(),
@@ -199,11 +206,12 @@ class ReportesController extends Controller implements HasMiddleware
 
         return $rows->groupBy('ruta')->map(function ($grupo, $ruta) {
             return [
-                'ruta'          => $ruta,
-                'clientes'      => $grupo->values(),
-                'count'         => $grupo->count(),
-                'total_saldo'   => $grupo->sum('saldo_asignado'),
-                'total_cobrado' => $grupo->sum('monto_cobrado'),
+                'ruta'               => $ruta,
+                'clientes'           => $grupo->values(),
+                'count'              => $grupo->count(),
+                'total_saldo'        => $grupo->sum('saldo_pendiente'),
+                'total_saldo_asignado' => $grupo->sum('saldo_asignado'),
+                'total_cobrado'      => $grupo->sum('monto_cobrado'),
             ];
         })->values();
     }
@@ -706,7 +714,7 @@ class ReportesController extends Controller implements HasMiddleware
                 ]);
                 $row++;
 
-                foreach (['Cliente','Folio','Notas pendientes','Saldo asignado','Cobrado','Estatus'] as $ci => $h) {
+                foreach (['Cliente','Folio','Notas pendientes','Saldo pendiente','Cobrado','Estatus'] as $ci => $h) {
                     $cell = $this->col($ci + 1) . $row;
                     $sheet->setCellValue($cell, $h);
                     $sheet->getStyle($cell)->applyFromArray([
@@ -720,7 +728,7 @@ class ReportesController extends Controller implements HasMiddleware
                     $sheet->setCellValue("A{$row}", $c['cliente']);
                     $sheet->setCellValue("B{$row}", $c['folios_pendientes'] ?: '—');
                     $sheet->setCellValue("C{$row}", $c['notas_pendientes']);
-                    $sheet->setCellValue("D{$row}", $c['saldo_asignado']);
+                    $sheet->setCellValue("D{$row}", $c['saldo_pendiente']);
                     $sheet->setCellValue("E{$row}", $c['monto_cobrado']);
                     $sheet->setCellValue("F{$row}", $c['status']);
                     $sheet->getStyle("D{$row}:E{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
