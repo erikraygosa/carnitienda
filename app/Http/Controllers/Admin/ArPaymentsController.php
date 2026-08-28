@@ -128,7 +128,21 @@ class ArPaymentsController extends Controller implements HasMiddleware
                 ->withErrors(['order_ids' => 'Debes seleccionar al menos una nota o factura a cubrir.']);
         }
 
-        DB::transaction(function () use ($data) {
+        $this->registrarCobro($data);
+
+        session()->flash('swal', ['icon'=>'success','title'=>'Cobro registrado','text'=>'El pago se aplicó correctamente.']);
+        return redirect()->route('admin.ar.index');
+    }
+
+    /**
+     * Núcleo compartido para aplicar un cobro (ABONO en ar_movements + registro
+     * en ar_payments + reparto FIFO sobre notas/facturas). Usado tanto por el
+     * formulario manual (store) como por la liquidación masiva en efectivo
+     * desde el reporte de Liquidaciones.
+     */
+    private function registrarCobro(array $data): ArPayment
+    {
+        return DB::transaction(function () use ($data) {
             $mov = ArMovement::create([
                 'client_id'   => $data['client_id'],
                 'fecha'       => $data['fecha'],
@@ -212,12 +226,76 @@ class ArPaymentsController extends Controller implements HasMiddleware
 
                 $restante = round($restante - $abono, 2);
             }
-        });
 
-        session()->flash('swal', ['icon'=>'success','title'=>'Cobro registrado','text'=>'El pago se aplicó correctamente.']);
-        return redirect()->route('admin.ar.index');
+            return $payment;
+        });
     }
-        public function notasIndex(Request $request)
+
+    /**
+     * Liquidación rápida: selecciona varias notas (de uno o varios clientes,
+     * como en el reporte de Liquidaciones) y las cobra de un jalón en efectivo
+     * — un ArPayment por cliente, cada uno por el saldo pendiente exacto de
+     * las notas que le tocaron. Evita abrir el formulario manual una por una.
+     */
+    public function liquidarMasivo(Request $request)
+    {
+        $data = $request->validate([
+            'order_ids'   => 'required|array|min:1',
+            'order_ids.*' => 'integer|exists:sales_orders,id',
+            'fecha'       => 'nullable|date',
+        ]);
+
+        $fecha = $data['fecha'] ?? now()->toDateString();
+
+        $efectivo = PaymentType::where('descripcion', 'like', '%efectivo%')->first();
+        if (!$efectivo) {
+            return response()->json(['ok' => false, 'message' => 'No se encontró la forma de pago "Efectivo".'], 422);
+        }
+
+        $ordenes = SalesOrder::where('payment_method', 'CREDITO')
+            ->whereIn('status', ['ENTREGADO'])
+            ->whereNull('cobrado_at')
+            ->whereIn('id', $data['order_ids'])
+            ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
+            ->get();
+
+        if ($ordenes->isEmpty()) {
+            return response()->json(['ok' => false, 'message' => 'Las notas seleccionadas ya no están pendientes de cobro.'], 422);
+        }
+
+        $pagos = [];
+
+        foreach ($ordenes->groupBy('client_id') as $clientId => $notasCliente) {
+            $monto = $notasCliente->sum(fn($o) => ($o->saldo_pendiente !== null && (float) $o->saldo_pendiente > 0)
+                ? (float) $o->saldo_pendiente
+                : (float) $o->total);
+
+            if ($monto <= 0) continue;
+
+            $payment = $this->registrarCobro([
+                'client_id'       => $clientId,
+                'fecha'           => $fecha,
+                'amount'          => round($monto, 2),
+                'payment_type_id' => $efectivo->id,
+                'reference'       => null,
+                'notes'           => 'Liquidación masiva en efectivo (reporte de liquidaciones)',
+                'order_ids'       => $notasCliente->pluck('id')->all(),
+                'invoice_ids'     => [],
+            ]);
+
+            $pagos[] = ['client_id' => $clientId, 'monto' => round($monto, 2), 'payment_id' => $payment->id];
+        }
+
+        return response()->json([
+            'ok'          => true,
+            'pagos'       => $pagos,
+            'total'       => round(collect($pagos)->sum('monto'), 2),
+            'notas'       => $ordenes->count(),
+            'clientes'    => count($pagos),
+        ]);
+    }
+
+    public function notasIndex(Request $request)
     {
         $search     = $request->get('search', '');
         $estado     = $request->get('estado', '');   // pendiente | pagado | parcial

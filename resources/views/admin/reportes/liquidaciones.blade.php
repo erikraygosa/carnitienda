@@ -46,7 +46,21 @@
         </div>
 
         {{-- Resumen --}}
-        <div id="lq-summary-bar" class="flex flex-wrap gap-3 mb-5 text-sm text-gray-600"></div>
+        <div id="lq-summary-bar" class="flex flex-wrap gap-3 mb-3 text-sm text-gray-600"></div>
+
+        {{-- Barra de liquidación masiva (aparece al marcar checks) --}}
+        <div id="lq-bulk-bar" class="hidden sticky top-0 z-10 mb-4 flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg border border-emerald-300 bg-emerald-50">
+            <span id="lq-bulk-count" class="text-sm font-medium text-emerald-800"></span>
+            <div class="flex items-center gap-3">
+                <span id="lq-bulk-total" class="text-sm font-bold text-emerald-800"></span>
+                <button type="button" id="lq-bulk-clear" class="text-xs text-emerald-700 hover:underline">Quitar selección</button>
+                <button type="button" id="lq-bulk-liquidar"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700">
+                    <i class="fa-solid fa-money-bill-wave"></i>
+                    Liquidar en efectivo
+                </button>
+            </div>
+        </div>
 
         {{-- Concentrado por ruta --}}
         <div id="lq-body" class="space-y-6">
@@ -57,8 +71,10 @@
 
     <script>
     (function(){
-        const CONCENTRADO_URL = '{{ route('admin.reportes.liquidaciones.concentrado') }}';
-        const EXPORT_URL      = '{{ route('admin.reportes.liquidaciones.export') }}';
+        const CONCENTRADO_URL     = '{{ route('admin.reportes.liquidaciones.concentrado') }}';
+        const EXPORT_URL          = '{{ route('admin.reportes.liquidaciones.export') }}';
+        const LIQUIDAR_MASIVO_URL = '{{ route('admin.ar-payments.liquidar-masivo') }}';
+        const CSRF                = '{{ csrf_token() }}';
 
         const hoy = new Date().toISOString().slice(0,10);
 
@@ -68,13 +84,23 @@
             filtroEstatus: 'todas',
         };
 
+        // folio -> {order_id, cliente, total} de las notas PENDIENTES seleccionadas
+        // para liquidar de un jalón en efectivo.
+        let seleccionadas = new Map();
+
         const $ = id => document.getElementById(id);
 
         const fmtMoney = v => '$' + parseFloat(v || 0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
+        function escHtml(str) {
+            return String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
         async function load() {
             $('lq-body').innerHTML = `<div class="text-center py-8 text-gray-400">Cargando...</div>`;
             $('lq-summary-bar').innerHTML = '';
+            seleccionadas.clear();
+            actualizarBarraSeleccion();
 
             const params = new URLSearchParams({
                 fecha:          state.fecha,
@@ -146,8 +172,18 @@
             // Render each route block
             let html = '';
             data.rutas.forEach(grupo => {
-                const rows = grupo.notas.map(n => `
+                const rows = grupo.notas.map(n => {
+                    const seleccionable = n.estatus === 'PENDIENTE' && n.client_id && n.order_id;
+                    const marcada = seleccionable && seleccionadas.has(n.order_id);
+                    const check = seleccionable
+                        ? `<input type="checkbox" class="lq-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                  ${marcada ? 'checked' : ''}
+                                  data-order-id="${n.order_id}" data-cliente="${escHtml(n.cliente)}" data-monto="${n.total}"
+                                  onchange="toggleSeleccion(this)">`
+                        : '';
+                    return `
                     <tr class="hover:bg-gray-50">
+                        <td class="px-3 py-2 text-center">${check}</td>
                         <td class="px-3 py-2 font-mono text-xs text-indigo-700 font-medium whitespace-nowrap">
                             <a href="${n.url}" class="hover:underline" title="Ir al pedido">${n.folio}</a>
                         </td>
@@ -157,7 +193,8 @@
                         <td class="px-3 py-2 text-center">${pedidoBadge(n.estatus_pedido, n.pedido_class)}</td>
                         <td class="px-3 py-2 text-center">${liqBadge(n, data.ar_payment_url)}</td>
                     </tr>
-                `).join('');
+                `;
+                }).join('');
 
                 html += `
                     <div class="rounded-lg border border-gray-200 overflow-hidden">
@@ -173,6 +210,7 @@
                         <table class="min-w-full text-sm divide-y divide-gray-100">
                             <thead class="bg-gray-50">
                                 <tr>
+                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase w-8"></th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nota</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
@@ -186,7 +224,7 @@
                             </tbody>
                             <tfoot class="bg-gray-50 border-t border-gray-200">
                                 <tr>
-                                    <td colspan="3" class="px-3 py-2 text-xs font-semibold text-gray-600 text-right">Subtotal ${grupo.ruta}:</td>
+                                    <td colspan="4" class="px-3 py-2 text-xs font-semibold text-gray-600 text-right">Subtotal ${grupo.ruta}:</td>
                                     <td class="px-3 py-2 text-right font-mono font-bold text-gray-800">${fmtMoney(grupo.subtotal)}</td>
                                     <td colspan="2"></td>
                                 </tr>
@@ -329,6 +367,90 @@
                 </div>
             `;
         }
+
+        // ── Liquidación masiva en efectivo ──────────────────────────────────
+        window.toggleSeleccion = function (checkbox) {
+            const orderId = parseInt(checkbox.dataset.orderId, 10);
+            if (checkbox.checked) {
+                seleccionadas.set(orderId, {
+                    cliente: checkbox.dataset.cliente,
+                    monto:   parseFloat(checkbox.dataset.monto || 0),
+                });
+            } else {
+                seleccionadas.delete(orderId);
+            }
+            actualizarBarraSeleccion();
+        };
+
+        function actualizarBarraSeleccion() {
+            const bar = $('lq-bulk-bar');
+            if (seleccionadas.size === 0) { bar.classList.add('hidden'); return; }
+
+            let total = 0;
+            seleccionadas.forEach(v => total += v.monto);
+
+            $('lq-bulk-count').textContent = `${seleccionadas.size} nota(s) seleccionada(s) para liquidar`;
+            $('lq-bulk-total').textContent = fmtMoney(total);
+            bar.classList.remove('hidden');
+        }
+
+        $('lq-bulk-clear').addEventListener('click', function() {
+            document.querySelectorAll('.lq-check:checked').forEach(cb => cb.checked = false);
+            seleccionadas.clear();
+            actualizarBarraSeleccion();
+        });
+
+        $('lq-bulk-liquidar').addEventListener('click', function() {
+            if (seleccionadas.size === 0) return;
+
+            let total = 0;
+            const clientes = new Set();
+            seleccionadas.forEach(v => { total += v.monto; clientes.add(v.cliente); });
+
+            Swal.fire({
+                title: '¿Liquidar en efectivo?',
+                html: `Se van a marcar como <b>LIQUIDADAS</b> ${seleccionadas.size} nota(s) de
+                       ${clientes.size} cliente(s), por un total de <b>${fmtMoney(total)}</b>,
+                       registrando el cobro como <b>pago en efectivo</b>.`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, liquidar',
+                cancelButtonText: 'Cancelar',
+            }).then(async r => {
+                if (!r.isConfirmed) return;
+
+                const btn = $('lq-bulk-liquidar');
+                btn.disabled = true;
+                btn.classList.add('opacity-60');
+
+                try {
+                    const res = await fetch(LIQUIDAR_MASIVO_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': CSRF,
+                        },
+                        body: JSON.stringify({ order_ids: Array.from(seleccionadas.keys()), fecha: state.fecha }),
+                    });
+                    const data = await res.json();
+
+                    if (!res.ok || !data.ok) {
+                        Swal.fire('No se pudo liquidar', data.message || 'Intenta de nuevo.', 'error');
+                        return;
+                    }
+
+                    seleccionadas.clear();
+                    Swal.fire('Liquidado', `Se registraron ${data.clientes} cobro(s) en efectivo por ${fmtMoney(data.total)}.`, 'success');
+                    load();
+                } catch (e) {
+                    Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-60');
+                }
+            });
+        });
 
         $('lq-fecha').addEventListener('change',   function() { state.fecha         = this.value; load(); });
         $('lq-ruta').addEventListener('change',    function() { state.routeId       = this.value; load(); });

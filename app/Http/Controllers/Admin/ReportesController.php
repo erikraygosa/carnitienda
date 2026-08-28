@@ -603,6 +603,7 @@ class ReportesController extends Controller implements HasMiddleware
                 'notas'   => $rows->map(function ($s) use ($orderLabels, $orderClasses) {
                     $liq = $this->liquidacionEstatus($s->order_status, $s->driver_settlement_status);
                     return [
+                        'order_id'       => $s->sales_order_id,
                         'folio'          => $s->folio,
                         'url'            => route('admin.sales-orders.edit', $s->sales_order_id),
                         'client_id'      => $s->client_id,

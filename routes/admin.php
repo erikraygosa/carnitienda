@@ -267,6 +267,7 @@ Route::prefix('ar-payments')->name('ar-payments.')->group(function () {
     Route::get('/notas-index',  [ArPaymentsController::class, 'notasIndex'])->name('notas.index');
     Route::get('/create',       [ArPaymentsController::class, 'create'])->name('create');
     Route::post('/',            [ArPaymentsController::class, 'store'])->name('store');
+    Route::post('/liquidar-masivo', [ArPaymentsController::class, 'liquidarMasivo'])->name('liquidar-masivo');
 });
 
 Route::prefix('cash')->name('cash.')->group(function () {
