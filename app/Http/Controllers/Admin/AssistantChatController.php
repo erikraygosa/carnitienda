@@ -91,11 +91,12 @@ class AssistantChatController extends Controller
         $order->loadMissing('items', 'client');
 
         return [
-            'id'      => $order->id,
-            'folio'   => $order->folio,
-            'status'  => $order->status,
-            'cliente' => $order->client?->nombre ?? 'Sin cliente',
-            'items'   => $order->items->map(fn ($i) => [
+            'id'              => $order->id,
+            'folio'           => $order->folio,
+            'status'          => $order->status,
+            'cliente'         => $order->client?->nombre ?? 'Sin cliente',
+            'programado_para' => optional($order->programado_para)->format('d/m/Y'),
+            'items'           => $order->items->map(fn ($i) => [
                 'producto' => $i->descripcion,
                 'cantidad' => (float) $i->cantidad,
                 'precio'   => (float) $i->precio,

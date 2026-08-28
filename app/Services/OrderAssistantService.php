@@ -14,6 +14,7 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\DocumentLogService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -107,8 +108,12 @@ class OrderAssistantService
      *
      * @param array{client_id: ?int} $client
      * @param array<int, array{product_id: int, cantidad: float, comentario?: ?string}> $items
+     * @param string|null $programadoPara Fecha (cualquier formato reconocible por Carbon)
+     *        que el usuario mencionó para el pedido, ya normalizada a texto por el
+     *        modelo de IA — ej. "2026-08-28". Si viene vacía o no se puede
+     *        interpretar, se usa el default (mañana).
      */
-    public function createDraft(array $client, array $items, User $user, ?int $conversationId = null): array
+    public function createDraft(array $client, array $items, User $user, ?int $conversationId = null, ?string $programadoPara = null): array
     {
         if (! $user->can('crear pedidos')) {
             return ['ok' => false, 'message' => 'No tienes permiso para crear pedidos en el sistema.'];
@@ -149,13 +154,18 @@ class OrderAssistantService
             ];
         }
 
+        $resolvedFecha = $this->resolveProgramadoPara($programadoPara);
+
         // Evita duplicar el pedido si el modelo de IA vuelve a llamar esta
         // herramienta para lo mismo dentro de la misma conversación — típico
         // cuando el usuario escribe "ok" otra vez después de ya haber
         // confirmado y el modelo, sin nada nuevo que hacer, reintenta crear
         // el pedido en vez de simplemente responder. Si ya existe un pedido
         // de esta conversación con el mismo cliente y las mismas líneas, se
-        // regresa ese en vez de crear uno nuevo.
+        // regresa ese en vez de crear uno nuevo — pero si el usuario sí
+        // mencionó una fecha distinta esta vez (ej. corrigió "es para el 29,
+        // no el 28"), se actualiza el "Programado para" del pedido existente
+        // en vez de ignorar la corrección o crear un duplicado.
         if ($conversationId) {
             $existing = SalesOrder::with('items')
                 ->where('assistant_conversation_id', $conversationId)
@@ -164,6 +174,17 @@ class OrderAssistantService
                 ->first();
 
             if ($existing && (int) $existing->client_id === (int) ($clientModel?->id ?? 0) && $this->sameLines($existing->items, $lineItems)) {
+                $fechaExistente = optional($existing->programado_para)->format('Y-m-d');
+
+                if ($programadoPara !== null && $fechaExistente !== $resolvedFecha) {
+                    $existing->update(['programado_para' => $resolvedFecha]);
+                    return [
+                        'ok'      => true,
+                        'order'   => $existing->fresh(['items.product', 'client']),
+                        'message' => "Ese pedido ya se había creado como {$existing->folio}, solo actualicé la fecha programada.",
+                    ];
+                }
+
                 return [
                     'ok'      => true,
                     'order'   => $existing->fresh(['items.product', 'client']),
@@ -194,7 +215,7 @@ class OrderAssistantService
 
         $order = null;
 
-        DB::transaction(function () use (&$order, $clientModel, $lineItems, $warehouseId, $deliveryType, $paymentMethod, $creditDays, $user, $conversationId) {
+        DB::transaction(function () use (&$order, $clientModel, $lineItems, $warehouseId, $deliveryType, $paymentMethod, $creditDays, $user, $conversationId, $resolvedFecha) {
             $subtotal = 0.0;
             foreach ($lineItems as $it) {
                 $subtotal += $it['cantidad'] * $it['precio'];
@@ -206,8 +227,7 @@ class OrderAssistantService
                 'price_list_id'             => $clientModel?->price_list_id,
                 'folio'                     => 'TEMP-' . uniqid(),
                 'fecha'                     => now(),
-                // Mismo default que el formulario manual de Crear pedido: al día siguiente.
-                'programado_para'           => now()->addDay()->format('Y-m-d'),
+                'programado_para'           => $resolvedFecha,
                 'delivery_type'             => $deliveryType,
                 'shipping_route_id'         => $clientModel?->shipping_route_id,
                 'payment_method'            => $paymentMethod,
@@ -313,6 +333,85 @@ class OrderAssistantService
             ->sort()->values()->all();
 
         return $existingSig === $newSig;
+    }
+
+    /**
+     * Interpreta la fecha que el modelo de IA extrajo del mensaje del
+     * usuario (ej. "2026-08-28", "28/08/2026", "28-08-2026", "28/08",
+     * "28 de agosto") y la normaliza a "Y-m-d" para "Programado para". Si no
+     * viene fecha, no se puede interpretar, o cae en el pasado (típico de un
+     * mal parseo), cae al mismo default que el formulario manual: mañana.
+     */
+    private function resolveProgramadoPara(?string $fecha): string
+    {
+        $fecha  = trim((string) $fecha);
+        $parsed = $fecha !== '' ? $this->parseFechaFlexible($fecha) : null;
+
+        if ($parsed && ($parsed->isToday() || $parsed->isFuture())) {
+            return $parsed->format('Y-m-d');
+        }
+
+        return now()->addDay()->format('Y-m-d');
+    }
+
+    /**
+     * Formatos numéricos con "/" o "-" se interpretan explícitamente como
+     * día primero (convención en México/España) — Carbon::parse() por sí
+     * solo asume mes primero para ese formato (estilo estadounidense) y
+     * falla o interpreta mal fechas como "28/08/2026" (28 no es un mes
+     * válido, así que ni siquiera cae en una fecha "razonable" equivocada,
+     * directamente truena y el llamador cae al default). El parser genérico
+     * de Carbon solo se usa como respaldo para fechas en texto ("28 de
+     * agosto de 2026"), donde el mes viene escrito y no hay ambigüedad.
+     */
+    private function parseFechaFlexible(string $fecha): ?Carbon
+    {
+        // dd/mm/yyyy o dd-mm-yyyy (año de 2 o 4 dígitos)
+        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/', $fecha, $m)) {
+            $anio = strlen($m[3]) === 2 ? ('20' . $m[3]) : $m[3];
+            try {
+                return Carbon::create((int) $anio, (int) $m[2], (int) $m[1])->startOfDay();
+            } catch (\Throwable $e) {
+                return null;
+            }
+        }
+
+        // dd/mm o dd-mm sin año -> asume el año actual.
+        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})$/', $fecha, $m)) {
+            try {
+                return Carbon::create(now()->year, (int) $m[2], (int) $m[1])->startOfDay();
+            } catch (\Throwable $e) {
+                return null;
+            }
+        }
+
+        // yyyy-mm-dd (ISO — lo que normalmente manda el modelo de IA).
+        if (preg_match('/^\d{4}-\d{1,2}-\d{1,2}/', $fecha)) {
+            try {
+                return Carbon::parse($fecha)->startOfDay();
+            } catch (\Throwable $e) {
+                return null;
+            }
+        }
+
+        // Fechas en texto ("28 de agosto de 2026", "28 de agosto") — sin
+        // ambigüedad de orden porque el mes viene escrito, pero PHP no
+        // entiende nombres de mes en español de forma nativa, así que se
+        // traducen antes de pasarlas al parser genérico de Carbon (que sí
+        // entiende "28 august 2026").
+        $normalizado = trim(str_replace(' de ', ' ', ' ' . mb_strtolower($fecha) . ' '));
+        $normalizado = strtr($normalizado, [
+            'enero' => 'january', 'febrero' => 'february', 'marzo' => 'march', 'abril' => 'april',
+            'mayo' => 'may', 'junio' => 'june', 'julio' => 'july', 'agosto' => 'august',
+            'septiembre' => 'september', 'setiembre' => 'september', 'octubre' => 'october',
+            'noviembre' => 'november', 'diciembre' => 'december',
+        ]);
+
+        try {
+            return Carbon::parse($normalizado)->startOfDay();
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     private function resolvePrecio(?Client $client, Product $product): float

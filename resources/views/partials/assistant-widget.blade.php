@@ -134,6 +134,7 @@
 
         card.innerHTML =
             '<div class="text-xs font-semibold text-gray-700 mb-1">Borrador ' + order.folio + ' — ' + order.cliente + '</div>' +
+            (order.programado_para ? '<div class="text-xs text-gray-500 mb-1">Programado para: ' + order.programado_para + '</div>' : '') +
             itemsHtml +
             '<div class="flex justify-between font-semibold text-sm mt-1 border-t pt-1">' +
                 '<span>Total</span><span>$' + order.total.toFixed(2) + '</span></div>' +
