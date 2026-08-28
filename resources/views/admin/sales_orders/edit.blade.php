@@ -321,10 +321,12 @@
             @if($canEditItems)
             <div id="zero-price-alert" class="hidden rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800 flex items-center justify-between">
                 <span>Algunos productos no tienen precio para este cliente. Se estableció $0.00.</span>
-                <a id="zero-price-link" href="#" target="_blank"
-                   class="ml-3 inline-flex px-3 py-1.5 text-sm rounded-md bg-amber-600 text-white hover:bg-amber-700">
-                    Editar precios
-                </a>
+                @can('editar clientes')
+                    <a id="zero-price-link" href="#" target="_blank"
+                       class="ml-3 inline-flex px-3 py-1.5 text-sm rounded-md bg-amber-600 text-white hover:bg-amber-700">
+                        Editar precios
+                    </a>
+                @endcan
             </div>
             @endif
 

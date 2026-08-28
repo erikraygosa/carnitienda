@@ -214,10 +214,12 @@
             {{-- ====== ALERTA precio cero ====== --}}
             <div id="zero-price-alert" class="hidden rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800 flex items-center justify-between">
                 <span>Algunos productos no tienen precio para este cliente. Se estableció $0.00.</span>
-                <a id="zero-price-link" href="#" target="_blank"
-                   class="ml-3 inline-flex px-3 py-1.5 text-sm rounded-md bg-amber-600 text-white hover:bg-amber-700">
-                    Editar precios
-                </a>
+                @can('editar clientes')
+                    <a id="zero-price-link" href="#" target="_blank"
+                       class="ml-3 inline-flex px-3 py-1.5 text-sm rounded-md bg-amber-600 text-white hover:bg-amber-700">
+                        Editar precios
+                    </a>
+                @endcan
             </div>
 
             {{-- ====== PARTIDAS ====== --}}
@@ -274,6 +276,7 @@
         const CLIENT_PRICES_BASE   = '{{ url('admin/sales-orders/client-prices') }}';
         const PRODUCTS             = @json($productsJson);
         const MOSTRAR_IVA          = @json($mostrarIva);
+        const CAN_EDIT_CLIENT_PRICES = @json(auth()->user()->can('editar clientes'));
 
         let state = {
             items: [],
@@ -500,10 +503,11 @@
                                class="w-24 border rounded p-1 text-right text-sm inp-precio bg-gray-100 text-gray-600 cursor-not-allowed"
                                name="items[${i}][precio]" value="${it.precio}" required readonly
                                title="Precio del cliente — para cambiarlo, edítalo en su registro">
+                        ${CAN_EDIT_CLIENT_PRICES ? `
                         <a href="#" class="btn-editar-precio text-gray-400 hover:text-indigo-600 text-xs" target="_blank"
                            title="Editar precio de este cliente">
                             <i class="fa-solid fa-pen"></i>
-                        </a>
+                        </a>` : ''}
                     </div>
                 </td>
                 <td class="p-2 text-right">
@@ -544,11 +548,15 @@
             // El precio ya no es editable a mano aquí: viene del precio del
             // cliente (override) o de la lista de precios seleccionada. Si
             // hace falta corregirlo, se hace en el registro del cliente —
-            // el lápiz de al lado lleva directo a esa pantalla.
-            tr.querySelector('.btn-editar-precio').addEventListener('click', function(e) {
-                if (!state.clientId) { e.preventDefault(); return; }
-                this.href = `${CLIENTS_EDIT_BASE}/${state.clientId}/edit`;
-            });
+            // el lápiz de al lado lleva directo a esa pantalla (solo visible
+            // para quien tiene permiso de editar clientes).
+            const btnEditarPrecio = tr.querySelector('.btn-editar-precio');
+            if (btnEditarPrecio) {
+                btnEditarPrecio.addEventListener('click', function(e) {
+                    if (!state.clientId) { e.preventDefault(); return; }
+                    this.href = `${CLIENTS_EDIT_BASE}/${state.clientId}/edit`;
+                });
+            }
             tr.querySelector('.inp-descuento').addEventListener('input', function() {
                 state.items[i].descuento = parseFloat(this.value)||0; recalcRow(i);
             });
