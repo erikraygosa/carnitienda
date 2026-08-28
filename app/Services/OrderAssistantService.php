@@ -106,7 +106,7 @@ class OrderAssistantService
      * product_id, se rechaza en vez de crear una línea a medias.
      *
      * @param array{client_id: ?int} $client
-     * @param array<int, array{product_id: int, cantidad: float}> $items
+     * @param array<int, array{product_id: int, cantidad: float, comentario?: ?string}> $items
      */
     public function createDraft(array $client, array $items, User $user, ?int $conversationId = null): array
     {
@@ -122,8 +122,9 @@ class OrderAssistantService
 
         $lineItems = [];
         foreach ($items as $it) {
-            $productId = $it['product_id'] ?? null;
-            $cantidad  = (float) ($it['cantidad'] ?? 0);
+            $productId  = $it['product_id'] ?? null;
+            $cantidad   = (float) ($it['cantidad'] ?? 0);
+            $comentario = trim((string) ($it['comentario'] ?? ''));
 
             if (! $productId || $cantidad <= 0) {
                 return ['ok' => false, 'message' => 'Hay un producto o cantidad sin resolver correctamente. Usa buscar_producto primero.'];
@@ -134,9 +135,15 @@ class OrderAssistantService
                 return ['ok' => false, 'message' => "El producto con id {$productId} no existe."];
             }
 
+            // El texto que el usuario escribió entre paréntesis junto al
+            // producto (ej. "milanesa de cerdo (descongelada)") no es parte
+            // del nombre a buscar — es una nota de esa línea, se agrega tal
+            // cual a la descripción del pedido.
+            $descripcion = $comentario !== '' ? "{$product->nombre} ({$comentario})" : $product->nombre;
+
             $lineItems[] = [
                 'product_id'  => $product->id,
-                'descripcion' => $product->nombre,
+                'descripcion' => $descripcion,
                 'cantidad'    => $cantidad,
                 'precio'      => $this->resolvePrecio($clientModel, $product),
             ];
@@ -284,20 +291,25 @@ class OrderAssistantService
      * importar el orden — usado para detectar que el modelo de IA está
      * pidiendo crear "otra vez" exactamente el mismo pedido.
      *
+     * Incluye la descripción en la comparación (no solo product_id/cantidad)
+     * para que un comentario distinto entre paréntesis ("descongelada" vs
+     * "en trozos") sí cuente como una línea diferente, en vez de perderse
+     * silenciosamente contra un pedido previo idéntico salvo por la nota.
+     *
      * @param iterable<SalesOrderItem> $existingItems
-     * @param array<int, array{product_id: int, cantidad: float}> $newLines
+     * @param array<int, array{product_id: int, cantidad: float, descripcion: string}> $newLines
      */
     private function sameLines(iterable $existingItems, array $newLines): bool
     {
-        $normalize = fn (int|float $productId, int|float $cantidad) =>
-            $productId . ':' . rtrim(rtrim(number_format((float) $cantidad, 3, '.', ''), '0'), '.');
+        $normalize = fn (int|float $productId, int|float $cantidad, string $descripcion) =>
+            $productId . ':' . rtrim(rtrim(number_format((float) $cantidad, 3, '.', ''), '0'), '.') . ':' . mb_strtolower(trim($descripcion));
 
         $existingSig = collect($existingItems)
-            ->map(fn ($i) => $normalize($i->product_id, $i->cantidad))
+            ->map(fn ($i) => $normalize($i->product_id, $i->cantidad, $i->descripcion))
             ->sort()->values()->all();
 
         $newSig = collect($newLines)
-            ->map(fn ($i) => $normalize($i['product_id'], $i['cantidad']))
+            ->map(fn ($i) => $normalize($i['product_id'], $i['cantidad'], $i['descripcion']))
             ->sort()->values()->all();
 
         return $existingSig === $newSig;
