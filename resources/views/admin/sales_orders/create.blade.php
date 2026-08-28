@@ -495,9 +495,16 @@
                            placeholder="—" title="Cajas aprox.">
                 </td>
                 <td class="p-2 text-right">
-                    <input type="number" min="0" step="0.0001"
-                           class="w-28 border rounded p-1 text-right text-sm inp-precio"
-                           name="items[${i}][precio]" value="${it.precio}" required>
+                    <div class="flex items-center justify-end gap-1">
+                        <input type="number" min="0" step="0.0001"
+                               class="w-24 border rounded p-1 text-right text-sm inp-precio bg-gray-100 text-gray-600 cursor-not-allowed"
+                               name="items[${i}][precio]" value="${it.precio}" required readonly
+                               title="Precio del cliente — para cambiarlo, edítalo en su registro">
+                        <a href="#" class="btn-editar-precio text-gray-400 hover:text-indigo-600 text-xs" target="_blank"
+                           title="Editar precio de este cliente">
+                            <i class="fa-solid fa-pen"></i>
+                        </a>
+                    </div>
                 </td>
                 <td class="p-2 text-right">
                     <input type="number" min="0" step="0.01"
@@ -534,8 +541,13 @@
                     recalcRow(i);
                 });
             });
-            tr.querySelector('.inp-precio').addEventListener('input', function() {
-                state.items[i].precio = parseFloat(this.value)||0; recalcRow(i);
+            // El precio ya no es editable a mano aquí: viene del precio del
+            // cliente (override) o de la lista de precios seleccionada. Si
+            // hace falta corregirlo, se hace en el registro del cliente —
+            // el lápiz de al lado lleva directo a esa pantalla.
+            tr.querySelector('.btn-editar-precio').addEventListener('click', function(e) {
+                if (!state.clientId) { e.preventDefault(); return; }
+                this.href = `${CLIENTS_EDIT_BASE}/${state.clientId}/edit`;
             });
             tr.querySelector('.inp-descuento').addEventListener('input', function() {
                 state.items[i].descuento = parseFloat(this.value)||0; recalcRow(i);
