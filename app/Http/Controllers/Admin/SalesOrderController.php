@@ -195,15 +195,20 @@ public function data(Request $request)
     /**
      * Precio "oficial" para un producto dado el cliente/lista de precios del
      * pedido — la misma resolución que hace el JS del formulario (override
-     * del cliente, o precio de la lista elegida). Null cuando no hay ni
-     * cliente ni lista de precios (venta libre/mostrador) o la línea no
-     * tiene producto de catálogo: ahí no hay un precio de referencia contra
-     * el cual validar, así que se respeta lo que venga en la petición.
+     * del cliente, o precio de la lista elegida).
      *
-     * Si el cliente/lista todavía NO tiene un precio configurado para ese
-     * producto, se impone $0 igual que en pantalla — el flujo para
-     * corregirlo es capturarlo en el registro del cliente (con permiso), no
-     * escribirlo libremente en el pedido.
+     * Devuelve null (= "no forzar nada, respeta lo que venga en la
+     * petición") en estos casos:
+     *   - línea libre sin producto de catálogo,
+     *   - venta sin cliente ni lista de precios (mostrador),
+     *   - modo "precio del cliente" (sin lista elegida) cuando ESE producto
+     *     todavía no tiene override — ahí cualquiera puede capturarlo para
+     *     este pedido (ver registrarPreciosNuevos()), no es "editar" un
+     *     precio que ya existe.
+     * Si hay lista de precios elegida, siempre se impone lo que diga esa
+     * lista (o $0 si no tiene el producto) — es una lista compartida con
+     * otros clientes, no algo que se pueda completar libremente aquí.
+     * Si el override del cliente ya existe (>0), también se impone siempre.
      */
     private function precioOficial(?int $clientId, ?int $priceListId, ?int $productId): ?float
     {
@@ -222,7 +227,12 @@ public function data(Request $request)
                 ->where('client_id', $clientId)
                 ->where('product_id', $productId)
                 ->value('precio');
-            return round((float) ($precio ?? 0), 4);
+
+            if ($precio === null || (float) $precio <= 0) {
+                return null; // sin override todavía — se deja capturar (registrarPreciosNuevos)
+            }
+
+            return round((float) $precio, 4);
         }
 
         return null;
