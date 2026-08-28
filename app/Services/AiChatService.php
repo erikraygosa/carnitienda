@@ -190,7 +190,9 @@ Reglas:
 4. Después de crear el borrador, muestra un resumen claro (cliente, cada producto con cantidad y precio, total) y pregunta si lo confirma.
 5. Si el usuario confirma (sí, confirmo, dale, etc.), usa confirmar_pedido con el order_id del borrador ya creado en esta conversación.
 6. Si el usuario rechaza o pide cancelar, usa cancelar_pedido con ese order_id.
-7. Responde siempre en español, de forma breve y clara. No inventes datos que no vengan de las herramientas.
+7. Una vez que ya confirmaste un pedido (usaste confirmar_pedido) o lo cancelaste, NUNCA vuelvas a llamar crear_borrador_pedido para esos mismos productos — ese pedido ya quedó resuelto. Si el usuario responde algo genérico después ("ok", "gracias", "va", etc.) sin mencionar un pedido nuevo, solo confírmale que ya quedó listo, no repitas ninguna herramienta.
+8. Solo llama crear_borrador_pedido de nuevo dentro de la misma conversación si el usuario claramente está pidiendo un pedido DISTINTO (otro cliente, u otros productos/cantidades que no sean los del pedido que ya se creó).
+9. Responde siempre en español, de forma breve y clara. No inventes datos que no vengan de las herramientas.
 PROMPT;
     }
 

@@ -142,6 +142,29 @@ class OrderAssistantService
             ];
         }
 
+        // Evita duplicar el pedido si el modelo de IA vuelve a llamar esta
+        // herramienta para lo mismo dentro de la misma conversación — típico
+        // cuando el usuario escribe "ok" otra vez después de ya haber
+        // confirmado y el modelo, sin nada nuevo que hacer, reintenta crear
+        // el pedido en vez de simplemente responder. Si ya existe un pedido
+        // de esta conversación con el mismo cliente y las mismas líneas, se
+        // regresa ese en vez de crear uno nuevo.
+        if ($conversationId) {
+            $existing = SalesOrder::with('items')
+                ->where('assistant_conversation_id', $conversationId)
+                ->where('origen', 'chat_asistente')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($existing && (int) $existing->client_id === (int) ($clientModel?->id ?? 0) && $this->sameLines($existing->items, $lineItems)) {
+                return [
+                    'ok'      => true,
+                    'order'   => $existing->fresh(['items.product', 'client']),
+                    'message' => "Ese pedido ya se había creado como {$existing->folio}, no se duplicó.",
+                ];
+            }
+        }
+
         // Ojo: SystemSetting::get() con tipo 'integer' devuelve (int) '' = 0
         // cuando el setting existe pero quedó en blanco — 0 es falsy pero no
         // null, así que aquí hace falta "?:" (no "??") para caer bien al
@@ -253,6 +276,31 @@ class OrderAssistantService
         $order->delete();
 
         return ['ok' => true, 'message' => 'Se descartó el borrador del pedido.'];
+    }
+
+    /**
+     * Compara las líneas de un pedido ya existente (colección de
+     * SalesOrderItem) contra un array de líneas recién resueltas, sin
+     * importar el orden — usado para detectar que el modelo de IA está
+     * pidiendo crear "otra vez" exactamente el mismo pedido.
+     *
+     * @param iterable<SalesOrderItem> $existingItems
+     * @param array<int, array{product_id: int, cantidad: float}> $newLines
+     */
+    private function sameLines(iterable $existingItems, array $newLines): bool
+    {
+        $normalize = fn (int|float $productId, int|float $cantidad) =>
+            $productId . ':' . rtrim(rtrim(number_format((float) $cantidad, 3, '.', ''), '0'), '.');
+
+        $existingSig = collect($existingItems)
+            ->map(fn ($i) => $normalize($i->product_id, $i->cantidad))
+            ->sort()->values()->all();
+
+        $newSig = collect($newLines)
+            ->map(fn ($i) => $normalize($i['product_id'], $i['cantidad']))
+            ->sort()->values()->all();
+
+        return $existingSig === $newSig;
     }
 
     private function resolvePrecio(?Client $client, Product $product): float
