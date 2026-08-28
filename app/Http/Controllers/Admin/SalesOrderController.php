@@ -195,14 +195,18 @@ public function data(Request $request)
     /**
      * Precio "oficial" para un producto dado el cliente/lista de precios del
      * pedido — la misma resolución que hace el JS del formulario (override
-     * del cliente, o precio de la lista elegida). Null cuando no hay ni
-     * cliente ni lista de precios (venta libre/mostrador): ahí no hay un
-     * precio de referencia contra el cual validar, así que se respeta lo
-     * que venga en la petición.
+     * del cliente, o precio de la lista elegida).
      *
-     * Se usa para pisar en el servidor cualquier precio que llegue del
-     * formulario — el campo es de solo lectura en la UI, pero eso no evita
-     * que alguien lo manipule desde las herramientas del navegador.
+     * Devuelve null (= "no hay nada que forzar, respeta lo que venga en la
+     * petición") en tres casos:
+     *   - línea libre sin producto de catálogo,
+     *   - venta sin cliente ni lista de precios (mostrador),
+     *   - el cliente/lista todavía NO tiene un precio configurado para ese
+     *     producto (viene en $0/null) — ahí cualquiera puede capturarlo para
+     *     este pedido, no es "editar" un precio del cliente, es agregar uno
+     *     que no existe.
+     * Si ya existe un precio (>0), se devuelve ese y se impone siempre —
+     * cambiarlo requiere permiso y se hace en el registro del cliente.
      */
     private function precioOficial(?int $clientId, ?int $priceListId, ?int $productId): ?float
     {
@@ -213,18 +217,20 @@ public function data(Request $request)
                 ->where('price_list_id', $priceListId)
                 ->where('product_id', $productId)
                 ->value('precio');
-            return round((float) ($precio ?? 0), 4);
-        }
-
-        if ($clientId) {
+        } elseif ($clientId) {
             $precio = DB::table('client_price_overrides')
                 ->where('client_id', $clientId)
                 ->where('product_id', $productId)
                 ->value('precio');
-            return round((float) ($precio ?? 0), 4);
+        } else {
+            return null;
         }
 
-        return null;
+        if ($precio === null || (float) $precio <= 0) {
+            return null;
+        }
+
+        return round((float) $precio, 4);
     }
 
     /**

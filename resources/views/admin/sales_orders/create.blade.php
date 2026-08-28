@@ -301,6 +301,23 @@
             return parseFloat((LISTS_PRICES[state.priceList]||{})[pid] ?? 0) || 0;
         }
 
+        // El precio se bloquea SOLO si el cliente/lista ya tiene un precio
+        // configurado para ese producto (>0). Si todavía no existe (viene en
+        // $0), cualquiera puede capturarlo para esta línea del pedido —
+        // no es "editar" un precio del cliente, es agregar uno que no existe.
+        function aplicarEstadoPrecio(inputEl, precio) {
+            if (!inputEl) return;
+            inputEl.value = precio;
+            const bloqueado = (+precio || 0) > 0;
+            inputEl.readOnly = bloqueado;
+            inputEl.classList.toggle('bg-gray-100', bloqueado);
+            inputEl.classList.toggle('text-gray-600', bloqueado);
+            inputEl.classList.toggle('cursor-not-allowed', bloqueado);
+            inputEl.title = bloqueado
+                ? 'Precio del cliente — para cambiarlo, edítalo en su registro'
+                : 'Este producto no tiene precio configurado para el cliente — puedes capturarlo aquí';
+        }
+
         function recalcRow(i) {
             const it   = state.items[i];
             const line = (+it.cantidad||0) * (+it.precio||0);
@@ -381,7 +398,7 @@
                 tr.querySelector('.inp-desc').value = p.nombre;
 
                 state.items[i].precio = getPrice(p.id);
-                tr.querySelector('.inp-precio').value = state.items[i].precio;
+                aplicarEstadoPrecio(tr.querySelector('.inp-precio'), state.items[i].precio);
 
                 const unidadEl = tr.querySelector('.td-unidad');
                 if (unidadEl) unidadEl.textContent = p.unidad || '—';
@@ -400,7 +417,7 @@
                 state.items[i].precio          = 0;
                 state.items[i].unidad          = '';
                 tr.querySelector('.inp-desc').value   = '';
-                tr.querySelector('.inp-precio').value = 0;
+                aplicarEstadoPrecio(tr.querySelector('.inp-precio'), 0);
                 const unidadEl = tr.querySelector('.td-unidad');
                 if (unidadEl) unidadEl.textContent = '—';
                 recalcRow(i);
@@ -500,9 +517,8 @@
                 <td class="p-2 text-right">
                     <div class="flex items-center justify-end gap-1">
                         <input type="number" min="0" step="0.0001"
-                               class="w-24 border rounded p-1 text-right text-sm inp-precio bg-gray-100 text-gray-600 cursor-not-allowed"
-                               name="items[${i}][precio]" value="${it.precio}" required readonly
-                               title="Precio del cliente — para cambiarlo, edítalo en su registro">
+                               class="w-24 border rounded p-1 text-right text-sm inp-precio"
+                               name="items[${i}][precio]" value="${it.precio}" required>
                         ${CAN_EDIT_CLIENT_PRICES ? `
                         <a href="#" class="btn-editar-precio text-gray-400 hover:text-indigo-600 text-xs" target="_blank"
                            title="Editar precio de este cliente">
@@ -545,11 +561,18 @@
                     recalcRow(i);
                 });
             });
-            // El precio ya no es editable a mano aquí: viene del precio del
-            // cliente (override) o de la lista de precios seleccionada. Si
-            // hace falta corregirlo, se hace en el registro del cliente —
-            // el lápiz de al lado lleva directo a esa pantalla (solo visible
-            // para quien tiene permiso de editar clientes).
+            // El precio se bloquea solo cuando el cliente/lista YA tiene un
+            // precio configurado (>0) para este producto. Si viene en $0
+            // (no configurado), se deja editable para poder capturarlo en
+            // esta línea. Para cambiar un precio que ya existe, hay que
+            // hacerlo en el registro del cliente — el lápiz de al lado lleva
+            // directo a esa pantalla (solo visible con permiso de editar
+            // clientes).
+            aplicarEstadoPrecio(tr.querySelector('.inp-precio'), it.precio);
+            tr.querySelector('.inp-precio').addEventListener('input', function() {
+                if (this.readOnly) return;
+                state.items[i].precio = parseFloat(this.value)||0; recalcRow(i);
+            });
             const btnEditarPrecio = tr.querySelector('.btn-editar-precio');
             if (btnEditarPrecio) {
                 btnEditarPrecio.addEventListener('click', function(e) {
@@ -648,10 +671,7 @@
                     if (it.product_id) {
                         it.precio = getPrice(it.product_id);
                         const row = document.querySelector(`#items-body tr[data-idx="${i}"]`);
-                        if (row) {
-                            const inp = row.querySelector('.inp-precio');
-                            if (inp) inp.value = it.precio;
-                        }
+                        if (row) aplicarEstadoPrecio(row.querySelector('.inp-precio'), it.precio);
                         recalcRow(i);
                     }
                 });
