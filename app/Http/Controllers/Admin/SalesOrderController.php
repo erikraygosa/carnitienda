@@ -245,6 +245,58 @@ public function data(Request $request)
         return $items;
     }
 
+    /**
+     * Cuando el cliente todavía NO tiene precio para un producto (modo
+     * "precio del cliente", sin lista de precios elegida), cualquiera puede
+     * capturarlo directo en la línea del pedido — no requiere el permiso de
+     * editar clientes porque no se está cambiando nada que ya existiera,
+     * solo se está completando un dato que faltaba. Ese precio capturado
+     * queda registrado como el precio oficial del cliente para ese producto,
+     * con su propia entrada en el historial.
+     *
+     * No aplica cuando se eligió una lista de precios (eso es compartido con
+     * otros clientes y sí requiere el permiso completo), ni cuando ya existe
+     * un override >0 — ahí gana el precio oficial resuelto en
+     * aplicarPreciosOficiales(), esto solo es para "agregar lo que falta".
+     */
+    private function registrarPreciosNuevos(array $items, ?int $clientId, ?int $priceListId): void
+    {
+        if (!$clientId || $priceListId) return;
+
+        foreach ($items as $it) {
+            $productId = $it['product_id'] ?? null;
+            $precio    = (float) ($it['precio'] ?? 0);
+            if (!$productId || $precio <= 0) continue;
+
+            $existente = DB::table('client_price_overrides')
+                ->where('client_id', $clientId)
+                ->where('product_id', $productId)
+                ->value('precio');
+
+            if ($existente !== null && (float) $existente > 0) continue; // ya existía, no se toca aquí
+
+            DB::table('client_price_overrides')->updateOrInsert(
+                ['client_id' => $clientId, 'product_id' => $productId],
+                ['precio' => round($precio, 4), 'updated_at' => now(), 'created_at' => now()]
+            );
+
+            $client  = Client::find($clientId);
+            $product = Product::find($productId);
+            if ($client) {
+                $this->log->log(
+                    $client,
+                    'PRECIO_PERSONALIZADO_ACTUALIZADO',
+                    null,
+                    number_format($precio, 2),
+                    null,
+                    'Precio asignado al crear un pedido (no tenía precio configurado)'
+                        . ($product ? " — Producto: {$product->nombre}" : ''),
+                    ['product_id' => $productId, 'producto' => $product->nombre ?? null, 'old' => null, 'new' => $precio],
+                );
+            }
+        }
+    }
+
     public function store(Request $request)
     {
         if ($request->input('price_list_id') === 'client') {
@@ -288,6 +340,9 @@ public function data(Request $request)
         ]);
 
         $data['items'] = $this->aplicarPreciosOficiales(
+            $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
+        );
+        $this->registrarPreciosNuevos(
             $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
         );
 
@@ -490,6 +545,9 @@ public function data(Request $request)
         ]);
 
         $data['items'] = $this->aplicarPreciosOficiales(
+            $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
+        );
+        $this->registrarPreciosNuevos(
             $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
         );
 

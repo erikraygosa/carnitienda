@@ -213,11 +213,11 @@
 
             {{-- ====== ALERTA precio cero ====== --}}
             <div id="zero-price-alert" class="hidden rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800 flex items-center justify-between">
-                <span>Algunos productos no tienen precio para este cliente. Se estableció $0.00.</span>
+                <span>Algunos productos no tienen precio para este cliente — captúralo directo en la fila del producto.</span>
                 @can('editar clientes')
                     <a id="zero-price-link" href="#" target="_blank"
                        class="ml-3 inline-flex px-3 py-1.5 text-sm rounded-md bg-amber-600 text-white hover:bg-amber-700">
-                        Editar precios
+                        Ver/editar todos los precios
                     </a>
                 @endcan
             </div>
@@ -301,18 +301,24 @@
             return parseFloat((LISTS_PRICES[state.priceList]||{})[pid] ?? 0) || 0;
         }
 
-        // El precio siempre viene del cliente/lista y siempre queda de solo
-        // lectura aquí — exista o no exista todavía. Si no existe (viene en
-        // $0), el flujo es: la alerta de precio en cero lleva a una pestaña
-        // nueva a capturarlo en el registro del cliente; al cerrarla y volver
-        // a esta pestaña, el listener de visibilitychange (más abajo) refresca
-        // los overrides y esta línea toma el precio recién guardado solo.
+        // El precio se bloquea SOLO si el cliente/lista ya tiene un precio
+        // configurado para ese producto (>0) — ese si requiere el permiso de
+        // editar clientes para cambiarse (lápiz de al lado). Si todavía no
+        // existe (viene en $0), cualquiera puede capturarlo aquí mismo, sin
+        // permiso: no es "editar" un precio del cliente, es agregar uno que
+        // no existe, y al guardar el pedido queda registrado como el precio
+        // oficial del cliente para ese producto (lo hace el servidor).
         function aplicarEstadoPrecio(inputEl, precio) {
             if (!inputEl) return;
             inputEl.value = precio;
-            inputEl.readOnly = true;
-            inputEl.classList.add('bg-gray-100', 'text-gray-600', 'cursor-not-allowed');
-            inputEl.title = 'Precio del cliente — para cambiarlo, edítalo en su registro';
+            const bloqueado = (+precio || 0) > 0;
+            inputEl.readOnly = bloqueado;
+            inputEl.classList.toggle('bg-gray-100', bloqueado);
+            inputEl.classList.toggle('text-gray-600', bloqueado);
+            inputEl.classList.toggle('cursor-not-allowed', bloqueado);
+            inputEl.title = bloqueado
+                ? 'Precio del cliente — para cambiarlo, edítalo en su registro'
+                : 'Este producto no tiene precio configurado para el cliente — captúralo aquí, quedará registrado como su precio oficial';
         }
 
         function recalcRow(i) {
