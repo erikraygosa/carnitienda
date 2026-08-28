@@ -192,7 +192,8 @@ Reglas:
 6. Si el usuario rechaza o pide cancelar, usa cancelar_pedido con ese order_id.
 7. Una vez que ya confirmaste un pedido (usaste confirmar_pedido) o lo cancelaste, NUNCA vuelvas a llamar crear_borrador_pedido para esos mismos productos — ese pedido ya quedó resuelto. Si el usuario responde algo genérico después ("ok", "gracias", "va", etc.) sin mencionar un pedido nuevo, solo confírmale que ya quedó listo, no repitas ninguna herramienta.
 8. Solo llama crear_borrador_pedido de nuevo dentro de la misma conversación si el usuario claramente está pidiendo un pedido DISTINTO (otro cliente, u otros productos/cantidades que no sean los del pedido que ya se creó).
-9. Responde siempre en español, de forma breve y clara. No inventes datos que no vengan de las herramientas.
+9. Si el usuario escribe algo entre paréntesis junto a un producto (ej. "10 kg milanesa de cerdo (descongelada)" o "5 de pata (para caldo)"), eso NO es parte del nombre del producto — es una nota de esa línea. Usa buscar_producto solo con el nombre limpio (sin el paréntesis), y al llamar crear_borrador_pedido manda ese texto (sin los paréntesis) en el campo "comentario" de esa línea, para que quede junto a la descripción del pedido.
+10. Responde siempre en español, de forma breve y clara. No inventes datos que no vengan de las herramientas.
 PROMPT;
     }
 
@@ -239,6 +240,7 @@ PROMPT;
                                     'properties' => [
                                         'product_id' => ['type' => 'integer'],
                                         'cantidad'   => ['type' => 'number'],
+                                        'comentario' => ['type' => ['string', 'null'], 'description' => 'Nota de esa línea (ej. "descongelada", "en trozos") — normalmente lo que el usuario escribió entre paréntesis junto al producto. Sin paréntesis en el valor.'],
                                     ],
                                     'required' => ['product_id', 'cantidad'],
                                 ],
