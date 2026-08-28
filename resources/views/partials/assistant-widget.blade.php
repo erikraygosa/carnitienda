@@ -58,6 +58,27 @@
     var conversationId = null;
     var placeholderHtml = messagesBox.innerHTML;
 
+    // Esto NO es un SPA: cada navegación (ej. Dashboard → Pedidos) recarga
+    // la página completa y el JS pierde todo lo que tenía en memoria. Para
+    // que la conversación sobreviva a esos saltos de página, se guarda el
+    // conversation_id (y si el panel estaba visible) en sessionStorage — solo
+    // dura mientras la pestaña siga abierta, y al cargar cada página se
+    // rehidrata el historial real desde el servidor (fuente de verdad).
+    var STORAGE_KEY_CONV = 'assistant_conversation_id';
+    var STORAGE_KEY_OPEN = 'assistant_widget_open';
+
+    function persistState(open) {
+        try {
+            if (conversationId) {
+                sessionStorage.setItem(STORAGE_KEY_CONV, conversationId);
+                sessionStorage.setItem(STORAGE_KEY_OPEN, open ? '1' : '0');
+            } else {
+                sessionStorage.removeItem(STORAGE_KEY_CONV);
+                sessionStorage.removeItem(STORAGE_KEY_OPEN);
+            }
+        } catch (e) { /* modo privado o storage bloqueado — sin persistencia, no rompe nada */ }
+    }
+
     function togglePanel(show) {
         panel.classList.toggle('hidden', !show);
         panel.classList.toggle('flex', show);
@@ -69,21 +90,25 @@
             // conversación en curso — el punto avisa que hay algo que retomar.
             activeDot.classList.remove('hidden');
         }
+        persistState(show);
     }
 
     // Minimizar: solo oculta el panel, la conversación sigue intacta — al
-    // reabrir (con el botón flotante) se retoma tal cual se dejó, para poder
-    // ver el pedido de fondo y seguir trabajando sin perder el chat.
+    // reabrir (con el botón flotante, en esta página o en otra) se retoma
+    // tal cual se dejó, para poder ver el pedido de fondo y seguir
+    // trabajando sin perder el chat.
     toggleBtn.addEventListener('click', function () { togglePanel(panel.classList.contains('hidden')); });
     minimizeBtn.addEventListener('click', function () { togglePanel(false); });
 
-    // Cerrar: termina la conversación de verdad — limpia el historial y el
-    // conversation_id, para que la próxima vez se empiece desde cero.
+    // Cerrar: termina la conversación de verdad — limpia el historial, el
+    // conversation_id y lo guardado en sessionStorage, para que la próxima
+    // vez (aquí o en otra página) se empiece desde cero.
     closeBtn.addEventListener('click', function () {
         togglePanel(false);
         conversationId = null;
         messagesBox.innerHTML = placeholderHtml;
         activeDot.classList.add('hidden');
+        persistState(false);
     });
 
     function addBubble(text, who) {
@@ -165,6 +190,7 @@
         .then(function (data) {
             thinking.remove();
             conversationId = data.conversation_id || conversationId;
+            persistState(!panel.classList.contains('hidden'));
             if (data.reply) addBubble(data.reply, 'assistant');
             if (data.draft_order) addDraftCard(data.draft_order);
         })
@@ -173,5 +199,42 @@
             addBubble('No se pudo conectar con el asistente.', 'assistant');
         });
     });
+
+    // Al cargar cualquier página del admin: si había una conversación en
+    // curso (guardada en sessionStorage desde otra página o de antes de
+    // recargar), se trae su historial real del servidor y se reconstruye
+    // el chat tal cual estaba — el panel vuelve a abrirse solo si se había
+    // dejado abierto (no minimizado) antes de navegar.
+    (function restoreConversation() {
+        var savedId, savedOpen;
+        try {
+            savedId   = sessionStorage.getItem(STORAGE_KEY_CONV);
+            savedOpen = sessionStorage.getItem(STORAGE_KEY_OPEN) === '1';
+        } catch (e) { return; }
+
+        if (!savedId) return;
+
+        fetch('{{ url("admin/asistente/conversaciones") }}/' + savedId, {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(function (r) { if (!r.ok) throw new Error('no encontrada'); return r.json(); })
+        .then(function (data) {
+            conversationId = data.conversation_id;
+            messagesBox.innerHTML = '';
+            (data.messages || []).forEach(function (m) {
+                addBubble(m.content, m.role === 'user' ? 'user' : 'assistant');
+            });
+            if (data.draft_order) addDraftCard(data.draft_order);
+            togglePanel(savedOpen);
+        })
+        .catch(function () {
+            // La conversación ya no existe o no es de este usuario — se
+            // limpia lo guardado para no reintentarlo en cada página.
+            try {
+                sessionStorage.removeItem(STORAGE_KEY_CONV);
+                sessionStorage.removeItem(STORAGE_KEY_OPEN);
+            } catch (e) {}
+        });
+    })();
 })();
 </script>
