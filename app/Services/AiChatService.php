@@ -184,20 +184,25 @@ class AiChatService
 
     private function systemPrompt(): string
     {
+        $hoy = now()->translatedFormat('l j \d\e F \d\e Y'); // ej. "jueves 27 de agosto de 2026"
+
         return <<<PROMPT
 Eres el asistente de captura de pedidos de un sistema de carnicería/distribución. Los agentes te dictan pedidos en lenguaje natural, por ejemplo: "Angel Galera, 10 kilos de panza, 10 de pata".
+
+Hoy es {$hoy}. Usa esta fecha como referencia para interpretar cualquier fecha relativa o incompleta que mencione el usuario.
 
 Reglas:
 1. Antes de crear cualquier pedido, usa buscar_cliente para resolver el nombre del cliente y buscar_producto para cada producto mencionado. Nunca inventes un client_id o product_id sin haberlo resuelto con estas herramientas.
 2. Si buscar_cliente o buscar_producto regresan varios candidatos (status ambiguous), pregunta al usuario cuál es el correcto antes de continuar. Si no hay ningún candidato (status not_found), dile que no lo encontraste y pide que lo aclare o lo escriba distinto.
-3. Cuando ya tengas el cliente (o el usuario confirme que no hay cliente registrado) y todos los productos resueltos con su cantidad, usa crear_borrador_pedido.
-4. Después de crear el borrador, muestra un resumen claro (cliente, cada producto con cantidad y precio, total) y pregunta si lo confirma.
-5. Si el usuario confirma (sí, confirmo, dale, etc.), usa confirmar_pedido con el order_id del borrador ya creado en esta conversación.
-6. Si el usuario rechaza o pide cancelar, usa cancelar_pedido con ese order_id.
-7. Una vez que ya confirmaste un pedido (usaste confirmar_pedido) o lo cancelaste, NUNCA vuelvas a llamar crear_borrador_pedido para esos mismos productos — ese pedido ya quedó resuelto. Si el usuario responde algo genérico después ("ok", "gracias", "va", etc.) sin mencionar un pedido nuevo, solo confírmale que ya quedó listo, no repitas ninguna herramienta.
-8. Solo llama crear_borrador_pedido de nuevo dentro de la misma conversación si el usuario claramente está pidiendo un pedido DISTINTO (otro cliente, u otros productos/cantidades que no sean los del pedido que ya se creó).
-9. Si el usuario escribe algo entre paréntesis junto a un producto (ej. "10 kg milanesa de cerdo (descongelada)" o "5 de pata (para caldo)"), eso NO es parte del nombre del producto — es una nota de esa línea. Usa buscar_producto solo con el nombre limpio (sin el paréntesis), y al llamar crear_borrador_pedido manda ese texto (sin los paréntesis) en el campo "comentario" de esa línea, para que quede junto a la descripción del pedido.
-10. Responde siempre en español, de forma breve y clara. No inventes datos que no vengan de las herramientas.
+3. Si el usuario menciona una fecha para el pedido, en cualquier formato ("28-08-2026", "28/08/2026", "28 de agosto", "28/08", "mañana", "el viernes"), interprétala usando la fecha de hoy como referencia y mándala en el campo "programado_para" de crear_borrador_pedido en formato YYYY-MM-DD. Si no menciona ninguna fecha, omite ese campo (el sistema usa mañana por default).
+4. Cuando ya tengas el cliente (o el usuario confirme que no hay cliente registrado) y todos los productos resueltos con su cantidad, usa crear_borrador_pedido.
+5. Después de crear el borrador, muestra un resumen claro (cliente, cada producto con cantidad y precio, fecha programada, total) y pregunta si lo confirma.
+6. Si el usuario confirma (sí, confirmo, dale, etc.), usa confirmar_pedido con el order_id del borrador ya creado en esta conversación.
+7. Si el usuario rechaza o pide cancelar, usa cancelar_pedido con ese order_id.
+8. Una vez que ya confirmaste un pedido (usaste confirmar_pedido) o lo cancelaste, NUNCA vuelvas a llamar crear_borrador_pedido para esos mismos productos — ese pedido ya quedó resuelto. Si el usuario responde algo genérico después ("ok", "gracias", "va", etc.) sin mencionar un pedido nuevo, solo confírmale que ya quedó listo, no repitas ninguna herramienta.
+9. Solo llama crear_borrador_pedido de nuevo dentro de la misma conversación si el usuario claramente está pidiendo un pedido DISTINTO (otro cliente, u otros productos/cantidades que no sean los del pedido que ya se creó), O si solo está corrigiendo la fecha de ese mismo pedido (en ese caso manda los mismos productos con la fecha nueva — el sistema detecta que es el mismo pedido y solo actualiza la fecha, no lo duplica).
+10. Si el usuario escribe algo entre paréntesis junto a un producto (ej. "10 kg milanesa de cerdo (descongelada)" o "5 de pata (para caldo)"), eso NO es parte del nombre del producto — es una nota de esa línea. Usa buscar_producto solo con el nombre limpio (sin el paréntesis), y al llamar crear_borrador_pedido manda ese texto (sin los paréntesis) en el campo "comentario" de esa línea, para que quede junto a la descripción del pedido.
+11. Responde siempre en español, de forma breve y clara. No inventes datos que no vengan de las herramientas.
 PROMPT;
     }
 
@@ -236,8 +241,9 @@ PROMPT;
                     'parameters'  => [
                         'type'       => 'object',
                         'properties' => [
-                            'client_id' => ['type' => ['integer', 'null'], 'description' => 'id real del cliente resuelto, o null si no hay cliente registrado'],
-                            'items'     => [
+                            'client_id'       => ['type' => ['integer', 'null'], 'description' => 'id real del cliente resuelto, o null si no hay cliente registrado'],
+                            'programado_para' => ['type' => ['string', 'null'], 'description' => 'Fecha para la que el usuario pidió el pedido, en formato YYYY-MM-DD, solo si mencionó una fecha. Omite o null si no mencionó ninguna (el sistema usa mañana por default).'],
+                            'items'           => [
                                 'type'  => 'array',
                                 'items' => [
                                     'type'       => 'object',
@@ -290,7 +296,8 @@ PROMPT;
                 ['client_id' => $args['client_id'] ?? null],
                 $args['items'] ?? [],
                 $user,
-                $conversation->id
+                $conversation->id,
+                $args['programado_para'] ?? null
             ),
             'confirmar_pedido' => $this->findAndRun($args, fn ($order) => $this->orders->confirm($order, $user)),
             'cancelar_pedido'  => $this->findAndRun($args, fn ($order) => $this->orders->cancel($order, $user)),
@@ -316,10 +323,11 @@ PROMPT;
         if (isset($result['order']) && $result['order'] instanceof SalesOrder) {
             $order = $result['order'];
             $result['order'] = [
-                'id'      => $order->id,
-                'folio'   => $order->folio,
-                'cliente' => $order->client?->nombre ?? 'Sin cliente registrado',
-                'items'   => $order->items->map(fn ($i) => [
+                'id'              => $order->id,
+                'folio'           => $order->folio,
+                'cliente'         => $order->client?->nombre ?? 'Sin cliente registrado',
+                'programado_para' => optional($order->programado_para)->format('Y-m-d'),
+                'items'           => $order->items->map(fn ($i) => [
                     'producto' => $i->descripcion,
                     'cantidad' => (float) $i->cantidad,
                     'precio'   => (float) $i->precio,
