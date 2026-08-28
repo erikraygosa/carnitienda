@@ -192,6 +192,58 @@ public function data(Request $request)
     ));
 }
 
+    /**
+     * Precio "oficial" para un producto dado el cliente/lista de precios del
+     * pedido — la misma resolución que hace el JS del formulario (override
+     * del cliente, o precio de la lista elegida). Null cuando no hay ni
+     * cliente ni lista de precios (venta libre/mostrador): ahí no hay un
+     * precio de referencia contra el cual validar, así que se respeta lo
+     * que venga en la petición.
+     *
+     * Se usa para pisar en el servidor cualquier precio que llegue del
+     * formulario — el campo es de solo lectura en la UI, pero eso no evita
+     * que alguien lo manipule desde las herramientas del navegador.
+     */
+    private function precioOficial(?int $clientId, ?int $priceListId, ?int $productId): ?float
+    {
+        if (!$productId) return null; // línea libre sin producto de catálogo
+
+        if ($priceListId) {
+            $precio = DB::table('price_list_items')
+                ->where('price_list_id', $priceListId)
+                ->where('product_id', $productId)
+                ->value('precio');
+            return round((float) ($precio ?? 0), 4);
+        }
+
+        if ($clientId) {
+            $precio = DB::table('client_price_overrides')
+                ->where('client_id', $clientId)
+                ->where('product_id', $productId)
+                ->value('precio');
+            return round((float) ($precio ?? 0), 4);
+        }
+
+        return null;
+    }
+
+    /**
+     * Sustituye en $items el precio que haya mandado el formulario por el
+     * precio oficial resuelto en el servidor, para las líneas que sí tienen
+     * un producto de catálogo y un cliente/lista de precios contra qué
+     * validar. Devuelve el arreglo corregido.
+     */
+    private function aplicarPreciosOficiales(array $items, ?int $clientId, ?int $priceListId): array
+    {
+        foreach ($items as $i => $it) {
+            $oficial = $this->precioOficial($clientId, $priceListId, $it['product_id'] ?? null);
+            if ($oficial !== null) {
+                $items[$i]['precio'] = $oficial;
+            }
+        }
+        return $items;
+    }
+
     public function store(Request $request)
     {
         if ($request->input('price_list_id') === 'client') {
@@ -233,6 +285,10 @@ public function data(Request $request)
             'items.*.num_cajas'    => ['nullable','integer','min:0'],
             'comentarios'          => ['nullable','string','max:2000'],
         ]);
+
+        $data['items'] = $this->aplicarPreciosOficiales(
+            $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
+        );
 
         $order = null;
 
@@ -431,6 +487,10 @@ public function data(Request $request)
             'items.*.num_cajas'    => ['nullable','integer','min:0'],
             'comentarios'          => ['nullable','string','max:2000'],
         ]);
+
+        $data['items'] = $this->aplicarPreciosOficiales(
+            $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
+        );
 
         // Partidas ya surtidas con producto real (Panel de Surtido) — se
         // ignora lo que venga del form para ellas, se conservan tal cual
