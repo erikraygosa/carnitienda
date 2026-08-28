@@ -5,8 +5,10 @@
 <div id="assistant-widget" class="fixed bottom-4 right-4 z-50">
 
     <button id="assistant-toggle" type="button"
-        class="w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg flex items-center justify-center text-2xl">
+        class="relative w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg flex items-center justify-center text-2xl">
         <i class="fa-solid fa-comment-dots"></i>
+        {{-- Punto que indica que hay una conversación en curso minimizada, para saber que hay algo que retomar. --}}
+        <span id="assistant-active-dot" class="hidden absolute top-0 right-0 w-3.5 h-3.5 bg-emerald-400 border-2 border-white rounded-full"></span>
     </button>
 
     <div id="assistant-panel"
@@ -14,9 +16,14 @@
 
         <div class="bg-indigo-600 text-white px-4 py-3 flex items-center justify-between">
             <div class="font-semibold text-sm">Asistente de pedidos</div>
-            <button id="assistant-close" type="button" class="text-white/80 hover:text-white">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
+            <div class="flex items-center gap-3">
+                <button id="assistant-minimize" type="button" class="text-white/80 hover:text-white" title="Minimizar (sigue la conversación)">
+                    <i class="fa-solid fa-minus"></i>
+                </button>
+                <button id="assistant-close" type="button" class="text-white/80 hover:text-white" title="Cerrar conversación">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
         </div>
 
         <div id="assistant-messages" class="flex-1 overflow-y-auto px-3 py-3 space-y-3 text-sm bg-gray-50">
@@ -40,22 +47,44 @@
 <script>
 (function () {
     var toggleBtn   = document.getElementById('assistant-toggle');
+    var minimizeBtn = document.getElementById('assistant-minimize');
     var closeBtn    = document.getElementById('assistant-close');
+    var activeDot   = document.getElementById('assistant-active-dot');
     var panel       = document.getElementById('assistant-panel');
     var form        = document.getElementById('assistant-form');
     var input       = document.getElementById('assistant-input');
     var messagesBox = document.getElementById('assistant-messages');
     var csrfToken   = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var conversationId = null;
+    var placeholderHtml = messagesBox.innerHTML;
 
     function togglePanel(show) {
         panel.classList.toggle('hidden', !show);
         panel.classList.toggle('flex', show);
-        if (show) input.focus();
+        if (show) {
+            input.focus();
+            activeDot.classList.add('hidden');
+        } else if (conversationId) {
+            // Se minimizó (o se cerró la ventana sin terminar) con una
+            // conversación en curso — el punto avisa que hay algo que retomar.
+            activeDot.classList.remove('hidden');
+        }
     }
 
+    // Minimizar: solo oculta el panel, la conversación sigue intacta — al
+    // reabrir (con el botón flotante) se retoma tal cual se dejó, para poder
+    // ver el pedido de fondo y seguir trabajando sin perder el chat.
     toggleBtn.addEventListener('click', function () { togglePanel(panel.classList.contains('hidden')); });
-    closeBtn.addEventListener('click', function () { togglePanel(false); });
+    minimizeBtn.addEventListener('click', function () { togglePanel(false); });
+
+    // Cerrar: termina la conversación de verdad — limpia el historial y el
+    // conversation_id, para que la próxima vez se empiece desde cero.
+    closeBtn.addEventListener('click', function () {
+        togglePanel(false);
+        conversationId = null;
+        messagesBox.innerHTML = placeholderHtml;
+        activeDot.classList.add('hidden');
+    });
 
     function addBubble(text, who) {
         var wrap = document.createElement('div');
