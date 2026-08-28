@@ -195,18 +195,15 @@ public function data(Request $request)
     /**
      * Precio "oficial" para un producto dado el cliente/lista de precios del
      * pedido — la misma resolución que hace el JS del formulario (override
-     * del cliente, o precio de la lista elegida).
+     * del cliente, o precio de la lista elegida). Null cuando no hay ni
+     * cliente ni lista de precios (venta libre/mostrador) o la línea no
+     * tiene producto de catálogo: ahí no hay un precio de referencia contra
+     * el cual validar, así que se respeta lo que venga en la petición.
      *
-     * Devuelve null (= "no hay nada que forzar, respeta lo que venga en la
-     * petición") en tres casos:
-     *   - línea libre sin producto de catálogo,
-     *   - venta sin cliente ni lista de precios (mostrador),
-     *   - el cliente/lista todavía NO tiene un precio configurado para ese
-     *     producto (viene en $0/null) — ahí cualquiera puede capturarlo para
-     *     este pedido, no es "editar" un precio del cliente, es agregar uno
-     *     que no existe.
-     * Si ya existe un precio (>0), se devuelve ese y se impone siempre —
-     * cambiarlo requiere permiso y se hace en el registro del cliente.
+     * Si el cliente/lista todavía NO tiene un precio configurado para ese
+     * producto, se impone $0 igual que en pantalla — el flujo para
+     * corregirlo es capturarlo en el registro del cliente (con permiso), no
+     * escribirlo libremente en el pedido.
      */
     private function precioOficial(?int $clientId, ?int $priceListId, ?int $productId): ?float
     {
@@ -217,20 +214,18 @@ public function data(Request $request)
                 ->where('price_list_id', $priceListId)
                 ->where('product_id', $productId)
                 ->value('precio');
-        } elseif ($clientId) {
+            return round((float) ($precio ?? 0), 4);
+        }
+
+        if ($clientId) {
             $precio = DB::table('client_price_overrides')
                 ->where('client_id', $clientId)
                 ->where('product_id', $productId)
                 ->value('precio');
-        } else {
-            return null;
+            return round((float) ($precio ?? 0), 4);
         }
 
-        if ($precio === null || (float) $precio <= 0) {
-            return null;
-        }
-
-        return round((float) $precio, 4);
+        return null;
     }
 
     /**

@@ -301,21 +301,18 @@
             return parseFloat((LISTS_PRICES[state.priceList]||{})[pid] ?? 0) || 0;
         }
 
-        // El precio se bloquea SOLO si el cliente/lista ya tiene un precio
-        // configurado para ese producto (>0). Si todavía no existe (viene en
-        // $0), cualquiera puede capturarlo para esta línea del pedido —
-        // no es "editar" un precio del cliente, es agregar uno que no existe.
+        // El precio siempre viene del cliente/lista y siempre queda de solo
+        // lectura aquí — exista o no exista todavía. Si no existe (viene en
+        // $0), el flujo es: la alerta de precio en cero lleva a una pestaña
+        // nueva a capturarlo en el registro del cliente; al cerrarla y volver
+        // a esta pestaña, el listener de visibilitychange (más abajo) refresca
+        // los overrides y esta línea toma el precio recién guardado solo.
         function aplicarEstadoPrecio(inputEl, precio) {
             if (!inputEl) return;
             inputEl.value = precio;
-            const bloqueado = (+precio || 0) > 0;
-            inputEl.readOnly = bloqueado;
-            inputEl.classList.toggle('bg-gray-100', bloqueado);
-            inputEl.classList.toggle('text-gray-600', bloqueado);
-            inputEl.classList.toggle('cursor-not-allowed', bloqueado);
-            inputEl.title = bloqueado
-                ? 'Precio del cliente — para cambiarlo, edítalo en su registro'
-                : 'Este producto no tiene precio configurado para el cliente — puedes capturarlo aquí';
+            inputEl.readOnly = true;
+            inputEl.classList.add('bg-gray-100', 'text-gray-600', 'cursor-not-allowed');
+            inputEl.title = 'Precio del cliente — para cambiarlo, edítalo en su registro';
         }
 
         function recalcRow(i) {
