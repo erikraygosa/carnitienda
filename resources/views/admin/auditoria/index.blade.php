@@ -17,6 +17,7 @@
                     <option value="">Todos</option>
                     <option value="producto"   @selected(request('tipo')=='producto')>Producto</option>
                     <option value="pedido"     @selected(request('tipo')=='pedido')>Pedido</option>
+                    <option value="cobro"      @selected(request('tipo')=='cobro')>Cobro</option>
                     <option value="factura"    @selected(request('tipo')=='factura')>Factura</option>
                     <option value="movimiento" @selected(request('tipo')=='movimiento')>Movimiento stock</option>
                     <option value="traspaso"   @selected(request('tipo')=='traspaso')>Traspaso</option>

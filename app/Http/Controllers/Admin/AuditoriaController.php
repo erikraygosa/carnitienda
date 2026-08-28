@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ArPayment;
 use App\Models\CashRegister;
 use App\Models\Client;
 use App\Models\Dispatch;
@@ -40,6 +41,7 @@ class AuditoriaController extends Controller implements HasMiddleware
         'inventario'  => InventoryMovement::class,
         'caja'        => CashRegister::class,
         'usuario'     => User::class,
+        'cobro'       => ArPayment::class,
     ];
 
     public function index(Request $request)
