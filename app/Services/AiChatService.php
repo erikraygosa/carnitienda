@@ -90,15 +90,17 @@ class AiChatService
      */
     public function handleMessage(AssistantConversation $conversation, string $userMessage, User $user): array
     {
-        if (! $this->isConfigured()) {
-            return [
-                'ok'          => false,
-                'reply'       => 'El asistente de IA no está configurado. Pide a un administrador que defina OPENAI_API_KEY.',
-                'draft_order' => null,
-            ];
-        }
-
+        // El mensaje del usuario se guarda SIEMPRE, incluso si la IA no está
+        // configurada o falla después — si no, el historial que ve el widget
+        // al recargar la página (vía historial()) sale vacío y parece que la
+        // conversación nunca existió.
         $conversation->messages()->create(['role' => 'user', 'content' => $userMessage]);
+
+        if (! $this->isConfigured()) {
+            $reply = 'El asistente de IA no está configurado. Pide a un administrador que defina OPENAI_API_KEY.';
+            $conversation->messages()->create(['role' => 'assistant', 'content' => $reply]);
+            return ['ok' => false, 'reply' => $reply, 'draft_order' => null];
+        }
 
         $history    = $this->buildHistory($conversation);
         $draftOrder = null;
@@ -108,7 +110,9 @@ class AiChatService
 
             if (! ($resp['ok'] ?? false)) {
                 Log::warning('AiChatService: fallo llamando al proveedor de IA', ['body' => $resp['body'] ?? null]);
-                return ['ok' => false, 'reply' => 'Hubo un problema hablando con el asistente de IA. Intenta de nuevo.', 'draft_order' => $draftOrder];
+                $reply = 'Hubo un problema hablando con el asistente de IA. Intenta de nuevo.';
+                $conversation->messages()->create(['role' => 'assistant', 'content' => $reply]);
+                return ['ok' => false, 'reply' => $reply, 'draft_order' => $draftOrder];
             }
 
             $message = $resp['body']['choices'][0]['message'] ?? null;

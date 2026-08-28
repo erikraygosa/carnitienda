@@ -397,9 +397,10 @@ Route::prefix('gestion-notas')->name('gestion-notas.')->group(function () {
 // usuario autenticado; crear/confirmar/cancelar un pedido real sigue
 // exigiendo el permiso 'crear pedidos', validado dentro del servicio.
 Route::prefix('asistente')->name('asistente.')->group(function () {
-    Route::post('mensaje',                   [AssistantChatController::class, 'mensaje'])->name('mensaje');
-    Route::post('pedidos/{order}/confirmar', [AssistantChatController::class, 'confirmar'])->name('pedidos.confirmar');
-    Route::post('pedidos/{order}/cancelar',  [AssistantChatController::class, 'cancelar'])->name('pedidos.cancelar');
+    Route::post('mensaje',                        [AssistantChatController::class, 'mensaje'])->name('mensaje');
+    Route::get ('conversaciones/{conversation}',   [AssistantChatController::class, 'historial'])->name('historial');
+    Route::post('pedidos/{order}/confirmar',       [AssistantChatController::class, 'confirmar'])->name('pedidos.confirmar');
+    Route::post('pedidos/{order}/cancelar',        [AssistantChatController::class, 'cancelar'])->name('pedidos.cancelar');
 });
 
 Route::prefix('despacho')->name('despacho.')->middleware(['can:salida de producto'])->group(function () {

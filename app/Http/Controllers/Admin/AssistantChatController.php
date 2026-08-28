@@ -42,6 +42,34 @@ class AssistantChatController extends Controller
         ]);
     }
 
+    /**
+     * Devuelve el historial de una conversación + el borrador pendiente (si
+     * lo hay) — usado por el widget para recuperar la conversación cuando
+     * el usuario navega a otra página (esto no es un SPA: cada navegación
+     * recarga todo y el JS pierde el estado en memoria; el navegador solo
+     * guarda el conversation_id en sessionStorage y lo rehidrata desde aquí).
+     */
+    public function historial(Request $request, AssistantConversation $conversation)
+    {
+        if ($conversation->user_id !== $request->user()->id) {
+            abort(403);
+        }
+
+        $pendiente = SalesOrder::where('assistant_conversation_id', $conversation->id)
+            ->where('status', SalesOrder::S_BORRADOR)
+            ->orderByDesc('id')
+            ->first();
+
+        return response()->json([
+            'conversation_id' => $conversation->id,
+            'messages'        => $conversation->messages()->orderBy('id')->get(['role', 'content'])->map(fn ($m) => [
+                'role'    => $m->role,
+                'content' => $m->content,
+            ]),
+            'draft_order' => $this->summarize($pendiente),
+        ]);
+    }
+
     public function confirmar(Request $request, SalesOrder $order)
     {
         $result = $this->orders->confirm($order, $request->user());
