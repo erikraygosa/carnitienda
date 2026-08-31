@@ -494,7 +494,28 @@
                 if (usoEl && d.uso_cfdi) usoEl.value = d.uso_cfdi;
             }
         }
+        enforceRegimen616();
     }
+
+    // El régimen 616 ("Sin obligaciones fiscales") en la práctica solo
+    // acepta Uso CFDI S01 — cualquier otro (G03, I01, etc.) truena en el
+    // PAC con "La clave del campo UsoCFDI debe corresponder con el tipo
+    // de persona ... conforme al catálogo c_UsoCFDI". Se fuerza aquí para
+    // no dejar capturar una combinación que el servidor de todas formas va
+    // a corregir al guardar (no se deshabilita el select — así el valor
+    // sigue viajando en el submit).
+    function enforceRegimen616() {
+        var regEl = document.getElementById('regimen_fiscal_receptor');
+        var usoEl = document.getElementById('uso_cfdi');
+        if (!regEl || !usoEl) return;
+
+        if (regEl.value === '616') usoEl.value = 'S01';
+    }
+    (function() {
+        var regEl = document.getElementById('regimen_fiscal_receptor');
+        if (regEl) regEl.addEventListener('change', enforceRegimen616);
+        enforceRegimen616();
+    })();
 
     // ─── Productos ────────────────────────────────────────────────────────────
     function onProductChange(i, productId) {

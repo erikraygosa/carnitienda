@@ -25,6 +25,12 @@ class InvoiceController extends Controller implements HasMiddleware
      * formulario — así que forzamos aquí los únicos valores válidos para
      * no generar un "Error PAC: tax_system no tiene un valor permitido"
      * al timbrar.
+     *
+     * Además, el régimen 616 ("Sin obligaciones fiscales") en la práctica
+     * solo acepta Uso CFDI S01 — cualquier otro uso (G03, I01, etc.) truena
+     * en el PAC con "La clave del campo UsoCFDI debe corresponder con el
+     * tipo de persona ... conforme al catálogo c_UsoCFDI", aunque el
+     * cliente sí tenga RFC. Se fuerza igual, tenga o no RFC.
      */
     private function forceGenericRfcRegimen(array $data): array
     {
@@ -32,6 +38,8 @@ class InvoiceController extends Controller implements HasMiddleware
 
         if ($cliente && empty($cliente->rfc)) {
             $data['regimen_fiscal_receptor'] = '616';
+            $data['uso_cfdi'] = 'S01';
+        } elseif (($data['regimen_fiscal_receptor'] ?? null) === '616') {
             $data['uso_cfdi'] = 'S01';
         }
 
