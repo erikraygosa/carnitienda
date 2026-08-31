@@ -156,9 +156,10 @@
             :value="old('rfc', $isEdit ? $client->rfc : '')"
             data-fiscal="any" id="rfc" />
 
-        <x-wire-input name="razon_social" label="Razón social"
+        <x-wire-input name="razon_social" label="Razón social / Nombre fiscal (SAT)"
+            placeholder="Nombre completo o razón social EXACTA como está registrada ante el SAT para ese RFC"
             :value="old('razon_social', $isEdit ? $client->razon_social : '')"
-            data-fiscal="moral" id="razon_social" />
+            data-fiscal="any" id="razon_social" />
 
         <x-wire-input name="nombre_comercial" label="Nombre comercial"
             :value="old('nombre_comercial', $isEdit ? $client->nombre_comercial : '')"
@@ -167,7 +168,7 @@
         <x-wire-input name="regimen_fiscal" label="Régimen fiscal (código SAT)"
             placeholder="Ej. 601"
             :value="old('regimen_fiscal', $isEdit ? $client->regimen_fiscal : '')"
-            data-fiscal="moral" id="regimen_fiscal" />
+            data-fiscal="any" id="regimen_fiscal" />
 
         <x-wire-input name="uso_cfdi_default" label="Uso CFDI (código SAT)"
             placeholder="Ej. G01"
