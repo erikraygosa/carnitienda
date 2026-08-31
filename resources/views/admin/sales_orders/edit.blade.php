@@ -799,6 +799,15 @@
                 });
             }
 
+            // Sin este listener, lo que se escribía en "Cajas" nunca llegaba
+            // a state.items — al agregar otra partida, renderAll() reconstruye
+            // toda la tabla desde state.items y esa cantidad de cajas se perdía.
+            if (!surtido) {
+                tr.querySelector('.inp-cajas').addEventListener('input', function() {
+                    state.items[i].num_cajas = this.value === '' ? null : parseInt(this.value, 10) || null;
+                });
+            }
+
             return tr;
         }
 

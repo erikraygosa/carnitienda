@@ -575,6 +575,12 @@
                     recalcRow(i);
                 });
             });
+            // Sin este listener, lo que se escribía en "Cajas" nunca llegaba
+            // a state.items — al agregar otra partida, renderAll() reconstruye
+            // toda la tabla desde state.items y esa cantidad de cajas se perdía.
+            tr.querySelector('.inp-cajas').addEventListener('input', function() {
+                state.items[i].num_cajas = this.value === '' ? null : parseInt(this.value, 10) || null;
+            });
             // El precio se bloquea solo cuando el cliente/lista YA tiene un
             // precio configurado (>0) para este producto. Si viene en $0
             // (no configurado), se deja editable para poder capturarlo en
