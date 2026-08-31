@@ -219,7 +219,7 @@
                 {{-- Forma de pago --}}
                 <div class="space-y-2">
                     <label class="block text-sm font-medium text-gray-700">Forma de pago</label>
-                    <select name="forma_pago"
+                    <select name="forma_pago" id="forma_pago" autocomplete="off"
                             class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                             {{ $isLocked ? 'disabled' : '' }}>
                         @foreach($formasPago as $k => $lbl)
@@ -231,7 +231,7 @@
                 {{-- Método de pago --}}
                 <div class="space-y-2">
                     <label class="block text-sm font-medium text-gray-700">Método de pago</label>
-                    <select name="metodo_pago"
+                    <select name="metodo_pago" id="metodo_pago" autocomplete="off"
                             class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                             {{ $isLocked ? 'disabled' : '' }}>
                         <option value="PUE" {{ $selMetodo === 'PUE' ? 'selected' : '' }}>PUE — Una sola exhibición</option>
@@ -441,6 +441,12 @@
     const ITEMS_SEED   = @json($itemsSeed);
     const PREFILL_CID  = @json((string)($invoice->client_id ?? ''));
     const IS_LOCKED    = @json($isLocked);
+    // Valor real guardado — se reaplica en JS después de cargar la página
+    // porque algunos navegadores "restauran" el <select> a lo último que
+    // el usuario tecleó/eligió ahí en visitas anteriores a esta URL,
+    // pisando el `selected` que Blade sí calculó bien en el HTML.
+    const SAVED_FORMA_PAGO  = @json($selForma);
+    const SAVED_METODO_PAGO = @json($selMetodo);
 
     // ─── Estado ───────────────────────────────────────────────────────────────
     let items = JSON.parse(JSON.stringify(ITEMS_SEED));
@@ -453,6 +459,14 @@
         if (PREFILL_CID) {
             applyClient(PREFILL_CID, false);
         }
+
+        // Reforzar el valor guardado por si el navegador restauró el select
+        // a lo último tecleado ahí en una visita anterior (ver comentario
+        // en SAVED_FORMA_PAGO más arriba).
+        var formaEl  = document.getElementById('forma_pago');
+        var metodoEl = document.getElementById('metodo_pago');
+        if (formaEl)  formaEl.value  = SAVED_FORMA_PAGO;
+        if (metodoEl) metodoEl.value = SAVED_METODO_PAGO;
 
         items.forEach(function (_, i) { recalc(i); });
     });
