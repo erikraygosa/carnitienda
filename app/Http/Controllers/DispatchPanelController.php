@@ -25,10 +25,12 @@ class DispatchPanelController extends Controller
 
         $rutas     = ShippingRoute::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
         $rutaId    = $request->get('ruta_id');
+        $ronda     = $request->get('ronda'); // '' (ambas) | 1 | 2
 
         $pedidos = SalesOrder::with(['client', 'items.product'])
             ->where('status', SalesOrder::S_PROCESADO)
             ->when($rutaId, fn($q) => $q->where('shipping_route_id', $rutaId))
+            ->when($ronda,  fn($q) => $q->where('ronda', $ronda))
             ->orderByDesc('fecha')
             ->paginate(50)
             ->withQueryString();
@@ -49,7 +51,7 @@ class DispatchPanelController extends Controller
         $impresionZplActiva = SystemSetting::get('etiquetas.modo_impresion', 'ticket') === 'zpl';
         $imprimirPorCajas   = (bool) SystemSetting::get('etiquetas.imprimir_por_cajas', false);
 
-        return view('admin.dispatch_panel.index', compact('pedidos', 'rutas', 'rutaId', 'itemsDespachadosIds', 'impresionZplActiva', 'imprimirPorCajas'));
+        return view('admin.dispatch_panel.index', compact('pedidos', 'rutas', 'rutaId', 'ronda', 'itemsDespachadosIds', 'impresionZplActiva', 'imprimirPorCajas'));
     }
 
     // ── Polling: conteo de pedidos PROCESADOS para notificaciones ───
@@ -67,10 +69,12 @@ class DispatchPanelController extends Controller
         $this->authorize('salida de producto');
 
         $rutaId = $request->get('ruta_id');
+        $ronda  = $request->get('ronda');
 
         $pedidos = SalesOrder::with(['client', 'items.product'])
             ->where('status', SalesOrder::S_PROCESADO)
             ->when($rutaId, fn($q) => $q->where('shipping_route_id', $rutaId))
+            ->when($ronda,  fn($q) => $q->where('ronda', $ronda))
             ->orderBy('fecha')
             ->get();
 

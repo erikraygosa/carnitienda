@@ -32,7 +32,7 @@ class SalesOrder extends Model
         'client_id','warehouse_id','price_list_id','quote_id','folio','fecha','programado_para',
         'delivery_type','entrega_nombre','entrega_telefono','entrega_calle','entrega_numero',
         'entrega_colonia','entrega_ciudad','entrega_estado','entrega_cp',
-        'shipping_route_id','driver_id','payment_method','credit_days',
+        'shipping_route_id','ronda','driver_id','payment_method','credit_days',
         'moneda','subtotal','impuestos','descuento','total','status',
         // nuevos (logística)
         'preparado_at','despachado_at','en_ruta_at','entregado_at','no_entregado_at',

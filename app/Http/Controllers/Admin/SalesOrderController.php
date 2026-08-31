@@ -331,6 +331,7 @@ public function data(Request $request)
             'entrega_cp'       => ['nullable','string','max:10'],
 
             'shipping_route_id'=> ['nullable','exists:shipping_routes,id'],
+            'ronda'            => ['nullable','integer','in:1,2'],
             'driver_id'        => ['nullable','exists:drivers,id'],
 
             'payment_method'  => ['required','in:CREDITO,TRANSFERENCIA,CONTRAENTREGA,EFECTIVO'],
@@ -388,6 +389,7 @@ public function data(Request $request)
                 'entrega_cp'      => $data['entrega_cp'] ?? null,
 
                 'shipping_route_id'=> $data['shipping_route_id'] ?? null,
+                'ronda'            => $data['ronda']             ?? 1,
                 'driver_id'        => $data['driver_id'] ?? null,
 
                 'payment_method' => $data['payment_method'],
@@ -535,6 +537,7 @@ public function data(Request $request)
             'entrega_cp'       => ['nullable','string','max:10'],
 
             'shipping_route_id'=> ['nullable','exists:shipping_routes,id'],
+            'ronda'            => ['nullable','integer','in:1,2'],
             'driver_id'        => ['nullable','exists:drivers,id'],
 
             'payment_method'  => ['required','in:CREDITO,TRANSFERENCIA,CONTRAENTREGA,EFECTIVO'],
@@ -635,6 +638,7 @@ public function data(Request $request)
                 'entrega_cp'       => $data['entrega_cp'] ?? null,
 
                 'shipping_route_id'=> $data['shipping_route_id'] ?? null,
+                'ronda'            => $data['ronda']             ?? 1,
                 'driver_id'        => $data['driver_id'] ?? null,
 
                 'payment_method'   => $data['payment_method'],

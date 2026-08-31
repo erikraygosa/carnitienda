@@ -42,14 +42,23 @@
                                 </option>
                             @endforeach
                         </select>
-                        @if($rutaId)
+                        <select name="ronda" onchange="this.form.submit()"
+                                class="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                            <option value="">Ambas rutas</option>
+                            <option value="1" {{ (string)$ronda === '1' ? 'selected' : '' }}>1ra ruta</option>
+                            <option value="2" {{ (string)$ronda === '2' ? 'selected' : '' }}>2da ruta</option>
+                        </select>
+                        @if($rutaId || $ronda)
                             <a href="{{ route('admin.despacho.panel') }}"
                                class="text-xs text-gray-400 hover:text-red-500" title="Quitar filtro">✕</a>
                         @endif
                     </form>
                     <input id="filter-search" type="text" placeholder="Buscar folio / cliente..."
                         class="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 w-56"/>
-                    <a href="{{ route('admin.despacho.print') }}{{ $rutaId ? '?ruta_id='.$rutaId : '' }}" target="_blank"
+                    @php
+                        $printQuery = array_filter(['ruta_id' => $rutaId, 'ronda' => $ronda]);
+                    @endphp
+                    <a href="{{ route('admin.despacho.print') }}{{ $printQuery ? '?'.http_build_query($printQuery) : '' }}" target="_blank"
                         class="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-600 whitespace-nowrap">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -90,7 +99,12 @@
                                 </td>
                                 {{-- Cliente solo en primera fila --}}
                                 <td class="px-3 py-2 text-gray-700 text-xs">
-                                    {{ $itemIdx === 0 ? ($pedido->client?->nombre ?? '—') : '' }}
+                                    @if($itemIdx === 0)
+                                        {{ $pedido->client?->nombre ?? '—' }}
+                                        <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium {{ ($pedido->ronda ?? 1) == 2 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500' }}">
+                                            {{ ($pedido->ronda ?? 1) == 2 ? '2da' : '1ra' }}
+                                        </span>
+                                    @endif
                                 </td>
                                 {{-- Fecha solo en primera fila — la programada de entrega, no la de captura --}}
                                 @php $fechaMostrar = $pedido->programado_para ?? $pedido->fecha; @endphp
