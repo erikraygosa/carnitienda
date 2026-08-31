@@ -126,6 +126,7 @@ class DispatchController extends Controller implements HasMiddleware
         $data = $request->validate([
                'warehouse_id'      => ['required', 'exists:warehouses,id'],
         'shipping_route_id' => ['required', 'exists:shipping_routes,id'],
+        'ronda'             => ['nullable', 'integer', 'in:1,2'],
         'vehicle'           => ['nullable', 'string', 'max:50'],
         'fecha'             => ['required', 'date'],
         'notas'             => ['nullable', 'string'],
@@ -155,6 +156,7 @@ class DispatchController extends Controller implements HasMiddleware
             $dispatch = Dispatch::create([
                 'warehouse_id'      => $data['warehouse_id']      ?? null,
                 'shipping_route_id' => $data['shipping_route_id'] ?? null,
+                'ronda'             => $data['ronda']             ?? 1,
                 'driver_id'         => $driver->id,
                 'vehicle'           => $data['vehicle']           ?? null,
                 'fecha'             => Carbon::parse($data['fecha']),
@@ -414,6 +416,7 @@ class DispatchController extends Controller implements HasMiddleware
         $data = $request->validate([
             'warehouse_id'      => ['nullable', 'exists:warehouses,id'],
             'shipping_route_id' => ['nullable', 'exists:shipping_routes,id'],
+            'ronda'             => ['nullable', 'integer', 'in:1,2'],
             'vehicle'           => ['nullable', 'string', 'max:50'],
             'fecha'             => ['required', 'date'],
             'notas'             => ['nullable', 'string'],

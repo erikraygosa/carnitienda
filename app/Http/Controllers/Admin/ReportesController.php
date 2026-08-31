@@ -91,6 +91,7 @@ class ReportesController extends Controller implements HasMiddleware
         $fecha        = $request->get('fecha', now()->toDateString());
         $routeId      = $request->get('route_id', '');
         $driverId     = $request->get('driver_id', '');
+        $ronda        = $request->get('ronda', ''); // '' (ambas) | 1 | 2
         // pendientes | todas | no_entregado (mantiene compat con solo_sin_liquidar=1/0)
         $filtroRaw    = $request->get('filtro_estatus', $request->get('solo_sin_liquidar', '0') === '1' ? 'pendientes' : 'todas');
 
@@ -103,6 +104,7 @@ class ReportesController extends Controller implements HasMiddleware
             ->when($fecha,    fn($q) => $q->whereDate('dispatches.fecha', $fecha))
             ->when($routeId,  fn($q) => $q->where('dispatches.shipping_route_id', $routeId))
             ->when($driverId, fn($q) => $q->where('dispatches.driver_id', $driverId))
+            ->when($ronda,    fn($q) => $q->where('dispatches.ronda', $ronda))
             ->when($filtroRaw === 'pendientes', fn($q) => $q
                 ->where('sales_orders.driver_settlement_status', 'PENDIENTE')
                 ->whereNotIn('sales_orders.status', ['NO_ENTREGADO', 'CANCELADO']))
@@ -124,6 +126,7 @@ class ReportesController extends Controller implements HasMiddleware
                 'sales_orders.client_id',
                 'clients.nombre as cliente_nombre',
                 'shipping_routes.nombre as ruta_nombre',
+                'dispatches.ronda',
                 'drivers.nombre as chofer_nombre',
                 'dispatches.fecha',
                 'sales_orders.total',
@@ -148,6 +151,7 @@ class ReportesController extends Controller implements HasMiddleware
         $fecha    = $request->get('fecha', now()->toDateString());
         $routeId  = $request->get('route_id', '');
         $driverId = $request->get('driver_id', '');
+        $ronda    = $request->get('ronda', '');
 
         $assignments = \App\Models\DispatchArAssignment::query()
             ->join('dispatches', 'dispatches.id', '=', 'dispatch_ar_assignments.dispatch_id')
@@ -157,6 +161,7 @@ class ReportesController extends Controller implements HasMiddleware
             ->when($fecha,    fn($q) => $q->whereDate('dispatches.fecha', $fecha))
             ->when($routeId,  fn($q) => $q->where('dispatches.shipping_route_id', $routeId))
             ->when($driverId, fn($q) => $q->where('dispatches.driver_id', $driverId))
+            ->when($ronda,    fn($q) => $q->where('dispatches.ronda', $ronda))
             ->select(
                 'dispatch_ar_assignments.id',
                 'dispatch_ar_assignments.client_id',
@@ -608,6 +613,7 @@ class ReportesController extends Controller implements HasMiddleware
                         'url'            => route('admin.sales-orders.edit', $s->sales_order_id),
                         'client_id'      => $s->client_id,
                         'cliente'        => $s->cliente_nombre ?? '—',
+                        'ronda'          => (int) ($s->ronda ?? 1),
                         'fecha'          => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',
                         'total'          => (float)$s->total,
                         'total_fmt'      => number_format((float)$s->total, 2),

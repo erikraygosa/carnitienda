@@ -83,6 +83,7 @@
     <x-wire-card>
         <div class="flex items-center gap-3 mb-4">
             <span class="px-3 py-1 rounded-full text-sm font-medium {{ $statusClass }}">{{ $dispatch->status }}</span>
+            <span class="px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{{ ($dispatch->ronda ?? 1) == 2 ? '2da ruta' : '1ra ruta' }}</span>
             <span class="text-sm text-gray-500">Chofer: <strong>{{ $dispatch->driver?->nombre ?? '—' }}</strong></span>
             <span class="text-sm text-gray-500">Fecha: <strong>{{ optional($dispatch->fecha)->format('d/m/Y H:i') }}</strong></span>
         </div>
@@ -109,6 +110,14 @@
                         @foreach($routes as $r)
                             <option value="{{ $r->id }}" {{ $selR===(string)$r->id?'selected':'' }}>{{ $r->nombre }}</option>
                         @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Ruta del día</label>
+                    @php $selRonda = (string) old('ronda', $dispatch->ronda ?? 1); @endphp
+                    <select name="ronda" class="w-full rounded-md border-gray-300 text-sm">
+                        <option value="1" {{ $selRonda==='1' ? 'selected' : '' }}>1ra ruta</option>
+                        <option value="2" {{ $selRonda==='2' ? 'selected' : '' }}>2da ruta</option>
                     </select>
                 </div>
                 <div>

@@ -38,6 +38,15 @@
                     <option value="no_entregado">No entregados</option>
                 </select>
             </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Ruta del día</label>
+                <select id="lq-ronda"
+                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <option value="">Ambas</option>
+                    <option value="1">1ra ruta</option>
+                    <option value="2">2da ruta</option>
+                </select>
+            </div>
             <div class="flex items-end">
                 <button type="button" id="lq-clear" class="text-xs text-indigo-600 hover:underline">
                     Limpiar filtros
@@ -82,6 +91,7 @@
             fecha:         hoy,
             routeId:       '',
             filtroEstatus: 'todas',
+            ronda:         '',
         };
 
         // folio -> {order_id, cliente, total} de las notas PENDIENTES seleccionadas
@@ -106,9 +116,10 @@
                 fecha:          state.fecha,
                 route_id:       state.routeId,
                 filtro_estatus: state.filtroEstatus,
+                ronda:          state.ronda,
             });
 
-            const exportParams = new URLSearchParams({ fecha: state.fecha, route_id: state.routeId, filtro_estatus: state.filtroEstatus });
+            const exportParams = new URLSearchParams({ fecha: state.fecha, route_id: state.routeId, filtro_estatus: state.filtroEstatus, ronda: state.ronda });
             $('lq-export-btn').href = `${EXPORT_URL}?${exportParams}`;
 
             try {
@@ -187,7 +198,10 @@
                         <td class="px-3 py-2 font-mono text-xs text-indigo-700 font-medium whitespace-nowrap">
                             <a href="${n.url}" class="hover:underline" title="Ir al pedido">${n.folio}</a>
                         </td>
-                        <td class="px-3 py-2 text-sm text-gray-700">${n.cliente}</td>
+                        <td class="px-3 py-2 text-sm text-gray-700">
+                            ${n.cliente}
+                            <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium ${n.ronda === 2 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500'}">${n.ronda === 2 ? '2da' : '1ra'}</span>
+                        </td>
                         <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${n.fecha}</td>
                         <td class="px-3 py-2 text-sm text-right font-mono font-semibold text-gray-800">${fmtMoney(n.total)}</td>
                         <td class="px-3 py-2 text-center">${pedidoBadge(n.estatus_pedido, n.pedido_class)}</td>
@@ -455,12 +469,14 @@
         $('lq-fecha').addEventListener('change',   function() { state.fecha         = this.value; load(); });
         $('lq-ruta').addEventListener('change',    function() { state.routeId       = this.value; load(); });
         $('lq-estatus').addEventListener('change', function() { state.filtroEstatus = this.value; load(); });
+        $('lq-ronda').addEventListener('change',   function() { state.ronda         = this.value; load(); });
 
         $('lq-clear').addEventListener('click', function() {
-            state.fecha = hoy; state.routeId = ''; state.filtroEstatus = 'todas';
+            state.fecha = hoy; state.routeId = ''; state.filtroEstatus = 'todas'; state.ronda = '';
             $('lq-fecha').value   = hoy;
             $('lq-ruta').value    = '';
             $('lq-estatus').value = 'todas';
+            $('lq-ronda').value   = '';
             load();
         });
 

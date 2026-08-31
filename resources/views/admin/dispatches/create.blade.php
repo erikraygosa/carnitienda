@@ -72,6 +72,18 @@
     </div>
 
 
+    {{-- Ronda (1ra/2da ruta del día) --}}
+    <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+            Ruta del día <span class="text-red-500">*</span>
+        </label>
+        @php $selRonda = (string) old('ronda', '1'); @endphp
+        <select name="ronda" required class="w-full rounded-md border-gray-300 text-sm">
+            <option value="1" {{ $selRonda==='1' ? 'selected' : '' }}>1ra ruta</option>
+            <option value="2" {{ $selRonda==='2' ? 'selected' : '' }}>2da ruta</option>
+        </select>
+    </div>
+
     {{-- Vehículo --}}
     <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Vehículo</label>

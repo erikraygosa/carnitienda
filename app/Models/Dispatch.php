@@ -12,6 +12,7 @@ class Dispatch extends Model
         'folio',
         'warehouse_id',
         'shipping_route_id',
+        'ronda',
         'driver_id',
         'vehicle',
         'fecha',
