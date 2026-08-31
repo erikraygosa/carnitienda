@@ -93,7 +93,7 @@ class DispatchController extends Controller implements HasMiddleware
     ->with(['client:id,nombre', 'route:id,nombre'])
     ->latest()
     ->limit(200)
-    ->get(['id','folio','client_id','shipping_route_id','status','total','programado_para','payment_method','ticket_impreso']);
+    ->get(['id','folio','client_id','shipping_route_id','ronda','status','total','programado_para','payment_method','ticket_impreso']);
         // Traspasos PENDIENTES listos para asignar
         $traspasosPendientes = StockTransfer::where('status', 'PENDIENTE')
             ->with(['fromWarehouse:id,nombre', 'toWarehouse:id,nombre'])
@@ -285,7 +285,7 @@ class DispatchController extends Controller implements HasMiddleware
                 ->with(['client:id,nombre', 'route:id,nombre'])
                 ->orderByDesc('fecha')
                 ->limit(200)
-                ->get(['id','folio','client_id','shipping_route_id','status','total','programado_para','payment_method','ticket_impreso']);
+                ->get(['id','folio','client_id','shipping_route_id','ronda','status','total','programado_para','payment_method','ticket_impreso']);
 
             $yaAsignados = $dispatch->arAssignments->pluck('client_id');
             $clientesConSaldoDisponibles = DB::table('ar_movements')

@@ -477,7 +477,12 @@
                                         <input type="checkbox" name="orders[]" value="{{ $pd->id }}" class="pedido-disp-check rounded border-gray-300">
                                     </td>
                                     <td class="p-2 font-mono text-xs text-indigo-600">{{ $pd->folio }}</td>
-                                    <td class="p-2">{{ $pd->client?->nombre ?? '—' }}</td>
+                                    <td class="p-2">
+                                        {{ $pd->client?->nombre ?? '—' }}
+                                        <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium {{ ($pd->ronda ?? 1) == 2 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500' }}">
+                                            {{ ($pd->ronda ?? 1) == 2 ? '2da' : '1ra' }}
+                                        </span>
+                                    </td>
                                     <td class="p-2 text-right font-medium">${{ number_format($pd->total, 2) }}</td>
                                     <td class="p-2 text-xs">{{ $pd->payment_method }}</td>
                                     <td class="p-2 text-gray-400 text-xs">{{ optional($pd->programado_para)->format('d/m/Y') ?? '—' }}</td>

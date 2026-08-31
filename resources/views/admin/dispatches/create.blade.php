@@ -221,6 +221,10 @@
                                         @else
                                             <span class="text-gray-300 ruta-badge">—</span>
                                         @endif
+                                        <span class="px-1.5 py-0.5 rounded text-xs font-medium {{ ($o->ronda ?? 1) == 2 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500' }}"
+                                              title="Ruta del día">
+                                            {{ ($o->ronda ?? 1) == 2 ? '2da' : '1ra' }}
+                                        </span>
                                         <button type="button" class="btn-edit-ruta text-gray-300 hover:text-indigo-600"
                                                 data-order-id="{{ $o->id }}" title="Corregir ruta de este pedido">
                                             <i class="fa-solid fa-pen text-xs"></i>
