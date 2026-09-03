@@ -37,7 +37,7 @@ function ajustarAltoPaginaTicket() {
     var alturaMm = Math.ceil(alturaPx * 25.4 / 96) + 5 + MARGEN_ARRIBA_MM + MARGEN_ABAJO_MM; // +5mm de colchón
     var style = document.getElementById('ticket-page-size') || document.createElement('style');
     style.id = 'ticket-page-size';
-    style.innerHTML = '@page { size: 72mm ' + alturaMm + 'mm; margin: ' + MARGEN_ARRIBA_MM + 'mm 0 ' + MARGEN_ABAJO_MM + 'mm 0; }';
+    style.innerHTML = '@page { size: 69mm ' + alturaMm + 'mm; margin: ' + MARGEN_ARRIBA_MM + 'mm 0 ' + MARGEN_ABAJO_MM + 'mm 0; }';
     document.head.appendChild(style);
 }
 
