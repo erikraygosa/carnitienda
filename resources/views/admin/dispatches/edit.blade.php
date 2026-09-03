@@ -485,7 +485,7 @@
                                         @if($pd->dispatchItem?->dispatch)
                                             <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700"
                                                   title="Ya está surtido en otro despacho — seleccionarlo lo mueve aquí, sin tocar su inventario">
-                                                mover de {{ $pd->dispatchItem->dispatch->folio }}
+                                                mover de {{ $pd->dispatchItem->dispatch->folio ?? '#'.$pd->dispatchItem->dispatch->id }}
                                             </span>
                                         @endif
                                     </td>
