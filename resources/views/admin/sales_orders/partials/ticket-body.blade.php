@@ -219,9 +219,12 @@
                     {{ strtoupper($it->descripcion ?: ($it->product->nombre ?? '#'.$it->product_id)) }}</td>
             </tr>
             <tr class="item-precio-row">
-                <td></td>
-                <td class="right">{{ number_format((float)$it->precio, 2) }}</td>
-                <td class="right">{{ number_format((float)$it->total, 2) }}</td>
+                <td colspan="3">
+                    <div style="display:flex; justify-content:space-between;">
+                        <span>${{ number_format((float)$it->precio, 2) }}</span>
+                        <span>${{ number_format((float)$it->total, 2) }}</span>
+                    </div>
+                </td>
             </tr>
             @if($it->unidad ?? $it->product?->unidad_medida)
             <tr>
