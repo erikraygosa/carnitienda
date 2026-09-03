@@ -33,12 +33,12 @@
                 </select>
             </div>
             <div>
-                <input type="date" id="so-desde"
+                <input type="date" id="so-desde" title="Programado desde"
                        value="{{ now()->startOfMonth()->format('Y-m-d') }}"
                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
             <div>
-                <input type="date" id="so-hasta"
+                <input type="date" id="so-hasta" title="Programado hasta"
                        value="{{ now()->endOfMonth()->format('Y-m-d') }}"
                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
@@ -73,8 +73,9 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Almacén</th>
                         <th onclick="SOT.sort('fecha')"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100">
-                            Fecha <span id="sort-fecha"></span>
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                            title="Fecha programada para entrega">
+                            Programado <span id="sort-fecha"></span>
                         </th>
                         <th onclick="SOT.sort('status')"
                             class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100">

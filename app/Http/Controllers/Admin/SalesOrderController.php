@@ -64,6 +64,10 @@ public function data(Request $request)
     $perPage    = in_array((int)$request->get('per_page'), [10,15,25,50]) ? (int)$request->get('per_page') : 15;
     $page       = max(1, (int)$request->get('page', 1));
 
+    // La lista se rige por la fecha PROGRAMADA de entrega, no la de captura
+    // — para pedidos viejos sin programado_para, se cae a la de captura.
+    $fechaOrden = "COALESCE(programado_para, DATE(fecha))";
+
     $q = SalesOrder::with(['client','warehouse'])
         ->when($search, fn($q) =>
             $q->where(fn($q) =>
@@ -72,9 +76,10 @@ public function data(Request $request)
             )
         )
         ->when($status,     fn($q) => $q->where('status', $status))
-        ->when($fechaDesde, fn($q) => $q->whereDate('fecha', '>=', $fechaDesde))
-        ->when($fechaHasta, fn($q) => $q->whereDate('fecha', '<=', $fechaHasta))
-        ->orderBy($sortBy, $sortDir);
+        ->when($fechaDesde, fn($q) => $q->whereRaw("$fechaOrden >= ?", [$fechaDesde]))
+        ->when($fechaHasta, fn($q) => $q->whereRaw("$fechaOrden <= ?", [$fechaHasta]))
+        ->when($sortBy === 'fecha', fn($q) => $q->orderByRaw("$fechaOrden $sortDir"))
+        ->when($sortBy !== 'fecha', fn($q) => $q->orderBy($sortBy, $sortDir));
 
     $total   = $q->count();
     $orders  = $q->skip(($page - 1) * $perPage)->take($perPage)->get();
@@ -95,7 +100,9 @@ public function data(Request $request)
     'folio'         => $o->folio,
     'cliente'       => $o->client?->nombre ?? '—',
     'almacen'       => $o->warehouse?->nombre ?? '—',
-    'fecha'         => optional($o->fecha)->format('d/m/Y H:i'),
+    'fecha'         => $o->programado_para
+                            ? $o->programado_para->format('d/m/Y')
+                            : optional($o->fecha)->format('d/m/Y H:i'),
     'status'        => $o->status,
     'status_label'  => $o->status_label ?? $o->status,
     'status_class'  => $statusClasses[$o->status] ?? 'bg-gray-100 text-gray-700',
