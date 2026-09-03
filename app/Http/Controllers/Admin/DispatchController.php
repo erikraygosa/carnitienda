@@ -263,17 +263,6 @@ class DispatchController extends Controller implements HasMiddleware
         $paymentTypes  = PaymentType::where('activo', 1)->orderBy('id')->get(['id', 'clave', 'descripcion']);
         $cajasAbiertas = CashRegister::where('estatus', 'ABIERTO')->latest()->get();
 
-        // Para poder mover de un jalón, desde esta misma pantalla, un pedido
-        // ya surtido a otro despacho que todavía no sale a ruta (ver
-        // moverPedido()).
-        $otrosDespachosPlaneados = $dispatch->status === 'PLANEADO'
-            ? Dispatch::where('status', 'PLANEADO')
-                ->where('id', '!=', $dispatch->id)
-                ->with('route:id,nombre')
-                ->orderByDesc('id')
-                ->get(['id', 'folio', 'shipping_route_id', 'fecha'])
-            : collect();
-
         $statusClasses = [
             'PLANEADO'   => 'bg-gray-100 text-gray-700',
             'PREPARANDO' => 'bg-sky-100 text-sky-700',
@@ -286,28 +275,19 @@ class DispatchController extends Controller implements HasMiddleware
 
         // Mientras el despacho sigue PLANEADO se puede seguir agregando
         // pedidos/CxC (no solo al crearlo) — candidatos: pedidos PROCESADOS
-        // que no estén ya en ningún despacho, y clientes con saldo pendiente
-        // que no estén ya asignados a ESTE despacho.
-        //
-        // También se incluyen pedidos que YA están en OTRO despacho, siempre
-        // que ese otro despacho siga PLANEADO (aún no sale a ruta) — permite
-        // "mover" un pedido ya surtido de un despacho a otro sin tocar su
-        // inventario ni su estatus: agregarPedidos() ya sabe mover el
-        // DispatchItem completo (con sus líneas surtidas) en vez de crear
-        // uno nuevo. No se ofrecen pedidos de despachos que ya salieron a
-        // ruta — moverlos de ahí sí sería un problema real.
+        // que no estén ya en ningún despacho, o cuyo DispatchItem quedó
+        // "libre" (dispatch_id null) tras quitarlo de otro despacho ya
+        // surtido — ver quitarPedido(). Clientes con saldo pendiente que
+        // no estén ya asignados a ESTE despacho.
         $pedidosDisponibles = collect();
         $clientesConSaldoDisponibles = collect();
         if ($dispatch->status === 'PLANEADO') {
             $pedidosDisponibles = SalesOrder::whereIn('status', ['PROCESADO', 'DESPACHADO'])
-                ->where(function ($q) use ($dispatch) {
+                ->where(function ($q) {
                     $q->whereDoesntHave('dispatchItem')
-                      ->orWhereHas('dispatchItem', fn ($q2) => $q2
-                          ->where('dispatch_id', '!=', $dispatch->id)
-                          ->whereHas('dispatch', fn ($q3) => $q3->where('status', 'PLANEADO'))
-                      );
+                      ->orWhereHas('dispatchItem', fn ($q2) => $q2->whereNull('dispatch_id'));
                 })
-                ->with(['client:id,nombre', 'route:id,nombre', 'dispatchItem.dispatch:id,folio'])
+                ->with(['client:id,nombre', 'route:id,nombre'])
                 ->orderByDesc('fecha')
                 ->limit(200)
                 ->get(['id','folio','client_id','shipping_route_id','ronda','status','total','programado_para','payment_method','ticket_impreso']);
@@ -330,8 +310,7 @@ class DispatchController extends Controller implements HasMiddleware
         return view('admin.dispatches.edit', compact(
             'dispatch', 'warehouses', 'routes', 'drivers',
             'statusClasses', 'paymentTypes', 'cajasAbiertas',
-            'pedidosDisponibles', 'clientesConSaldoDisponibles',
-            'otrosDespachosPlaneados'
+            'pedidosDisponibles', 'clientesConSaldoDisponibles'
         ));
     }
 
@@ -623,56 +602,25 @@ class DispatchController extends Controller implements HasMiddleware
             return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo se puede quitar un pedido mientras el despacho está Planeado.']);
         }
 
+        $folio = $item->salesOrder?->folio ?? ('#' . $item->sales_order_id);
+
         $item->load('lines');
         if ($item->lines->whereNotNull('qty_despachada')->isNotEmpty()) {
-            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Este pedido ya tiene productos surtidos — no se puede quitar del despacho así.']);
+            // Ya tiene productos surtidos — no se borra (se perdería el
+            // registro de lo ya surtido), solo se desasigna de este
+            // despacho. Queda libre para asignarse a cualquier otro despacho
+            // después (aparece de nuevo como pedido disponible), sin volver
+            // a pasar por Salida de Producto ni tocar el inventario.
+            $item->update(['dispatch_id' => null]);
+            $this->log->log($dispatch, 'PEDIDO_QUITADO', null, null, null, "Pedido {$folio} quitado del despacho (ya surtido, queda libre para otro despacho).");
+            return back()->with('swal', ['icon' => 'success', 'title' => 'Quitado', 'text' => "Pedido {$folio} quitado del despacho — queda libre para asignarse a otro."]);
         }
 
-        $folio = $item->salesOrder?->folio ?? ('#' . $item->sales_order_id);
         $item->lines()->delete();
         $item->delete();
 
         $this->log->log($dispatch, 'PEDIDO_QUITADO', null, null, null, "Pedido {$folio} quitado del despacho (asignado por error).");
         return back()->with('swal', ['icon' => 'success', 'title' => 'Quitado', 'text' => "Pedido {$folio} quitado del despacho."]);
-    }
-
-    /**
-     * Mover un pedido YA surtido de este despacho a otro que todavía sigue
-     * PLANEADO — mismo movimiento seguro que ya hace agregarPedidos() (se
-     * lleva el DispatchItem completo con sus líneas surtidas, sin tocar
-     * inventario ni el estatus del pedido), pero iniciado desde la propia
-     * pantalla del despacho de origen en vez de tener que ir al destino.
-     */
-    public function moverPedido(Request $request, Dispatch $dispatch, DispatchItem $item)
-    {
-        abort_unless($item->dispatch_id === $dispatch->id, 404);
-
-        if ($dispatch->status !== 'PLANEADO') {
-            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo se puede mover un pedido mientras el despacho está Planeado.']);
-        }
-
-        $data = $request->validate([
-            'destino_dispatch_id' => ['required', 'integer', 'exists:dispatches,id'],
-        ]);
-
-        if ((int) $data['destino_dispatch_id'] === $dispatch->id) {
-            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Elige un despacho distinto al actual.']);
-        }
-
-        $destino = Dispatch::findOrFail($data['destino_dispatch_id']);
-        if ($destino->status !== 'PLANEADO') {
-            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'El despacho destino ya no está Planeado.']);
-        }
-
-        $folio = $item->salesOrder?->folio ?? ('#' . $item->sales_order_id);
-
-        $item->update(['dispatch_id' => $destino->id]);
-        $this->limpiarDespachoAutoSiQuedaVacio($dispatch->id, $destino->id);
-
-        $this->log->log($dispatch, 'PEDIDO_QUITADO', null, null, null, "Pedido {$folio} movido al despacho #{$destino->id}.");
-        $this->log->log($destino, 'PEDIDOS_AGREGADOS', null, null, null, "Pedido {$folio} movido desde el despacho #{$dispatch->id}.");
-
-        return back()->with('swal', ['icon' => 'success', 'title' => 'Movido', 'text' => "Pedido {$folio} movido al despacho #{$destino->id}."]);
     }
 
     public function quitarTraspaso(Dispatch $dispatch, DispatchTransferAssignment $assignment)

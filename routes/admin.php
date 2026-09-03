@@ -230,7 +230,6 @@ Route::post('dispatches/{dispatch}/cxc/agregar',     [DispatchController::class,
 
 // Quitar asignaciones hechas por error (solo mientras el despacho está PLANEADO)
 Route::post('dispatches/{dispatch}/pedido/{item}/quitar',       [DispatchController::class,'quitarPedido'])->name('dispatches.pedido.quitar');
-Route::post('dispatches/{dispatch}/pedido/{item}/mover',        [DispatchController::class,'moverPedido'])->name('dispatches.pedido.mover');
 Route::post('dispatches/{dispatch}/traspaso/{assignment}/quitar', [DispatchController::class,'quitarTraspaso'])->name('dispatches.traspaso.quitar');
 Route::post('dispatches/{dispatch}/cxc/{assignment}/quitar',    [DispatchController::class,'quitarCxc'])->name('dispatches.cxc.quitar');
 Route::post('dispatches/{dispatch}/cerrar-traspasos', [DispatchController::class,'cerrarTraspasos'])->name('dispatches.cerrar-traspasos');

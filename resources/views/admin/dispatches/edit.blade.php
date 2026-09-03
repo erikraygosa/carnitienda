@@ -395,32 +395,12 @@
                         @endif
                         @if($dispatch->status === 'PLANEADO')
                         <td class="p-2 text-center">
-                            @if($itemSinTocar)
-                                <form action="{{ route('admin.dispatches.pedido.quitar', [$dispatch, $item]) }}" method="POST">
-                                    @csrf
-                                    <button type="button" onclick="return confirmarAccionMasiva(this, '¿Quitar este pedido del despacho?')"
-                                            class="px-2 py-1 text-xs rounded border border-red-300 text-red-600 hover:bg-red-50">Quitar</button>
-                                </form>
-                            @elseif($otrosDespachosPlaneados->isNotEmpty())
-                                <form action="{{ route('admin.dispatches.pedido.mover', [$dispatch, $item]) }}" method="POST"
-                                      class="flex items-center gap-1 justify-center">
-                                    @csrf
-                                    <select name="destino_dispatch_id" class="text-xs rounded border-gray-300 py-1" required
-                                            title="Ya tiene productos surtidos — se puede mover a otro despacho sin tocar su inventario">
-                                        <option value="">Mover a...</option>
-                                        @foreach($otrosDespachosPlaneados as $od)
-                                            <option value="{{ $od->id }}">
-                                                {{ $od->folio ?? ('#'.$od->id) }} — {{ $od->route?->nombre ?? 'Sin ruta' }} ({{ optional($od->fecha)->format('d/m') }})
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                    <button type="button"
-                                            onclick="if(!this.previousElementSibling.value){alert('Elige a qué despacho moverlo.');return false;} return confirmarAccionMasiva(this, '¿Mover este pedido al despacho seleccionado? No se toca su inventario.')"
-                                            class="px-2 py-1 text-xs rounded border border-indigo-300 text-indigo-600 hover:bg-indigo-50">Mover</button>
-                                </form>
-                            @else
-                                <span class="text-xs text-gray-400" title="Ya tiene productos surtidos — no hay otro despacho Planeado al cual moverlo">—</span>
-                            @endif
+                            <form action="{{ route('admin.dispatches.pedido.quitar', [$dispatch, $item]) }}" method="POST">
+                                @csrf
+                                <button type="button"
+                                        onclick="return confirmarAccionMasiva(this, '{{ $itemSinTocar ? '¿Quitar este pedido del despacho?' : '¿Quitar este pedido del despacho? Ya tiene productos surtidos — quedará libre para asignarse a otro despacho, sin tocar su inventario.' }}')"
+                                        class="px-2 py-1 text-xs rounded border border-red-300 text-red-600 hover:bg-red-50">Quitar</button>
+                            </form>
                         </td>
                         @endif
                     </tr>
@@ -499,10 +479,10 @@
                                         <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium {{ ($pd->ronda ?? 1) == 2 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500' }}">
                                             {{ ($pd->ronda ?? 1) == 2 ? '2da' : '1ra' }}
                                         </span>
-                                        @if($pd->dispatchItem?->dispatch)
+                                        @if($pd->status === 'DESPACHADO')
                                             <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700"
-                                                  title="Ya está surtido en otro despacho — seleccionarlo lo mueve aquí, sin tocar su inventario">
-                                                mover de {{ $pd->dispatchItem->dispatch->folio ?? '#'.$pd->dispatchItem->dispatch->id }}
+                                                  title="Ya se surtió antes en otro despacho — se asigna aquí sin tocar su inventario">
+                                                ya surtido
                                             </span>
                                         @endif
                                     </td>
