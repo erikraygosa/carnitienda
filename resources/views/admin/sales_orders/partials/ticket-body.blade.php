@@ -25,22 +25,22 @@
      (Carta/A4) y el ticket se parte en varias páginas al imprimir.
      "auto" de alto + orientación explícita "portrait": algunos drivers de
      impresoras de ticket (sobre todo de cinta/matriz de punto) ignoran el
-     ancho de 69mm y abren el diálogo en Horizontal por default — ahí el
-     ticket completo ya no cabe en una sola "página" de 69mm de alto y se
+     ancho de 68mm y abren el diálogo en Horizontal por default — ahí el
+     ticket completo ya no cabe en una sola "página" de 68mm de alto y se
      reparte en 2-3 hojas. Fijar una altura holgada en vez de "auto" fuerza
-     que el ancho (69mm) quede como lado corto sí o sí, sea cual sea la
+     que el ancho (68mm) quede como lado corto sí o sí, sea cual sea la
      orientación que la impresora/driver haya dejado seleccionada.
 
-     69mm (no 72mm) porque hay impresoras de 76mm de papel (ej. Epson
+     68mm (no 72mm) porque hay impresoras de 76mm de papel (ej. Epson
      TM-U220 y sus clones/compatibles) cuyo ancho imprimible real es más
      angosto que el de una térmica de 80mm — a 72mm el ticket se cortaba
-     por el lado derecho en esas impresoras. Con 69mm cabe completo ahí y
+     por el lado derecho en esas impresoras. Con 68mm cabe completo ahí y
      sigue viéndose bien en las de 80mm (solo queda un poco más de margen
      a la derecha). --}}
 @media print {
-    @page { size: 69mm auto; margin: 2cm 0 1cm 0; }
+    @page { size: 68mm auto; margin: 2cm 0 1cm 0; }
 }
-@page { size: 69mm auto; margin: 2cm 0 1cm 0; }
+@page { size: 68mm auto; margin: 2cm 0 1cm 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 .ticket {
     font-family: Arial, Helvetica, sans-serif;
@@ -48,8 +48,8 @@
     font-weight: normal;
     color: #000;
     background: #fff;
-    width: 69mm;
-    max-width: 69mm;
+    width: 68mm;
+    max-width: 68mm;
     margin: 0 auto;
     padding: 4mm 3mm;
 }
