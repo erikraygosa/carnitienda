@@ -401,8 +401,25 @@
                                     <button type="button" onclick="return confirmarAccionMasiva(this, '¿Quitar este pedido del despacho?')"
                                             class="px-2 py-1 text-xs rounded border border-red-300 text-red-600 hover:bg-red-50">Quitar</button>
                                 </form>
+                            @elseif($otrosDespachosPlaneados->isNotEmpty())
+                                <form action="{{ route('admin.dispatches.pedido.mover', [$dispatch, $item]) }}" method="POST"
+                                      class="flex items-center gap-1 justify-center">
+                                    @csrf
+                                    <select name="destino_dispatch_id" class="text-xs rounded border-gray-300 py-1" required
+                                            title="Ya tiene productos surtidos — se puede mover a otro despacho sin tocar su inventario">
+                                        <option value="">Mover a...</option>
+                                        @foreach($otrosDespachosPlaneados as $od)
+                                            <option value="{{ $od->id }}">
+                                                {{ $od->folio ?? ('#'.$od->id) }} — {{ $od->route?->nombre ?? 'Sin ruta' }} ({{ optional($od->fecha)->format('d/m') }})
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <button type="button"
+                                            onclick="if(!this.previousElementSibling.value){alert('Elige a qué despacho moverlo.');return false;} return confirmarAccionMasiva(this, '¿Mover este pedido al despacho seleccionado? No se toca su inventario.')"
+                                            class="px-2 py-1 text-xs rounded border border-indigo-300 text-indigo-600 hover:bg-indigo-50">Mover</button>
+                                </form>
                             @else
-                                <span class="text-xs text-gray-400" title="Ya tiene productos surtidos">—</span>
+                                <span class="text-xs text-gray-400" title="Ya tiene productos surtidos — no hay otro despacho Planeado al cual moverlo">—</span>
                             @endif
                         </td>
                         @endif
