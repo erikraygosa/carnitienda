@@ -51,7 +51,7 @@
     width: 68mm;
     max-width: 68mm;
     margin: 0 auto;
-    padding: 4mm 3mm;
+    padding: 4mm 3mm 4mm 6mm;
 }
 .ticket .center  { text-align: center; }
 .ticket .right   { text-align: right; }
@@ -93,7 +93,7 @@
 @media print {
     .no-print { display: none !important; }
     body { margin: 0; }
-    .ticket { margin: 0; padding: 2mm; }
+    .ticket { margin: 0; padding: 2mm 2mm 2mm 5mm; }
 }
 </style>
 
