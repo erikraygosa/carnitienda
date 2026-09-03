@@ -33,6 +33,9 @@
                 <div class="flex items-center gap-2">
                     {{-- Filtro por ruta --}}
                     <form method="GET" action="{{ route('admin.despacho.panel') }}" class="flex items-center gap-2">
+                        <input type="date" name="fecha" value="{{ $fecha }}" onchange="this.form.submit()"
+                               title="Filtrar por fecha programada"
+                               class="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
                         <select name="ruta_id" onchange="this.form.submit()"
                                 class="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
                             <option value="">Todas las rutas</option>
@@ -48,7 +51,7 @@
                             <option value="1" {{ (string)$ronda === '1' ? 'selected' : '' }}>1ra ruta</option>
                             <option value="2" {{ (string)$ronda === '2' ? 'selected' : '' }}>2da ruta</option>
                         </select>
-                        @if($rutaId || $ronda)
+                        @if($rutaId || $ronda || $fecha)
                             <a href="{{ route('admin.despacho.panel') }}"
                                class="text-xs text-gray-400 hover:text-red-500" title="Quitar filtro">✕</a>
                         @endif
@@ -56,7 +59,7 @@
                     <input id="filter-search" type="text" placeholder="Buscar folio / cliente..."
                         class="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 w-56"/>
                     @php
-                        $printQuery = array_filter(['ruta_id' => $rutaId, 'ronda' => $ronda]);
+                        $printQuery = array_filter(['ruta_id' => $rutaId, 'ronda' => $ronda, 'fecha' => $fecha]);
                     @endphp
                     <a href="{{ route('admin.despacho.print') }}{{ $printQuery ? '?'.http_build_query($printQuery) : '' }}" target="_blank"
                         class="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-600 whitespace-nowrap">

@@ -26,11 +26,18 @@ class DispatchPanelController extends Controller
         $rutas     = ShippingRoute::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
         $rutaId    = $request->get('ruta_id');
         $ronda     = $request->get('ronda'); // '' (ambas) | 1 | 2
+        $fecha     = $request->get('fecha'); // '' (todas) | Y-m-d
 
+        // Filtra por la misma fecha que se muestra en la tabla (programada
+        // de entrega; si el pedido no tiene una, se usa la de captura).
         $pedidos = SalesOrder::with(['client', 'items.product'])
             ->where('status', SalesOrder::S_PROCESADO)
             ->when($rutaId, fn($q) => $q->where('shipping_route_id', $rutaId))
             ->when($ronda,  fn($q) => $q->where('ronda', $ronda))
+            ->when($fecha,  fn($q) => $q->where(fn($q2) => $q2
+                ->whereDate('programado_para', $fecha)
+                ->orWhere(fn($q3) => $q3->whereNull('programado_para')->whereDate('fecha', $fecha))
+            ))
             ->orderByDesc('fecha')
             ->paginate(50)
             ->withQueryString();
@@ -51,7 +58,7 @@ class DispatchPanelController extends Controller
         $impresionZplActiva = SystemSetting::get('etiquetas.modo_impresion', 'ticket') === 'zpl';
         $imprimirPorCajas   = (bool) SystemSetting::get('etiquetas.imprimir_por_cajas', false);
 
-        return view('admin.dispatch_panel.index', compact('pedidos', 'rutas', 'rutaId', 'ronda', 'itemsDespachadosIds', 'impresionZplActiva', 'imprimirPorCajas'));
+        return view('admin.dispatch_panel.index', compact('pedidos', 'rutas', 'rutaId', 'ronda', 'fecha', 'itemsDespachadosIds', 'impresionZplActiva', 'imprimirPorCajas'));
     }
 
     // ── Polling: conteo de pedidos PROCESADOS para notificaciones ───
@@ -70,11 +77,16 @@ class DispatchPanelController extends Controller
 
         $rutaId = $request->get('ruta_id');
         $ronda  = $request->get('ronda');
+        $fecha  = $request->get('fecha');
 
         $pedidos = SalesOrder::with(['client', 'items.product'])
             ->where('status', SalesOrder::S_PROCESADO)
             ->when($rutaId, fn($q) => $q->where('shipping_route_id', $rutaId))
             ->when($ronda,  fn($q) => $q->where('ronda', $ronda))
+            ->when($fecha,  fn($q) => $q->where(fn($q2) => $q2
+                ->whereDate('programado_para', $fecha)
+                ->orWhere(fn($q3) => $q3->whereNull('programado_para')->whereDate('fecha', $fecha))
+            ))
             ->orderBy('fecha')
             ->get();
 
