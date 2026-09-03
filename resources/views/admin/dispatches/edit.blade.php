@@ -482,6 +482,12 @@
                                         <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium {{ ($pd->ronda ?? 1) == 2 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500' }}">
                                             {{ ($pd->ronda ?? 1) == 2 ? '2da' : '1ra' }}
                                         </span>
+                                        @if($pd->dispatchItem?->dispatch)
+                                            <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700"
+                                                  title="Ya está surtido en otro despacho — seleccionarlo lo mueve aquí, sin tocar su inventario">
+                                                mover de {{ $pd->dispatchItem->dispatch->folio }}
+                                            </span>
+                                        @endif
                                     </td>
                                     <td class="p-2 text-right font-medium">${{ number_format($pd->total, 2) }}</td>
                                     <td class="p-2 text-xs">{{ $pd->payment_method }}</td>

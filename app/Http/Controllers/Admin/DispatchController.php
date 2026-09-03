@@ -277,12 +277,26 @@ class DispatchController extends Controller implements HasMiddleware
         // pedidos/CxC (no solo al crearlo) — candidatos: pedidos PROCESADOS
         // que no estén ya en ningún despacho, y clientes con saldo pendiente
         // que no estén ya asignados a ESTE despacho.
+        //
+        // También se incluyen pedidos que YA están en OTRO despacho, siempre
+        // que ese otro despacho siga PLANEADO (aún no sale a ruta) — permite
+        // "mover" un pedido ya surtido de un despacho a otro sin tocar su
+        // inventario ni su estatus: agregarPedidos() ya sabe mover el
+        // DispatchItem completo (con sus líneas surtidas) en vez de crear
+        // uno nuevo. No se ofrecen pedidos de despachos que ya salieron a
+        // ruta — moverlos de ahí sí sería un problema real.
         $pedidosDisponibles = collect();
         $clientesConSaldoDisponibles = collect();
         if ($dispatch->status === 'PLANEADO') {
             $pedidosDisponibles = SalesOrder::whereIn('status', ['PROCESADO', 'DESPACHADO'])
-                ->whereDoesntHave('dispatchItem')
-                ->with(['client:id,nombre', 'route:id,nombre'])
+                ->where(function ($q) use ($dispatch) {
+                    $q->whereDoesntHave('dispatchItem')
+                      ->orWhereHas('dispatchItem', fn ($q2) => $q2
+                          ->where('dispatch_id', '!=', $dispatch->id)
+                          ->whereHas('dispatch', fn ($q3) => $q3->where('status', 'PLANEADO'))
+                      );
+                })
+                ->with(['client:id,nombre', 'route:id,nombre', 'dispatchItem.dispatch:id,folio'])
                 ->orderByDesc('fecha')
                 ->limit(200)
                 ->get(['id','folio','client_id','shipping_route_id','ronda','status','total','programado_para','payment_method','ticket_impreso']);
