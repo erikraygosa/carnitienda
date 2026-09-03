@@ -36,9 +36,9 @@
 @page { size: 72mm auto; margin: 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 .ticket {
-    font-family: 'Courier New', monospace;
+    font-family: Arial, Helvetica, sans-serif;
     font-size: 16px;
-    font-weight: bold;
+    font-weight: normal;
     color: #000;
     background: #fff;
     width: 72mm;
@@ -48,7 +48,7 @@
 }
 .ticket .center  { text-align: center; }
 .ticket .right   { text-align: right; }
-.ticket .bold    { font-weight: bold; }
+.ticket .bold    { font-weight: normal; }
 .ticket .sm      { font-size: 16px; }
 .ticket .dashed  { border: 0; border-top: 1px dashed #000; margin: 3mm 0; }
 
@@ -56,8 +56,9 @@
 .ticket td, .ticket th { vertical-align: top; }
 .ticket .items thead tr th { font-size: 16px; border-bottom: 1px solid #000; padding-bottom: 2px; }
 .ticket .items td { font-size: 16px; padding: 1px 0; }
+.ticket .items .item-precio-row td { padding-bottom: 4px; }
 .ticket .totals td { font-size: 16px; padding: 1px 0; }
-.ticket .total-final td { font-size: 16px; font-weight: bold; border-top: 2px solid #000; padding-top: 3px; }
+.ticket .total-final td { font-size: 16px; font-weight: normal; border-top: 2px solid #000; padding-top: 3px; }
 
 .ticket .observaciones {
     font-size: 16px;
@@ -214,10 +215,13 @@
         <tbody>
             @foreach($order->items as $it)
             <tr>
-                <td>{{ number_format((float)$it->cantidad, 2) }}
+                <td colspan="3">{{ number_format((float)$it->cantidad, 2) }}
                     {{ strtoupper($it->descripcion ?: ($it->product->nombre ?? '#'.$it->product_id)) }}</td>
+            </tr>
+            <tr class="item-precio-row">
+                <td></td>
                 <td class="right">{{ number_format((float)$it->precio, 2) }}</td>
-                <td class="right bold">{{ number_format((float)$it->total, 2) }}</td>
+                <td class="right">{{ number_format((float)$it->total, 2) }}</td>
             </tr>
             @if($it->unidad ?? $it->product?->unidad_medida)
             <tr>
