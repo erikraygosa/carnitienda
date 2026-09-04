@@ -217,6 +217,25 @@ class SaleController extends Controller implements HasMiddleware
     }
 
     /**
+     * Bloquea el guardado si algún producto de catálogo queda sin precio
+     * (ni oficial, ni capturado a mano en la línea) — igual que en Pedidos.
+     */
+    private function assertPreciosCompletos(array $items): void
+    {
+        $sinPrecio = collect($items)->filter(
+            fn ($it) => !empty($it['product_id']) && (float) ($it['precio'] ?? 0) <= 0
+        );
+
+        if ($sinPrecio->isEmpty()) return;
+
+        $nombres = $sinPrecio->map(fn ($it) => $it['descripcion'] ?? ('#' . $it['product_id']))->implode(', ');
+
+        throw \Illuminate\Validation\ValidationException::withMessages([
+            'items' => "No se puede guardar: falta precio para: {$nombres}. Captura el precio en esa línea antes de guardar.",
+        ]);
+    }
+
+    /**
      * Venta directa de mostrador: no pasa por Aprobar/Preparar/En ruta —
      * se crea ya COMPLETADA, descontando inventario (vía la misma ruta que
      * usa el Panel de Surtido, para que productos compuestos/subproducto se
@@ -255,6 +274,7 @@ class SaleController extends Controller implements HasMiddleware
         $this->registrarPreciosNuevos(
             $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
         );
+        $this->assertPreciosCompletos($data['items']);
 
         $cashRegister = CashRegister::find($data['cash_register_id']);
         if (!$cashRegister || $cashRegister->estatus !== 'ABIERTO') {
@@ -463,6 +483,7 @@ class SaleController extends Controller implements HasMiddleware
         $this->registrarPreciosNuevos(
             $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
         );
+        $this->assertPreciosCompletos($data['items']);
 
         // Snapshot ANTES de tocar nada — para ajustar CxC/caja por la
         // diferencia si se está corrigiendo una nota ya COMPLETADA.

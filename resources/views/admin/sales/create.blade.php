@@ -32,6 +32,17 @@
         <form id="sale-form" method="POST" action="{{ route('admin.sales.store') }}" class="space-y-6">
             @csrf
 
+            @if ($errors->any())
+                <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    <p class="font-medium">No se guardó la nota:</p>
+                    <ul class="list-disc list-inside">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             {{-- ====== ENCABEZADO ====== --}}
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
 

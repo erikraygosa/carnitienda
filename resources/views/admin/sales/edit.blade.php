@@ -87,6 +87,17 @@
                 <input type="hidden" name="origen" value="gestion-notas">
             @endif
 
+            @if ($errors->any())
+                <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    <p class="font-medium">No se guardó la nota:</p>
+                    <ul class="list-disc list-inside">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
 
                 {{-- Caja --}}

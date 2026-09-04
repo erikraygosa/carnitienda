@@ -337,6 +337,28 @@ public function data(Request $request)
         }
     }
 
+    /**
+     * Bloquea el guardado si algún producto de catálogo queda sin precio
+     * (ni oficial resuelto por aplicarPreciosOficiales(), ni capturado a
+     * mano en la línea) — antes se guardaba en $0 sin avisar y pasaba
+     * desapercibido. Líneas libres sin producto no se validan aquí (no
+     * tienen un "precio oficial" contra qué medirse).
+     */
+    private function assertPreciosCompletos(array $items): void
+    {
+        $sinPrecio = collect($items)->filter(
+            fn ($it) => !empty($it['product_id']) && (float) ($it['precio'] ?? 0) <= 0
+        );
+
+        if ($sinPrecio->isEmpty()) return;
+
+        $nombres = $sinPrecio->map(fn ($it) => $it['descripcion'] ?? ('#' . $it['product_id']))->implode(', ');
+
+        throw \Illuminate\Validation\ValidationException::withMessages([
+            'items' => "No se puede guardar: falta precio para: {$nombres}. Captura el precio en esa línea antes de guardar.",
+        ]);
+    }
+
     public function store(Request $request)
     {
         if ($request->input('price_list_id') === 'client') {
@@ -386,6 +408,7 @@ public function data(Request $request)
         $this->registrarPreciosNuevos(
             $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
         );
+        $this->assertPreciosCompletos($data['items']);
 
         $order = null;
 
@@ -593,6 +616,7 @@ public function data(Request $request)
         $this->registrarPreciosNuevos(
             $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
         );
+        $this->assertPreciosCompletos($data['items']);
 
         // Partidas ya surtidas con producto real (Panel de Surtido) — se
         // ignora lo que venga del form para ellas, se conservan tal cual
