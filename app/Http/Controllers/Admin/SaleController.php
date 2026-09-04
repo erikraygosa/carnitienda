@@ -25,12 +25,15 @@ use App\Services\WhatsappSender;
 use App\Services\ArService;
 use App\Services\CashService;
 use App\Services\InventoryService;
+use App\Services\DocumentLogService;
 
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 
 class SaleController extends Controller implements HasMiddleware
 {
+    public function __construct(private DocumentLogService $log) {}
+
     public static function middleware(): array
     {
         return [
@@ -124,6 +127,95 @@ class SaleController extends Controller implements HasMiddleware
     }
 
     /**
+     * Precio "oficial" para un producto dado el cliente/lista de precios de
+     * la venta — misma resolución que hace el JS del formulario (override
+     * del cliente, o precio de la lista elegida). Ver el mismo método en
+     * SalesOrderController para el detalle de cada caso.
+     */
+    private function precioOficial(?int $clientId, ?int $priceListId, ?int $productId): ?float
+    {
+        if (!$productId) return null;
+
+        if ($priceListId) {
+            $precio = DB::table('price_list_items')
+                ->where('price_list_id', $priceListId)
+                ->where('product_id', $productId)
+                ->value('precio');
+            return round((float) ($precio ?? 0), 4);
+        }
+
+        if ($clientId) {
+            $precio = DB::table('client_price_overrides')
+                ->where('client_id', $clientId)
+                ->where('product_id', $productId)
+                ->value('precio');
+
+            if ($precio === null || (float) $precio <= 0) {
+                return null; // sin override todavía — se deja capturar (registrarPreciosNuevos)
+            }
+
+            return round((float) $precio, 4);
+        }
+
+        return null;
+    }
+
+    private function aplicarPreciosOficiales(array $items, ?int $clientId, ?int $priceListId): array
+    {
+        foreach ($items as $i => $it) {
+            $oficial = $this->precioOficial($clientId, $priceListId, $it['product_id'] ?? null);
+            if ($oficial !== null) {
+                $items[$i]['precio'] = $oficial;
+            }
+        }
+        return $items;
+    }
+
+    /**
+     * Cuando el cliente todavía NO tiene precio para un producto (modo
+     * "precio del cliente", sin lista de precios elegida), cualquiera puede
+     * capturarlo directo en la línea de la venta — queda registrado como el
+     * precio oficial del cliente para ese producto. Igual que en Pedidos.
+     */
+    private function registrarPreciosNuevos(array $items, ?int $clientId, ?int $priceListId): void
+    {
+        if (!$clientId || $priceListId) return;
+
+        foreach ($items as $it) {
+            $productId = $it['product_id'] ?? null;
+            $precio    = (float) ($it['precio'] ?? 0);
+            if (!$productId || $precio <= 0) continue;
+
+            $existente = DB::table('client_price_overrides')
+                ->where('client_id', $clientId)
+                ->where('product_id', $productId)
+                ->value('precio');
+
+            if ($existente !== null && (float) $existente > 0) continue; // ya existía, no se toca aquí
+
+            DB::table('client_price_overrides')->updateOrInsert(
+                ['client_id' => $clientId, 'product_id' => $productId],
+                ['precio' => round($precio, 4), 'updated_at' => now(), 'created_at' => now()]
+            );
+
+            $client  = Client::find($clientId);
+            $product = Product::find($productId);
+            if ($client) {
+                $this->log->log(
+                    $client,
+                    'PRECIO_PERSONALIZADO_ACTUALIZADO',
+                    null,
+                    number_format($precio, 2),
+                    null,
+                    'Precio asignado al crear una nota de venta (no tenía precio configurado)'
+                        . ($product ? " — Producto: {$product->nombre}" : ''),
+                    ['product_id' => $productId, 'producto' => $product->nombre ?? null, 'old' => null, 'new' => $precio],
+                );
+            }
+        }
+    }
+
+    /**
      * Venta directa de mostrador: no pasa por Aprobar/Preparar/En ruta —
      * se crea ya COMPLETADA, descontando inventario (vía la misma ruta que
      * usa el Panel de Surtido, para que productos compuestos/subproducto se
@@ -153,6 +245,13 @@ class SaleController extends Controller implements HasMiddleware
             'items.*.descuento'     => ['nullable','numeric','gte:0'],
             'items.*.impuesto'      => ['nullable','numeric','gte:0'],
         ]);
+
+        $data['items'] = $this->aplicarPreciosOficiales(
+            $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
+        );
+        $this->registrarPreciosNuevos(
+            $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
+        );
 
         $cashRegister = CashRegister::find($data['cash_register_id']);
         if (!$cashRegister || $cashRegister->estatus !== 'ABIERTO') {
@@ -318,6 +417,13 @@ class SaleController extends Controller implements HasMiddleware
             'items.*.descuento'     => ['nullable','numeric','gte:0'],
             'items.*.impuesto'      => ['nullable','numeric','gte:0'],
         ]);
+
+        $data['items'] = $this->aplicarPreciosOficiales(
+            $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
+        );
+        $this->registrarPreciosNuevos(
+            $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
+        );
 
         DB::transaction(function () use ($sale, $data) {
             $subtotal=0; $descuento=0; $impuestos=0; $total=0;

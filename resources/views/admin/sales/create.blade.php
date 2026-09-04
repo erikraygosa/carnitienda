@@ -125,8 +125,14 @@
             </div>
 
             {{-- ====== ALERTA precio cero ====== --}}
-            <div id="zero-price-alert" class="hidden rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800 text-sm">
-                Hay productos sin precio personalizado para este cliente (quedaron en $0.00).
+            <div id="zero-price-alert" class="hidden rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800 flex items-center justify-between">
+                <span>Algunos productos no tienen precio para este cliente — captúralo directo en la fila del producto.</span>
+                @can('editar clientes')
+                    <a id="zero-price-link" href="#" target="_blank"
+                       class="ml-3 inline-flex px-3 py-1.5 text-sm rounded-md bg-amber-600 text-white hover:bg-amber-700">
+                        Ver/editar todos los precios
+                    </a>
+                @endcan
             </div>
 
             {{-- ====== PARTIDAS ====== --}}
@@ -178,6 +184,9 @@
         const CLIENT_DEFAULTS    = {!! $JS_CLIENT_DEFAULTS !!};
 
         const PRODUCTS = @json($productsJson);
+        const CLIENTS_EDIT_BASE      = '{{ url('admin/clients') }}';
+        const CLIENT_PRICES_BASE     = '{{ url('admin/sales-orders/client-prices') }}';
+        const CAN_EDIT_CLIENT_PRICES = @json(auth()->user()->can('editar clientes'));
 
         let state = {
             items: [],
@@ -195,6 +204,24 @@
                 return parseFloat((CLIENTS_OVERRIDES[state.clientId]||{})[productId] ?? 0) || 0;
             }
             return parseFloat((LISTS_PRICES[state.priceList]||{})[productId] ?? 0) || 0;
+        }
+
+        // El precio se bloquea SOLO si el cliente/lista ya tiene un precio
+        // configurado (>0) para ese producto — para cambiarlo hay que ir a
+        // su registro (permiso "editar clientes"). Si viene en $0 (no
+        // configurado), se deja editable para capturarlo aquí mismo; al
+        // guardar la nota, el servidor lo registra como precio oficial.
+        function aplicarEstadoPrecio(inputEl, precio) {
+            if (!inputEl) return;
+            inputEl.value = precio;
+            const bloqueado = (+precio || 0) > 0;
+            inputEl.readOnly = bloqueado;
+            inputEl.classList.toggle('bg-gray-100', bloqueado);
+            inputEl.classList.toggle('text-gray-600', bloqueado);
+            inputEl.classList.toggle('cursor-not-allowed', bloqueado);
+            inputEl.title = bloqueado
+                ? 'Precio del cliente — para cambiarlo, edítalo en su registro'
+                : 'Este producto no tiene precio configurado para el cliente — captúralo aquí, quedará registrado como su precio oficial';
         }
 
         function recalcRow(i) {
@@ -233,6 +260,8 @@
             set('h-total',     fmt(g));
             const alert = $('zero-price-alert');
             if (alert) alert.classList.toggle('hidden', !hasZero || !state.clientId);
+            const link = $('zero-price-link');
+            if (link && state.clientId) link.href = `${CLIENTS_EDIT_BASE}/${state.clientId}/edit`;
         }
 
         function escHtml(str) {
@@ -276,7 +305,7 @@
                 }
 
                 state.items[i].precio = getPrice(p.id);
-                tr.querySelector('.inp-precio').value = state.items[i].precio;
+                aplicarEstadoPrecio(tr.querySelector('.inp-precio'), state.items[i].precio);
 
                 recalcRow(i);
                 hidePortal();
@@ -288,6 +317,8 @@
                 input.value  = '';
                 state.items[i].product_id      = '';
                 state.items[i]._productoNombre = '';
+                state.items[i].precio          = 0;
+                aplicarEstadoPrecio(tr.querySelector('.inp-precio'), 0);
                 recalcRow(i);
                 input.focus();
             }
@@ -369,9 +400,16 @@
                            name="items[${i}][cantidad]" value="${it.cantidad}" required>
                 </td>
                 <td class="p-2 text-right">
-                    <input type="number" min="0" step="0.0001"
-                           class="w-28 border rounded p-1 text-right text-sm inp-precio"
-                           name="items[${i}][precio]" value="${it.precio}" required>
+                    <div class="flex items-center justify-end gap-1">
+                        <input type="number" min="0" step="0.0001"
+                               class="w-24 border rounded p-1 text-right text-sm inp-precio"
+                               name="items[${i}][precio]" value="${it.precio}" required>
+                        ${CAN_EDIT_CLIENT_PRICES ? `
+                        <a href="#" class="btn-editar-precio text-gray-400 hover:text-indigo-600 text-xs" target="_blank"
+                           title="Editar precio de este cliente">
+                            <i class="fa-solid fa-pen"></i>
+                        </a>` : ''}
+                    </div>
                 </td>
                 <td class="p-2 text-right">
                     <input type="number" min="0" step="0.01"
@@ -395,9 +433,18 @@
             tr.querySelector('.inp-cantidad').addEventListener('input', function() {
                 state.items[i].cantidad = parseFloat(this.value)||0; recalcRow(i);
             });
+            aplicarEstadoPrecio(tr.querySelector('.inp-precio'), it.precio);
             tr.querySelector('.inp-precio').addEventListener('input', function() {
+                if (this.readOnly) return;
                 state.items[i].precio = parseFloat(this.value)||0; recalcRow(i);
             });
+            const btnEditarPrecio = tr.querySelector('.btn-editar-precio');
+            if (btnEditarPrecio) {
+                btnEditarPrecio.addEventListener('click', function(e) {
+                    if (!state.clientId) { e.preventDefault(); return; }
+                    this.href = `${CLIENTS_EDIT_BASE}/${state.clientId}/edit`;
+                });
+            }
             tr.querySelector('.inp-descuento').addEventListener('input', function() {
                 state.items[i].descuento = parseFloat(this.value)||0; recalcRow(i);
             });
@@ -465,8 +512,12 @@
 
             repriceAll() {
                 state.items.forEach((it, i) => {
-                    if (it.product_id) it.precio = getPrice(it.product_id);
-                    recalcRow(i);
+                    if (it.product_id) {
+                        it.precio = getPrice(it.product_id);
+                        const row = document.querySelector(`#items-body tr[data-idx="${i}"]`);
+                        if (row) aplicarEstadoPrecio(row.querySelector('.inp-precio'), it.precio);
+                        recalcRow(i);
+                    }
                 });
             },
         };
@@ -477,6 +528,24 @@
             state.items = [{product_id:'',descripcion:'',cantidad:1,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}];
         }
         renderAll();
+
+        // Cuando el usuario regresa a esta pestaña (ej. después de editar precios),
+        // refresca los overrides del cliente y vuelve a calcular precios.
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState !== 'visible' || !state.clientId) return;
+            fetch(`${CLIENT_PRICES_BASE}/${state.clientId}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.ok ? r.json() : null)
+                .then(prices => {
+                    if (!prices) return;
+                    const cid = String(state.clientId);
+                    CLIENTS_OVERRIDES[cid] = {};
+                    Object.entries(prices).forEach(([pid, p]) => {
+                        CLIENTS_OVERRIDES[cid][String(pid)] = parseFloat(p) || 0;
+                    });
+                    SNF.repriceAll();
+                })
+                .catch(() => {});
+        });
     })();
     </script>
 
