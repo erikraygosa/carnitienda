@@ -232,13 +232,6 @@
                     </div>
                 </td>
             </tr>
-            @if($it->product?->unidad)
-            <tr>
-                <td colspan="3" class="sm" style="padding-bottom:2px;">
-                    {{ strtoupper($it->product->unidad) }}
-                </td>
-            </tr>
-            @endif
             @endforeach
         </tbody>
     </table>
