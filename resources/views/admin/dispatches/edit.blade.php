@@ -455,6 +455,9 @@
             <form action="{{ route('admin.dispatches.pedidos.agregar', $dispatch) }}" method="POST">
                 @csrf
                 <div class="flex items-center gap-2 mb-2">
+                    <input type="date" id="filtro-pedido-disponible-programado"
+                           title="Filtrar por fecha Programado para"
+                           class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <input type="text" id="buscar-pedido-disponible" placeholder="Buscar por folio o cliente..."
                            class="flex-1 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <span class="text-xs text-gray-400"><span id="pedidos-disp-count">0</span> seleccionado(s)</span>
@@ -483,7 +486,8 @@
                             <tbody>
                                 @foreach($pedidosDisponibles as $pd)
                                 <tr class="border-b hover:bg-gray-50 pedido-disp-row"
-                                    data-search="{{ strtolower($pd->folio.' '.($pd->client?->nombre ?? '')) }}">
+                                    data-search="{{ strtolower($pd->folio.' '.($pd->client?->nombre ?? '')) }}"
+                                    data-programado="{{ optional($pd->programado_para)->format('Y-m-d') }}">
                                     <td class="p-2">
                                         <input type="checkbox" name="orders[]" value="{{ $pd->id }}" class="pedido-disp-check rounded border-gray-300">
                                     </td>
@@ -1132,15 +1136,21 @@
                 });
             }
 
-            var buscar = document.getElementById('buscar-pedido-disponible');
-            if (buscar) {
-                buscar.addEventListener('input', function() {
-                    var term = this.value.toLowerCase().trim();
-                    document.querySelectorAll('.pedido-disp-row').forEach(function(row) {
-                        row.style.display = row.dataset.search.includes(term) ? '' : 'none';
-                    });
+            var buscar        = document.getElementById('buscar-pedido-disponible');
+            var filtroProgramado = document.getElementById('filtro-pedido-disponible-programado');
+
+            function aplicarFiltrosPedidosDisponibles() {
+                var term  = buscar ? buscar.value.toLowerCase().trim() : '';
+                var fecha = filtroProgramado ? filtroProgramado.value : '';
+                document.querySelectorAll('.pedido-disp-row').forEach(function(row) {
+                    var pasaBusqueda = !term || row.dataset.search.includes(term);
+                    var pasaFecha    = !fecha || row.dataset.programado === fecha;
+                    row.style.display = (pasaBusqueda && pasaFecha) ? '' : 'none';
                 });
             }
+
+            if (buscar) buscar.addEventListener('input', aplicarFiltrosPedidosDisponibles);
+            if (filtroProgramado) filtroProgramado.addEventListener('input', aplicarFiltrosPedidosDisponibles);
 
             var countEl = document.getElementById('pedidos-disp-count');
             document.querySelectorAll('.pedido-disp-check').forEach(function(chk) {
