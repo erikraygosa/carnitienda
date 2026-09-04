@@ -19,6 +19,11 @@
         hr { border: 0; border-top: 1px dashed #333; margin: 6px 0; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 2px 0; font-size: 11px; vertical-align: top; }
+        {{-- Apertura/Ingresos/Egresos/Ventas efectivo/Saldo final y el
+             Desglose por forma de pago, 2 tamaños más grandes que el resto
+             del ticket para que se lean mejor de un vistazo. --}}
+        .resumen-caja td { font-size: 13px; }
+        .resumen-caja-titulo { font-size: 13px; }
         .logo { max-width: 55mm; max-height: 18mm; display: block; margin: 0 auto 4px; }
         .firmas td { padding-top: 28px; width: 50%; }
         .firma-linea { border-top: 1px solid #333; margin: 0 6px; }

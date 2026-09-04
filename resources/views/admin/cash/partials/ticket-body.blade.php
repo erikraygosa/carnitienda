@@ -54,7 +54,7 @@
     <hr>
 </div>
 
-<table>
+<table class="resumen-caja">
     <tbody>
         <tr>
             <td>Apertura</td>
@@ -81,13 +81,13 @@
 
 @if($desglosePagos->isNotEmpty())
 <hr class="mt-2">
-<div class="center xs bold">Desglose por forma de pago</div>
-<table>
+<div class="center bold resumen-caja-titulo">Desglose por forma de pago</div>
+<table class="resumen-caja">
     <tbody>
         @foreach($desglosePagos->sortDesc() as $forma => $monto)
         <tr>
-            <td class="xs">{{ $forma }}</td>
-            <td class="xs right">${{ number_format($monto, 2) }}</td>
+            <td>{{ $forma }}</td>
+            <td class="right">${{ number_format($monto, 2) }}</td>
         </tr>
         @endforeach
     </tbody>
