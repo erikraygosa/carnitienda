@@ -221,6 +221,7 @@
         </thead>
         <tbody>
             @foreach($order->items as $it)
+            @continue((float)$it->cantidad <= 0)
             <tr>
                 <td colspan="3">{{ number_format((float)$it->cantidad, 2) }}
                     {{ strtoupper($it->descripcion ?: ($it->product->nombre ?? '#'.$it->product_id)) }}</td>
