@@ -192,10 +192,33 @@ public function data(Request $request)
 
     $mostrarIva = \App\Models\SystemSetting::get('pedidos.mostrar_iva', true);
 
+    // Existencia por almacén, para avisar en el formulario (no bloquear)
+    // cuando un producto se está pidiendo con muy poco stock disponible.
+    // Solo productos que manejan inventario — el resto no tiene existencia
+    // que validar.
+    $sumExpr = "COALESCE(SUM(CASE
+        WHEN sm.tipo = 'IN'  THEN sm.cantidad
+        WHEN sm.tipo = 'OUT' THEN -sm.cantidad
+        ELSE 0 END), 0)";
+    $existencias = DB::table('products as p')
+        ->crossJoin('warehouses as w')
+        ->leftJoin('stock_movements as sm', function ($join) {
+            $join->on('sm.product_id', '=', 'p.id')
+                 ->on('sm.warehouse_id', '=', 'w.id');
+        })
+        ->where('p.maneja_inventario', 1)
+        ->where('p.activo', 1)
+        ->groupBy('w.id', 'p.id')
+        ->select('w.id as warehouse_id', 'p.id as product_id', DB::raw("({$sumExpr}) as existencia"))
+        ->get()
+        ->groupBy('warehouse_id')
+        ->map(fn($rows) => $rows->pluck('existencia', 'product_id')->map(fn($v) => (float) $v)->toArray())
+        ->toArray();
+
     return view('admin.sales_orders.create', compact(
         'clients','priceLists','products','warehouses',
         'drivers','routes','overrides','listItems',
-        'mainWarehouseId','clientDefaults','productsJson','mostrarIva'
+        'mainWarehouseId','clientDefaults','productsJson','mostrarIva','existencias'
     ));
 }
 

@@ -30,6 +30,7 @@
         $JS_LISTPRICES      = json_encode($listItems   ?? [], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
         $JS_INITIALITEMS    = json_encode($initialItems,      JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
         $JS_SELCLIENT       = json_encode($selClient,         JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+        $JS_EXISTENCIAS     = json_encode($existencias ?? [], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
 
         $clientDefaults = $clients->mapWithKeys(fn($c) => [(string)$c->id => [
             'shipping_route_id' => (string) ($c->shipping_route_id ?? ''),
@@ -283,6 +284,7 @@
         const INITIAL_ITEMS     = {!! $JS_INITIALITEMS !!};
         const CLIENT_DEFAULTS   = {!! $JS_CLIENT_DEFAULTS !!};
         const DEFAULT_CLIENT_ID = {!! $JS_SELCLIENT !!};
+        const EXISTENCIAS       = {!! $JS_EXISTENCIAS !!}; // { [warehouse_id]: { [product_id]: existencia } }
         const CLIENTS_EDIT_BASE    = '{{ url('admin/clients') }}';
         const CLIENT_PRICES_BASE   = '{{ url('admin/sales-orders/client-prices') }}';
         const PRODUCTS             = @json($productsJson);
@@ -298,6 +300,7 @@
         const fmt = n => Number(n||0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         const $   = id => document.getElementById(id);
         const set = (id, val) => { const el = $(id); if(el) el.value = val; };
+        const soForm = document.getElementById('so-form');
 
         function escHtml(str) {
             return String(str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -728,6 +731,53 @@
                     SOF.repriceAll();
                 })
                 .catch(() => {});
+        });
+
+        // ── Validación antes de guardar ─────────────────────────────────
+        // No se bloquea el guardado — solo se avisa y se pide confirmar,
+        // para que un Enter accidental (o guardar de prisa) no deje pasar
+        // un precio en $0 o un producto casi sin existencia sin que nadie
+        // se dé cuenta. Se engancha al evento "submit" del formulario, así
+        // que aplica tanto al botón Guardar como a Enter en cualquier campo.
+        soForm.addEventListener('submit', function (e) {
+            const warehouseSel = document.querySelector('select[name="warehouse_id"]');
+            const stockAlmacen = EXISTENCIAS[String(warehouseSel ? warehouseSel.value : '')] || {};
+            const avisos = [];
+
+            state.items.forEach(function (it) {
+                if (!it.product_id) return;
+                const nombre = it._productoNombre || it.descripcion || ('#' + it.product_id);
+
+                if ((+it.precio || 0) <= 0) {
+                    avisos.push('• ' + escHtml(nombre) + ': precio en $0.00');
+                }
+
+                const pid = String(it.product_id);
+                if (Object.prototype.hasOwnProperty.call(stockAlmacen, pid)) {
+                    const existencia = +stockAlmacen[pid];
+                    if (existencia <= 1) {
+                        avisos.push('• ' + escHtml(nombre) + ': solo queda' + (existencia === 1 ? '' : 'n') + ' ' + existencia + ' en existencia');
+                    }
+                }
+            });
+
+            if (!avisos.length) return; // nada que avisar, se guarda normal
+
+            e.preventDefault();
+            Swal.fire({
+                title: 'Revisa antes de guardar',
+                html: 'Hay partidas con posibles problemas:<br><br>' + avisos.join('<br>'),
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Continuar de todos modos',
+                cancelButtonText: 'Corregir',
+                confirmButtonColor: '#4f46e5',
+                cancelButtonColor: '#6b7280',
+            }).then(function (r) {
+                // form.submit() (nativo) no vuelve a disparar "submit", así
+                // que no hay riesgo de loop ni necesidad de una bandera.
+                if (r.isConfirmed) soForm.submit();
+            });
         });
     })();
     </script>
