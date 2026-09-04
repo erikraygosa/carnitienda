@@ -165,9 +165,12 @@
                     <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">2</span>
                     <h3 class="font-semibold text-gray-800">Pedidos candidatos</h3>
                     <span class="text-sm font-normal text-gray-400">(PROCESADOS)</span>
+                    <input type="date" id="filtro-fecha-surtido"
+                           title="Filtrar por fecha en que se surtió el pedido (Salida de Producto), no la de creación"
+                           class="ml-auto rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <input type="text" id="buscar-pedido"
                            placeholder="Buscar por folio o cliente..."
-                           class="ml-auto w-64 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                           class="w-64 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <button type="button"
                             id="btn-select-route"
                             class="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
@@ -189,6 +192,7 @@
                                 <th class="p-2 text-left">Pago</th>
                                 <th class="p-2 text-left">Ruta</th>
                                 <th class="p-2 text-left">Programado</th>
+                                <th class="p-2 text-left" title="Fecha en que se surtió (Salida de Producto)">Surtido</th>
                                 <th class="p-2 text-center">Ticket</th>
                             </tr>
                         </thead>
@@ -196,6 +200,7 @@
                             @forelse($orders as $o)
                             <tr class="border-b hover:bg-gray-50 order-row"
                                 data-route="{{ $o->shipping_route_id ?? '' }}"
+                                data-surtido="{{ optional($o->despachado_at)->format('Y-m-d') }}"
                                 data-search="{{ strtolower($o->folio.' '.($o->client?->nombre ?? '')) }}">
                                 <td class="p-2">
                                     <input type="checkbox" name="orders[]"
@@ -247,6 +252,9 @@
                                 <td class="p-2 text-gray-400 text-xs">
                                     {{ optional($o->programado_para)->format('d/m/Y') ?? '—' }}
                                 </td>
+                                <td class="p-2 text-gray-400 text-xs">
+                                    {{ optional($o->despachado_at)->format('d/m/Y') ?? '—' }}
+                                </td>
                                 <td class="p-2 text-center">
                                     @if($o->ticket_impreso)
                                         <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 text-xs font-bold" title="Ticket impreso">✓</span>
@@ -257,7 +265,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="8" class="p-4 text-center text-gray-400">
+                                <td colspan="9" class="p-4 text-center text-gray-400">
                                     No hay pedidos PROCESADOS pendientes.
                                 </td>
                             </tr>
@@ -561,15 +569,21 @@
         });
 
         // ── Buscadores ────────────────────────────────────────────────────
-        var buscarPedido = document.getElementById('buscar-pedido');
-        if (buscarPedido) {
-            buscarPedido.addEventListener('input', function() {
-                var term = this.value.toLowerCase().trim();
-                document.querySelectorAll('.order-row').forEach(function(row) {
-                    row.style.display = row.dataset.search.includes(term) ? '' : 'none';
-                });
+        var buscarPedido     = document.getElementById('buscar-pedido');
+        var filtroFechaSurtido = document.getElementById('filtro-fecha-surtido');
+
+        function aplicarFiltrosPedidos() {
+            var term  = buscarPedido ? buscarPedido.value.toLowerCase().trim() : '';
+            var fecha = filtroFechaSurtido ? filtroFechaSurtido.value : '';
+            document.querySelectorAll('.order-row').forEach(function(row) {
+                var pasaBusqueda = !term || row.dataset.search.includes(term);
+                var pasaFecha    = !fecha || row.dataset.surtido === fecha;
+                row.style.display = (pasaBusqueda && pasaFecha) ? '' : 'none';
             });
         }
+
+        if (buscarPedido) buscarPedido.addEventListener('input', aplicarFiltrosPedidos);
+        if (filtroFechaSurtido) filtroFechaSurtido.addEventListener('input', aplicarFiltrosPedidos);
 
         var buscarCxc = document.getElementById('buscar-cxc');
         if (buscarCxc) {
