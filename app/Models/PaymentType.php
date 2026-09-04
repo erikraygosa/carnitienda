@@ -19,6 +19,7 @@ class PaymentType extends Model
         'TRANSFERENCIA' => '03', // Transferencia electrónica de fondos
         'CONTRAENTREGA' => '01', // Se cobra en efectivo/tarjeta al entregar; sin dato exacto -> más común
         'CREDITO'       => '99', // No es una forma de pago real (es plazo) -> Por definir
+        'TARJETA'       => '04', // Tarjeta de crédito
     ];
 
     public function satFormaPago(): string

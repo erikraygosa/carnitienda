@@ -15,6 +15,7 @@ class PaymentTypesSeeder extends Seeder
             ['clave' => 'TRANSFERENCIA', 'descripcion' => 'Transferencia bancaria',    'activo' => 1],
             ['clave' => 'CONTRAENTREGA', 'descripcion' => 'Pago contra entrega',       'activo' => 1],
             ['clave' => 'CREDITO',       'descripcion' => 'Crédito a días pactados',   'activo' => 1],
+            ['clave' => 'TARJETA',       'descripcion' => 'Tarjeta de crédito',        'activo' => 1],
         ];
         foreach ($rows as $r) {
             $exists = DB::table('payment_types')->where('clave', $r['clave'])->exists();
