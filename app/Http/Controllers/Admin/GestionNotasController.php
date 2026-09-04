@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CashRegister;
 use App\Models\InventoryMovement;
 use App\Models\PosSale;
+use App\Models\Sale;
 use App\Models\SalesOrder;
 use App\Models\StockMovement;
 use App\Models\Warehouse;
@@ -91,7 +92,7 @@ class GestionNotasController extends Controller implements HasMiddleware
 
     public function index(Request $request)
     {
-        $tipo        = $request->get('tipo', 'todos'); // todos|pedido|pos
+        $tipo        = $request->get('tipo', 'todos'); // todos|pedido|pos|nota_venta
         $q           = trim((string) $request->get('q', ''));
         $warehouseId = $request->get('warehouse_id');
         $fechaDesde  = $request->get('fecha_desde');
@@ -155,6 +156,34 @@ class GestionNotasController extends Controller implements HasMiddleware
                     'url_cancelar' => route('admin.gestion-notas.pos.cancelar', $s->id),
                 ]);
             $resultados = $resultados->concat($ventas);
+        }
+
+        if (in_array($tipo, ['todos', 'nota_venta'])) {
+            $notasVenta = Sale::with(['client:id,nombre', 'warehouse:id,nombre'])
+                ->when($q, fn($qq) => $qq->where(fn($w) => $w
+                    ->where('folio', 'like', "%{$q}%")
+                    ->orWhereHas('client', fn($c) => $c->where('nombre', 'like', "%{$q}%"))
+                ))
+                ->when($warehouseId, fn($qq) => $qq->where('warehouse_id', $warehouseId))
+                ->when($fechaDesde, fn($qq) => $qq->whereDate('fecha', '>=', $fechaDesde))
+                ->when($fechaHasta, fn($qq) => $qq->whereDate('fecha', '<=', $fechaHasta))
+                ->latest('fecha')
+                ->limit(150)
+                ->get()
+                ->map(fn($s) => [
+                    'tipo'       => 'nota_venta',
+                    'id'         => $s->id,
+                    'folio'      => $s->folio ?? ('NV-' . $s->id),
+                    'cliente'    => $s->client?->nombre ?? 'Público general',
+                    'almacen'    => $s->warehouse?->nombre ?? '—',
+                    'fecha'      => optional($s->fecha)->format('d/m/Y'),
+                    'total'      => (float) $s->total,
+                    'estatus'    => $s->status,
+                    'cancelable' => $s->status !== 'CANCELADA',
+                    'url_ver'    => route('admin.sales.edit', $s->id) . '?origen=gestion-notas',
+                    'url_cancelar' => route('admin.gestion-notas.notas-venta.cancelar', $s->id),
+                ]);
+            $resultados = $resultados->concat($notasVenta);
         }
 
         $resultados = $resultados->sortByDesc(fn($r) => $r['fecha'])->values()->take(150);
@@ -356,5 +385,63 @@ class GestionNotasController extends Controller implements HasMiddleware
         );
 
         return back()->with('swal', ['icon' => 'success', 'title' => 'Venta cancelada', 'text' => "{$notaStock} {$notaCaja}"]);
+    }
+
+    /**
+     * Cancela una nota de venta directa (mostrador) sin importar su
+     * estatus, revirtiendo el stock ya descontado y, según el tipo de
+     * venta, la CxC del cliente (si era crédito) o el efectivo de la caja
+     * (si sigue ABIERTA). Mismo principio que cancelarPedido()/cancelarPos().
+     */
+    public function cancelarNotaVenta(Request $request, Sale $sale)
+    {
+        abort_unless(auth()->user()->can('editar pedidos cerrados'), 403);
+
+        if ($sale->status === 'CANCELADA') {
+            return back()->with('swal', ['icon' => 'info', 'title' => 'Ya estaba cancelada', 'text' => 'Esta nota ya se había cancelado.']);
+        }
+
+        $request->validate(['motivo' => ['nullable', 'string', 'max:255']]);
+
+        $sale->load('cashRegister');
+        $oldStatus = $sale->status;
+        $cajaTocada = false;
+        $numMovs = 0;
+
+        DB::transaction(function () use ($sale, &$cajaTocada, &$numMovs) {
+            $numMovs = $this->revertirStockMovements(Sale::class, $sale->id, 'CANCELACION_NOTA_VENTA_CERRADA', auth()->id(), $sale);
+
+            if ($sale->tipo_venta === 'CREDITO' && $sale->client_id) {
+                app(\App\Services\ArService::class)->charge(
+                    clientId: $sale->client_id,
+                    monto:    -1 * (float) $sale->total,
+                    desc:     "Reversa por cancelación (Gestión de notas) de nota de venta {$sale->folio}",
+                    source:   $sale,
+                    fecha:    now()->toDateString(),
+                );
+            } else {
+                $register = $sale->cashRegister;
+                if ($register && $register->estatus === 'ABIERTO') {
+                    $this->cash->registerCashSale($register, -1 * (float) $sale->total);
+                    $cajaTocada = true;
+                }
+            }
+
+            $sale->update(['status' => 'CANCELADA']);
+        });
+
+        $notaStock = $numMovs > 0
+            ? "Se revirtieron {$numMovs} movimiento(s) de stock reales de esta nota."
+            : 'Esta nota no tenía movimientos de stock registrados — no se tocó el stock.';
+        $notaCobro = $sale->tipo_venta === 'CREDITO'
+            ? 'Se ajustó la CxC del cliente.'
+            : ($cajaTocada ? 'Se descontó de la caja abierta.' : 'La caja de esta nota ya estaba cerrada — no se ajustó, revisar manualmente si aplica.');
+
+        $this->log->log(
+            $sale, 'CANCELADO_DESDE_GESTION_NOTAS', $oldStatus, 'CANCELADA',
+            note: "Nota de venta {$sale->folio} cancelada desde Gestión de notas ({$oldStatus} → CANCELADA). {$notaStock} {$notaCobro} Motivo: " . ($request->input('motivo') ?: '(sin especificar)')
+        );
+
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Nota cancelada', 'text' => "{$notaStock} {$notaCobro}"]);
     }
 }

@@ -15,9 +15,10 @@
             <div>
                 <label class="block text-xs text-gray-500 mb-1">Tipo</label>
                 <select name="tipo" class="w-full rounded-md border-gray-300 shadow-sm text-sm">
-                    <option value="todos"  {{ $filtros['tipo'] === 'todos'  ? 'selected' : '' }}>Todos</option>
-                    <option value="pedido" {{ $filtros['tipo'] === 'pedido' ? 'selected' : '' }}>Solo pedidos</option>
-                    <option value="pos"    {{ $filtros['tipo'] === 'pos'    ? 'selected' : '' }}>Solo notas POS</option>
+                    <option value="todos"      {{ $filtros['tipo'] === 'todos'      ? 'selected' : '' }}>Todos</option>
+                    <option value="pedido"     {{ $filtros['tipo'] === 'pedido'     ? 'selected' : '' }}>Solo pedidos</option>
+                    <option value="pos"        {{ $filtros['tipo'] === 'pos'        ? 'selected' : '' }}>Solo notas POS</option>
+                    <option value="nota_venta" {{ $filtros['tipo'] === 'nota_venta' ? 'selected' : '' }}>Solo notas de venta</option>
                 </select>
             </div>
             <div>
@@ -67,9 +68,19 @@
                         @endphp
                         <tr class="border-b hover:bg-gray-50">
                             <td class="p-2">
-                                <span class="px-2 py-0.5 rounded-full text-xs {{ $r['tipo'] === 'pedido' ? 'bg-indigo-100 text-indigo-700' : 'bg-violet-100 text-violet-700' }}">
-                                    {{ $r['tipo'] === 'pedido' ? 'Pedido' : 'POS' }}
-                                </span>
+                                @php
+                                    $tipoClass = match($r['tipo']) {
+                                        'pedido'     => 'bg-indigo-100 text-indigo-700',
+                                        'nota_venta' => 'bg-teal-100 text-teal-700',
+                                        default      => 'bg-violet-100 text-violet-700',
+                                    };
+                                    $tipoLabel = match($r['tipo']) {
+                                        'pedido'     => 'Pedido',
+                                        'nota_venta' => 'Nota de venta',
+                                        default      => 'POS',
+                                    };
+                                @endphp
+                                <span class="px-2 py-0.5 rounded-full text-xs {{ $tipoClass }}">{{ $tipoLabel }}</span>
                             </td>
                             <td class="p-2 font-mono text-xs">
                                 <a href="{{ $r['url_ver'] }}" target="_blank" class="text-indigo-600 hover:underline">{{ $r['folio'] }}</a>
@@ -82,7 +93,7 @@
                                 <span class="px-2 py-0.5 rounded-full text-xs {{ $estatusClass }}">{{ $r['estatus'] }}</span>
                             </td>
                             <td class="p-2 text-center whitespace-nowrap">
-                                <a href="{{ $r['url_ver'] }}" target="_blank" class="text-xs text-indigo-600 hover:underline mr-2">Ver{{ $r['tipo'] === 'pedido' ? ' / Editar' : '' }}</a>
+                                <a href="{{ $r['url_ver'] }}" target="_blank" class="text-xs text-indigo-600 hover:underline mr-2">Ver{{ in_array($r['tipo'], ['pedido','nota_venta']) ? ' / Editar' : '' }}</a>
                                 @if($r['tipo'] === 'pedido' && ($r['revertible'] ?? false) && auth()->user()->can('editar pedidos cerrados'))
                                     <form action="{{ $r['url_revertir'] }}" method="POST" class="inline form-cancelar-nota">
                                         @csrf
@@ -92,7 +103,7 @@
                                                 class="text-xs text-amber-600 hover:underline mr-2">Regresar a Procesado</button>
                                     </form>
                                 @endif
-                                @if($r['cancelable'] && (($r['tipo'] === 'pedido' && auth()->user()->can('editar pedidos cerrados')) || ($r['tipo'] === 'pos' && auth()->user()->can('cancelar notas pos'))))
+                                @if($r['cancelable'] && ((in_array($r['tipo'], ['pedido','nota_venta']) && auth()->user()->can('editar pedidos cerrados')) || ($r['tipo'] === 'pos' && auth()->user()->can('cancelar notas pos'))))
                                     <form action="{{ $r['url_cancelar'] }}" method="POST" class="inline form-cancelar-nota">
                                         @csrf
                                         <input type="hidden" name="motivo" class="inp-motivo">

@@ -391,6 +391,7 @@ Route::prefix('gestion-notas')->name('gestion-notas.')->group(function () {
     Route::post('/pedidos/{order}/cancelar', [GestionNotasController::class, 'cancelarPedido'])->name('pedidos.cancelar');
     Route::post('/pedidos/{order}/revertir-a-procesado', [GestionNotasController::class, 'revertirAProcesado'])->name('pedidos.revertir-a-procesado');
     Route::post('/pos/{sale}/cancelar',      [GestionNotasController::class, 'cancelarPos'])->name('pos.cancelar');
+    Route::post('/notas-venta/{sale}/cancelar', [GestionNotasController::class, 'cancelarNotaVenta'])->name('notas-venta.cancelar');
 });
 
 // Chat de asistencia (widget flotante global) — disponible para cualquier

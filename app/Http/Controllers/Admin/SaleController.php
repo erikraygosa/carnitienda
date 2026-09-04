@@ -9,9 +9,6 @@ use App\Models\Client;
 use App\Models\PriceList;
 use App\Models\Product;
 use App\Models\Warehouse;
-use App\Models\Driver;
-use App\Models\ShippingRoute;
-use App\Models\PosRegister;
 use App\Models\CashRegister;
 use App\Models\PaymentType;
 use App\Models\StockMovement;
@@ -32,7 +29,11 @@ use Illuminate\Routing\Controllers\Middleware;
 
 class SaleController extends Controller implements HasMiddleware
 {
-    public function __construct(private DocumentLogService $log) {}
+    public function __construct(
+        private DocumentLogService $log,
+        private InventoryService $inv,
+        private CashService $cashSvc,
+    ) {}
 
     public static function middleware(): array
     {
@@ -346,9 +347,9 @@ class SaleController extends Controller implements HasMiddleware
             ->with('swal',['icon'=>'success','title'=>'Nota completada','text'=>'Se descontó el inventario y quedó registrada la venta.']);
     }
 
-    public function edit(Sale $sale)
+    public function edit(Request $request, Sale $sale)
     {
-        $sale->load('items.product','client','priceList','warehouse','driver','route','posRegister','paymentType');
+        $sale->load('items.product','client','priceList','warehouse','cashRegister','paymentType');
 
         $clients = Client::orderBy('nombre')->get([
             'id','nombre','email','telefono',
@@ -360,11 +361,22 @@ class SaleController extends Controller implements HasMiddleware
         ]);
 
         $priceLists   = PriceList::orderBy('nombre')->get(['id','nombre']);
-        $products     = Product::orderBy('nombre')->get(['id','nombre','precio_base']);
+        $products     = Product::where('activo', 1)->orderBy('nombre')->get(['id','nombre','precio_base','sku','unidad']);
+        $productsJson = $products->map(fn($p) => [
+            'id'     => $p->id,
+            'nombre' => $p->nombre,
+            'sku'    => $p->sku ?? '',
+            'precio' => (float) $p->precio_base,
+            'unidad' => $p->unidad ?? '',
+        ])->values();
         $warehouses   = Warehouse::orderBy('nombre')->get(['id','nombre']);
-        $drivers      = Driver::orderBy('nombre')->get(['id','nombre']);
-        $routes       = ShippingRoute::orderBy('nombre')->get(['id','nombre']);
-        $posRegisters = PosRegister::orderBy('id')->get(['id','nombre']);
+
+        // Cajas abiertas + la propia caja de esta nota (aunque ya esté
+        // CERRADA) para que siga apareciendo seleccionada en el dropdown.
+        $cashRegisters = CashRegister::with(['warehouse:id,nombre', 'user:id,name'])
+            ->where(fn ($q) => $q->where('estatus', 'ABIERTO')->orWhere('id', $sale->cash_register_id))
+            ->orderByDesc('id')
+            ->get();
 
         $payTypes = PaymentType::query()
             ->select('id','clave','descripcion')
@@ -376,16 +388,44 @@ class SaleController extends Controller implements HasMiddleware
                 'label' => $p->descripcion ?: $p->clave,
             ]);
 
+        $overrides = DB::table('client_price_overrides')
+            ->select('client_id','product_id','precio')
+            ->whereIn('client_id', $clients->pluck('id'))
+            ->get()
+            ->groupBy('client_id')
+            ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
+            ->toArray();
+
+        $listItems = DB::table('price_list_items')
+            ->select('price_list_id','product_id','precio')
+            ->whereIn('price_list_id', $priceLists->pluck('id'))
+            ->get()
+            ->groupBy('price_list_id')
+            ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
+            ->toArray();
+
+        // El desbloqueo de una nota COMPLETADA solo aplica viniendo del
+        // módulo Gestión de notas — igual que ya se hace en Pedidos.
+        $puedeEditarCerrados = $request->query('origen') === 'gestion-notas'
+            && auth()->user()->can('editar pedidos cerrados');
+
         return view('admin.sales.edit', compact(
-            'sale','clients','priceLists','products','warehouses',
-            'drivers','routes','posRegisters','payTypes'
+            'sale','clients','priceLists','products','productsJson','warehouses',
+            'cashRegisters','payTypes','overrides','listItems','puedeEditarCerrados'
         ));
     }
 
     public function update(Request $request, Sale $sale)
     {
-        if ($sale->status !== 'BORRADOR') {
-            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR puede editarse.']);
+        // Mismo criterio que en Pedidos: el desbloqueo de una nota COMPLETADA
+        // solo aplica viniendo del módulo Gestión de notas, no del flujo
+        // normal de Notas de venta → Editar aunque el usuario tenga el permiso.
+        $puedeEditarCerrados = $request->input('origen') === 'gestion-notas'
+            && auth()->user()->can('editar pedidos cerrados');
+        $editandoCerrado = $puedeEditarCerrados && $sale->status === Sale::S_COMPLETADA;
+
+        if ($sale->status !== 'BORRADOR' && !$editandoCerrado) {
+            return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo puede editarse una nota en BORRADOR (o una completada, desde Gestión de notas).']);
         }
 
         if ($request->input('price_list_id') === 'client') {
@@ -393,26 +433,15 @@ class SaleController extends Controller implements HasMiddleware
         }
 
         $data = $request->validate([
-            'fecha'             => ['required','date'],
-            'pos_register_id'   => ['required','exists:pos_registers,id'],
-            'warehouse_id'      => ['required','exists:warehouses,id'],
-            'client_id'         => ['nullable','exists:clients,id'],
-            'payment_type_id'   => ['nullable','exists:payment_types,id'],
-            'price_list_id'     => ['nullable','exists:price_lists,id'],
-            'moneda'            => ['required','string','max:10'],
-            'tipo_venta'        => ['required','in:CONTADO,CREDITO,CONTRAENTREGA'],
-            'credit_days'       => ['nullable','integer','min:0'],
-            'delivery_type'     => ['required','in:ENVIO,RECOGER'],
-            'entrega_nombre'    => ['nullable','string','max:255'],
-            'entrega_telefono'  => ['nullable','string','max:50'],
-            'entrega_calle'     => ['nullable','string','max:255'],
-            'entrega_numero'    => ['nullable','string','max:50'],
-            'entrega_colonia'   => ['nullable','string','max:255'],
-            'entrega_ciudad'    => ['nullable','string','max:255'],
-            'entrega_estado'    => ['nullable','string','max:255'],
-            'entrega_cp'        => ['nullable','string','max:10'],
-            'shipping_route_id' => ['nullable','exists:shipping_routes,id'],
-            'driver_id'         => ['nullable','exists:drivers,id'],
+            'fecha'            => ['required','date'],
+            'cash_register_id' => ['required','exists:cash_registers,id'],
+            'warehouse_id'     => ['required','exists:warehouses,id'],
+            'client_id'        => ['nullable','exists:clients,id'],
+            'payment_type_id'  => ['nullable','exists:payment_types,id'],
+            'price_list_id'    => ['nullable','exists:price_lists,id'],
+            'moneda'           => ['required','string','max:10'],
+            'tipo_venta'       => ['required','in:CONTADO,CREDITO'],
+            'credit_days'      => ['nullable','integer','min:0'],
             'items'                 => ['required','array','min:1'],
             'items.*.product_id'    => ['required','exists:products,id'],
             'items.*.descripcion'   => ['required','string','max:255'],
@@ -424,12 +453,21 @@ class SaleController extends Controller implements HasMiddleware
             'comentarios'           => ['nullable','string','max:2000'],
         ]);
 
+        if ($data['tipo_venta'] === 'CREDITO' && empty($data['client_id'])) {
+            return back()->withErrors(['client_id' => 'Una venta a crédito necesita cliente.'])->withInput();
+        }
+
         $data['items'] = $this->aplicarPreciosOficiales(
             $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
         );
         $this->registrarPreciosNuevos(
             $data['items'], $data['client_id'] ?? null, $data['price_list_id'] ?? null
         );
+
+        // Snapshot ANTES de tocar nada — para ajustar CxC/caja por la
+        // diferencia si se está corrigiendo una nota ya COMPLETADA.
+        $totalAntes     = (float) $sale->total;
+        $tipoVentaAntes = $sale->tipo_venta;
 
         DB::transaction(function () use ($sale, $data) {
             $subtotal=0; $descuento=0; $impuestos=0; $total=0;
@@ -458,36 +496,100 @@ class SaleController extends Controller implements HasMiddleware
             }
 
             $sale->update([
-                'fecha'               => $data['fecha'],
-                'comentarios'         => $data['comentarios'] ?? null,
-                'pos_register_id'     => $data['pos_register_id'],
-                'warehouse_id'        => $data['warehouse_id'],
-                'client_id'           => $data['client_id'] ?? null,
-                'payment_type_id'     => $data['payment_type_id'] ?? null,
-                'price_list_id'       => $data['price_list_id'] ?? null,
-                'moneda'              => $data['moneda'],
-                'tipo_venta'          => $data['tipo_venta'],
-                'credit_days'         => $data['tipo_venta']==='CREDITO' ? ($data['credit_days'] ?? 0) : null,
-                'delivery_type'       => $data['delivery_type'],
-                'entrega_nombre'      => $data['entrega_nombre'] ?? null,
-                'entrega_telefono'    => $data['entrega_telefono'] ?? null,
-                'entrega_calle'       => $data['entrega_calle'] ?? null,
-                'entrega_numero'      => $data['entrega_numero'] ?? null,
-                'entrega_colonia'     => $data['entrega_colonia'] ?? null,
-                'entrega_ciudad'      => $data['entrega_ciudad'] ?? null,
-                'entrega_estado'      => $data['entrega_estado'] ?? null,
-                'entrega_cp'          => $data['entrega_cp'] ?? null,
-                'shipping_route_id'   => $data['shipping_route_id'] ?? null,
-                'driver_id'           => $data['driver_id'] ?? null,
-                'subtotal'            => $subtotal,
-                'impuestos'           => $impuestos,
-                'descuento'           => $descuento,
-                'total'               => $total,
-                'contraentrega_total' => $data['tipo_venta'] === 'CONTRAENTREGA' ? $total : 0,
+                'fecha'            => $data['fecha'],
+                'comentarios'      => $data['comentarios'] ?? null,
+                'cash_register_id' => $data['cash_register_id'],
+                'warehouse_id'     => $data['warehouse_id'],
+                'client_id'        => $data['client_id'] ?? null,
+                'payment_type_id'  => $data['payment_type_id'] ?? null,
+                'price_list_id'    => $data['price_list_id'] ?? null,
+                'moneda'           => $data['moneda'],
+                'tipo_venta'       => $data['tipo_venta'],
+                'credit_days'      => $data['tipo_venta']==='CREDITO' ? ($data['credit_days'] ?? 0) : null,
+                'subtotal'         => $subtotal,
+                'impuestos'        => $impuestos,
+                'descuento'        => $descuento,
+                'total'            => $total,
             ]);
         });
 
-        return back()->with('swal',['icon'=>'success','title'=>'Actualizada','text'=>'Nota de venta actualizada.']);
+        if (!$editandoCerrado) {
+            return back()->with('swal',['icon'=>'success','title'=>'Actualizada','text'=>'Nota de venta actualizada.']);
+        }
+
+        // Corrección de una nota ya COMPLETADA (permiso de Gestión de
+        // notas): el stock y (si era crédito) la CxC, o la caja (si era de
+        // contado), ya se habían movido al crearse.
+        //
+        // Igual que en Pedidos: no se puede calcular el ajuste de stock
+        // comparando cantidades por product_id — si un producto es
+        // subproducto/compuesto (BOM) lo que en realidad se descontó fue el
+        // padre/los componentes. Por eso se revierten los movimientos de
+        // stock REALES que ya existan para esta nota y se vuelven a aplicar
+        // desde cero con las partidas nuevas.
+        $sale->refresh();
+
+        $movimientosPrevios = StockMovement::where('referencia_type', Sale::class)
+            ->where('referencia_id', $sale->id)
+            ->get();
+        foreach ($movimientosPrevios as $m) {
+            if ($m->tipo === 'OUT') {
+                $this->inv->stockIn((int) $m->product_id, (int) $m->warehouse_id, (float) $m->cantidad, 'AJUSTE_EDICION_CERRADA', $sale, auth()->id());
+            } elseif ($m->tipo === 'IN') {
+                $this->inv->stockOut((int) $m->product_id, (int) $m->warehouse_id, (float) $m->cantidad, 'AJUSTE_EDICION_CERRADA', $sale, auth()->id());
+            }
+        }
+        foreach ($sale->items()->get() as $itemNuevo) {
+            if (!$itemNuevo->product_id || (float) $itemNuevo->cantidad <= 0) continue;
+            $this->inv->consumeForOrderItem($itemNuevo, $sale->warehouse_id, $sale, auth()->id());
+        }
+
+        // Ajustar CxC / caja — el tipo de venta también pudo haber cambiado
+        // (de contado a crédito o viceversa), no solo el total.
+        $deltaTotal = round((float) $sale->total - $totalAntes, 2);
+        $ar = fn () => app(ArService::class);
+
+        if ($tipoVentaAntes === 'CREDITO' && $sale->tipo_venta === 'CREDITO') {
+            if ($sale->client_id && abs($deltaTotal) >= 0.01) {
+                $ar()->charge(clientId: $sale->client_id, monto: $deltaTotal, desc: "Ajuste por edición de nota cerrada {$sale->folio}", source: $sale, fecha: now()->toDateString());
+            }
+        } elseif ($tipoVentaAntes === 'CREDITO' && $sale->tipo_venta !== 'CREDITO') {
+            if ($sale->client_id) {
+                $ar()->charge(clientId: $sale->client_id, monto: -1 * $totalAntes, desc: "Reversa por cambio a contado al editar nota cerrada {$sale->folio}", source: $sale, fecha: now()->toDateString());
+            }
+            $this->ajustarCajaAbierta($sale, (float) $sale->total);
+        } elseif ($tipoVentaAntes !== 'CREDITO' && $sale->tipo_venta === 'CREDITO') {
+            $this->ajustarCajaAbierta($sale, -1 * $totalAntes);
+            if ($sale->client_id) {
+                $ar()->charge(clientId: $sale->client_id, monto: (float) $sale->total, desc: "Cargo por cambio a crédito al editar nota cerrada {$sale->folio}", source: $sale, fecha: now()->toDateString());
+            }
+        } elseif (abs($deltaTotal) >= 0.01) {
+            $this->ajustarCajaAbierta($sale, $deltaTotal);
+        }
+
+        $this->log->log(
+            $sale, 'EDITADO_CERRADO', 'COMPLETADA', 'COMPLETADA',
+            note: sprintf(
+                'Editado desde Gestión de notas. Total: $%s → $%s.%s',
+                number_format($totalAntes, 2), number_format((float) $sale->total, 2),
+                $sale->tipo_venta === 'CREDITO' ? ' Ajuste CxC aplicado.' : ' Ajuste de caja aplicado (si seguía abierta).'
+            )
+        );
+
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Nota corregida', 'text' => 'Se actualizó la nota y se ajustó el inventario (y la CxC o la caja, si aplicaba).']);
+    }
+
+    /**
+     * Ajusta las ventas en efectivo de la caja donde se registró la nota,
+     * solo si esa caja sigue ABIERTA (si ya se cerró, no se toca un corte
+     * ya hecho — queda para conciliar aparte, igual que en cancelarPos()).
+     */
+    private function ajustarCajaAbierta(Sale $sale, float $monto): void
+    {
+        $register = $sale->cashRegister;
+        if ($register && $register->estatus === 'ABIERTO') {
+            $this->cashSvc->registerCashSale($register, $monto);
+        }
     }
 
     public function destroy(Sale $sale)
