@@ -11,8 +11,13 @@
         <span id="assistant-active-dot" class="hidden absolute top-0 right-0 w-3.5 h-3.5 bg-emerald-400 border-2 border-white rounded-full"></span>
     </button>
 
+    {{-- position:fixed independiente (no relativo al botón) — su alto,
+         y si se abre arriba o abajo del botón, se calculan por JS cada vez
+         que se abre (positionPanel()), según dónde haya quedado el botón
+         tras arrastrarlo. Así el botón puede moverse en toda la pantalla
+         sin que el panel se corte. --}}
     <div id="assistant-panel"
-        class="hidden flex-col bg-white border border-gray-200 rounded-xl shadow-2xl w-96 max-w-[92vw] h-[32rem] max-h-[80vh] absolute bottom-16 right-0 overflow-hidden">
+        class="hidden flex-col bg-white border border-gray-200 rounded-xl shadow-2xl w-96 max-w-[92vw] fixed right-4 overflow-hidden">
 
         <div class="bg-indigo-600 text-white px-4 py-3 flex items-center justify-between">
             <div class="font-semibold text-sm">Asistente de pedidos</div>
@@ -70,14 +75,33 @@
 
     function clampBottom(px) {
         var min = 8;
-        // El panel se abre ARRIBA del botón (bottom-16 = 64px de separación).
-        // Si se sube demasiado el botón, el panel se puede salir por encima
-        // de la pantalla — el máximo deja siempre espacio suficiente para
-        // que el panel completo (hasta 32rem, o 80vh en pantallas chicas)
-        // quepa arriba del botón con un margen de 8px.
-        var panelHeight = Math.min(512, window.innerHeight * 0.8);
-        var max = window.innerHeight - 64 - panelHeight - 8;
+        var max = window.innerHeight - 64; // deja el botón (56px) visible con margen
         return Math.max(min, Math.min(max, px));
+    }
+
+    // El panel es position:fixed independiente del botón — antes de
+    // mostrarlo se calcula si cabe completo arriba del botón (lo normal) o,
+    // si no hay espacio (el botón quedó muy arriba tras arrastrarlo), se
+    // abre hacia ABAJO en su lugar, ajustando su alto a lo que sí quepa.
+    // Así el botón se puede arrastrar en toda la pantalla sin restricción y
+    // el panel nunca queda cortado contra un borde.
+    function positionPanel() {
+        var btnRect  = toggleBtn.getBoundingClientRect();
+        var margin   = 12;
+        var deseado  = Math.min(512, window.innerHeight * 0.8);
+        var arriba   = btnRect.top - margin;
+        var abajo    = window.innerHeight - btnRect.bottom - margin;
+
+        panel.style.top    = '';
+        panel.style.bottom = '';
+
+        if (arriba >= 200 && arriba >= abajo) {
+            panel.style.bottom = (window.innerHeight - btnRect.top + 8) + 'px';
+            panel.style.height = Math.min(deseado, arriba) + 'px';
+        } else {
+            panel.style.top    = (btnRect.bottom + 8) + 'px';
+            panel.style.height = Math.max(160, Math.min(deseado, abajo)) + 'px';
+        }
     }
 
     // requestAnimationFrame en vez de aplicarlo de inmediato: justo al cargar
@@ -140,6 +164,7 @@
     }
 
     function togglePanel(show) {
+        if (show) positionPanel();
         panel.classList.toggle('hidden', !show);
         panel.classList.toggle('flex', show);
         if (show) {
@@ -152,6 +177,10 @@
         }
         persistState(show);
     }
+
+    window.addEventListener('resize', function () {
+        if (!panel.classList.contains('hidden')) positionPanel();
+    });
 
     // Minimizar: solo oculta el panel, la conversación sigue intacta — al
     // reabrir (con el botón flotante, en esta página o en otra) se retoma
