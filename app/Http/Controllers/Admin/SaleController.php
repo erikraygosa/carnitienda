@@ -772,7 +772,7 @@ class SaleController extends Controller implements HasMiddleware
     // ========= TICKET TÉRMICO (80mm) =========
     public function ticket(Sale $sale)
     {
-        $sale->load('client', 'items.product', 'warehouse');
+        $sale->load('client', 'items.product', 'warehouse', 'paymentType');
         $empresa = app(\App\Services\CompanyService::class)->activa();
 
         return view('admin.sales.ticket', compact('sale', 'empresa'));
@@ -780,7 +780,7 @@ class SaleController extends Controller implements HasMiddleware
 
     public function ticketPdf(Sale $sale)
     {
-        $sale->load('client', 'items.product', 'warehouse');
+        $sale->load('client', 'items.product', 'warehouse', 'paymentType');
         $empresa = app(\App\Services\CompanyService::class)->activa();
 
         // Página de 80mm para que el ticket (72mm) tenga margen y no se

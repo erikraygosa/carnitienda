@@ -157,6 +157,12 @@
             <td>Hora:</td>
             <td class="right">{{ optional($sale->fecha)->format('h:i:s a') }}</td>
         </tr>
+        <tr>
+            <td>Forma de pago:</td>
+            <td class="right">
+                {{ strtoupper($sale->paymentType?->descripcion ?? ($sale->tipo_venta === 'CREDITO' ? 'Crédito' : $sale->tipo_venta)) }}
+            </td>
+        </tr>
     </table>
 
     <hr class="dashed">
