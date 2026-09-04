@@ -46,6 +46,7 @@
 
 <script>
 (function () {
+    var widget      = document.getElementById('assistant-widget');
     var toggleBtn   = document.getElementById('assistant-toggle');
     var minimizeBtn = document.getElementById('assistant-minimize');
     var closeBtn    = document.getElementById('assistant-close');
@@ -57,6 +58,65 @@
     var csrfToken   = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var conversationId = null;
     var placeholderHtml = messagesBox.innerHTML;
+
+    // --- Mover el botón de arriba a abajo, para que no tape otros botones
+    // de la pantalla (ej. "Confirmar" en un formulario) — mantener
+    // presionado y arrastrar verticalmente. La posición se recuerda entre
+    // páginas y sesiones (es una preferencia del navegador, no de la
+    // conversación, por eso usa localStorage y no sessionStorage).
+    var STORAGE_KEY_POS = 'assistant_widget_bottom';
+    var DRAG_THRESHOLD   = 6; // px — menos que esto se trata como clic normal
+    var suppressNextClick = false;
+
+    function clampBottom(px) {
+        var min = 8;
+        // El panel se abre ARRIBA del botón (bottom-16 = 64px de separación).
+        // Si se sube demasiado el botón, el panel se puede salir por encima
+        // de la pantalla — el máximo deja siempre espacio suficiente para
+        // que el panel completo (hasta 32rem, o 80vh en pantallas chicas)
+        // quepa arriba del botón con un margen de 8px.
+        var panelHeight = Math.min(512, window.innerHeight * 0.8);
+        var max = window.innerHeight - 64 - panelHeight - 8;
+        return Math.max(min, Math.min(max, px));
+    }
+
+    // requestAnimationFrame en vez de aplicarlo de inmediato: justo al cargar
+    // la página, window.innerHeight puede reportar todavía un alto
+    // transitorio (el layout no terminó de asentarse), lo que hacía que el
+    // clamp calculara mal y la posición guardada se fuera casi al mínimo.
+    requestAnimationFrame(function () {
+        try {
+            var savedBottom = parseInt(localStorage.getItem(STORAGE_KEY_POS), 10);
+            if (!isNaN(savedBottom)) widget.style.bottom = clampBottom(savedBottom) + 'px';
+        } catch (e) { /* modo privado o storage bloqueado — se queda en la posición default */ }
+    });
+
+    toggleBtn.addEventListener('pointerdown', function (e) {
+        if (e.button !== undefined && e.button !== 0) return; // solo clic izquierdo / touch
+        var startY       = e.clientY;
+        var startBottom  = parseInt(getComputedStyle(widget).bottom, 10) || 16;
+        var moved        = false;
+
+        try { toggleBtn.setPointerCapture(e.pointerId); } catch (e2) {}
+
+        function onMove(ev) {
+            var deltaY = startY - ev.clientY; // arrastrar hacia arriba sube el botón
+            if (Math.abs(deltaY) > DRAG_THRESHOLD) moved = true;
+            if (moved) widget.style.bottom = clampBottom(startBottom + deltaY) + 'px';
+        }
+
+        function onUp() {
+            document.removeEventListener('pointermove', onMove);
+            document.removeEventListener('pointerup', onUp);
+            if (moved) {
+                suppressNextClick = true;
+                try { localStorage.setItem(STORAGE_KEY_POS, parseInt(widget.style.bottom, 10)); } catch (e3) {}
+            }
+        }
+
+        document.addEventListener('pointermove', onMove);
+        document.addEventListener('pointerup', onUp);
+    });
 
     // Esto NO es un SPA: cada navegación (ej. Dashboard → Pedidos) recarga
     // la página completa y el JS pierde todo lo que tenía en memoria. Para
@@ -97,7 +157,10 @@
     // reabrir (con el botón flotante, en esta página o en otra) se retoma
     // tal cual se dejó, para poder ver el pedido de fondo y seguir
     // trabajando sin perder el chat.
-    toggleBtn.addEventListener('click', function () { togglePanel(panel.classList.contains('hidden')); });
+    toggleBtn.addEventListener('click', function () {
+        if (suppressNextClick) { suppressNextClick = false; return; } // fue un arrastre, no un clic
+        togglePanel(panel.classList.contains('hidden'));
+    });
     minimizeBtn.addEventListener('click', function () { togglePanel(false); });
 
     // Cerrar: termina la conversación de verdad — limpia el historial, el
