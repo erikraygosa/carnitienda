@@ -42,7 +42,7 @@ class Sale extends Model
         'cfdi_uuid','cfdi_xml_path','cfdi_pdf_path','stamped_at','canceled_at',
         // NUEVOS: logística y cobranza chofer (igual que SalesOrder)
         'preparado_at','despachado_at','en_ruta_at','entregado_at','no_entregado_at',
-        'delivery_attempts','delivery_notes',
+        'delivery_attempts','delivery_notes','comentarios',
         'contraentrega_total','cobrado_efectivo','cobrado_confirmado_at','cobrado_confirmado_por',
         'driver_settlement_status','driver_settlement_at',
     ];

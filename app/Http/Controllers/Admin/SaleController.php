@@ -241,9 +241,11 @@ class SaleController extends Controller implements HasMiddleware
             'items.*.product_id'    => ['required','exists:products,id'],
             'items.*.descripcion'   => ['required','string','max:255'],
             'items.*.cantidad'      => ['required','numeric','gt:0'],
+            'items.*.num_cajas'     => ['nullable','integer','min:0'],
             'items.*.precio'        => ['required','numeric','gte:0'],
             'items.*.descuento'     => ['nullable','numeric','gte:0'],
             'items.*.impuesto'      => ['nullable','numeric','gte:0'],
+            'comentarios'           => ['nullable','string','max:2000'],
         ]);
 
         $data['items'] = $this->aplicarPreciosOficiales(
@@ -296,6 +298,7 @@ class SaleController extends Controller implements HasMiddleware
                 'status'              => Sale::S_COMPLETADA,
                 'user_id'             => auth()->id(),
                 'entregado_at'        => now(),
+                'comentarios'         => $data['comentarios'] ?? null,
             ]);
 
             foreach ($data['items'] as $it) {
@@ -309,6 +312,7 @@ class SaleController extends Controller implements HasMiddleware
                     'product_id'  => $it['product_id'],
                     'descripcion' => $it['descripcion'],
                     'cantidad'    => $it['cantidad'],
+                    'num_cajas'   => $it['num_cajas'] ?? null,
                     'precio'      => $it['precio'],
                     'descuento'   => $line_desc,
                     'impuesto'    => $line_tax,
@@ -413,9 +417,11 @@ class SaleController extends Controller implements HasMiddleware
             'items.*.product_id'    => ['required','exists:products,id'],
             'items.*.descripcion'   => ['required','string','max:255'],
             'items.*.cantidad'      => ['required','numeric','gt:0'],
+            'items.*.num_cajas'     => ['nullable','integer','min:0'],
             'items.*.precio'        => ['required','numeric','gte:0'],
             'items.*.descuento'     => ['nullable','numeric','gte:0'],
             'items.*.impuesto'      => ['nullable','numeric','gte:0'],
+            'comentarios'           => ['nullable','string','max:2000'],
         ]);
 
         $data['items'] = $this->aplicarPreciosOficiales(
@@ -443,6 +449,7 @@ class SaleController extends Controller implements HasMiddleware
                     'product_id'  => $it['product_id'],
                     'descripcion' => $it['descripcion'],
                     'cantidad'    => $it['cantidad'],
+                    'num_cajas'   => $it['num_cajas'] ?? null,
                     'precio'      => $it['precio'],
                     'descuento'   => $line_desc,
                     'impuesto'    => $line_tax,
@@ -452,6 +459,7 @@ class SaleController extends Controller implements HasMiddleware
 
             $sale->update([
                 'fecha'               => $data['fecha'],
+                'comentarios'         => $data['comentarios'] ?? null,
                 'pos_register_id'     => $data['pos_register_id'],
                 'warehouse_id'        => $data['warehouse_id'],
                 'client_id'           => $data['client_id'] ?? null,

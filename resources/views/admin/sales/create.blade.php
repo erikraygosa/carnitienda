@@ -14,7 +14,7 @@
     @php
         $seedItems    = $seedItems ?? [];
         $initialItems = (is_array($seedItems) && count($seedItems)) ? $seedItems : [[
-            'product_id'=>'','descripcion'=>'','cantidad'=>1,'precio'=>0,'descuento'=>0,'iva_pct'=>0,'impuesto'=>0,'total'=>0
+            'product_id'=>'','descripcion'=>'','cantidad'=>1,'num_cajas'=>null,'precio'=>0,'descuento'=>0,'iva_pct'=>0,'impuesto'=>0,'total'=>0
         ]];
 
         $JS_OVERRIDES       = json_encode($overrides       ?? [], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
@@ -124,6 +124,14 @@
 
             </div>
 
+            {{-- ====== COMENTARIOS ====== --}}
+            <div class="border-t pt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Comentarios</label>
+                <textarea name="comentarios" rows="2" autocomplete="off"
+                          placeholder="Notas u observaciones del pedido..."
+                          class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">{{ old('comentarios') }}</textarea>
+            </div>
+
             {{-- ====== ALERTA precio cero ====== --}}
             <div id="zero-price-alert" class="hidden rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800 flex items-center justify-between">
                 <span>Algunos productos no tienen precio para este cliente — captúralo directo en la fila del producto.</span>
@@ -143,6 +151,8 @@
                             <th class="p-2 text-left">Producto</th>
                             <th class="p-2 text-left">Descripción</th>
                             <th class="p-2 text-right">Cantidad</th>
+                            <th class="p-2 text-left">Unidad</th>
+                            <th class="p-2 text-center" title="Número aproximado de cajas (referencia)">Cajas</th>
                             <th class="p-2 text-right">Precio</th>
                             <th class="p-2 text-right">Desc.</th>
                             <th class="p-2 text-right">% IVA</th>
@@ -298,6 +308,7 @@
 
                 state.items[i].product_id      = p.id;
                 state.items[i]._productoNombre = p.nombre;
+                state.items[i].unidad          = p.unidad || '';
 
                 if (!state.items[i].descripcion) {
                     state.items[i].descripcion = p.nombre;
@@ -306,6 +317,9 @@
 
                 state.items[i].precio = getPrice(p.id);
                 aplicarEstadoPrecio(tr.querySelector('.inp-precio'), state.items[i].precio);
+
+                const unidadEl = tr.querySelector('.td-unidad');
+                if (unidadEl) unidadEl.textContent = p.unidad || '—';
 
                 recalcRow(i);
                 hidePortal();
@@ -318,7 +332,10 @@
                 state.items[i].product_id      = '';
                 state.items[i]._productoNombre = '';
                 state.items[i].precio          = 0;
+                state.items[i].unidad          = '';
                 aplicarEstadoPrecio(tr.querySelector('.inp-precio'), 0);
+                const unidadEl = tr.querySelector('.td-unidad');
+                if (unidadEl) unidadEl.textContent = '—';
                 recalcRow(i);
                 input.focus();
             }
@@ -375,6 +392,10 @@
                 const prod = PRODUCTS.find(p => p.id == it.product_id);
                 if (prod) it._productoNombre = prod.nombre;
             }
+            if (!it.unidad && it.product_id) {
+                const prod = PRODUCTS.find(p => p.id == it.product_id);
+                if (prod) it.unidad = prod.unidad || '';
+            }
             const tr = document.createElement('tr');
             tr.className   = 'border-b';
             tr.dataset.idx = i;
@@ -398,6 +419,13 @@
                     <input type="number" min="0.001" step="0.001"
                            class="w-24 border rounded p-1 text-right text-sm inp-cantidad"
                            name="items[${i}][cantidad]" value="${it.cantidad}" required>
+                </td>
+                <td class="p-2 text-xs text-gray-500 td-unidad">${escHtml(it.unidad || '—')}</td>
+                <td class="p-2 text-center">
+                    <input type="number" min="1" step="1"
+                           class="w-16 border rounded p-1 text-center text-sm inp-cajas"
+                           name="items[${i}][num_cajas]" value="${it.num_cajas || ''}"
+                           placeholder="—" title="Cajas aprox.">
                 </td>
                 <td class="p-2 text-right">
                     <div class="flex items-center justify-end gap-1">
@@ -432,6 +460,12 @@
 
             tr.querySelector('.inp-cantidad').addEventListener('input', function() {
                 state.items[i].cantidad = parseFloat(this.value)||0; recalcRow(i);
+            });
+            // Sin este listener, lo que se escribía en "Cajas" nunca llegaba
+            // a state.items — al agregar otra partida, renderAll() reconstruye
+            // toda la tabla desde state.items y esa cantidad de cajas se perdía.
+            tr.querySelector('.inp-cajas').addEventListener('input', function() {
+                state.items[i].num_cajas = this.value === '' ? null : parseInt(this.value, 10) || null;
             });
             aplicarEstadoPrecio(tr.querySelector('.inp-precio'), it.precio);
             tr.querySelector('.inp-precio').addEventListener('input', function() {
@@ -470,7 +504,7 @@
 
         window.SNF = {
             addRow() {
-                state.items.push({product_id:'',descripcion:'',cantidad:1,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0});
+                state.items.push({product_id:'',descripcion:'',cantidad:1,num_cajas:null,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0});
                 renderAll();
             },
 
@@ -525,7 +559,7 @@
         // Init
         state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
         if (!state.items.length) {
-            state.items = [{product_id:'',descripcion:'',cantidad:1,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}];
+            state.items = [{product_id:'',descripcion:'',cantidad:1,num_cajas:null,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}];
         }
         renderAll();
 
