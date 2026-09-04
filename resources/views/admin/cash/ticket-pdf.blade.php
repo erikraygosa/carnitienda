@@ -5,7 +5,11 @@
     <title>Ticket Caja #{{ $register->id }}</title>
     <style>
         @page { margin: 8px 10px; }
-        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; margin: 0; padding: 0; }
+        {{-- Página de 80mm (ver setPaper() en el controlador) con el
+             contenido angostado a 68mm y centrado — mismo motivo que el
+             ticket de pedidos/notas de venta: el ancho imprimible real de
+             una impresora de 76mm de papel es más angosto que el nominal. --}}
+        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; margin: 0 auto; padding: 0; width: 68mm; }
         .center { text-align: center; }
         .right  { text-align: right; }
         .left   { text-align: left; }

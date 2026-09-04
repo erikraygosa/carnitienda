@@ -7,8 +7,13 @@
     <style>
         {{-- Sin esto, el navegador imprime con el tamaño de hoja por default
              (Carta/A4) y el ticket se parte en varias páginas al imprimir. --}}
-        @page { size: 80mm auto; margin: 0; }
-        :root { --w: 80mm; }
+        {{-- 68mm (no 80/76mm) por el mismo motivo que el ticket de
+             pedidos/notas de venta: el ancho imprimible real de
+             impresoras de 76mm de papel (Epson TM-U220 y compatibles) es
+             más angosto que el nominal — a 80mm se corta o queda con
+             margen de más. --}}
+        @page { size: 68mm auto; margin: 0; }
+        :root { --w: 68mm; }
         * { box-sizing: border-box; }
         body {
             font-family: Arial, Helvetica, sans-serif;
