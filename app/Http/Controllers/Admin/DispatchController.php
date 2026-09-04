@@ -282,6 +282,11 @@ class DispatchController extends Controller implements HasMiddleware
         $pedidosDisponibles = collect();
         $clientesConSaldoDisponibles = collect();
         if ($dispatch->status === 'PLANEADO') {
+            // Sin límite: con un tope fijo (antes 200) los pedidos más
+            // viejos quedaban invisibles y sin forma de buscarlos — el
+            // buscador de la pantalla filtra en el navegador sobre lo que
+            // ya se cargó aquí, así que si no venían en esta consulta
+            // tampoco aparecían al escribir su folio.
             $pedidosDisponibles = SalesOrder::whereIn('status', ['PROCESADO', 'DESPACHADO'])
                 ->where(function ($q) {
                     $q->whereDoesntHave('dispatchItem')
@@ -289,7 +294,6 @@ class DispatchController extends Controller implements HasMiddleware
                 })
                 ->with(['client:id,nombre', 'route:id,nombre'])
                 ->orderByDesc('fecha')
-                ->limit(200)
                 ->get(['id','folio','client_id','shipping_route_id','ronda','status','total','programado_para','payment_method','ticket_impreso']);
 
             $yaAsignados = $dispatch->arAssignments->pluck('client_id');
