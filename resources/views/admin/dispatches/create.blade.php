@@ -165,8 +165,8 @@
                     <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">2</span>
                     <h3 class="font-semibold text-gray-800">Pedidos candidatos</h3>
                     <span class="text-sm font-normal text-gray-400">(PROCESADOS)</span>
-                    <input type="date" id="filtro-fecha-surtido"
-                           title="Filtrar por fecha en que se surtió el pedido (Salida de Producto), no la de creación"
+                    <input type="date" id="filtro-fecha-programado"
+                           title="Filtrar por fecha Programado para del pedido"
                            class="ml-auto rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <input type="text" id="buscar-pedido"
                            placeholder="Buscar por folio o cliente..."
@@ -201,6 +201,7 @@
                             <tr class="border-b hover:bg-gray-50 order-row"
                                 data-route="{{ $o->shipping_route_id ?? '' }}"
                                 data-surtido="{{ optional($o->despachado_at)->format('Y-m-d') }}"
+                                data-programado="{{ optional($o->programado_para)->format('Y-m-d') }}"
                                 data-search="{{ strtolower($o->folio.' '.($o->client?->nombre ?? '')) }}">
                                 <td class="p-2">
                                     <input type="checkbox" name="orders[]"
@@ -569,21 +570,21 @@
         });
 
         // ── Buscadores ────────────────────────────────────────────────────
-        var buscarPedido     = document.getElementById('buscar-pedido');
-        var filtroFechaSurtido = document.getElementById('filtro-fecha-surtido');
+        var buscarPedido       = document.getElementById('buscar-pedido');
+        var filtroFechaProg    = document.getElementById('filtro-fecha-programado');
 
         function aplicarFiltrosPedidos() {
             var term  = buscarPedido ? buscarPedido.value.toLowerCase().trim() : '';
-            var fecha = filtroFechaSurtido ? filtroFechaSurtido.value : '';
+            var fecha = filtroFechaProg ? filtroFechaProg.value : '';
             document.querySelectorAll('.order-row').forEach(function(row) {
                 var pasaBusqueda = !term || row.dataset.search.includes(term);
-                var pasaFecha    = !fecha || row.dataset.surtido === fecha;
+                var pasaFecha    = !fecha || row.dataset.programado === fecha;
                 row.style.display = (pasaBusqueda && pasaFecha) ? '' : 'none';
             });
         }
 
         if (buscarPedido) buscarPedido.addEventListener('input', aplicarFiltrosPedidos);
-        if (filtroFechaSurtido) filtroFechaSurtido.addEventListener('input', aplicarFiltrosPedidos);
+        if (filtroFechaProg) filtroFechaProg.addEventListener('input', aplicarFiltrosPedidos);
 
         var buscarCxc = document.getElementById('buscar-cxc');
         if (buscarCxc) {
