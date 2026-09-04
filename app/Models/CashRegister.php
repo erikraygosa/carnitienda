@@ -11,4 +11,8 @@ class CashRegister extends Model {
   public function user(){ return $this->belongsTo(User::class); }
   public function movements(){ return $this->hasMany(CashMovement::class); }
   public function posSales(){ return $this->hasMany(PosSale::class); }
+  // Notas de venta directa (mostrador) — flujo separado del POS viejo,
+  // ver SaleController::store(). Faltaba esta relación y por eso no
+  // aparecían en el detalle/ticket de la caja.
+  public function sales(){ return $this->hasMany(Sale::class); }
 }

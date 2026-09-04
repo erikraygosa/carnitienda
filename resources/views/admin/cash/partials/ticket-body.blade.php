@@ -1,12 +1,24 @@
 {{--
     Contenido del ticket de corte de caja, compartido entre la vista en
     pantalla (admin/cash/ticket.blade.php) y el PDF (ticket-pdf.blade.php)
-    para que no se desincronicen. Espera $register (con movements/posSales
-    cargables), $company y $resumen (bool — true = solo el corte, sin el
-    desglose de movimientos ni de notas de venta POS).
+    para que no se desincronicen. Espera $register (con movements/posSales/
+    sales cargables), $company y $resumen (bool — true = solo el corte, sin
+    el desglose de movimientos ni de notas de venta).
 --}}
 @php
     $resumen = $resumen ?? false;
+
+    // Desglose de cómo se pagó todo lo registrado en esta caja (POS +
+    // Notas de venta) — es justo lo que se necesita para el corte.
+    $desglosePagos = collect();
+    foreach ($register->posSales as $venta) {
+        $clave = strtoupper($venta->metodo_pago ?? 'SIN ESPECIFICAR');
+        $desglosePagos[$clave] = ($desglosePagos[$clave] ?? 0) + (float) $venta->total;
+    }
+    foreach ($register->sales as $nota) {
+        $clave = strtoupper($nota->paymentType?->descripcion ?? ($nota->tipo_venta === 'CREDITO' ? 'CRÉDITO' : $nota->tipo_venta));
+        $desglosePagos[$clave] = ($desglosePagos[$clave] ?? 0) + (float) $nota->total;
+    }
     // Mismo logo que ya usan el sidebar y los PDFs de carta (invoice, quote,
     // sales_order): un archivo fijo en public/logo.jpg, no un campo de BD.
     // Se embebe en base64 para que funcione igual en pantalla y en el PDF.
@@ -67,6 +79,21 @@
     </tbody>
 </table>
 
+@if($desglosePagos->isNotEmpty())
+<hr class="mt-2">
+<div class="center xs bold">Desglose por forma de pago</div>
+<table>
+    <tbody>
+        @foreach($desglosePagos->sortDesc() as $forma => $monto)
+        <tr>
+            <td class="xs">{{ $forma }}</td>
+            <td class="xs right">${{ number_format($monto, 2) }}</td>
+        </tr>
+        @endforeach
+    </tbody>
+</table>
+@endif
+
 @unless($resumen)
 <hr class="mt-2">
 <div class="center xs bold">Movimientos</div>
@@ -94,6 +121,40 @@
         @endforelse
     </tbody>
 </table>
+
+@if($register->sales->isNotEmpty())
+<hr class="mt-2">
+<div class="center xs bold">Notas de venta ({{ $register->sales->count() }})</div>
+<table>
+    <thead>
+        <tr>
+            <th class="left xs">Folio</th>
+            <th class="left xs">Hora</th>
+            <th class="left xs">Pago</th>
+            <th class="right xs">Total</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($register->sales as $nota)
+        <tr>
+            <td class="xs">{{ $nota->folio }}</td>
+            <td class="xs">{{ optional($nota->fecha)->format('H:i') }}</td>
+            <td class="xs">{{ $nota->paymentType?->descripcion ?? ($nota->tipo_venta === 'CREDITO' ? 'Crédito' : $nota->tipo_venta) }}</td>
+            <td class="xs right">${{ number_format($nota->total, 2) }}</td>
+        </tr>
+        @foreach($nota->items as $item)
+        <tr>
+            <td class="xs" colspan="2" style="padding-left:8px;">
+                {{ \Illuminate\Support\Str::limit($item->product?->nombre ?? $item->descripcion ?? 'Producto', 20) }}
+            </td>
+            <td class="xs">x{{ $item->cantidad }}</td>
+            <td class="xs right">${{ number_format($item->total, 2) }}</td>
+        </tr>
+        @endforeach
+        @endforeach
+    </tbody>
+</table>
+@endif
 
 @if($register->posSales->isNotEmpty())
 <hr class="mt-2">

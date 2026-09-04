@@ -60,6 +60,69 @@
     </x-wire-card>
   </div>
 
+  @php
+      // Desglose de cómo se pagó todo lo registrado en esta caja (POS +
+      // Notas de venta) — antes solo se veía el total de "Ventas efectivo",
+      // sin saber cuánto fue efectivo, transferencia, tarjeta, etc.
+      $desglosePagos = collect();
+      foreach ($register->posSales as $venta) {
+          $clave = strtoupper($venta->metodo_pago ?? 'SIN ESPECIFICAR');
+          $desglosePagos[$clave] = ($desglosePagos[$clave] ?? 0) + (float) $venta->total;
+      }
+      foreach ($register->sales as $nota) {
+          $clave = strtoupper($nota->paymentType?->descripcion ?? ($nota->tipo_venta === 'CREDITO' ? 'CRÉDITO' : $nota->tipo_venta));
+          $desglosePagos[$clave] = ($desglosePagos[$clave] ?? 0) + (float) $nota->total;
+      }
+  @endphp
+  @if($desglosePagos->isNotEmpty())
+  <x-wire-card class="mt-6">
+    <h3 class="font-semibold mb-3">Desglose por forma de pago</h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      @foreach($desglosePagos->sortDesc() as $forma => $monto)
+        <div class="rounded-md border p-3">
+          <div class="text-xs text-gray-500">{{ $forma }}</div>
+          <div class="text-lg font-semibold">${{ number_format($monto, 2) }}</div>
+        </div>
+      @endforeach
+    </div>
+  </x-wire-card>
+  @endif
+
+  <x-wire-card class="mt-6">
+    <h3 class="font-semibold mb-3">Notas de venta</h3>
+    <div class="overflow-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="border-b">
+            <th class="p-2 text-left">Hora</th>
+            <th class="p-2 text-left">Folio</th>
+            <th class="p-2 text-left">Cliente</th>
+            <th class="p-2 text-left">Forma de pago</th>
+            <th class="p-2 text-right">Total</th>
+            <th class="p-2 text-center">Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          @forelse($register->sales->sortByDesc('fecha') as $nota)
+            <tr class="border-b">
+              <td class="p-2">{{ optional($nota->fecha)->format('H:i') }}</td>
+              <td class="p-2 font-mono text-xs">{{ $nota->folio }}</td>
+              <td class="p-2">{{ $nota->client->nombre ?? 'Público general' }}</td>
+              <td class="p-2">{{ $nota->paymentType?->descripcion ?? ($nota->tipo_venta === 'CREDITO' ? 'Crédito' : $nota->tipo_venta) }}</td>
+              <td class="p-2 text-right">${{ number_format($nota->total, 2) }}</td>
+              <td class="p-2 text-center">
+                <a href="{{ route('admin.sales.edit', $nota) }}" target="_blank"
+                   class="text-indigo-600 hover:underline text-xs">Ver nota</a>
+              </td>
+            </tr>
+          @empty
+            <tr><td colspan="6" class="p-4 text-center text-gray-500">Sin notas de venta en esta caja</td></tr>
+          @endforelse
+        </tbody>
+      </table>
+    </div>
+  </x-wire-card>
+
   <x-wire-card class="mt-6">
     <h3 class="font-semibold mb-3">Ventas POS</h3>
     <div class="overflow-auto">

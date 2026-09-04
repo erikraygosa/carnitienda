@@ -100,7 +100,7 @@ class CashRegisterController extends Controller implements HasMiddleware
     public function show(CashRegister $cash)
     {
         $this->authorizeOwnRegister($cash);
-        $cash->load('movements', 'posSales.client');
+        $cash->load('movements', 'posSales.client', 'sales.client', 'sales.paymentType');
         return view('admin.cash.show', ['register' => $cash]);
     }
 
@@ -116,7 +116,7 @@ class CashRegisterController extends Controller implements HasMiddleware
     public function ticket(Request $request, CashRegister $cash)
     {
         $this->authorizeOwnRegister($cash);
-        $cash->load(['user:id,name', 'warehouse:id,nombre', 'movements', 'posSales.items.product']);
+        $cash->load(['user:id,name', 'warehouse:id,nombre', 'movements', 'posSales.items.product', 'sales.items.product', 'sales.paymentType']);
         $company = Company::first();
         $resumen = $request->boolean('resumen');
         return view('admin.cash.ticket', ['register' => $cash, 'company' => $company, 'resumen' => $resumen]);
@@ -125,7 +125,7 @@ class CashRegisterController extends Controller implements HasMiddleware
     public function ticketPdf(Request $request, CashRegister $cash)
     {
         $this->authorizeOwnRegister($cash);
-        $cash->load(['movements', 'user', 'warehouse', 'posSales.items.product']);
+        $cash->load(['movements', 'user', 'warehouse', 'posSales.items.product', 'sales.items.product', 'sales.paymentType']);
         $company  = Company::first();
         $register = $cash;
         $resumen  = $request->boolean('resumen');
