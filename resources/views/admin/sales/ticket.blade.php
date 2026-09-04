@@ -22,15 +22,22 @@
 // de impresoras de ticket ese cálculo automático sale mal y parte el
 // ticket en 2 "páginas" (la 2da casi vacía imprime como una tira larga
 // de papel en blanco). Medimos el alto real del ticket ya renderizado y
-// fijamos el @page a ese alto exacto justo antes de imprimir.
+// fijamos el @page a ese alto exacto justo antes de imprimir, para que
+// no haya adivinanza de por medio.
 function ajustarAltoPaginaTicket() {
     var el = document.querySelector('.ticket');
     if (!el) return;
     var alturaPx = el.getBoundingClientRect().height;
-    var alturaMm = Math.ceil(alturaPx * 25.4 / 96) + 5; // +5mm de colchón
+    // El margen (2cm arriba, 1cm abajo) se resta del área imprimible, así
+    // que hay que sumarlo aparte al alto de página — si no, el margen
+    // "come" del alto ya justo para el contenido y el ticket se corta a
+    // una 2da hoja.
+    var MARGEN_ARRIBA_MM = 20;
+    var MARGEN_ABAJO_MM  = 10;
+    var alturaMm = Math.ceil(alturaPx * 25.4 / 96) + 5 + MARGEN_ARRIBA_MM + MARGEN_ABAJO_MM; // +5mm de colchón
     var style = document.getElementById('ticket-page-size') || document.createElement('style');
     style.id = 'ticket-page-size';
-    style.innerHTML = '@page { size: 72mm ' + alturaMm + 'mm; margin: 0; }';
+    style.innerHTML = '@page { size: 68mm ' + alturaMm + 'mm; margin: ' + MARGEN_ARRIBA_MM + 'mm 0 ' + MARGEN_ABAJO_MM + 'mm 0; }';
     document.head.appendChild(style);
 }
 

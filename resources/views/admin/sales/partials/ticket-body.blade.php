@@ -2,7 +2,8 @@
     Contenido del ticket térmico de la nota de venta directa, compartido
     entre la vista en pantalla (admin/sales/ticket.blade.php) y el PDF
     (admin/sales/ticket-pdf.blade.php) para que no se desincronicen.
-    Calcado de admin/sales_orders/partials/ticket-body.blade.php.
+    Calcado de admin/sales_orders/partials/ticket-body.blade.php (mismo
+    formato/estilos en las dos, para que no se vean distintas).
     Espera $sale (con client/items.product cargados) y $empresa (con
     fiscalData cargada).
 --}}
@@ -10,6 +11,10 @@
     $client  = $sale->client ?? null;
     $emp     = $empresa ?? null;
     $ef      = $emp?->fiscalData ?? null;
+    // Mismo logo que ya usan el sidebar y los PDFs de carta (invoice, quote,
+    // sales_order): un archivo fijo en public/logo.jpg, no un campo de BD.
+    // Se embebe en base64 para que funcione igual en pantalla y en el PDF.
+    // Configurable en Superadmin → Configuración ('tickets.mostrar_logo').
     $logoPath   = public_path('logo.jpg');
     $logoExists = file_exists($logoPath) && \App\Models\SystemSetting::get('tickets.mostrar_logo', true);
     if ($logoExists) {
@@ -18,48 +23,60 @@
     }
 @endphp
 <style>
-{{-- "auto" de alto + orientación explícita "portrait": algunos drivers de
+{{-- Sin esto, el navegador/PDF imprime con el tamaño de hoja por default
+     (Carta/A4) y el ticket se parte en varias páginas al imprimir.
+     "auto" de alto + orientación explícita "portrait": algunos drivers de
      impresoras de ticket (sobre todo de cinta/matriz de punto) ignoran el
-     ancho de 72mm y abren el diálogo en Horizontal por default, partiendo
-     el ticket en varias hojas. Con altura fija y holgada, el ancho (72mm)
-     queda como lado corto sin importar la orientación seleccionada. --}}
+     ancho de 68mm y abren el diálogo en Horizontal por default — ahí el
+     ticket completo ya no cabe en una sola "página" de 68mm de alto y se
+     reparte en 2-3 hojas. Fijar una altura holgada en vez de "auto" fuerza
+     que el ancho (68mm) quede como lado corto sí o sí, sea cual sea la
+     orientación que la impresora/driver haya dejado seleccionada.
+
+     68mm (no 72mm) porque hay impresoras de 76mm de papel (ej. Epson
+     TM-U220 y sus clones/compatibles) cuyo ancho imprimible real es más
+     angosto que el de una térmica de 80mm — a 72mm el ticket se cortaba
+     por el lado derecho en esas impresoras. Con 68mm cabe completo ahí y
+     sigue viéndose bien en las de 80mm (solo queda un poco más de margen
+     a la derecha). --}}
 @media print {
-    @page { size: 72mm auto; margin: 0; }
+    @page { size: 68mm auto; margin: 2cm 0 1cm 0; }
 }
-@page { size: 72mm auto; margin: 0; }
+@page { size: 68mm auto; margin: 2cm 0 1cm 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 .ticket {
-    font-family: 'Courier New', monospace;
-    font-size: 16px;
-    font-weight: bold;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 12px;
+    font-weight: normal;
     color: #000;
     background: #fff;
-    width: 72mm;
-    max-width: 72mm;
+    width: 68mm;
+    max-width: 68mm;
     margin: 0 auto;
-    padding: 4mm 3mm;
+    padding: 4mm 3mm 4mm 6mm;
 }
 .ticket .center  { text-align: center; }
 .ticket .right   { text-align: right; }
-.ticket .bold    { font-weight: bold; }
-.ticket .sm      { font-size: 16px; }
+.ticket .bold    { font-weight: normal; }
+.ticket .sm      { font-size: 12px; }
 .ticket .dashed  { border: 0; border-top: 1px dashed #000; margin: 3mm 0; }
 
 .ticket table { width: 100%; border-collapse: collapse; }
 .ticket td, .ticket th { vertical-align: top; }
-.ticket .items thead tr th { font-size: 16px; border-bottom: 1px solid #000; padding-bottom: 2px; }
-.ticket .items td { font-size: 16px; padding: 1px 0; }
-.ticket .totals td { font-size: 16px; padding: 1px 0; }
-.ticket .total-final td { font-size: 16px; font-weight: bold; border-top: 2px solid #000; padding-top: 3px; }
+.ticket .items thead tr th { font-size: 12px; border-bottom: 1px solid #000; padding-bottom: 2px; }
+.ticket .items td { font-size: 12px; padding: 1px 0; }
+.ticket .items .item-precio-row td { padding-bottom: 4px; }
+.ticket .totals td { font-size: 12px; padding: 1px 0; }
+.ticket .total-final td { font-size: 12px; font-weight: normal; border-top: 2px solid #000; padding-top: 3px; }
 
 .ticket .observaciones {
-    font-size: 16px;
-    line-height: 1.4;
+    font-size: 12px;
+    line-height: 1.1;
     margin: 3mm 0;
 }
 .ticket .pagare {
-    font-size: 16px;
-    line-height: 1.45;
+    font-size: 12px;
+    line-height: 1.1;
     text-align: justify;
     margin: 2mm 0;
 }
@@ -67,7 +84,7 @@
     border-top: 1px solid #000;
     margin-top: 10mm;
     padding-top: 2px;
-    font-size: 16px;
+    font-size: 12px;
     text-align: center;
     width: 55mm;
     margin-left: auto;
@@ -78,7 +95,7 @@
 @media print {
     .no-print { display: none !important; }
     body { margin: 0; }
-    .ticket { margin: 0; padding: 2mm; }
+    .ticket { margin: 0; padding: 2mm 2mm 2mm 5mm; }
 }
 </style>
 
@@ -90,7 +107,7 @@
             <img src="{{ $logoSrc }}" alt="Logo" class="logo">
         @endif
         @if($emp?->nombre_comercial || $emp?->razon_social)
-            <div class="bold" style="font-size:15px;">
+            <div class="bold" style="font-size:13px;">
                 ** {{ strtoupper($emp?->nombre_comercial ?? $emp?->razon_social) }} **
             </div>
         @endif
@@ -147,6 +164,9 @@
     {{-- CLIENTE --}}
     @if($client)
     @php
+        // Dirección: primero la capturada en la nota (entrega_*), si no
+        // hay usamos la de entrega efectiva del cliente, y si tampoco hay
+        // caemos a la dirección libre del cliente.
         $efectiva = $client->getEntregaEfectiva();
         $calle    = $sale->entrega_calle   ?? $efectiva['calle']   ?? '';
         $numero   = $sale->entrega_numero  ?? $efectiva['numero']  ?? '';
@@ -161,6 +181,7 @@
             trim($ciudad . ($estado ? ', ' . $estado : '') . ($cp ? '  CP ' . $cp : '')),
         ]);
 
+        // Si no hay nada estructurado, usamos el campo libre de dirección.
         if (!count($dirParts) && $client->direccion) {
             $dirParts = [$client->direccion];
         }
@@ -180,6 +201,10 @@
     </div>
     @endif
 
+    @if(($sale->delivery_type ?? '') === 'ENVIO' || $sale->entrega_nombre)
+    <div class="sm bold" style="margin-top:3px;">Entregar</div>
+    @endif
+
     <hr class="dashed">
 
     {{-- PARTIDAS --}}
@@ -194,11 +219,18 @@
         </thead>
         <tbody>
             @foreach($sale->items as $it)
+            @continue((float)$it->cantidad <= 0)
             <tr>
-                <td>{{ number_format((float)$it->cantidad, 2) }}
+                <td colspan="3">{{ number_format((float)$it->cantidad, 2) }}
                     {{ strtoupper($it->descripcion ?: ($it->product->nombre ?? '#'.$it->product_id)) }}</td>
-                <td class="right">{{ number_format((float)$it->precio, 2) }}</td>
-                <td class="right bold">{{ number_format((float)$it->total, 2) }}</td>
+            </tr>
+            <tr class="item-precio-row">
+                <td colspan="3">
+                    <div style="display:flex; justify-content:space-between;">
+                        <span>${{ number_format((float)$it->precio, 2) }}</span>
+                        <span>${{ number_format((float)$it->total, 2) }}</span>
+                    </div>
+                </td>
             </tr>
             @if($it->product?->unidad)
             <tr>
@@ -236,6 +268,14 @@
             <td class="right">{{ number_format((float)$sale->total, 2) }}</td>
         </tr>
     </table>
+
+    {{-- COMENTARIOS DE LA NOTA --}}
+    @if($sale->comentarios)
+    <div class="observaciones" style="margin-top:3mm;">
+        <div class="bold">COMENTARIOS:</div>
+        <div style="margin-top:2px;">{{ $sale->comentarios }}</div>
+    </div>
+    @endif
 
     {{-- ESPACIO + OBSERVACIONES --}}
     <div style="margin-top:5mm;"></div>

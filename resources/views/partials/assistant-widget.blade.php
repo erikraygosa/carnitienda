@@ -4,8 +4,8 @@
      para todos. --}}
 <div id="assistant-widget" class="fixed bottom-4 right-4 z-50">
 
-    <button id="assistant-toggle" type="button"
-        class="relative w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg flex items-center justify-center text-2xl">
+    <button id="assistant-toggle" type="button" title="Clic para abrir — mantén presionado y arrastra para mover"
+        class="relative w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg flex items-center justify-center text-2xl cursor-grab active:cursor-grabbing touch-none">
         <i class="fa-solid fa-comment-dots"></i>
         {{-- Punto que indica que hay una conversación en curso minimizada, para saber que hay algo que retomar. --}}
         <span id="assistant-active-dot" class="hidden absolute top-0 right-0 w-3.5 h-3.5 bg-emerald-400 border-2 border-white rounded-full"></span>
