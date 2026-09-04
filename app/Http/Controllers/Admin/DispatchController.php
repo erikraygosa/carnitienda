@@ -44,7 +44,7 @@ class DispatchController extends Controller implements HasMiddleware
             new Middleware('can:crear despachos', only: ['create', 'store']),
             new Middleware('can:editar despachos', only: [
                 'update', 'preparar', 'cargar', 'enRuta', 'entregar', 'cancelar', 'destroy',
-                'entregarPedido', 'noEntregarPedido',
+                'entregarPedido', 'noEntregarPedido', 'noEntregarSinDevolucion',
                 'completarTraspaso', 'noCompletarTraspaso',
                 'cobrarCxc', 'noCobrarCxc',
                 'bulkTraspasos', 'bulkPedidos', 'bulkCxc',
@@ -725,6 +725,53 @@ class DispatchController extends Controller implements HasMiddleware
 
         $this->log->log($dispatch, 'PEDIDO_NO_ENTREGADO', null, null, null, "Pedido {$order->folio} no entregado, stock revertido");
         return back()->with('swal', ['icon' => 'success', 'title' => 'No entregado', 'text' => "Pedido {$order->folio} marcado y stock revertido."]);
+    }
+
+    /**
+     * Variante de "No entregado" para cuando el producto NO regresa al
+     * almacén — sigue físicamente en la unidad/con el chofer para
+     * reintentar la entrega el mismo día en la 2da ruta. A diferencia de
+     * noEntregarPedido(): no se revierte inventario, y el pedido se libera
+     * de este despacho (igual que "Quitar" cuando ya está surtido) con su
+     * status regresado a DESPACHADO — así vuelve a aparecer disponible
+     * para asignarse a un despacho nuevo (ronda 2) sin tener que pasar de
+     * nuevo por Salida de Producto (sus líneas de surtido ya capturadas se
+     * conservan intactas).
+     */
+    public function noEntregarSinDevolucion(Request $request, Dispatch $dispatch, DispatchItem $item)
+    {
+        $request->validate(['nota' => 'nullable|string|max:500']);
+        $order = $item->salesOrder;
+
+        if (!$order || $order->status !== 'EN_RUTA') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'Error', 'text' => 'El pedido no está EN_RUTA.']);
+        }
+
+        DB::transaction(function () use ($order, $item, $request) {
+            $data = [
+                'status'          => 'DESPACHADO',
+                'no_entregado_at' => now(),
+            ];
+            if ($nota = $request->input('nota')) {
+                $data['delivery_notes'] = trim(($order->delivery_notes ?? '') . "\n" . $nota);
+            }
+            $order->update($data);
+            $order->increment('delivery_attempts');
+
+            // Libera el DispatchItem de este despacho sin tocar sus líneas
+            // de surtido — la 2da ruta lo reutiliza tal cual.
+            $item->update(['dispatch_id' => null]);
+        });
+
+        $this->log->log(
+            $dispatch, 'PEDIDO_NO_ENTREGADO_SIN_DEVOLUCION', null, null, null,
+            "Pedido {$order->folio} no entregado — el producto sigue en la unidad (no se devolvió a stock), queda disponible para asignarse a otro despacho hoy mismo."
+        );
+
+        return back()->with('swal', [
+            'icon' => 'success', 'title' => 'No entregado',
+            'text' => "Pedido {$order->folio} queda disponible para asignarse a otro despacho hoy (2da ruta) — no se tocó el inventario.",
+        ]);
     }
 
     // ── Traspasos individuales ────────────────────────────────────────────────

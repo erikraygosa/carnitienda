@@ -240,6 +240,7 @@ Route::post('dispatches/{dispatch}/cxc/{assignment}/no-cobrar', [DispatchControl
 // Acciones sobre pedidos individuales dentro del despacho
 Route::post('dispatches/{dispatch}/pedido/{item}/entregar',    [DispatchController::class,'entregarPedido'])->name('dispatches.pedido.entregar');
 Route::post('dispatches/{dispatch}/pedido/{item}/no-entregar', [DispatchController::class,'noEntregarPedido'])->name('dispatches.pedido.no-entregar');
+Route::post('dispatches/{dispatch}/pedido/{item}/no-entregar-sin-devolucion', [DispatchController::class,'noEntregarSinDevolucion'])->name('dispatches.pedido.no-entregar-sin-devolucion');
 
 Route::get('dispatches/{dispatch}/print/ruta',        [DispatchController::class,'printRuta'])->name('dispatches.print.ruta');
 Route::get('dispatches/{dispatch}/print/liquidacion', [DispatchController::class,'printLiquidacion'])->name('dispatches.print.liquidacion');

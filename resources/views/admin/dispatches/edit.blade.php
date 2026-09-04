@@ -384,8 +384,22 @@
                                           class="inline-flex items-center gap-1">
                                         @csrf
                                         <input type="text" name="nota" placeholder="Nota"
-                                               class="w-24 text-xs border rounded px-1 py-1">
-                                        <button type="submit" class="px-2 py-1 text-xs rounded bg-orange-500 text-white hover:bg-orange-600">✗</button>
+                                               class="w-24 text-xs border rounded px-1 py-1"
+                                               title="No entregado — devuelve el producto a stock">
+                                        <button type="submit"
+                                                title="No entregado — devuelve el producto a stock"
+                                                class="px-2 py-1 text-xs rounded bg-orange-500 text-white hover:bg-orange-600">✗</button>
+                                    </form>
+                                    <form action="{{ route('admin.dispatches.pedido.no-entregar-sin-devolucion', [$dispatch, $item]) }}" method="POST"
+                                          class="inline-flex items-center gap-1">
+                                        @csrf
+                                        <input type="text" name="nota" placeholder="Nota"
+                                               class="w-24 text-xs border rounded px-1 py-1"
+                                               title="No entregado — el producto sigue en la unidad, queda disponible para la 2da ruta de hoy">
+                                        <button type="button"
+                                                onclick="return confirmarAccionMasiva(this, '¿No entregado, sin devolver a stock? El producto sigue en la unidad (no se toca el inventario) y el pedido queda libre para asignarse a otro despacho hoy mismo (2da ruta).')"
+                                                title="No entregado — el producto sigue en la unidad, queda disponible para la 2da ruta de hoy"
+                                                class="px-2 py-1 text-xs rounded bg-amber-600 text-white hover:bg-amber-700">🔁</button>
                                     </form>
                                 </div>
                             @else
