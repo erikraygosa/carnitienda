@@ -105,6 +105,12 @@
     (function(){
         const DATA_URL = '{{ route('admin.sales-orders.data') }}';
 
+        // Los filtros se recuerdan en este navegador (localStorage) para
+        // que entrar a un pedido y regresar (o cerrar y volver a abrir la
+        // pestaña) no los reinicie al mes actual — antes se perdían porque
+        // solo vivían en memoria de esta carga de página.
+        const FILTROS_KEY = 'sales_orders_filtros';
+
         let state = {
             search:     '',
             status:     '',
@@ -117,7 +123,29 @@
             lastPage:   1,
         };
 
+        try {
+            const guardado = JSON.parse(localStorage.getItem(FILTROS_KEY) || 'null');
+            if (guardado && typeof guardado === 'object') Object.assign(state, guardado, { page: 1 });
+        } catch (e) { /* localStorage bloqueado o dato corrupto — se queda con los defaults */ }
+
+        function guardarFiltros() {
+            try {
+                localStorage.setItem(FILTROS_KEY, JSON.stringify({
+                    search: state.search, status: state.status,
+                    fechaDesde: state.fechaDesde, fechaHasta: state.fechaHasta,
+                    sortBy: state.sortBy, sortDir: state.sortDir, perPage: state.perPage,
+                }));
+            } catch (e) { /* modo privado o storage lleno — no es crítico */ }
+        }
+
         const $ = id => document.getElementById(id);
+
+        // Reflejar el filtro restaurado en los controles antes del primer load().
+        $('so-search').value    = state.search;
+        $('so-status').value    = state.status;
+        $('so-desde').value     = state.fechaDesde;
+        $('so-hasta').value     = state.fechaHasta;
+        $('so-per-page').value  = String(state.perPage);
 
         function updateSortIndicators() {
             ['folio','fecha','status','total'].forEach(col => {
@@ -250,6 +278,7 @@
                     state.sortDir = 'asc';
                 }
                 state.page = 1;
+                guardarFiltros();
                 load();
             },
             goPage(p) {
@@ -265,6 +294,7 @@
             searchTimeout = setTimeout(() => {
                 state.search = this.value;
                 state.page   = 1;
+                guardarFiltros();
                 load();
             }, 350);
         });
@@ -272,24 +302,28 @@
         $('so-status').addEventListener('change', function() {
             state.status = this.value;
             state.page   = 1;
+            guardarFiltros();
             load();
         });
 
         $('so-desde').addEventListener('change', function() {
             state.fechaDesde = this.value;
             state.page       = 1;
+            guardarFiltros();
             load();
         });
 
         $('so-hasta').addEventListener('change', function() {
             state.fechaHasta = this.value;
             state.page       = 1;
+            guardarFiltros();
             load();
         });
 
         $('so-per-page').addEventListener('change', function() {
             state.perPage = parseInt(this.value);
             state.page    = 1;
+            guardarFiltros();
             load();
         });
 
@@ -303,6 +337,7 @@
             $('so-status').value = '';
             $('so-desde').value  = mesDesde;
             $('so-hasta').value  = mesHasta;
+            guardarFiltros();
             load();
         });
 
