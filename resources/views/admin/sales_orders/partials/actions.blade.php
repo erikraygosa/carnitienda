@@ -12,10 +12,11 @@
            class="inline-flex px-2 py-1 text-xs rounded border border-gray-300 bg-white hover:bg-gray-50">
             PDF
         </a>
-        <a href="{{ route('admin.sales-orders.pdf.download', $order) }}"
+        <button type="button"
+           onclick="preguntarFormatoPdf('{{ route('admin.sales-orders.pdf.download', $order) }}', '{{ route('admin.sales-orders.ticket.pdf', $order) }}')"
            class="inline-flex px-2 py-1 text-xs rounded border border-gray-300 bg-white hover:bg-gray-50">
             ↓ PDF
-        </a>
+        </button>
         <a href="{{ route('admin.sales-orders.send.form', $order) }}"
            class="inline-flex px-2 py-1 text-xs rounded border border-violet-300 text-violet-700 bg-white hover:bg-violet-50">
             Enviar
@@ -101,3 +102,27 @@
     @endif
 
 </div>
+
+<script>
+// Se define una sola vez aunque este partial se renderice por fila
+// (viene de un datatable que hace view(...)->render() por cada pedido).
+if (typeof window.preguntarFormatoPdf !== 'function') {
+    window.preguntarFormatoPdf = function (notaUrl, ticketUrl) {
+        Swal.fire({
+            title: '¿Qué formato quieres descargar?',
+            text: 'Nota completa (tamaño carta) o ticket angosto (76mm).',
+            icon: 'question',
+            showDenyButton: true,
+            showCancelButton: true,
+            confirmButtonText: 'Nota completa',
+            denyButtonText: 'Ticket (76mm)',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#4f46e5',
+            denyButtonColor: '#6b7280',
+        }).then(function (r) {
+            if (r.isConfirmed) window.open(notaUrl, '_blank');
+            else if (r.isDenied) window.open(ticketUrl, '_blank');
+        });
+    };
+}
+</script>
