@@ -306,7 +306,10 @@
             </span>
             <div class="ml-auto flex items-center space-x-2">
                 <x-wire-button href="{{ route('admin.sales.pdf',$sale) }}" gray outline xs target="_blank">Ver PDF</x-wire-button>
-                <x-wire-button href="{{ route('admin.sales.pdf.download',$sale) }}" gray xs>Descargar PDF</x-wire-button>
+                <x-wire-button type="button" gray xs
+                    onclick="preguntarFormatoPdf('{{ route('admin.sales.pdf.download',$sale) }}', '{{ route('admin.sales.ticket.pdf',$sale) }}')">
+                    Descargar PDF
+                </x-wire-button>
                 <x-wire-button href="{{ route('admin.sales.ticket',$sale) }}" gray outline xs target="_blank">🧾 Imprimir ticket</x-wire-button>
                 <x-wire-button href="{{ route('admin.sales.send.form',$sale) }}" violet xs>Enviar</x-wire-button>
 
@@ -558,6 +561,28 @@
         }
         renderAll();
     })();
+    </script>
+
+    <script>
+    if (typeof window.preguntarFormatoPdf !== 'function') {
+        window.preguntarFormatoPdf = function (notaUrl, ticketUrl) {
+            Swal.fire({
+                title: '¿Qué formato quieres descargar?',
+                text: 'Nota completa (tamaño carta) o ticket angosto (76mm).',
+                icon: 'question',
+                showDenyButton: true,
+                showCancelButton: true,
+                confirmButtonText: 'Nota completa',
+                denyButtonText: 'Ticket (76mm)',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#4f46e5',
+                denyButtonColor: '#6b7280',
+            }).then(function (r) {
+                if (r.isConfirmed) window.open(notaUrl, '_blank');
+                else if (r.isDenied) window.open(ticketUrl, '_blank');
+            });
+        };
+    }
     </script>
 
 </x-admin-layout>
