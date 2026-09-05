@@ -63,7 +63,7 @@
 .ticket td, .ticket th { vertical-align: top; }
 .ticket .items thead tr th { font-size: 12px; border-bottom: 1px solid #000; padding-bottom: 2px; }
 .ticket .items td { font-size: 12px; padding: 1px 0; }
-.ticket .items .item-precio-row td { padding-bottom: 4px; font-size: 14px; }
+.ticket .items .item-precio-row td { padding-bottom: 4px; font-size: 15px; }
 .ticket .totals td { font-size: 12px; padding: 1px 0; }
 .ticket .total-final td { font-size: 12px; font-weight: normal; border-top: 2px solid #000; padding-top: 3px; }
 
@@ -270,6 +270,9 @@
             <td class="right">{{ number_format((float)$order->total, 2) }}</td>
         </tr>
     </table>
+    <div class="sm" style="margin-top:2px;">
+        {{ \App\Services\NumeroALetrasService::convertir((float) $order->total) }}
+    </div>
 
     {{-- COMENTARIOS DEL PEDIDO --}}
     @if($order->comentarios)
