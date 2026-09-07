@@ -539,9 +539,13 @@ public function data(Request $request)
 
         // Partidas ya surtidas con producto real (Panel de Surtido) — no se
         // pueden volver a editar/quitar desde aquí, ya salieron del almacén.
-        // (Excepto corrigiendo un pedido en curso con permiso — ahí sí, es
-        // justo el punto de la corrección.)
-        $itemsSurtidosIds = $editandoCerrado ? [] : DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $order->id))
+        // (Excepto corrigiendo desde Gestión de notas con permiso — ahí sí, es
+        // justo el punto de la corrección. Se usa $puedeEditarCerrados y no
+        // $editandoCerrado porque el candado de "surtido" puede seguir activo
+        // aunque el pedido ya no esté en un estatus cerrado, p.ej. un pedido
+        // que se regresó a Procesado/Borrador pero conserva líneas de
+        // despacho históricas.)
+        $itemsSurtidosIds = $puedeEditarCerrados ? [] : DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $order->id))
             ->where('qty_despachada', '>', 0)
             ->pluck('sales_order_item_id')
             ->all();
@@ -630,9 +634,16 @@ public function data(Request $request)
         // Partidas ya surtidas con producto real (Panel de Surtido) — se
         // ignora lo que venga del form para ellas, se conservan tal cual
         // están en BD; ya salieron del almacén, no se pueden tocar aquí.
-        // (Excepto si se está corrigiendo un pedido cerrado con permiso —
-        // ahí SÍ se pueden tocar, es justo el punto de la corrección.)
-        $itemsSurtidosIds = $editandoCerrado ? [] : DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $sales_order->id))
+        // (Excepto si se entra desde Gestión de notas con permiso — ahí SÍ
+        // se pueden tocar, es justo el punto de la corrección. Se usa
+        // $puedeEditarCerrados y no $editandoCerrado porque este candado
+        // puede seguir activo aunque el pedido ya no esté en un estatus
+        // cerrado, p.ej. un pedido regresado a Procesado/Borrador que
+        // conserva líneas de despacho históricas. El ajuste de stock/CxC más
+        // abajo sigue usando $editandoCerrado — si el pedido no está en un
+        // estatus cerrado, no se ha consumido stock adicional ni cobrado
+        // nada por esta edición; eso pasa después, al volver a surtir.)
+        $itemsSurtidosIds = $puedeEditarCerrados ? [] : DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $sales_order->id))
             ->where('qty_despachada', '>', 0)
             ->pluck('sales_order_item_id')
             ->all();
