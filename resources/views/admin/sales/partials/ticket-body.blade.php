@@ -67,8 +67,8 @@
 .ticket .items thead tr th { font-size: 13px; border-bottom: 1px solid #000; padding-bottom: 2px; }
 .ticket .items td { font-size: 13px; padding: 1px 0; }
 .ticket .items .item-precio-row td { padding-bottom: 4px; font-size: 15px; }
-.ticket .totals td { font-size: 13px; padding: 1px 0; }
-.ticket .total-final td { font-size: 13px; font-weight: normal; border-top: 2px solid #000; padding-top: 3px; }
+.ticket .totals td { font-size: 15px; padding: 1px 0; }
+.ticket .total-final td { font-size: 15px; font-weight: normal; border-top: 2px solid #000; padding-top: 3px; }
 
 .ticket .observaciones {
     font-size: 12px;
