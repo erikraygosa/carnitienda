@@ -97,10 +97,11 @@ class AssistantChatController extends Controller
             'cliente'         => $order->client?->nombre ?? 'Sin cliente',
             'programado_para' => optional($order->programado_para)->format('d/m/Y'),
             'items'           => $order->items->map(fn ($i) => [
-                'producto' => $i->descripcion,
-                'cantidad' => (float) $i->cantidad,
-                'precio'   => (float) $i->precio,
-                'total'    => (float) $i->total,
+                'producto'     => $i->descripcion,
+                'cantidad'     => (float) $i->cantidad,
+                'presentacion' => $i->presentacion,
+                'precio'       => (float) $i->precio,
+                'total'        => (float) $i->total,
             ])->all(),
             'total' => (float) $order->total,
         ];

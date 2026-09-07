@@ -218,9 +218,12 @@
         var card = document.createElement('div');
         card.className = 'mr-auto bg-white border border-indigo-200 rounded-lg px-3 py-2 max-w-[92%] w-full shadow-sm';
 
+        var PRESENTACION_LABEL = { KILOS: 'kg', PIEZAS: 'pz', CAJAS: 'cajas' };
+
         var itemsHtml = order.items.map(function (it) {
+            var unidad = PRESENTACION_LABEL[it.presentacion] ? ' ' + PRESENTACION_LABEL[it.presentacion] : '';
             return '<div class="flex justify-between text-xs text-gray-600">' +
-                '<span>' + it.cantidad + ' × ' + it.producto + '</span>' +
+                '<span>' + it.cantidad + unidad + ' × ' + it.producto + '</span>' +
                 '<span>$' + it.total.toFixed(2) + '</span></div>';
         }).join('');
 

@@ -107,7 +107,7 @@ class OrderAssistantService
      * product_id, se rechaza en vez de crear una línea a medias.
      *
      * @param array{client_id: ?int} $client
-     * @param array<int, array{product_id: int, cantidad: float, comentario?: ?string}> $items
+     * @param array<int, array{product_id: int, cantidad: float, comentario?: ?string, presentacion?: ?string}> $items
      * @param string|null $programadoPara Fecha (cualquier formato reconocible por Carbon)
      *        que el usuario mencionó para el pedido, ya normalizada a texto por el
      *        modelo de IA — ej. "2026-08-28". Si viene vacía o no se puede
@@ -127,9 +127,10 @@ class OrderAssistantService
 
         $lineItems = [];
         foreach ($items as $it) {
-            $productId  = $it['product_id'] ?? null;
-            $cantidad   = (float) ($it['cantidad'] ?? 0);
-            $comentario = trim((string) ($it['comentario'] ?? ''));
+            $productId    = $it['product_id'] ?? null;
+            $cantidad     = (float) ($it['cantidad'] ?? 0);
+            $comentario   = trim((string) ($it['comentario'] ?? ''));
+            $presentacion = strtoupper(trim((string) ($it['presentacion'] ?? '')));
 
             if (! $productId || $cantidad <= 0) {
                 return ['ok' => false, 'message' => 'Hay un producto o cantidad sin resolver correctamente. Usa buscar_producto primero.'];
@@ -140,6 +141,13 @@ class OrderAssistantService
                 return ['ok' => false, 'message' => "El producto con id {$productId} no existe."];
             }
 
+            // Igual que en el formulario manual: solo estos 3 valores son
+            // válidos en la columna presentacion — cualquier otra cosa que
+            // mande el modelo (o nada) se guarda como null, sin tronar.
+            if (! in_array($presentacion, ['KILOS', 'PIEZAS', 'CAJAS'], true)) {
+                $presentacion = null;
+            }
+
             // El texto que el usuario escribió entre paréntesis junto al
             // producto (ej. "milanesa de cerdo (descongelada)") no es parte
             // del nombre a buscar — es una nota de esa línea, se agrega tal
@@ -147,10 +155,11 @@ class OrderAssistantService
             $descripcion = $comentario !== '' ? "{$product->nombre} ({$comentario})" : $product->nombre;
 
             $lineItems[] = [
-                'product_id'  => $product->id,
-                'descripcion' => $descripcion,
-                'cantidad'    => $cantidad,
-                'precio'      => $this->resolvePrecio($clientModel, $product),
+                'product_id'   => $product->id,
+                'descripcion'  => $descripcion,
+                'cantidad'     => $cantidad,
+                'presentacion' => $presentacion,
+                'precio'       => $this->resolvePrecio($clientModel, $product),
             ];
         }
 
@@ -256,6 +265,7 @@ class OrderAssistantService
                     'product_id'     => $it['product_id'],
                     'descripcion'    => $it['descripcion'],
                     'cantidad'       => $it['cantidad'],
+                    'presentacion'   => $it['presentacion'],
                     'precio'         => $it['precio'],
                     'descuento'      => 0,
                     'impuesto'       => 0,
@@ -321,15 +331,15 @@ class OrderAssistantService
      */
     private function sameLines(iterable $existingItems, array $newLines): bool
     {
-        $normalize = fn (int|float $productId, int|float $cantidad, string $descripcion) =>
-            $productId . ':' . rtrim(rtrim(number_format((float) $cantidad, 3, '.', ''), '0'), '.') . ':' . mb_strtolower(trim($descripcion));
+        $normalize = fn (int|float $productId, int|float $cantidad, string $descripcion, ?string $presentacion) =>
+            $productId . ':' . rtrim(rtrim(number_format((float) $cantidad, 3, '.', ''), '0'), '.') . ':' . mb_strtolower(trim($descripcion)) . ':' . ($presentacion ?? '');
 
         $existingSig = collect($existingItems)
-            ->map(fn ($i) => $normalize($i->product_id, $i->cantidad, $i->descripcion))
+            ->map(fn ($i) => $normalize($i->product_id, $i->cantidad, $i->descripcion, $i->presentacion))
             ->sort()->values()->all();
 
         $newSig = collect($newLines)
-            ->map(fn ($i) => $normalize($i['product_id'], $i['cantidad'], $i['descripcion']))
+            ->map(fn ($i) => $normalize($i['product_id'], $i['cantidad'], $i['descripcion'], $i['presentacion'] ?? null))
             ->sort()->values()->all();
 
         return $existingSig === $newSig;

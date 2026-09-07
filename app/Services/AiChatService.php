@@ -202,7 +202,8 @@ Reglas:
 8. Una vez que ya confirmaste un pedido (usaste confirmar_pedido) o lo cancelaste, NUNCA vuelvas a llamar crear_borrador_pedido para esos mismos productos — ese pedido ya quedó resuelto. Si el usuario responde algo genérico después ("ok", "gracias", "va", etc.) sin mencionar un pedido nuevo, solo confírmale que ya quedó listo, no repitas ninguna herramienta.
 9. Solo llama crear_borrador_pedido de nuevo dentro de la misma conversación si el usuario claramente está pidiendo un pedido DISTINTO (otro cliente, u otros productos/cantidades que no sean los del pedido que ya se creó), O si solo está corrigiendo la fecha de ese mismo pedido (en ese caso manda los mismos productos con la fecha nueva — el sistema detecta que es el mismo pedido y solo actualiza la fecha, no lo duplica).
 10. Si el usuario escribe algo entre paréntesis junto a un producto (ej. "10 kg milanesa de cerdo (descongelada)" o "5 de pata (para caldo)"), eso NO es parte del nombre del producto — es una nota de esa línea. Usa buscar_producto solo con el nombre limpio (sin el paréntesis), y al llamar crear_borrador_pedido manda ese texto (sin los paréntesis) en el campo "comentario" de esa línea, para que quede junto a la descripción del pedido. IMPORTANTE: el paréntesis NUNCA es una instrucción para agregar OTRA línea/producto, aunque mencione algo que suene a un producto distinto (ej. "codillo", "hueso", "molido") — es solo texto descriptivo de esa misma línea. El array "items" de crear_borrador_pedido debe tener EXACTAMENTE una línea por cada concepto que el usuario escribió separado por comas, ni una más. Ejemplo: "1 pernil (1 pieza codillo a parte), 2 pernil (2 piezas enteros)" son SOLO 2 líneas — ambas de pernil, cada una con su nota entre paréntesis — nunca una tercera línea de "codillo" aparte.
-11. Responde siempre en español, de forma breve y clara. No inventes datos que no vengan de las herramientas.
+11. Si el usuario menciona en qué presentación pide un producto, mándala en el campo "presentacion" de esa línea: "pieza", "piezas" o "pz" → PIEZAS; "caja" o "cajas" → CAJAS; "kg", "kilo" o "kilos" → KILOS. Ej. "1 pierna de cerdo, piezas" → presentacion: PIEZAS; "10 de panza en cajas" → presentacion: CAJAS. Si no menciona ninguna, omite el campo (queda en blanco, igual que en el formulario manual — no es obligatorio).
+12. Responde siempre en español, de forma breve y clara. No inventes datos que no vengan de las herramientas.
 PROMPT;
     }
 
@@ -250,7 +251,8 @@ PROMPT;
                                     'properties' => [
                                         'product_id' => ['type' => 'integer'],
                                         'cantidad'   => ['type' => 'number'],
-                                        'comentario' => ['type' => ['string', 'null'], 'description' => 'Nota de esa línea (ej. "descongelada", "en trozos") — normalmente lo que el usuario escribió entre paréntesis junto al producto. Sin paréntesis en el valor.'],
+                                        'comentario'   => ['type' => ['string', 'null'], 'description' => 'Nota de esa línea (ej. "descongelada", "en trozos") — normalmente lo que el usuario escribió entre paréntesis junto al producto. Sin paréntesis en el valor.'],
+                                        'presentacion' => ['type' => ['string', 'null'], 'enum' => ['KILOS', 'PIEZAS', 'CAJAS', null], 'description' => 'Presentación en la que se pidió esa línea, si el usuario la mencionó (ej. "pieza/piezas/pz" → PIEZAS, "caja/cajas" → CAJAS, "kg/kilo/kilos" → KILOS). Omite o null si no la mencionó.'],
                                     ],
                                     'required' => ['product_id', 'cantidad'],
                                 ],
@@ -328,10 +330,11 @@ PROMPT;
                 'cliente'         => $order->client?->nombre ?? 'Sin cliente registrado',
                 'programado_para' => optional($order->programado_para)->format('Y-m-d'),
                 'items'           => $order->items->map(fn ($i) => [
-                    'producto' => $i->descripcion,
-                    'cantidad' => (float) $i->cantidad,
-                    'precio'   => (float) $i->precio,
-                    'total'    => (float) $i->total,
+                    'producto'     => $i->descripcion,
+                    'cantidad'     => (float) $i->cantidad,
+                    'presentacion' => $i->presentacion,
+                    'precio'       => (float) $i->precio,
+                    'total'        => (float) $i->total,
                 ])->all(),
                 'total' => (float) $order->total,
             ];
