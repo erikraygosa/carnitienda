@@ -9,6 +9,7 @@ use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;
 use App\Services\DocumentLogService;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -82,19 +83,22 @@ class UserController extends Controller implements HasMiddleware
 
     public function edit(User $user)
 {
-    $roles      = Role::with('permissions')->orderBy('name')->get();
-    $warehouses = Warehouse::orderBy('nombre')->get();
-    return view('admin.users.edit', compact('user', 'roles', 'warehouses'));
+    $roles       = Role::with('permissions')->orderBy('name')->get();
+    $warehouses  = Warehouse::orderBy('nombre')->get();
+    $permissions = Permission::orderBy('name')->get();
+    return view('admin.users.edit', compact('user', 'roles', 'warehouses', 'permissions'));
 }
         public function update(Request $request, User $user)
 {
     $data = $request->validate([
-        'name'         => 'required|string|max:255',
-        'email'        => 'required|email|unique:users,email,' . $user->id,
-        'password'     => 'nullable|string|min:8|confirmed',
-        'roles'        => 'required|array|min:1',
-        'roles.*'      => 'exists:roles,name',
-        'warehouse_id' => 'nullable|exists:warehouses,id',
+        'name'          => 'required|string|max:255',
+        'email'         => 'required|email|unique:users,email,' . $user->id,
+        'password'      => 'nullable|string|min:8|confirmed',
+        'roles'         => 'required|array|min:1',
+        'roles.*'       => 'exists:roles,name',
+        'permissions'   => 'nullable|array',
+        'permissions.*' => 'exists:permissions,name',
+        'warehouse_id'  => 'nullable|exists:warehouses,id',
     ]);
 
     $user->update([
@@ -109,7 +113,17 @@ class UserController extends Controller implements HasMiddleware
 
     $user->syncRoles($data['roles']);
 
-    $this->log->log($user, 'EDITADO', null, null, null, 'Roles: ' . implode(', ', $data['roles']));
+    // Permisos individuales: se suman a los que ya da el rol — sirven para
+    // dar acceso puntual a una persona sin tener que cambiarle de rol ni
+    // crear un rol nuevo solo para ella. syncPermissions() solo toca los
+    // permisos asignados directo al usuario, no los que trae por su rol.
+    $user->syncPermissions($data['permissions'] ?? []);
+
+    $this->log->log(
+        $user, 'EDITADO', null, null, null,
+        'Roles: ' . implode(', ', $data['roles'])
+            . (!empty($data['permissions']) ? ' | Permisos individuales: ' . implode(', ', $data['permissions']) : '')
+    );
     session()->flash('swal', ['icon' => 'success', 'title' => 'Usuario actualizado', 'text' => 'Los cambios fueron guardados.']);
     return redirect()->route('admin.users.index');
 }

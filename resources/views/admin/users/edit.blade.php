@@ -108,6 +108,29 @@
                 </div>
             </div>
 
+            {{-- Permisos individuales (además de los del rol) --}}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Permisos individuales
+                    <span class="text-gray-400 font-normal text-xs ml-1">(opcional)</span>
+                </label>
+                <p class="text-xs text-gray-400 mb-2">
+                    Se suman a los que ya da el rol seleccionado — úsalo para dar acceso puntual
+                    a esta persona sin cambiarle de rol ni crear un rol nuevo solo para ella.
+                </p>
+                @php $directPerms = old('permissions', $user->permissions->pluck('name')->toArray()); @endphp
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-h-64 overflow-auto border rounded-lg p-3">
+                    @foreach($permissions as $perm)
+                    <label class="flex items-center gap-2 text-sm">
+                        <input type="checkbox" name="permissions[]" value="{{ $perm->name }}"
+                               {{ in_array($perm->name, $directPerms) ? 'checked' : '' }}
+                               class="rounded border-gray-300 text-indigo-600">
+                        {{ $perm->name }}
+                    </label>
+                    @endforeach
+                </div>
+            </div>
+
             {{-- Permisos por rol --}}
             <div class="border rounded-lg overflow-hidden">
                 <div class="px-4 py-2 bg-gray-50 border-b text-sm font-medium text-gray-700">
