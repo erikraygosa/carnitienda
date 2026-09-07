@@ -44,7 +44,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 .ticket {
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: normal;
     color: #000;
     background: #fff;
@@ -56,17 +56,17 @@
 .ticket .center  { text-align: center; }
 .ticket .right   { text-align: right; }
 .ticket .bold    { font-weight: normal; }
-.ticket .sm      { font-size: 12px; }
+.ticket .sm      { font-size: 13px; }
 .ticket .cantidad-letras { font-size: 13px; }
 .ticket .dashed  { border: 0; border-top: 1px dashed #000; margin: 3mm 0; }
 
 .ticket table { width: 100%; border-collapse: collapse; }
 .ticket td, .ticket th { vertical-align: top; }
-.ticket .items thead tr th { font-size: 12px; border-bottom: 1px solid #000; padding-bottom: 2px; }
-.ticket .items td { font-size: 12px; padding: 1px 0; }
+.ticket .items thead tr th { font-size: 13px; border-bottom: 1px solid #000; padding-bottom: 2px; }
+.ticket .items td { font-size: 13px; padding: 1px 0; }
 .ticket .items .item-precio-row td { padding-bottom: 4px; font-size: 15px; }
-.ticket .totals td { font-size: 12px; padding: 1px 0; }
-.ticket .total-final td { font-size: 12px; font-weight: normal; border-top: 2px solid #000; padding-top: 3px; }
+.ticket .totals td { font-size: 13px; padding: 1px 0; }
+.ticket .total-final td { font-size: 13px; font-weight: normal; border-top: 2px solid #000; padding-top: 3px; }
 
 .ticket .observaciones {
     font-size: 12px;
@@ -106,7 +106,7 @@
             <img src="{{ $logoSrc }}" alt="Logo" class="logo">
         @endif
         @if($emp?->nombre_comercial || $emp?->razon_social)
-            <div class="bold" style="font-size:13px;">
+            <div class="bold" style="font-size:14px;">
                 ** {{ strtoupper($emp?->nombre_comercial ?? $emp?->razon_social) }} **
             </div>
         @endif
