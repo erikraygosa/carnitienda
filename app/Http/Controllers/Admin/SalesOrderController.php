@@ -399,6 +399,7 @@ public function data(Request $request)
             'items.*.descuento'    => ['nullable','numeric','gte:0'],
             'items.*.impuesto'     => ['nullable','numeric','gte:0'],
             'items.*.num_cajas'    => ['nullable','integer','min:0'],
+            'items.*.presentacion' => ['nullable','in:KILOS,PIEZAS,CAJAS'],
             'comentarios'          => ['nullable','string','max:2000'],
         ]);
 
@@ -478,6 +479,7 @@ public function data(Request $request)
                     'descripcion'   => $it['descripcion'],
                     'cantidad'      => $it['cantidad'],
                     'num_cajas'     => isset($it['num_cajas']) && $it['num_cajas'] !== '' ? (int)$it['num_cajas'] : null,
+                    'presentacion'  => $it['presentacion'] ?? null,
                     'precio'        => $it['precio'],
                     'descuento'     => $line_desc,
                     'impuesto'      => $line_tax,
@@ -607,6 +609,7 @@ public function data(Request $request)
             'items.*.descuento'    => ['nullable','numeric','gte:0'],
             'items.*.impuesto'     => ['nullable','numeric','gte:0'],
             'items.*.num_cajas'    => ['nullable','integer','min:0'],
+            'items.*.presentacion' => ['nullable','in:KILOS,PIEZAS,CAJAS'],
             'comentarios'          => ['nullable','string','max:2000'],
         ]);
 
@@ -667,6 +670,7 @@ public function data(Request $request)
                     'descripcion'   => $it['descripcion'],
                     'cantidad'      => $it['cantidad'],
                     'num_cajas'     => isset($it['num_cajas']) && $it['num_cajas'] !== '' ? (int)$it['num_cajas'] : null,
+                    'presentacion'  => $it['presentacion'] ?? null,
                     'precio'        => $it['precio'],
                     'descuento'     => $line_desc,
                     'impuesto'      => $line_tax,

@@ -24,7 +24,7 @@
         $seedItems    = $seedItems ?? [];
         $initialItems = (is_array($seedItems) && count($seedItems))
             ? $seedItems
-            : [['product_id'=>'','_productoNombre'=>'','descripcion'=>'','cantidad'=>1,'num_cajas'=>null,'precio'=>0,'descuento'=>0,'iva_pct'=>0,'impuesto'=>0,'total'=>0]];
+            : [['product_id'=>'','_productoNombre'=>'','descripcion'=>'','cantidad'=>1,'presentacion'=>'','precio'=>0,'descuento'=>0,'iva_pct'=>0,'impuesto'=>0,'total'=>0]];
 
         $JS_OVERRIDES       = json_encode($overrides   ?? [], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
         $JS_LISTPRICES      = json_encode($listItems   ?? [], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
@@ -254,7 +254,7 @@
                             <th class="p-2 text-left">Descripción</th>
                             <th class="p-2 text-right">Cantidad</th>
                             <th class="p-2 text-left">Unidad</th>
-                            <th class="p-2 text-center" title="Número aproximado de cajas (referencia)">Cajas</th>
+                            <th class="p-2 text-center" title="Presentación en que se pide (opcional)">Present.</th>
                             <th class="p-2 text-right">Precio</th>
                             <th class="p-2 text-right">Desc.</th>
                             @if($mostrarIva)<th class="p-2 text-right">% IVA</th>@endif
@@ -537,10 +537,13 @@
                 </td>
                 <td class="p-2 text-xs text-gray-500 td-unidad">${escHtml(it.unidad || '—')}</td>
                 <td class="p-2 text-center">
-                    <input type="number" min="1" step="1"
-                           class="w-16 border rounded p-1 text-center text-sm inp-cajas"
-                           name="items[${i}][num_cajas]" value="${it.num_cajas || ''}"
-                           placeholder="—" title="Cajas aprox.">
+                    <select class="w-24 border rounded p-1 text-center text-sm inp-presentacion"
+                            name="items[${i}][presentacion]" title="Presentación en que se pide">
+                        <option value="" ${!it.presentacion ? 'selected' : ''}>—</option>
+                        <option value="KILOS"  ${it.presentacion === 'KILOS'  ? 'selected' : ''}>Kilos</option>
+                        <option value="PIEZAS" ${it.presentacion === 'PIEZAS' ? 'selected' : ''}>Piezas</option>
+                        <option value="CAJAS"  ${it.presentacion === 'CAJAS'  ? 'selected' : ''}>Cajas</option>
+                    </select>
                 </td>
                 <td class="p-2 text-right">
                     <div class="flex items-center justify-end gap-1">
@@ -589,11 +592,11 @@
                     recalcRow(i);
                 });
             });
-            // Sin este listener, lo que se escribía en "Cajas" nunca llegaba
-            // a state.items — al agregar otra partida, renderAll() reconstruye
-            // toda la tabla desde state.items y esa cantidad de cajas se perdía.
-            tr.querySelector('.inp-cajas').addEventListener('input', function() {
-                state.items[i].num_cajas = this.value === '' ? null : parseInt(this.value, 10) || null;
+            // Sin este listener, lo que se elegía en "Presentación" nunca
+            // llegaba a state.items — al agregar otra partida, renderAll()
+            // reconstruye toda la tabla desde state.items y se perdía.
+            tr.querySelector('.inp-presentacion').addEventListener('change', function() {
+                state.items[i].presentacion = this.value || '';
             });
             // El precio se bloquea solo cuando el cliente/lista YA tiene un
             // precio configurado (>0) para este producto. Si viene en $0
@@ -644,7 +647,7 @@
             addRow() {
                 state.items.push({
                     product_id: '', _productoNombre: '',
-                    descripcion: '', cantidad: 1,
+                    descripcion: '', cantidad: 1, presentacion: '',
                     precio: 0, descuento: 0, iva_pct: 0, impuesto: 0, total: 0
                 });
                 renderAll();

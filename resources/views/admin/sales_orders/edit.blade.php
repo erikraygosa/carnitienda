@@ -56,7 +56,7 @@
             '_productoNombre' => $i->product?->nombre ?? $i->descripcion ?? '',
             'descripcion'     => $i->descripcion,
             'cantidad'        => (float)$i->cantidad,
-            'num_cajas'       => $i->num_cajas,
+            'presentacion'    => $i->presentacion ?? '',
             'precio'          => (float)$i->precio,
             'descuento'       => (float)$i->descuento,
             'iva_pct'         => 0,
@@ -350,7 +350,7 @@
                             <th class="p-2 text-left">Producto</th>
                             <th class="p-2 text-left">Descripción</th>
                             <th class="p-2 text-right">Cantidad</th>
-                            <th class="p-2 text-center" title="Número aproximado de cajas">Cajas</th>
+                            <th class="p-2 text-center" title="Presentación en que se pide (opcional)">Present.</th>
                             <th class="p-2 text-right">Precio</th>
                             <th class="p-2 text-right">Desc.</th>
                             @if($mostrarIva)<th class="p-2 text-right">% IVA</th>@endif
@@ -748,10 +748,19 @@
                            ${disQty} required>
                 </td>
                 <td class="p-2 text-center">
-                    <input type="number" min="1" step="1"
-                           class="w-16 border rounded p-1 text-center text-sm inp-cajas"
-                           name="items[${i}][num_cajas]" value="${it.num_cajas || ''}"
-                           placeholder="—" title="Cajas aprox." ${surtido ? 'readonly' : dis}>
+                    {{-- Sin bloqueo por "ya surtido" — es solo referencia
+                         informativa, a diferencia de precio/cantidad no
+                         afecta inventario ni CxC. Además un <select>
+                         deshabilitado no manda su valor al guardar
+                         (a diferencia de un input readonly), así que
+                         quedaría en null al guardar una fila ya surtida. --}}
+                    <select class="w-24 border rounded p-1 text-center text-sm inp-presentacion"
+                            name="items[${i}][presentacion]" title="Presentación en que se pide" ${dis}>
+                        <option value="" ${!it.presentacion ? 'selected' : ''}>—</option>
+                        <option value="KILOS"  ${it.presentacion === 'KILOS'  ? 'selected' : ''}>Kilos</option>
+                        <option value="PIEZAS" ${it.presentacion === 'PIEZAS' ? 'selected' : ''}>Piezas</option>
+                        <option value="CAJAS"  ${it.presentacion === 'CAJAS'  ? 'selected' : ''}>Cajas</option>
+                    </select>
                 </td>
                 <td class="p-2 text-right">
                     <input type="number" min="0" step="0.0001"
@@ -802,14 +811,13 @@
                 });
             }
 
-            // Sin este listener, lo que se escribía en "Cajas" nunca llegaba
-            // a state.items — al agregar otra partida, renderAll() reconstruye
-            // toda la tabla desde state.items y esa cantidad de cajas se perdía.
-            if (!surtido) {
-                tr.querySelector('.inp-cajas').addEventListener('input', function() {
-                    state.items[i].num_cajas = this.value === '' ? null : parseInt(this.value, 10) || null;
-                });
-            }
+            // Sin este listener, lo que se elegía en "Presentación" nunca
+            // llegaba a state.items — al agregar otra partida, renderAll()
+            // reconstruye toda la tabla desde state.items y se perdía.
+            // No se bloquea con "ya surtido" — es solo referencia informativa.
+            tr.querySelector('.inp-presentacion').addEventListener('change', function() {
+                state.items[i].presentacion = this.value || '';
+            });
 
             return tr;
         }
@@ -824,7 +832,7 @@
         window.SOE = {
             addRow() {
                 if (!CAN_EDIT_ITEMS) return;
-                state.items.push({id:null,product_id:'',_productoNombre:'',descripcion:'',cantidad:1,num_cajas:null,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0});
+                state.items.push({id:null,product_id:'',_productoNombre:'',descripcion:'',cantidad:1,presentacion:"",precio:0,descuento:0,iva_pct:0,impuesto:0,total:0});
                 renderAll();
             },
             onClientChange(clientId) {
@@ -881,7 +889,7 @@
         // Init
         state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
         if (!state.items.length) {
-            state.items = [{id:null,product_id:'',descripcion:'',cantidad:1,num_cajas:null,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}];
+            state.items = [{id:null,product_id:'',descripcion:'',cantidad:1,presentacion:"",precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}];
         }
         // Init crédito
         if (DEFAULT_CLIENT) {
