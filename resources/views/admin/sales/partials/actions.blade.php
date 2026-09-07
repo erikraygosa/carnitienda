@@ -12,6 +12,13 @@
     {{-- Envío (formulario de envío) --}}
     <x-wire-button href="{{ route('admin.sales.send.form',$sale) }}" violet xs>Enviar</x-wire-button>
 
+    {{-- Facturar — mismo criterio que Pedidos (solo notas con progreso real) --}}
+    @if(in_array($sale->status, ['PROCESADA','EN_RUTA','ENTREGADA','COMPLETADA']))
+        <x-wire-button href="{{ route('admin.invoices.create') }}?sale_id={{ $sale->id }}" indigo xs>
+            Facturar
+        </x-wire-button>
+    @endif
+
     {{-- Acciones por estado --}}
     @if(!in_array($sale->status, ['EN_RUTA','ENTREGADA','CANCELADA']))
         <form action="{{ route('admin.sales.cancel',$sale) }}" method="POST" class="inline form-cancel-sale">@csrf
