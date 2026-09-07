@@ -59,6 +59,7 @@
 .ticket .right   { text-align: right; }
 .ticket .bold    { font-weight: normal; }
 .ticket .sm      { font-size: 12px; }
+.ticket .cantidad-letras { font-size: 13px; }
 .ticket .dashed  { border: 0; border-top: 1px dashed #000; margin: 3mm 0; }
 
 .ticket table { width: 100%; border-collapse: collapse; }
@@ -267,7 +268,7 @@
             <td class="right">{{ number_format((float)$sale->total, 2) }}</td>
         </tr>
     </table>
-    <div class="sm" style="margin-top:2px;">
+    <div class="cantidad-letras" style="margin-top:2px;">
         {{ \App\Services\NumeroALetrasService::convertir((float) $sale->total) }}
     </div>
 
