@@ -431,14 +431,23 @@
 
             <div class="ml-auto flex items-center space-x-2">
                 @if($order->status === 'BORRADOR')
-                    {{-- Envía el form principal (guarda cualquier cambio pendiente) y de una
-                         vez marca then_approve=1 para que el servidor apruebe justo después
-                         de guardar — antes este botón era un form aparte que solo aprobaba,
-                         ignorando cualquier edición que no se hubiera guardado con "Actualizar". --}}
-                    <x-wire-button type="submit" form="so-edit-form" green xs
-                        onclick="document.getElementById('then_approve').value='1'">
-                        Aprobar y procesar
-                    </x-wire-button>
+                    @if($puedeEditarCerrados)
+                        {{-- Viniendo de Gestión de notas solo se corrige el pedido, no se
+                             avanza el flujo — "Aprobar y procesar" quedaría fuera de lugar
+                             aquí (ya pasó por ahí antes; este botón es solo para guardar). --}}
+                        <x-wire-button type="submit" form="so-edit-form" blue xs>
+                            Actualizar
+                        </x-wire-button>
+                    @else
+                        {{-- Envía el form principal (guarda cualquier cambio pendiente) y de una
+                             vez marca then_approve=1 para que el servidor apruebe justo después
+                             de guardar — antes este botón era un form aparte que solo aprobaba,
+                             ignorando cualquier edición que no se hubiera guardado con "Actualizar". --}}
+                        <x-wire-button type="submit" form="so-edit-form" green xs
+                            onclick="document.getElementById('then_approve').value='1'">
+                            Aprobar y procesar
+                        </x-wire-button>
+                    @endif
                     <form action="{{ route('admin.sales-orders.cancel',$order) }}" method="POST">@csrf
                         <x-wire-button type="submit" red xs>Cancelar</x-wire-button>
                     </form>
