@@ -65,7 +65,7 @@
             '_productoNombre' => $i->product?->nombre ?? $i->descripcion,
             'descripcion'     => $i->descripcion ?? ($i->product?->nombre ?? ''),
             'cantidad'        => (float) $i->cantidad,
-            'num_cajas'       => $i->num_cajas,
+            'presentacion'    => $i->presentacion ?? '',
             'precio'          => (float) $i->precio,
             'descuento'       => (float) $i->descuento,
             'iva_pct'         => 0,
@@ -241,7 +241,7 @@
                             <th class="p-2 text-left">Producto</th>
                             <th class="p-2 text-left">Descripción</th>
                             <th class="p-2 text-right">Cantidad</th>
-                            <th class="p-2 text-center" title="Número aproximado de cajas (referencia)">Cajas</th>
+                            <th class="p-2 text-center" title="Presentación en que se pide (opcional)">Present.</th>
                             <th class="p-2 text-right">Precio</th>
                             <th class="p-2 text-right">Desc.</th>
                             <th class="p-2 text-right">% IVA</th>
@@ -574,9 +574,13 @@
                            name="items[${i}][cantidad]" value="${it.cantidad}" ${dis} required>
                 </td>
                 <td class="p-2 text-center">
-                    <input type="number" min="1" step="1"
-                           class="w-16 border rounded p-1 text-center text-sm inp-cajas"
-                           name="items[${i}][num_cajas]" value="${it.num_cajas || ''}" placeholder="—" ${dis}>
+                    <select class="w-24 border rounded p-1 text-center text-sm inp-presentacion"
+                            name="items[${i}][presentacion]" title="Presentación en que se pide" ${dis}>
+                        <option value="" ${!it.presentacion ? 'selected' : ''}>—</option>
+                        <option value="KILOS"  ${it.presentacion === 'KILOS'  ? 'selected' : ''}>Kilos</option>
+                        <option value="PIEZAS" ${it.presentacion === 'PIEZAS' ? 'selected' : ''}>Piezas</option>
+                        <option value="CAJAS"  ${it.presentacion === 'CAJAS'  ? 'selected' : ''}>Cajas</option>
+                    </select>
                 </td>
                 <td class="p-2 text-right">
                     <div class="flex items-center justify-end gap-1">
@@ -610,8 +614,8 @@
                 tr.querySelector('.inp-cantidad').addEventListener('input', function() {
                     state.items[i].cantidad = parseFloat(this.value)||0; recalcRow(i);
                 });
-                tr.querySelector('.inp-cajas').addEventListener('input', function() {
-                    state.items[i].num_cajas = this.value === '' ? null : parseInt(this.value, 10) || null;
+                tr.querySelector('.inp-presentacion').addEventListener('change', function() {
+                    state.items[i].presentacion = this.value || '';
                 });
                 aplicarEstadoPrecio(tr.querySelector('.inp-precio'), it.precio);
                 tr.querySelector('.inp-precio').addEventListener('input', function() {
@@ -653,7 +657,7 @@
         window.SEF = {
             addRow() {
                 if (LOCKED) return;
-                state.items.push({product_id:'',_productoNombre:'',descripcion:'',cantidad:1,num_cajas:null,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0});
+                state.items.push({product_id:'',_productoNombre:'',descripcion:'',cantidad:1,presentacion:"",precio:0,descuento:0,iva_pct:0,impuesto:0,total:0});
                 renderAll();
             },
             onTipoVentaChange(val) {
@@ -687,7 +691,7 @@
         // Init
         state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
         if (!state.items.length) {
-            state.items = [{product_id:'',_productoNombre:'',descripcion:'',cantidad:1,num_cajas:null,precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}];
+            state.items = [{product_id:'',_productoNombre:'',descripcion:'',cantidad:1,presentacion:"",precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}];
         }
         renderAll();
     })();
