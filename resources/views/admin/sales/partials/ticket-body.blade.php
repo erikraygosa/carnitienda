@@ -59,7 +59,7 @@
 .ticket .right   { text-align: right; }
 .ticket .bold    { font-weight: normal; }
 .ticket .sm      { font-size: 13px; }
-.ticket .cantidad-letras { font-size: 13px; }
+.ticket .cantidad-letras { font-size: 15px; }
 .ticket .dashed  { border: 0; border-top: 1px dashed #000; margin: 3mm 0; }
 
 .ticket table { width: 100%; border-collapse: collapse; }
