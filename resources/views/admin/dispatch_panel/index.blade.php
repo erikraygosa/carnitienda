@@ -81,7 +81,7 @@
                             <th class="px-3 py-2 text-left font-medium text-gray-500">Fecha</th>
                             <th class="px-3 py-2 text-left font-medium text-gray-500">Producto</th>
                             <th class="px-3 py-2 text-right font-medium text-gray-500">Cant.</th>
-                            <th class="px-3 py-2 text-center font-medium text-gray-500">Cajas</th>
+                            <th class="px-3 py-2 text-center font-medium text-gray-500">Present.</th>
                             <th class="px-3 py-2"></th>
                         </tr>
                     </thead>
@@ -123,8 +123,11 @@
                                 <td class="px-3 py-2 text-right tabular-nums {{ $yaDespachado ? 'text-emerald-700' : 'text-gray-600' }}">
                                     {{ number_format($item->cantidad, 3) }}
                                 </td>
+                                @php
+                                    $presLabels = ['KILOS' => 'Kilos', 'PIEZAS' => 'Piezas', 'CAJAS' => 'Cajas'];
+                                @endphp
                                 <td class="px-3 py-2 text-center {{ $yaDespachado ? 'text-emerald-700' : 'text-gray-500' }}">
-                                    {{ $item->num_cajas ?? '—' }}
+                                    {{ $presLabels[$item->presentacion] ?? '—' }}
                                 </td>
                                 <td class="px-3 py-2">
                                     @if($itemIdx === 0)
@@ -305,6 +308,8 @@
                 var difColor = dif > 0 ? 'text-amber-600' : dif < 0 ? 'text-red-600' : 'text-gray-400';
                 var difStr   = dif === 0 ? '—' : (dif > 0 ? '+' : '') + dif.toFixed(3);
                 var unidad   = line.unidad ? line.unidad : '';
+                var presLabels = { KILOS: 'Kilos', PIEZAS: 'Piezas', CAJAS: 'Cajas' };
+                var presLabel  = presLabels[line.presentacion] || '';
 
                 var tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
@@ -312,6 +317,7 @@
                 tr.innerHTML =
                     '<td class="px-2 py-2 text-gray-700">' + escHtml(line.producto) +
                         (unidad ? ' <span class="text-xs text-gray-400">(' + escHtml(unidad) + ')</span>' : '') +
+                        (presLabel ? ' <span class="text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600">' + presLabel + '</span>' : '') +
                     '</td>' +
                     '<td class="px-2 py-2 text-center text-gray-600">' + line.qty_solicitada.toFixed(3) + '</td>' +
                     '<td class="px-2 py-1 text-center">' +

@@ -118,6 +118,7 @@ class DispatchPanelController extends Controller
                 // encima del nombre pelón del producto.
                 'producto'            => $item->descripcion ?: ($item->product?->nombre ?? '—'),
                 'unidad'              => $item->product?->unidad,
+                'presentacion'        => $item->presentacion,
                 'qty_solicitada'      => (float) $item->cantidad,
                 'num_cajas'           => $item->num_cajas,
                 'pesos_cajas'         => $item->pesos_cajas,
