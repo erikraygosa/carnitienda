@@ -527,16 +527,21 @@ public function data(Request $request)
             ->map(fn($rows) => $rows->pluck('precio','product_id')->map(fn($v) => (float)$v)->toArray())
             ->toArray();
 
-        // El desbloqueo de un pedido ENTREGADO solo aplica cuando se entra
-        // específicamente desde el módulo Gestión de notas (?origen=gestion-notas)
-        // — no en el flujo normal de Pedidos → Editar, aunque el usuario tenga
-        // el permiso. Así "Editar" en Pedidos se comporta igual que siempre.
+        // El desbloqueo de un pedido ya en curso (EN_RUTA/DESPACHADO/
+        // ENTREGADO/NO_ENTREGADO) solo aplica cuando se entra específicamente
+        // desde el módulo Gestión de notas (?origen=gestion-notas) — no en el
+        // flujo normal de Pedidos → Editar, aunque el usuario tenga el
+        // permiso. Así "Editar" en Pedidos se comporta igual que siempre.
         $puedeEditarCerrados = $request->query('origen') === 'gestion-notas'
             && auth()->user()->can('editar pedidos cerrados');
+        $editandoCerrado = $puedeEditarCerrados
+            && in_array($order->status, ['EN_RUTA','DESPACHADO','ENTREGADO','NO_ENTREGADO']);
 
         // Partidas ya surtidas con producto real (Panel de Surtido) — no se
         // pueden volver a editar/quitar desde aquí, ya salieron del almacén.
-        $itemsSurtidosIds = $puedeEditarCerrados ? [] : DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $order->id))
+        // (Excepto corrigiendo un pedido en curso con permiso — ahí sí, es
+        // justo el punto de la corrección.)
+        $itemsSurtidosIds = $editandoCerrado ? [] : DispatchItemLine::whereHas('dispatchItem', fn ($q) => $q->where('sales_order_id', $order->id))
             ->where('qty_despachada', '>', 0)
             ->pluck('sales_order_item_id')
             ->all();
@@ -559,15 +564,16 @@ public function data(Request $request)
 
     public function update(Request $request, SalesOrder $sales_order)
     {
-        // Mismo criterio que en edit(): el desbloqueo de un pedido ENTREGADO
-        // solo aplica viniendo del módulo Gestión de notas, no del flujo
-        // normal de Pedidos → Editar aunque el usuario tenga el permiso.
+        // Mismo criterio que en edit(): el desbloqueo de un pedido ya en
+        // curso solo aplica viniendo del módulo Gestión de notas, no del
+        // flujo normal de Pedidos → Editar aunque el usuario tenga el permiso.
+        $statusesCerrados    = ['EN_RUTA','DESPACHADO','ENTREGADO','NO_ENTREGADO'];
         $puedeEditarCerrados = $request->input('origen') === 'gestion-notas'
             && auth()->user()->can('editar pedidos cerrados');
-        $editandoCerrado     = $puedeEditarCerrados && $sales_order->status === 'ENTREGADO';
+        $editandoCerrado     = $puedeEditarCerrados && in_array($sales_order->status, $statusesCerrados);
 
-        if ($sales_order->status === 'CANCELADO' || ($sales_order->status === 'ENTREGADO' && !$puedeEditarCerrados)) {
-            return back()->with('swal',['icon'=>'error','title'=>'Error','text'=>'Un pedido entregado o cancelado no puede editarse.']);
+        if ($sales_order->status === 'CANCELADO' || (in_array($sales_order->status, $statusesCerrados) && !$puedeEditarCerrados)) {
+            return back()->with('swal',['icon'=>'error','title'=>'Error','text'=>'Un pedido cancelado, o ya en curso sin el permiso de Gestión de notas, no puede editarse.']);
         }
 
         if ($request->input('price_list_id') === 'client') {
@@ -631,9 +637,13 @@ public function data(Request $request)
             ->pluck('sales_order_item_id')
             ->all();
 
-        // Snapshot del total ANTES de tocar nada — para ajustar la CxC por la
-        // diferencia si se está corrigiendo un pedido ya ENTREGADO.
-        $totalAntes = (float) $sales_order->total;
+        // Snapshot del total y del estatus ANTES de tocar nada — el ajuste de
+        // CxC solo aplica si el pedido ya estaba ENTREGADO (ahí sí se había
+        // cargado). Si sigue EN_RUTA/DESPACHADO/NO_ENTREGADO todavía no se ha
+        // cobrado nada — el cobro correcto pasa solo cuando de verdad se
+        // entregue, usando el total ya corregido.
+        $totalAntes     = (float) $sales_order->total;
+        $yaEstabaEntregado = $sales_order->status === 'ENTREGADO';
 
         DB::transaction(function () use ($sales_order, $data, $itemsSurtidosIds) {
             $subtotal=0; $descuento=0; $impuestos=0; $total=0;
@@ -746,8 +756,13 @@ public function data(Request $request)
                 $this->inv->consumeForOrderItem($itemNuevo, $sales_order->warehouse_id, $sales_order, auth()->id());
             }
 
+            // El ajuste de CxC (por la diferencia de total) solo aplica si el
+            // pedido ya estaba ENTREGADO — ahí sí se había cargado la CxC al
+            // entregarse. Si sigue EN_RUTA/DESPACHADO/NO_ENTREGADO, la CxC
+            // nunca se cargó, así que no hay nada que ajustar aquí: el cobro
+            // real ocurrirá solo, correcto, cuando de verdad se entregue.
             $deltaTotal = round((float) $sales_order->total - $totalAntes, 2);
-            if ($sales_order->payment_method === 'CREDITO' && $sales_order->client_id && abs($deltaTotal) >= 0.01) {
+            if ($yaEstabaEntregado && $sales_order->payment_method === 'CREDITO' && $sales_order->client_id && abs($deltaTotal) >= 0.01) {
                 app(\App\Services\ArService::class)->charge(
                     clientId: $sales_order->client_id,
                     monto:    $deltaTotal,
@@ -758,11 +773,14 @@ public function data(Request $request)
             }
 
             $this->log->log(
-                $sales_order, 'EDITADO_CERRADO', 'ENTREGADO', 'ENTREGADO',
+                $sales_order, 'EDITADO_CERRADO', $sales_order->status, $sales_order->status,
                 note: sprintf(
-                    'Editado desde Gestión de notas. Total: $%s → $%s.%s',
+                    'Editado desde Gestión de notas (estatus %s, sin cambiar). Total: $%s → $%s.%s',
+                    $sales_order->status,
                     number_format($totalAntes, 2), number_format((float) $sales_order->total, 2),
-                    $sales_order->payment_method === 'CREDITO' ? ' Ajuste CxC: $' . number_format($deltaTotal, 2) : ''
+                    ($yaEstabaEntregado && $sales_order->payment_method === 'CREDITO')
+                        ? ' Ajuste CxC: $' . number_format($deltaTotal, 2)
+                        : ''
                 )
             );
         }

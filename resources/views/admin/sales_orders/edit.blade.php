@@ -9,7 +9,7 @@
     <x-slot name="action">
         <a href="{{ route('admin.sales-orders.index') }}"
            class="inline-flex px-3 py-1.5 text-sm rounded-md border">Regresar</a>
-        @if($order->status !== 'CANCELADO' && !($order->status === 'ENTREGADO' && !($puedeEditarCerrados ?? false)))
+        @if($order->status !== 'CANCELADO' && !(in_array($order->status, ['EN_RUTA','DESPACHADO','ENTREGADO','NO_ENTREGADO']) && !($puedeEditarCerrados ?? false)))
             <button form="so-edit-form" type="submit"
                     class="ml-2 inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white">
                 {{ $order->status === 'BORRADOR' ? 'Actualizar' : 'Guardar cambios' }}
@@ -20,12 +20,15 @@
     @php
         $puedeEditarCerrados = $puedeEditarCerrados ?? false;
         // Quien tiene permiso de Gestión de notas puede corregir un pedido
-        // ENTREGADO (error después del hecho) — CANCELADO se queda bloqueado
-        // siempre, es un caso distinto.
-        $isLocked     = $order->status === 'CANCELADO' || ($order->status === 'ENTREGADO' && !$puedeEditarCerrados);
+        // que ya está en curso (EN_RUTA/DESPACHADO/ENTREGADO/NO_ENTREGADO) —
+        // no solo ENTREGADO — sin que eso le cambie el estatus real (sigue
+        // como estaba). CANCELADO se queda bloqueado siempre, es un caso
+        // distinto.
+        $statusesCerrados = ['EN_RUTA','DESPACHADO','ENTREGADO','NO_ENTREGADO'];
+        $isLocked     = $order->status === 'CANCELADO' || (in_array($order->status, $statusesCerrados) && !$puedeEditarCerrados);
         $canEditQty   = !$isLocked;
-        $canEditItems = $order->status === 'BORRADOR' || ($puedeEditarCerrados && $order->status === 'ENTREGADO');
-        $editandoCerrado = $puedeEditarCerrados && $order->status === 'ENTREGADO';
+        $canEditItems = $order->status === 'BORRADOR' || ($puedeEditarCerrados && in_array($order->status, $statusesCerrados));
+        $editandoCerrado = $puedeEditarCerrados && in_array($order->status, $statusesCerrados);
 
         $selClient    = (string) old('client_id',         $order->client_id);
         $selWarehouse = (string) old('warehouse_id',       $order->warehouse_id);
@@ -99,9 +102,10 @@
 
     @if($editandoCerrado)
     <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        ⚠️ Este pedido ya está <strong>ENTREGADO</strong> — lo estás editando con permiso de Gestión de notas.
-        Si cambias cantidades, productos o los quitas, el sistema ajusta automáticamente el stock y (si es a
-        crédito) el saldo de CxC del cliente al guardar. Queda registrado en Auditoría.
+        ⚠️ Este pedido ya está <strong>{{ $order->status_label ?? $order->status }}</strong> — lo estás editando con permiso de Gestión de notas.
+        Si cambias cantidades, productos o los quitas, el sistema ajusta automáticamente el stock, y el saldo de
+        CxC del cliente si el pedido ya se había entregado. El pedido se queda en el mismo estatus, no vuelve a
+        Procesado. Queda registrado en Auditoría.
     </div>
     @endif
 
