@@ -118,14 +118,24 @@
                     Se suman a los que ya da el rol seleccionado — úsalo para dar acceso puntual
                     a esta persona sin cambiarle de rol ni crear un rol nuevo solo para ella.
                 </p>
-                @php $directPerms = old('permissions', $user->permissions->pluck('name')->toArray()); @endphp
+                @php
+                    // Precargado: directos ya asignados + los que ya trae por su(s)
+                    // rol(es) actual(es), para que el checklist muestre de un
+                    // vistazo TODO lo que la persona puede hacer, no solo lo extra.
+                    $directPerms  = $user->permissions->pluck('name')->toArray();
+                    $checkedPerms = old('permissions', array_unique(array_merge($directPerms, $permisosPorRol)));
+                @endphp
                 <div class="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-h-64 overflow-auto border rounded-lg p-3">
                     @foreach($permissions as $perm)
+                    @php $viaRol = in_array($perm->name, $permisosPorRol); @endphp
                     <label class="flex items-center gap-2 text-sm">
                         <input type="checkbox" name="permissions[]" value="{{ $perm->name }}"
-                               {{ in_array($perm->name, $directPerms) ? 'checked' : '' }}
+                               {{ in_array($perm->name, $checkedPerms) ? 'checked' : '' }}
                                class="rounded border-gray-300 text-indigo-600">
                         {{ $perm->name }}
+                        @if($viaRol)
+                            <span class="text-xs text-gray-400" title="Ya lo da el rol actual — desmarcarlo aquí no se lo quita, solo evita duplicarlo como permiso individual">(rol)</span>
+                        @endif
                     </label>
                     @endforeach
                 </div>

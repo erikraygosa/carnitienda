@@ -86,7 +86,11 @@ class UserController extends Controller implements HasMiddleware
     $roles       = Role::with('permissions')->orderBy('name')->get();
     $warehouses  = Warehouse::orderBy('nombre')->get();
     $permissions = Permission::orderBy('name')->get();
-    return view('admin.users.edit', compact('user', 'roles', 'warehouses', 'permissions'));
+    // Permisos que la persona ya tiene por su(s) rol(es) actual(es) — se
+    // precargan marcados en el checklist de permisos individuales para que
+    // se vea de un vistazo todo lo que ya puede hacer, no solo lo extra.
+    $permisosPorRol = $user->getPermissionsViaRoles()->pluck('name')->all();
+    return view('admin.users.edit', compact('user', 'roles', 'warehouses', 'permissions', 'permisosPorRol'));
 }
         public function update(Request $request, User $user)
 {
@@ -113,16 +117,22 @@ class UserController extends Controller implements HasMiddleware
 
     $user->syncRoles($data['roles']);
 
-    // Permisos individuales: se suman a los que ya da el rol — sirven para
-    // dar acceso puntual a una persona sin tener que cambiarle de rol ni
-    // crear un rol nuevo solo para ella. syncPermissions() solo toca los
-    // permisos asignados directo al usuario, no los que trae por su rol.
-    $user->syncPermissions($data['permissions'] ?? []);
+    // El checklist de "permisos individuales" en la vista se precarga
+    // marcando también los que ya vienen del rol (para que se vea de un
+    // vistazo todo lo que la persona puede hacer) — pero si se guardaran
+    // tal cual como permisos directos, quedarían "grabados" en el usuario
+    // aunque después le quiten el rol. Por eso aquí se descuentan los que
+    // ya cubre el rol recién asignado, y solo se guardan como directos los
+    // que de verdad son extra.
+    $user->load('roles.permissions');
+    $permisosPorRol = $user->getPermissionsViaRoles()->pluck('name')->all();
+    $permisosDirectos = array_values(array_diff($data['permissions'] ?? [], $permisosPorRol));
+    $user->syncPermissions($permisosDirectos);
 
     $this->log->log(
         $user, 'EDITADO', null, null, null,
         'Roles: ' . implode(', ', $data['roles'])
-            . (!empty($data['permissions']) ? ' | Permisos individuales: ' . implode(', ', $data['permissions']) : '')
+            . (!empty($permisosDirectos) ? ' | Permisos individuales: ' . implode(', ', $permisosDirectos) : '')
     );
     session()->flash('swal', ['icon' => 'success', 'title' => 'Usuario actualizado', 'text' => 'Los cambios fueron guardados.']);
     return redirect()->route('admin.users.index');
