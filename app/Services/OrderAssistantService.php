@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AssistantConversation;
 use App\Models\Client;
 use App\Models\ClientAlias;
 use App\Models\ClientPriceOverride;
@@ -37,7 +38,7 @@ class OrderAssistantService
      * - ['status' => 'ambiguous', 'candidates' => [['id','nombre','score'], ...]]
      * - ['status' => 'not_found']
      */
-    public function resolveClient(string $query): array
+    public function resolveClient(string $query, ?int $conversationId = null): array
     {
         $query = trim($query);
         if ($query === '') {
@@ -64,6 +65,13 @@ class OrderAssistantService
         if (empty($matches)) {
             return ['status' => 'not_found', 'candidates' => []];
         }
+
+        // Se recuerdan TODOS los ids que salieron de esta búsqueda real
+        // (el elegido, o los candidatos si quedó ambiguo) — createDraft()/
+        // changeClient() solo aceptan un client_id que haya pasado por
+        // aquí, para no confiar ciegamente en lo que "recuerde" el modelo
+        // de IA de una lista que mostró en un turno anterior.
+        $this->rememberResolved($conversationId, 'clients', array_column($matches, 'id'));
 
         if ($this->isClearWinner($matches)) {
             $top = $matches[0];
@@ -105,10 +113,53 @@ class OrderAssistantService
     }
 
     /**
+     * Guarda en la conversación qué ids de cliente/producto salieron de una
+     * búsqueda real, para poder validar después que crear_borrador_pedido/
+     * cambiar_cliente_pedido no manden un id que el modelo de IA se haya
+     * inventado (o "recordado mal") en vez de resolver de verdad.
+     */
+    private function rememberResolved(?int $conversationId, string $tipo, array $ids): void
+    {
+        if (! $conversationId || empty($ids)) {
+            return;
+        }
+
+        $conversation = AssistantConversation::find($conversationId);
+        if (! $conversation) {
+            return;
+        }
+
+        $ctx = $conversation->resolved_context ?? [];
+        $ctx[$tipo] = array_values(array_unique(array_merge($ctx[$tipo] ?? [], $ids)));
+        $conversation->update(['resolved_context' => $ctx]);
+    }
+
+    /**
+     * ¿Este id de cliente/producto salió de una búsqueda real en esta
+     * conversación? Sin conversationId (llamadas directas, tests, futura
+     * integración de WhatsApp sin este candado) no se bloquea nada — el
+     * candado es una capa extra, no la única validación.
+     */
+    private function wasResolved(?int $conversationId, string $tipo, int $id): bool
+    {
+        if (! $conversationId) {
+            return true;
+        }
+
+        $conversation = AssistantConversation::find($conversationId);
+        if (! $conversation) {
+            return true;
+        }
+
+        $ids = $conversation->resolved_context[$tipo] ?? [];
+        return in_array($id, $ids, true);
+    }
+
+    /**
      * Busca un producto por nombre/corte coloquial. Mismo formato de respuesta
      * que resolveClient().
      */
-    public function resolveProduct(string $query): array
+    public function resolveProduct(string $query, ?int $conversationId = null): array
     {
         $query = trim($query);
         if ($query === '') {
@@ -128,6 +179,8 @@ class OrderAssistantService
         if (empty($matches)) {
             return ['status' => 'not_found', 'candidates' => []];
         }
+
+        $this->rememberResolved($conversationId, 'products', array_column($matches, 'id'));
 
         if ($this->isClearWinner($matches)) {
             $top = $matches[0];
@@ -160,6 +213,16 @@ class OrderAssistantService
             return ['ok' => false, 'message' => 'No se especificó ningún producto para el pedido.'];
         }
 
+        // El client_id/product_id debe venir de una búsqueda real hecha en
+        // ESTA conversación (buscar_cliente/buscar_producto) — nunca de lo
+        // que el modelo de IA "recuerde" de un turno anterior. Sin este
+        // candado, un id inventado o mal recordado crea el pedido con un
+        // cliente/producto completamente distinto al que pidió el usuario,
+        // sin ningún error visible.
+        if (! empty($client['client_id']) && ! $this->wasResolved($conversationId, 'clients', (int) $client['client_id'])) {
+            return ['ok' => false, 'message' => 'Ese cliente no viene de una búsqueda válida en esta conversación. Usa buscar_cliente de nuevo antes de crear el pedido.'];
+        }
+
         $clientModel = ! empty($client['client_id']) ? Client::find($client['client_id']) : null;
 
         $lineItems = [];
@@ -171,6 +234,10 @@ class OrderAssistantService
 
             if (! $productId || $cantidad <= 0) {
                 return ['ok' => false, 'message' => 'Hay un producto o cantidad sin resolver correctamente. Usa buscar_producto primero.'];
+            }
+
+            if (! $this->wasResolved($conversationId, 'products', (int) $productId)) {
+                return ['ok' => false, 'message' => 'Uno de los productos no viene de una búsqueda válida en esta conversación. Usa buscar_producto de nuevo antes de crear el pedido.'];
             }
 
             $product = Product::find($productId);
@@ -332,6 +399,10 @@ class OrderAssistantService
 
         if ($order->status !== SalesOrder::S_BORRADOR) {
             return ['ok' => false, 'message' => 'Solo se puede cambiar el cliente de un pedido que sigue en borrador.'];
+        }
+
+        if (! $this->wasResolved($order->assistant_conversation_id, 'clients', $newClientId)) {
+            return ['ok' => false, 'message' => 'Ese cliente no viene de una búsqueda válida en esta conversación. Usa buscar_cliente de nuevo antes de cambiarlo.'];
         }
 
         $client = Client::find($newClientId);
