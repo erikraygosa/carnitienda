@@ -51,10 +51,10 @@
                 </label>
 
                 <div id="notas-lista" class="space-y-2">
-                    @if($notasPendientes->isEmpty())
-                        <p class="text-sm text-gray-400">
-                            {{ $preClientId ? 'Este cliente no tiene notas pendientes.' : 'Selecciona un cliente para ver sus notas.' }}
-                        </p>
+                    @if(!$preClientId)
+                        <p class="text-sm text-gray-400">Selecciona un cliente para ver sus notas.</p>
+                    @elseif($notasPendientes->isEmpty() && $ventasPendientes->isEmpty())
+                        <p class="text-sm text-gray-400">Este cliente no tiene notas pendientes.</p>
                     @else
                         @foreach($notasPendientes as $orden)
                         @php
@@ -84,6 +84,39 @@
                         </label>
                         @endforeach
 
+                        {{-- Notas de venta (mostrador) a crédito — antes no aparecían
+                             aquí, solo los pedidos, aunque un cliente pudiera deber
+                             por una nota de venta directa. --}}
+                        @foreach($ventasPendientes as $venta)
+                        @php
+                            $saldoVenta = (float)($venta->saldo_pendiente ?? $venta->total);
+                            $ventaParcial = $saldoVenta < (float)$venta->total;
+                        @endphp
+                        <label class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-indigo-50 cursor-pointer nota-item">
+                            <input type="checkbox" name="sale_ids[]" value="{{ $venta->id }}"
+                                   data-saldo="{{ $saldoVenta }}"
+                                   class="nota-chk rounded border-gray-300 text-indigo-600"
+                                   {{ in_array($venta->id, old('sale_ids', [])) ? 'checked' : '' }}>
+                            <div class="flex-1">
+                                <div class="text-sm font-medium text-gray-800">
+                                    {{ $venta->folio }}
+                                    <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 align-middle">Nota de venta</span>
+                                </div>
+                                <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($venta->fecha)->format('d/m/Y') }}</div>
+                            </div>
+                            <div class="text-right">
+                                @if($ventaParcial)
+                                    <div class="text-xs text-gray-400 line-through">${{ number_format($venta->total, 2) }}</div>
+                                @endif
+                                <div class="text-sm font-mono font-semibold {{ $ventaParcial ? 'text-amber-600' : 'text-gray-700' }}">
+                                    ${{ number_format($saldoVenta, 2) }}
+                                    @if($ventaParcial)
+                                        <span class="text-xs font-normal text-amber-500">pendiente</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </label>
+                        @endforeach
                     @endif
                 </div>
             </div>
@@ -227,7 +260,7 @@
 
         bindChks();
 
-        function itemHtml(o, checkboxName, checkboxClass) {
+        function itemHtml(o, checkboxName, checkboxClass, tipoLabel) {
             var tieneParcial = o.saldo_pendiente < o.total;
             var saldoFmt = Number(o.saldo_pendiente).toLocaleString('es-MX', {minimumFractionDigits:2});
             var totalFmt = Number(o.total).toLocaleString('es-MX', {minimumFractionDigits:2});
@@ -237,7 +270,9 @@
                 + ' data-saldo="' + o.saldo_pendiente + '"'
                 + ' class="' + checkboxClass + ' rounded border-gray-300 text-indigo-600">'
                 + '<div class="flex-1">'
-                + '<div class="text-sm font-medium text-gray-800">' + o.folio + '</div>'
+                + '<div class="text-sm font-medium text-gray-800">' + o.folio
+                + (tipoLabel ? ' <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 align-middle">' + tipoLabel + '</span>' : '')
+                + '</div>'
                 + '<div class="text-xs text-gray-500">' + o.fecha + '</div>'
                 + '</div>'
                 + '<div class="text-right">'
@@ -279,10 +314,14 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 var ordenes  = data.ordenes  || [];
+                var ventas   = data.ventas   || [];
                 var facturas = data.facturas || [];
 
-                notasLista.innerHTML = ordenes.length
-                    ? ordenes.map(function(o) { return itemHtml(o, 'order_ids[]', 'nota-chk'); }).join('')
+                var notasHtml = ordenes.map(function(o) { return itemHtml(o, 'order_ids[]', 'nota-chk'); }).join('')
+                    + ventas.map(function(v) { return itemHtml(v, 'sale_ids[]', 'nota-chk', 'Nota de venta'); }).join('');
+
+                notasLista.innerHTML = notasHtml
+                    ? notasHtml
                     : '<p class="text-sm text-gray-400">Este cliente no tiene notas pendientes.</p>';
 
                 if (facturas.length) {

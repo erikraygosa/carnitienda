@@ -35,13 +35,15 @@ class ArPaymentsController extends Controller implements HasMiddleware
         $preClientId = request('client_id');
 
         $notasPendientes     = collect();
+        $ventasPendientes    = collect();
         $facturasPendientes  = collect();
         if ($preClientId) {
             $notasPendientes    = $this->notasPendientesDe($preClientId);
+            $ventasPendientes   = $this->notasVentaPendientesDe($preClientId);
             $facturasPendientes = $this->facturasLibresPendientesDe($preClientId);
         }
 
-        return view('admin.ar.payments.create', compact('clients', 'types', 'preClientId', 'notasPendientes', 'facturasPendientes'));
+        return view('admin.ar.payments.create', compact('clients', 'types', 'preClientId', 'notasPendientes', 'ventasPendientes', 'facturasPendientes'));
     }
 
     private function notasPendientesDe($clientId)
@@ -49,6 +51,27 @@ class ArPaymentsController extends Controller implements HasMiddleware
         return SalesOrder::where('client_id', $clientId)
             ->where('payment_method', 'CREDITO')
             ->whereIn('status', ['ENTREGADO'])
+            ->whereNull('cobrado_at')
+            ->where(function($q) {
+                $q->whereNull('saldo_pendiente')
+                  ->orWhere('saldo_pendiente', '>', 0);
+            })
+            ->orderBy('fecha')
+            ->get(['id','folio','fecha','total','saldo_pendiente']);
+    }
+
+    /**
+     * Notas de venta (mostrador) a crédito pendientes de cobro de un cliente
+     * — igual que notasPendientesDe() pero para Sale, que no usaba este
+     * formulario de cobro manual: solo aparecían aquí los pedidos, así que
+     * un cliente con una nota de venta a crédito no la veía al registrar un
+     * cobro (ni desde el link "Cobrar CxC" en Liquidaciones).
+     */
+    private function notasVentaPendientesDe($clientId)
+    {
+        return Sale::where('client_id', $clientId)
+            ->where('tipo_venta', 'CREDITO')
+            ->whereIn('status', ['ENTREGADO', 'COMPLETADA'])
             ->whereNull('cobrado_at')
             ->where(function($q) {
                 $q->whereNull('saldo_pendiente')
@@ -96,6 +119,17 @@ class ArPaymentsController extends Controller implements HasMiddleware
                     : (float) $o->total,
             ]);
 
+        $ventas = $this->notasVentaPendientesDe($clientId)
+            ->map(fn($s) => [
+                'id'              => $s->id,
+                'folio'           => $s->folio,
+                'fecha'           => \Carbon\Carbon::parse($s->fecha)->format('d/m/Y'),
+                'total'           => (float) $s->total,
+                'saldo_pendiente' => ($s->saldo_pendiente !== null && (float)$s->saldo_pendiente > 0)
+                    ? (float) $s->saldo_pendiente
+                    : (float) $s->total,
+            ]);
+
         $facturas = $this->facturasLibresPendientesDe($clientId)
             ->map(fn($inv) => [
                 'id'              => $inv->id,
@@ -105,7 +139,7 @@ class ArPaymentsController extends Controller implements HasMiddleware
                 'saldo_pendiente' => (float) $inv->saldo_pendiente,
             ]);
 
-        return response()->json(['ordenes' => $orders->values(), 'facturas' => $facturas->values()]);
+        return response()->json(['ordenes' => $orders->values(), 'ventas' => $ventas->values(), 'facturas' => $facturas->values()]);
     }
 
     public function store(Request $request)
