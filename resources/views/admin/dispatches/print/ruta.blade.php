@@ -106,7 +106,9 @@
                 <td class="traspaso-destino">{{ $t?->toWarehouse?->nombre ?? '—' }}</td>
                 <td class="no-ticket prods">
                     @if($t)
-                        {{ $t->items->map(fn($it) => ($it->product?->nombre ?? '—') . ' × ' . number_format($it->qty, 3) . ' ' . ($it->product?->unidad ?? ''))->implode(' · ') }}
+                        @foreach($t->items as $it)
+                            <div>{{ $it->product?->nombre ?? '—' }} × {{ number_format($it->qty, 3) }} {{ $it->product?->unidad ?? '' }}</div>
+                        @endforeach
                     @else —
                     @endif
                 </td>
@@ -148,11 +150,11 @@
                         $o->entrega_colonia ?? '',
                         $o->entrega_ciudad  ?? '',
                     ])->filter()->implode(', ');
-                    $productosResumen = $o->items->map(fn($it) =>
+                    $productosLineas = $o->items->map(fn($it) =>
                         ($it->product?->nombre ?? $it->descripcion)
                         . ' × ' . number_format((float)$it->cantidad, 2)
                         . ' ' . ($it->product?->unidad ?? '')
-                    )->implode(' · ');
+                    );
                 @endphp
                 <tr>
                     <td style="font-weight:bold;color:#555;">{{ $i + 1 }}</td>
@@ -161,10 +163,14 @@
                     </td>
                     <td>
                         <div class="cliente">{{ $o->client?->nombre ?? '—' }}</div>
-                      
+
                     </td>
                     <td class="no-ticket dir">{{ $dir ?: '—' }}</td>
-                    <td class="prods">{{ $productosResumen }}</td>
+                    <td class="prods">
+                        @foreach($productosLineas as $linea)
+                            <div>{{ $linea }}</div>
+                        @endforeach
+                    </td>
                     <td class="text-right"><strong>${{ number_format($o->total, 2) }}</strong></td>
                     <td>
                         <span style="font-size:10px;padding:1px 5px;border-radius:9999px;border:1px solid #ccc;
