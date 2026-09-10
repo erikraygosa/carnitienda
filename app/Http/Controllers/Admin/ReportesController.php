@@ -100,7 +100,12 @@ class ReportesController extends Controller implements HasMiddleware
         $base = DispatchItem::query()
             ->join('dispatches',   'dispatches.id',   '=', 'dispatch_items.dispatch_id')
             ->join('sales_orders', 'sales_orders.id', '=', 'dispatch_items.sales_order_id')
-            ->whereIn('dispatches.status', ['EN_RUTA', 'CERRADO', 'ENTREGADO'])
+            // PLANEADO incluido a propósito: aunque el despacho todavía no
+            // salga, ya se sabe qué pedidos quedaron asignados a qué ruta —
+            // antes un despacho PLANEADO no aparecía aquí para nada, así que
+            // filtrar por fecha antes de que el despacho saliera no mostraba
+            // ningún pedido, aunque ya estuvieran asignados por ruta.
+            ->whereIn('dispatches.status', ['PLANEADO', 'EN_RUTA', 'CERRADO', 'ENTREGADO'])
             ->when($fecha,    fn($q) => $q->whereDate('dispatches.fecha', $fecha))
             ->when($routeId,  fn($q) => $q->where('dispatches.shipping_route_id', $routeId))
             ->when($driverId, fn($q) => $q->where('dispatches.driver_id', $driverId))
@@ -203,7 +208,10 @@ class ReportesController extends Controller implements HasMiddleware
             ->join('dispatches', 'dispatches.id', '=', 'dispatch_ar_assignments.dispatch_id')
             ->leftJoin('clients', 'clients.id', '=', 'dispatch_ar_assignments.client_id')
             ->leftJoin('shipping_routes', 'shipping_routes.id', '=', 'dispatches.shipping_route_id')
-            ->whereIn('dispatches.status', ['EN_RUTA', 'CERRADO', 'ENTREGADO'])
+            // Mismo criterio que buildLiquidacionesQuery() — incluir PLANEADO
+            // para ver las CxC ya asignadas a una ruta aunque el despacho
+            // todavía no haya salido.
+            ->whereIn('dispatches.status', ['PLANEADO', 'EN_RUTA', 'CERRADO', 'ENTREGADO'])
             ->when($fecha,    fn($q) => $q->whereDate('dispatches.fecha', $fecha))
             ->when($routeId,  fn($q) => $q->where('dispatches.shipping_route_id', $routeId))
             ->when($driverId, fn($q) => $q->where('dispatches.driver_id', $driverId))
