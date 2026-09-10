@@ -135,7 +135,7 @@ class AiChatService
 
                 $result = $this->runTool($name, $args, $conversation, $user);
 
-                if ($name === 'crear_borrador_pedido' && ($result['ok'] ?? false) && ($result['order'] ?? null)) {
+                if (in_array($name, ['crear_borrador_pedido', 'cambiar_cliente_pedido'], true) && ($result['ok'] ?? false) && ($result['order'] ?? null)) {
                     $draftOrder = $result['order'];
                 }
 
@@ -203,6 +203,7 @@ Reglas:
 7. Si el usuario rechaza o pide cancelar, usa cancelar_pedido con ese order_id.
 8. Una vez que ya confirmaste un pedido (usaste confirmar_pedido) o lo cancelaste, NUNCA vuelvas a llamar crear_borrador_pedido para esos mismos productos — ese pedido ya quedó resuelto. Si el usuario responde algo genérico después ("ok", "gracias", "va", etc.) sin mencionar un pedido nuevo, solo confírmale que ya quedó listo, no repitas ninguna herramienta.
 9. Solo llama crear_borrador_pedido de nuevo dentro de la misma conversación si el usuario claramente está pidiendo un pedido DISTINTO (otro cliente, u otros productos/cantidades que no sean los del pedido que ya se creó), O si solo está corrigiendo la fecha de ese mismo pedido (en ese caso manda los mismos productos con la fecha nueva — el sistema detecta que es el mismo pedido y solo actualiza la fecha, no lo duplica).
+9b. Si el usuario dice que el cliente del borrador NO es el correcto (ej. "ese no es", "no es ese cliente", "cámbialo a Fulano", "el cliente correcto es..."), NO crees un pedido nuevo — resuelve el cliente correcto con buscar_cliente y usa cambiar_cliente_pedido con el order_id del borrador ya creado. Muestra el resumen actualizado (el precio puede cambiar si el nuevo cliente tiene lista de precios distinta) y vuelve a preguntar si confirma.
 10. Si el usuario escribe algo entre paréntesis junto a un producto (ej. "10 kg milanesa de cerdo (descongelada)" o "5 de pata (para caldo)"), eso NO es parte del nombre del producto — es una nota de esa línea. Usa buscar_producto solo con el nombre limpio (sin el paréntesis), y al llamar crear_borrador_pedido manda ese texto (sin los paréntesis) en el campo "comentario" de esa línea, para que quede junto a la descripción del pedido. IMPORTANTE: el paréntesis NUNCA es una instrucción para agregar OTRA línea/producto, aunque mencione algo que suene a un producto distinto (ej. "codillo", "hueso", "molido") — es solo texto descriptivo de esa misma línea. El array "items" de crear_borrador_pedido debe tener EXACTAMENTE una línea por cada concepto que el usuario escribió separado por comas, ni una más. Ejemplo: "1 pernil (1 pieza codillo a parte), 2 pernil (2 piezas enteros)" son SOLO 2 líneas — ambas de pernil, cada una con su nota entre paréntesis — nunca una tercera línea de "codillo" aparte.
 10b. En sentido contrario: si el mismo producto y cantidad se repiten varias veces separados por comas, eso son VARIAS líneas independientes — NUNCA las sumes en una sola línea con la cantidad total. Ejemplo: "4 kg polomo rejalado, 4kg polomo rejalado, 4 kg polomo rejalado, 3 kg milanesa" son 4 líneas en total: 3 líneas separadas de 4 kg de polomo rejalado (NO una sola línea de 12 kg) más 1 línea de 3 kg de milanesa. Cuenta cuántas veces el usuario escribió el concepto y crea esa misma cantidad de líneas en "items".
 11. Si el usuario menciona en qué presentación pide un producto, mándala en el campo "presentacion" de esa línea: "pieza", "piezas" o "pz" → PIEZAS; "caja" o "cajas" → CAJAS; "kg", "kilo" o "kilos" → KILOS. Ej. "1 pierna de cerdo, piezas" → presentacion: PIEZAS; "10 de panza en cajas" → presentacion: CAJAS. Si no menciona ninguna, omite el campo (queda en blanco, igual que en el formulario manual — no es obligatorio).
@@ -289,6 +290,21 @@ PROMPT;
                     ],
                 ],
             ],
+            [
+                'type'     => 'function',
+                'function' => [
+                    'name'        => 'cambiar_cliente_pedido',
+                    'description' => 'Cambia el cliente de un pedido en borrador ya creado en esta conversación, cuando el cliente resuelto no era el correcto. El client_id debe venir de un buscar_cliente ya resuelto — nunca lo inventes.',
+                    'parameters'  => [
+                        'type'       => 'object',
+                        'properties' => [
+                            'order_id'  => ['type' => 'integer'],
+                            'client_id' => ['type' => 'integer'],
+                        ],
+                        'required' => ['order_id', 'client_id'],
+                    ],
+                ],
+            ],
         ];
     }
 
@@ -304,9 +320,10 @@ PROMPT;
                 $conversation->id,
                 $args['programado_para'] ?? null
             ),
-            'confirmar_pedido' => $this->findAndRun($args, fn ($order) => $this->orders->confirm($order, $user)),
-            'cancelar_pedido'  => $this->findAndRun($args, fn ($order) => $this->orders->cancel($order, $user)),
-            default            => ['ok' => false, 'message' => "Herramienta desconocida: {$name}."],
+            'confirmar_pedido'       => $this->findAndRun($args, fn ($order) => $this->orders->confirm($order, $user)),
+            'cancelar_pedido'        => $this->findAndRun($args, fn ($order) => $this->orders->cancel($order, $user)),
+            'cambiar_cliente_pedido' => $this->findAndRun($args, fn ($order) => $this->orders->changeClient($order, (int) ($args['client_id'] ?? 0), $user)),
+            default                  => ['ok' => false, 'message' => "Herramienta desconocida: {$name}."],
         };
     }
 
