@@ -226,6 +226,7 @@ Route::post('dispatches/{dispatch}/entregar',  [DispatchController::class,'entre
 Route::post('dispatches/{dispatch}/cancelar',  [DispatchController::class,'cancelar'])->name('dispatches.cancelar');
 
 // Agregar pedidos/CxC a un despacho ya creado (solo mientras está PLANEADO)
+Route::post('dispatches/{dispatch}/traspasos/agregar', [DispatchController::class,'agregarTraspasos'])->name('dispatches.traspasos.agregar');
 Route::post('dispatches/{dispatch}/pedidos/agregar', [DispatchController::class,'agregarPedidos'])->name('dispatches.pedidos.agregar');
 Route::post('dispatches/{dispatch}/cxc/agregar',     [DispatchController::class,'agregarCxc'])->name('dispatches.cxc.agregar');
 

@@ -281,7 +281,16 @@ class DispatchController extends Controller implements HasMiddleware
         // no estén ya asignados a ESTE despacho.
         $pedidosDisponibles = collect();
         $clientesConSaldoDisponibles = collect();
+        $traspasosDisponibles = collect();
         if ($dispatch->status === 'PLANEADO') {
+            // Traspasos PENDIENTES sin asignar a ningún despacho — mismo
+            // candidato que se usa al crear el despacho (create()), pero
+            // aquí para poder seguírselos agregando después.
+            $traspasosDisponibles = StockTransfer::where('status', 'PENDIENTE')
+                ->with(['fromWarehouse:id,nombre', 'toWarehouse:id,nombre'])
+                ->withCount('items')
+                ->latest()
+                ->get();
             // Sin límite: con un tope fijo (antes 200) los pedidos más
             // viejos quedaban invisibles y sin forma de buscarlos — el
             // buscador de la pantalla filtra en el navegador sobre lo que
@@ -314,11 +323,45 @@ class DispatchController extends Controller implements HasMiddleware
         return view('admin.dispatches.edit', compact(
             'dispatch', 'warehouses', 'routes', 'drivers',
             'statusClasses', 'paymentTypes', 'cajasAbiertas',
-            'pedidosDisponibles', 'clientesConSaldoDisponibles'
+            'pedidosDisponibles', 'clientesConSaldoDisponibles', 'traspasosDisponibles'
         ));
     }
 
-    // ── Agregar pedidos/CxC a un despacho ya creado (mientras sigue PLANEADO) ──
+    // ── Agregar traspasos/pedidos/CxC a un despacho ya creado (mientras sigue PLANEADO) ──
+
+    public function agregarTraspasos(Request $request, Dispatch $dispatch)
+    {
+        if ($dispatch->status !== 'PLANEADO') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo se pueden agregar traspasos mientras el despacho está Planeado.']);
+        }
+
+        $data = $request->validate([
+            'transfers'   => ['required', 'array', 'min:1'],
+            'transfers.*' => ['integer', 'exists:stock_transfers,id'],
+        ], [
+            'transfers.required' => 'Selecciona al menos un traspaso.',
+        ]);
+
+        $transfers = StockTransfer::whereIn('id', $data['transfers'])
+            ->where('status', 'PENDIENTE')
+            ->get();
+
+        if ($transfers->isEmpty()) {
+            return back()->with('swal', ['icon' => 'info', 'title' => 'Sin cambios', 'text' => 'Esos traspasos ya no están pendientes (alguien más los tomó).']);
+        }
+
+        foreach ($transfers as $t) {
+            DispatchTransferAssignment::create([
+                'dispatch_id'       => $dispatch->id,
+                'stock_transfer_id' => $t->id,
+                'status'            => 'PENDIENTE',
+            ]);
+            $t->update(['status' => 'ASIGNADO', 'dispatch_id' => $dispatch->id]);
+        }
+
+        $this->log->log($dispatch, 'TRASPASOS_AGREGADOS', null, null, null, count($transfers) . ' traspaso(s) agregado(s) al despacho.');
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Agregado', 'text' => count($transfers) . ' traspaso(s) agregado(s) al despacho.']);
+    }
 
     public function agregarPedidos(Request $request, Dispatch $dispatch)
     {

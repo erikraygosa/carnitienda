@@ -460,7 +460,14 @@
         });
 
         document.getElementById('check-all-orders')?.addEventListener('change', function() {
-            document.querySelectorAll('.order-check').forEach(function(c) { c.checked = this.checked; }.bind(this));
+            var checked = this.checked;
+            // Solo los pedidos visibles con el filtro actual (fecha/búsqueda) —
+            // antes marcaba TODOS aunque el filtro de fecha ocultara el resto.
+            document.querySelectorAll('.order-row').forEach(function(row) {
+                if (row.style.display === 'none') return;
+                var cb = row.querySelector('.order-check');
+                if (cb) cb.checked = checked;
+            });
             updateCounters();
         });
 

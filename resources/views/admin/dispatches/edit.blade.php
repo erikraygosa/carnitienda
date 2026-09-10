@@ -170,12 +170,18 @@
     </x-wire-card>
 
     {{-- ══ 1. TRASPASOS ══ --}}
-    @if($traspasosTotal > 0)
+    @if($traspasosTotal > 0 || $dispatch->status === 'PLANEADO')
     <x-wire-card class="mt-4">
         <div class="flex items-center gap-2 mb-3">
             <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">1</span>
             <h3 class="font-semibold text-gray-800">Traspasos</h3>
             <span class="text-sm font-normal text-gray-400">({{ $traspasosCompletos }}/{{ $traspasosTotal }} completados)</span>
+            @if($dispatch->status === 'PLANEADO')
+                <button type="button" id="btn-toggle-add-traspasos"
+                        class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">
+                    + Agregar traspasos
+                </button>
+            @endif
             @if($enRuta && $traspasosPendientesIds->count() > 0)
                 <div class="ml-auto flex gap-2">
                     <form action="{{ route('admin.dispatches.traspasos.bulk', $dispatch) }}" method="POST">
@@ -205,6 +211,11 @@
                 </div>
             @endif
         </div>
+        @if($traspasosTotal === 0)
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-400 text-center">
+                Este despacho no tiene traspasos asignados todavía.
+            </div>
+        @else
         <div class="overflow-auto border rounded">
             <table class="min-w-full text-sm">
                 <thead class="bg-gray-50 border-b">
@@ -278,6 +289,62 @@
                 </tbody>
             </table>
         </div>
+        @endif
+
+        {{-- Panel para agregar más traspasos mientras el despacho sigue PLANEADO --}}
+        @if($dispatch->status === 'PLANEADO')
+        <div id="panel-add-traspasos" class="hidden mt-4 border-t pt-4">
+            <form action="{{ route('admin.dispatches.traspasos.agregar', $dispatch) }}" method="POST">
+                @csrf
+                <div class="flex items-center gap-2 mb-2">
+                    <input type="text" id="buscar-traspaso-disponible" placeholder="Buscar por folio, origen o destino..."
+                           class="flex-1 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <span class="text-xs text-gray-400"><span id="traspasos-disp-count">0</span> seleccionado(s)</span>
+                    <button type="submit"
+                            class="inline-flex items-center px-3 py-1.5 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+                        Agregar seleccionados
+                    </button>
+                </div>
+                @if($traspasosDisponibles->isEmpty())
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-400 text-center">
+                        No hay traspasos PENDIENTES sin asignar por el momento.
+                    </div>
+                @else
+                    <div class="overflow-auto border rounded max-h-72">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-gray-50 border-b sticky top-0">
+                                <tr>
+                                    <th class="p-2 w-8"></th>
+                                    <th class="p-2 text-left">Folio</th>
+                                    <th class="p-2 text-left">Origen</th>
+                                    <th class="p-2 text-left">Destino</th>
+                                    <th class="p-2 text-right">Productos</th>
+                                    <th class="p-2 text-left">Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($traspasosDisponibles as $td)
+                                <tr class="border-b hover:bg-gray-50 traspaso-disp-row"
+                                    data-search="{{ strtolower($td->folio.' '.($td->fromWarehouse?->nombre ?? '').' '.($td->toWarehouse?->nombre ?? '')) }}">
+                                    <td class="p-2">
+                                        <input type="checkbox" name="transfers[]" value="{{ $td->id }}" class="traspaso-disp-check rounded border-gray-300">
+                                    </td>
+                                    <td class="p-2 font-mono text-xs text-indigo-600">
+                                        <a href="{{ route('admin.stock.transfers.show', $td) }}" target="_blank">{{ $td->folio }}</a>
+                                    </td>
+                                    <td class="p-2 text-gray-700">{{ $td->fromWarehouse?->nombre ?? '—' }}</td>
+                                    <td class="p-2 text-gray-700">{{ $td->toWarehouse?->nombre ?? '—' }}</td>
+                                    <td class="p-2 text-right text-gray-500">{{ $td->items_count ?? 0 }} prod.</td>
+                                    <td class="p-2 text-gray-400 text-xs">{{ $td->fecha->format('d/m/Y') }}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </form>
+        </div>
+        @endif
     </x-wire-card>
     @endif
 
@@ -1133,6 +1200,34 @@
                 if (icon) icon.textContent = isHidden ? '▲' : '▼';
             });
         });
+
+        // ── Agregar traspasos (mientras el despacho sigue PLANEADO) ───────
+        (function() {
+            var btnToggle = document.getElementById('btn-toggle-add-traspasos');
+            var panel     = document.getElementById('panel-add-traspasos');
+            if (btnToggle && panel) {
+                btnToggle.addEventListener('click', function() {
+                    panel.classList.toggle('hidden');
+                });
+            }
+
+            var buscar = document.getElementById('buscar-traspaso-disponible');
+            if (buscar) {
+                buscar.addEventListener('input', function() {
+                    var term = this.value.toLowerCase().trim();
+                    document.querySelectorAll('.traspaso-disp-row').forEach(function(row) {
+                        row.style.display = row.dataset.search.includes(term) ? '' : 'none';
+                    });
+                });
+            }
+
+            var countEl = document.getElementById('traspasos-disp-count');
+            document.querySelectorAll('.traspaso-disp-check').forEach(function(chk) {
+                chk.addEventListener('change', function() {
+                    if (countEl) countEl.textContent = document.querySelectorAll('.traspaso-disp-check:checked').length;
+                });
+            });
+        })();
 
         // ── Agregar pedidos (mientras el despacho sigue PLANEADO) ─────────
         (function() {
