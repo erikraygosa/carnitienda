@@ -79,6 +79,8 @@ class OrderAssistantService
             return ['status' => 'found', 'client_id' => $top['id'], 'nombre' => $top['nombre']];
         }
 
+        $this->rememberLastCandidates($conversationId, 'clients', $matches);
+
         return ['status' => 'ambiguous', 'candidates' => $matches];
     }
 
@@ -188,7 +190,36 @@ class OrderAssistantService
             return ['status' => 'found', 'product_id' => $top['id'], 'nombre' => $top['nombre']];
         }
 
+        $this->rememberLastCandidates($conversationId, 'products', $matches);
+
         return ['status' => 'ambiguous', 'candidates' => $matches];
+    }
+
+    /**
+     * Guarda la ÚLTIMA lista de candidatos mostrada como ambigua, en el
+     * mismo orden en que se le presentó al usuario (1, 2, 3...). Se usa
+     * para poder interpretar de forma determinista una respuesta que sea
+     * solo un número ("2") sin depender de que el modelo de IA recuerde
+     * bien su propia lista y vuelva a buscar por su cuenta — ver
+     * AiChatService::numericSelectionHint().
+     */
+    private function rememberLastCandidates(?int $conversationId, string $tipo, array $matches): void
+    {
+        if (! $conversationId) {
+            return;
+        }
+
+        $conversation = AssistantConversation::find($conversationId);
+        if (! $conversation) {
+            return;
+        }
+
+        $ctx = $conversation->resolved_context ?? [];
+        $ctx['last_candidates'] = [
+            'type'  => $tipo,
+            'items' => array_map(fn ($m) => ['id' => $m['id'], 'nombre' => $m['nombre']], $matches),
+        ];
+        $conversation->update(['resolved_context' => $ctx]);
     }
 
     /**
