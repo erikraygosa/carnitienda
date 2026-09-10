@@ -279,6 +279,62 @@ class OrderAssistantService
         return ['ok' => true, 'order' => $order->fresh(['items.product', 'client'])];
     }
 
+    /**
+     * Cambia el cliente de un pedido en borrador ya creado — para cuando la
+     * resolución automática/fuzzy acertó mal o el usuario simplemente se
+     * equivocó al dictarlo. Recalcula precios (por si el nuevo cliente tiene
+     * lista de precios u overrides distintos), forma de pago/crédito y tipo
+     * de entrega igual que si se hubiera creado el borrador con ese cliente
+     * desde el principio.
+     */
+    public function changeClient(SalesOrder $order, int $newClientId, User $user): array
+    {
+        if (! $user->can('crear pedidos')) {
+            return ['ok' => false, 'message' => 'No tienes permiso para modificar este pedido.'];
+        }
+
+        if ($order->status !== SalesOrder::S_BORRADOR) {
+            return ['ok' => false, 'message' => 'Solo se puede cambiar el cliente de un pedido que sigue en borrador.'];
+        }
+
+        $client = Client::find($newClientId);
+        if (! $client) {
+            return ['ok' => false, 'message' => "El cliente con id {$newClientId} no existe."];
+        }
+
+        DB::transaction(function () use ($order, $client) {
+            $order->loadMissing('items.product');
+
+            $subtotal = 0.0;
+            foreach ($order->items as $item) {
+                if ($item->product) {
+                    $item->precio = $this->resolvePrecio($client, $item->product);
+                    $item->total  = max($item->cantidad * $item->precio - $item->descuento, 0) + $item->impuesto;
+                    $item->save();
+                }
+                $subtotal += (float) $item->cantidad * (float) $item->precio;
+            }
+
+            $paymentMethod = SalesOrder::PM_CREDITO;
+
+            $order->update([
+                'client_id'           => $client->id,
+                'price_list_id'       => $client->price_list_id,
+                'shipping_route_id'   => $client->shipping_route_id,
+                'delivery_type'       => $client->shipping_route_id ? 'ENVIO' : 'RECOGER',
+                'payment_method'      => $paymentMethod,
+                'credit_days'         => (int) ($client->credito_dias ?? 0),
+                'subtotal'            => $subtotal,
+                'total'               => $subtotal,
+                'contraentrega_total' => 0,
+            ]);
+        });
+
+        $this->log->log($order, 'EDITADO', null, null, $user->id, "Cliente cambiado a {$client->nombre} vía chat de asistencia.");
+
+        return ['ok' => true, 'order' => $order->fresh(['items.product', 'client'])];
+    }
+
     public function confirm(SalesOrder $order, User $user): array
     {
         if (! $user->can('crear pedidos')) {
