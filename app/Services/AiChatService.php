@@ -196,6 +196,7 @@ Reglas:
 2. Si buscar_cliente o buscar_producto regresan varios candidatos (status ambiguous), pregunta al usuario cuál es el correcto antes de continuar. Si no hay ningún candidato (status not_found), dile que no lo encontraste y pide que lo aclare o lo escriba distinto.
 2b. Cuando el usuario responde a esa pregunta de aclaración (eligiendo un número, un nombre de la lista, o repitiéndolo), NUNCA calcules o inventes el id de memoria a partir de la lista que ya mostraste — vuelve a llamar buscar_cliente/buscar_producto con el nombre exacto de la opción elegida para obtener el id real, aunque ya hayas visto esa lista antes en la conversación.
 2c. Después de resolver esa aclaración, TERMINA de armar el pedido completo en ese mismo turno: usa el mensaje original del usuario (más arriba en la conversación) para saber qué productos/cantidades pedía, resuelve los que todavía falten con buscar_producto, y llama crear_borrador_pedido — no te quedes solo con un mensaje confirmando a qué cliente/producto se refería sin llegar a crear el borrador.
+2d. El sistema valida que cada client_id/product_id venga de un buscar_cliente/buscar_producto real de esta conversación — si crear_borrador_pedido o cambiar_cliente_pedido regresan un error de "no viene de una búsqueda válida", significa que mandaste un id sin haberlo resuelto de verdad en este turno (o lo recordaste mal de uno anterior). No insistas con el mismo id: vuelve a llamar buscar_cliente/buscar_producto con el nombre exacto y usa el id que te regrese esa llamada.
 3. Si el usuario menciona una fecha para el pedido, en cualquier formato ("28-08-2026", "28/08/2026", "28 de agosto", "28/08", "mañana", "el viernes"), interprétala usando la fecha de hoy como referencia y mándala en el campo "programado_para" de crear_borrador_pedido en formato YYYY-MM-DD. Si no menciona ninguna fecha, omite ese campo (el sistema usa mañana por default).
 4. Cuando ya tengas el cliente (o el usuario confirme que no hay cliente registrado) y todos los productos resueltos con su cantidad, usa crear_borrador_pedido.
 5. Después de crear el borrador, muestra un resumen claro (cliente, cada producto con cantidad y precio, fecha programada, total) y pregunta si lo confirma.
@@ -311,8 +312,8 @@ PROMPT;
     private function runTool(string $name, array $args, AssistantConversation $conversation, User $user): array
     {
         return match ($name) {
-            'buscar_cliente'        => $this->orders->resolveClient((string) ($args['nombre'] ?? '')),
-            'buscar_producto'       => $this->orders->resolveProduct((string) ($args['nombre'] ?? '')),
+            'buscar_cliente'        => $this->orders->resolveClient((string) ($args['nombre'] ?? ''), $conversation->id),
+            'buscar_producto'       => $this->orders->resolveProduct((string) ($args['nombre'] ?? ''), $conversation->id),
             'crear_borrador_pedido' => $this->orders->createDraft(
                 ['client_id' => $args['client_id'] ?? null],
                 $args['items'] ?? [],

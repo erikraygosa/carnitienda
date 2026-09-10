@@ -6,7 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class AssistantConversation extends Model
 {
-    protected $fillable = ['user_id'];
+    protected $fillable = ['user_id', 'resolved_context'];
+
+    protected $casts = [
+        'resolved_context' => 'array',
+    ];
 
     public function user()
     {
