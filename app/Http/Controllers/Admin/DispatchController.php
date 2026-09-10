@@ -1263,6 +1263,7 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
     $dispatch->load([
         'items.salesOrder.client',
         'items.salesOrder.items.product',   // ← agregar .product
+        'items.lines',                      // ← para marcar en rojo lo que falta surtir
         'arAssignments.client',
         'transferAssignments.stockTransfer.fromWarehouse',
         'transferAssignments.stockTransfer.toWarehouse',

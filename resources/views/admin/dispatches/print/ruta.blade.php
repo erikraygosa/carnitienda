@@ -155,18 +155,28 @@
                         . ' × ' . number_format((float)$it->cantidad, 2)
                         . ' ' . ($it->product?->unidad ?? '')
                     );
+                    // Mismo criterio que en dispatches/edit — pedido PROCESADO
+                    // que no ha pasado (completo) por Salida de Producto. Se
+                    // marca en rojo para que se vea de volada en la hoja
+                    // impresa que a ese pedido todavía le falta surtirse.
+                    $totalItemsPedido   = $o->items->count();
+                    $itemsSurtidosCount = $item->lines->whereNotNull('qty_despachada')->pluck('sales_order_item_id')->unique()->count();
+                    $faltaSurtir        = $o->status === 'PROCESADO' && ($totalItemsPedido === 0 || $itemsSurtidosCount < $totalItemsPedido);
                 @endphp
-                <tr>
-                    <td style="font-weight:bold;color:#555;">{{ $i + 1 }}</td>
+                <tr style="{{ $faltaSurtir ? 'color:#dc2626;' : '' }}">
+                    <td style="font-weight:bold;{{ $faltaSurtir ? 'color:#dc2626;' : 'color:#555;' }}">{{ $i + 1 }}</td>
                    <td>
-                        <div class="folio">{{ $o->folio }}</div>
+                        <div class="folio" style="{{ $faltaSurtir ? 'color:#dc2626;font-weight:bold;' : '' }}">{{ $o->folio }}</div>
+                        @if($faltaSurtir)
+                            <div style="font-size:9px;font-weight:bold;color:#dc2626;">⏳ FALTA SURTIR</div>
+                        @endif
                     </td>
                     <td>
-                        <div class="cliente">{{ $o->client?->nombre ?? '—' }}</div>
+                        <div class="cliente" style="{{ $faltaSurtir ? 'color:#dc2626;' : '' }}">{{ $o->client?->nombre ?? '—' }}</div>
 
                     </td>
-                    <td class="no-ticket dir">{{ $dir ?: '—' }}</td>
-                    <td class="prods">
+                    <td class="no-ticket dir" style="{{ $faltaSurtir ? 'color:#dc2626;' : '' }}">{{ $dir ?: '—' }}</td>
+                    <td class="prods" style="{{ $faltaSurtir ? 'color:#dc2626;' : '' }}">
                         @foreach($productosLineas as $linea)
                             <div>{{ $linea }}</div>
                         @endforeach
