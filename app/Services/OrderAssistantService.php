@@ -58,7 +58,7 @@ class OrderAssistantService
             return ['status' => 'not_found', 'candidates' => []];
         }
 
-        if (count($matches) === 1 || $matches[0]['score'] >= self::UMBRAL_CONFIANZA) {
+        if ($this->isClearWinner($matches)) {
             $top = $matches[0];
             ClientAlias::firstOrCreate(['client_id' => $top['id'], 'alias' => $this->normalize($query)]);
             return ['status' => 'found', 'client_id' => $top['id'], 'nombre' => $top['nombre']];
@@ -92,7 +92,7 @@ class OrderAssistantService
             return ['status' => 'not_found', 'candidates' => []];
         }
 
-        if (count($matches) === 1 || $matches[0]['score'] >= self::UMBRAL_CONFIANZA) {
+        if ($this->isClearWinner($matches)) {
             $top = $matches[0];
             ProductAlias::firstOrCreate(['product_id' => $top['id'], 'alias' => $this->normalize($query)]);
             return ['status' => 'found', 'product_id' => $top['id'], 'nombre' => $top['nombre']];
@@ -458,15 +458,43 @@ class OrderAssistantService
      * @param array<int, string> $candidates id => nombre
      * @return array<int, array{id: int, nombre: string, score: float}>
      */
+    /**
+     * ¿El primer candidato es un ganador claro (se puede resolver solo, sin
+     * preguntar)? Solo cuando es el único candidato, o cuando tiene
+     * confianza alta Y no hay otro candidato empatado en el mismo score —
+     * un empate significa que en realidad SÍ es ambiguo (ej. dos clientes
+     * "Juan Pérez" distintos) y no se debe elegir uno al azar.
+     *
+     * @param array<int, array{id: int, nombre: string, score: float}> $matches
+     */
+    private function isClearWinner(array $matches): bool
+    {
+        if (count($matches) === 1) {
+            return true;
+        }
+
+        return $matches[0]['score'] >= self::UMBRAL_CONFIANZA
+            && $matches[0]['score'] > $matches[1]['score'];
+    }
+
     private function bestMatches(string $query, array $candidates, int $limit = 3): array
     {
-        $q = $this->normalize($query);
+        $q      = $this->normalize($query);
+        $qWords = array_values(array_filter(explode(' ', $q), fn ($w) => $w !== ''));
         $scored = [];
 
         foreach ($candidates as $id => $nombre) {
             $n = $this->normalize((string) $nombre);
-            similar_text($q, $n, $pct);
-            $score = $pct / 100;
+
+            // Puntúa por PALABRAS, no por la cadena completa letra por
+            // letra: un nombre con más palabras que la búsqueda (ej.
+            // "CRISTINA GUADALUPE PECH SOLÍS" contra "cristina pech") no
+            // debe quedar en desventaja frente a un candidato más corto
+            // que por pura coincidencia de letras saca mejor puntaje con
+            // similar_text() (ej. "MIRNA PECH"). Si cada palabra de la
+            // búsqueda aparece en el nombre del candidato, es un match
+            // fuerte sin importar cuántas palabras más tenga el candidato.
+            $score = $this->wordOverlapScore($qWords, array_values(array_filter(explode(' ', $n), fn ($w) => $w !== '')));
 
             if ($n !== '' && (str_contains($n, $q) || str_contains($q, $n))) {
                 $score = max($score, 0.9);
@@ -480,5 +508,37 @@ class OrderAssistantService
         usort($scored, fn ($a, $b) => $b['score'] <=> $a['score']);
 
         return array_slice($scored, 0, $limit);
+    }
+
+    /**
+     * Qué proporción de las palabras de la búsqueda aparecen en el
+     * candidato (exactas, o muy parecidas para tolerar typos por letra).
+     * Palabras de más en el candidato (segundo nombre, apellido materno,
+     * etc.) no penalizan — solo importa que las palabras que SÍ escribió
+     * el usuario estén ahí.
+     */
+    private function wordOverlapScore(array $queryWords, array $candidateWords): float
+    {
+        if (empty($queryWords)) {
+            return 0.0;
+        }
+
+        $matched = 0;
+        foreach ($queryWords as $qw) {
+            $best = 0.0;
+            foreach ($candidateWords as $cw) {
+                if ($qw === $cw) {
+                    $best = 1.0;
+                    break;
+                }
+                similar_text($qw, $cw, $pct);
+                $best = max($best, $pct / 100);
+            }
+            if ($best >= 0.75) {
+                $matched++;
+            }
+        }
+
+        return $matched / count($queryWords);
     }
 }
