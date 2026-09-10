@@ -8,6 +8,7 @@ class ArPaymentItem extends Model
     protected $fillable = [
         'ar_payment_id',
         'sales_order_id',
+        'sale_id',
         'invoice_id',
         'monto_aplicado',
     ];
@@ -24,6 +25,12 @@ class ArPaymentItem extends Model
     public function salesOrder()
     {
         return $this->belongsTo(SalesOrder::class);
+    }
+
+    /** Nota de venta (mostrador) cubierta directamente, cuando aplica a una Sale y no a un pedido. */
+    public function sale()
+    {
+        return $this->belongsTo(Sale::class);
     }
 
     /**
@@ -45,11 +52,13 @@ class ArPaymentItem extends Model
             : $this->salesOrder?->invoice;
     }
 
-    /** Cliente de la nota o de la factura libre, según cuál aplique. */
+    /** Cliente de la nota (pedido o venta de mostrador) o de la factura libre, según cuál aplique. */
     public function relatedClient(): ?Client
     {
-        return $this->invoice_id
-            ? $this->invoiceLibre?->client
-            : $this->salesOrder?->client;
+        if ($this->invoice_id) {
+            return $this->invoiceLibre?->client;
+        }
+
+        return $this->sale_id ? $this->sale?->client : $this->salesOrder?->client;
     }
 }

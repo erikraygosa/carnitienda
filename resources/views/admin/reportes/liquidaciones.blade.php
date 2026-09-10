@@ -78,6 +78,37 @@
 
     </x-wire-card>
 
+    {{-- Notas de venta (mostrador) a crédito — mismos filtros de fecha/ruta/estatus
+         de arriba, pero es una lista aparte porque una Sale no pasa por
+         despacho/ruta como un pedido. Se puede ver y liquidar (dar de baja)
+         igual que a los pedidos. --}}
+    <x-wire-card class="mt-6">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                <i class="fa-solid fa-cash-register mr-1.5 opacity-60"></i>
+                Notas de venta a crédito
+            </h3>
+            <span id="lqv-summary" class="text-xs text-gray-500"></span>
+        </div>
+
+        <div id="lqv-bulk-bar" class="hidden mb-4 flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg border border-emerald-300 bg-emerald-50">
+            <span id="lqv-bulk-count" class="text-sm font-medium text-emerald-800"></span>
+            <div class="flex items-center gap-3">
+                <span id="lqv-bulk-total" class="text-sm font-bold text-emerald-800"></span>
+                <button type="button" id="lqv-bulk-clear" class="text-xs text-emerald-700 hover:underline">Quitar selección</button>
+                <button type="button" id="lqv-bulk-liquidar"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700">
+                    <i class="fa-solid fa-money-bill-wave"></i>
+                    Liquidar en efectivo
+                </button>
+            </div>
+        </div>
+
+        <div id="lqv-body" class="overflow-x-auto">
+            <div class="text-center py-8 text-gray-400">Cargando...</div>
+        </div>
+    </x-wire-card>
+
     <script>
     (function(){
         const CONCENTRADO_URL     = '{{ route('admin.reportes.liquidaciones.concentrado') }}';
@@ -129,6 +160,8 @@
             } catch(e) {
                 $('lq-body').innerHTML = `<div class="text-center py-8 text-red-400">Error cargando datos.</div>`;
             }
+
+            loadVentas(params);
         }
 
         function pedidoBadge(label, cls) {
@@ -142,7 +175,7 @@
         // que refrescar a mano.
         function liqBadge(n, arPaymentUrl) {
             const badge = pedidoBadge(n.estatus, n.liq_class);
-            if (n.estatus !== 'PENDIENTE' || !n.client_id || !arPaymentUrl) return badge;
+            if (!['PENDIENTE', 'PARCIAL'].includes(n.estatus) || !n.client_id || !arPaymentUrl) return badge;
             const url = `${arPaymentUrl}?client_id=${n.client_id}`;
             return `<a href="${url}" onclick="abrirCobroCxc(event, '${url}')" class="hover:opacity-75" title="Cobrar CxC de este cliente">${badge}</a>`;
         }
@@ -184,14 +217,17 @@
             let html = '';
             data.rutas.forEach(grupo => {
                 const rows = grupo.notas.map(n => {
-                    const seleccionable = n.estatus === 'PENDIENTE' && n.client_id && n.order_id;
+                    const seleccionable = ['PENDIENTE', 'PARCIAL'].includes(n.estatus) && n.client_id && n.order_id;
                     const marcada = seleccionable && seleccionadas.has(n.order_id);
                     const check = seleccionable
                         ? `<input type="checkbox" class="lq-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                                   ${marcada ? 'checked' : ''}
-                                  data-order-id="${n.order_id}" data-cliente="${escHtml(n.cliente)}" data-monto="${n.total}"
+                                  data-order-id="${n.order_id}" data-cliente="${escHtml(n.cliente)}" data-monto="${n.saldo_pendiente}"
                                   onchange="toggleSeleccion(this)">`
                         : '';
+                    const montoCell = n.saldo_pendiente < n.total
+                        ? `${fmtMoney(n.total)}<div class="text-xs text-sky-600">Falta ${fmtMoney(n.saldo_pendiente)}</div>`
+                        : fmtMoney(n.total);
                     return `
                     <tr class="hover:bg-gray-50">
                         <td class="px-3 py-2 text-center">${check}</td>
@@ -203,7 +239,7 @@
                             <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium ${n.ronda === 2 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500'}">${n.ronda === 2 ? '2da' : '1ra'}</span>
                         </td>
                         <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${n.fecha}</td>
-                        <td class="px-3 py-2 text-sm text-right font-mono font-semibold text-gray-800">${fmtMoney(n.total)}</td>
+                        <td class="px-3 py-2 text-sm text-right font-mono font-semibold text-gray-800">${montoCell}</td>
                         <td class="px-3 py-2 text-center">${pedidoBadge(n.estatus_pedido, n.pedido_class)}</td>
                         <td class="px-3 py-2 text-center">${liqBadge(n, data.ar_payment_url)}</td>
                     </tr>
@@ -478,6 +514,162 @@
             $('lq-estatus').value = 'todas';
             $('lq-ronda').value   = '';
             load();
+        });
+
+        // ── Notas de venta (mostrador) a crédito ────────────────────────────
+        const SALES_DATA_URL = '{{ route('admin.reportes.liquidaciones.sales-data') }}';
+        let seleccionadasVenta = new Map(); // sale_id -> {cliente, monto}
+
+        async function loadVentas(params) {
+            $('lqv-body').innerHTML = `<div class="text-center py-8 text-gray-400">Cargando...</div>`;
+            $('lqv-summary').textContent = '';
+            seleccionadasVenta.clear();
+            actualizarBarraVenta();
+
+            try {
+                const res  = await fetch(`${SALES_DATA_URL}?${params}`, { headers: { 'Accept': 'application/json' } });
+                const data = await res.json();
+                renderVentas(data);
+            } catch (e) {
+                $('lqv-body').innerHTML = `<div class="text-center py-8 text-red-400">Error cargando datos.</div>`;
+            }
+        }
+
+        function renderVentas(data) {
+            const notas = data.notas || [];
+            $('lqv-summary').textContent = `${notas.length} nota(s) — Total: ${fmtMoney(data.total_monto)}`;
+
+            if (notas.length === 0) {
+                $('lqv-body').innerHTML = `<div class="text-center py-8 text-gray-400">Sin notas de venta a crédito para los filtros seleccionados.</div>`;
+                return;
+            }
+
+            const rows = notas.map(n => {
+                const seleccionable = ['PENDIENTE', 'PARCIAL'].includes(n.estatus) && n.client_id && n.sale_id;
+                const check = seleccionable
+                    ? `<input type="checkbox" class="lqv-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                              data-sale-id="${n.sale_id}" data-cliente="${escHtml(n.cliente)}" data-monto="${n.saldo_pendiente}"
+                              onchange="toggleSeleccionVenta(this)">`
+                    : '';
+                const montoCell = n.saldo_pendiente < n.total
+                    ? `${fmtMoney(n.total)}<div class="text-xs text-sky-600">Falta ${fmtMoney(n.saldo_pendiente)}</div>`
+                    : fmtMoney(n.total);
+                return `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-2 text-center">${check}</td>
+                    <td class="px-3 py-2 font-mono text-xs text-indigo-700 font-medium whitespace-nowrap">
+                        <a href="${n.url}" class="hover:underline" title="Ir a la nota">${n.folio}</a>
+                    </td>
+                    <td class="px-3 py-2 text-sm text-gray-700">${n.cliente}</td>
+                    <td class="px-3 py-2 text-sm text-gray-500">${n.ruta}</td>
+                    <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${n.fecha}</td>
+                    <td class="px-3 py-2 text-sm text-right font-mono font-semibold text-gray-800">${montoCell}</td>
+                    <td class="px-3 py-2 text-center">${pedidoBadge(n.estatus_pedido, n.pedido_class)}</td>
+                    <td class="px-3 py-2 text-center">${liqBadge(n, data.ar_payment_url)}</td>
+                </tr>
+            `;
+            }).join('');
+
+            $('lqv-body').innerHTML = `
+                <table class="min-w-full text-sm divide-y divide-gray-100">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase w-8"></th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nota</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ruta</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Estatus nota</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Liquidación</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-100">${rows}</tbody>
+                </table>
+            `;
+        }
+
+        window.toggleSeleccionVenta = function (checkbox) {
+            const saleId = parseInt(checkbox.dataset.saleId, 10);
+            if (checkbox.checked) {
+                seleccionadasVenta.set(saleId, {
+                    cliente: checkbox.dataset.cliente,
+                    monto:   parseFloat(checkbox.dataset.monto || 0),
+                });
+            } else {
+                seleccionadasVenta.delete(saleId);
+            }
+            actualizarBarraVenta();
+        };
+
+        function actualizarBarraVenta() {
+            const bar = $('lqv-bulk-bar');
+            if (seleccionadasVenta.size === 0) { bar.classList.add('hidden'); return; }
+
+            let total = 0;
+            seleccionadasVenta.forEach(v => total += v.monto);
+
+            $('lqv-bulk-count').textContent = `${seleccionadasVenta.size} nota(s) seleccionada(s) para liquidar`;
+            $('lqv-bulk-total').textContent = fmtMoney(total);
+            bar.classList.remove('hidden');
+        }
+
+        $('lqv-bulk-clear').addEventListener('click', function () {
+            document.querySelectorAll('.lqv-check:checked').forEach(cb => cb.checked = false);
+            seleccionadasVenta.clear();
+            actualizarBarraVenta();
+        });
+
+        $('lqv-bulk-liquidar').addEventListener('click', function () {
+            if (seleccionadasVenta.size === 0) return;
+
+            let total = 0;
+            const clientes = new Set();
+            seleccionadasVenta.forEach(v => { total += v.monto; clientes.add(v.cliente); });
+
+            Swal.fire({
+                title: '¿Liquidar en efectivo?',
+                html: `Se van a marcar como <b>LIQUIDADAS</b> ${seleccionadasVenta.size} nota(s) de venta de
+                       ${clientes.size} cliente(s), por un total de <b>${fmtMoney(total)}</b>,
+                       registrando el cobro como <b>pago en efectivo</b>.`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, liquidar',
+                cancelButtonText: 'Cancelar',
+            }).then(async r => {
+                if (!r.isConfirmed) return;
+
+                const btn = $('lqv-bulk-liquidar');
+                btn.disabled = true;
+                btn.classList.add('opacity-60');
+
+                try {
+                    const res = await fetch(LIQUIDAR_MASIVO_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': CSRF,
+                        },
+                        body: JSON.stringify({ sale_ids: Array.from(seleccionadasVenta.keys()), fecha: state.fecha }),
+                    });
+                    const data = await res.json();
+
+                    if (!res.ok || !data.ok) {
+                        Swal.fire('No se pudo liquidar', data.message || 'Intenta de nuevo.', 'error');
+                        return;
+                    }
+
+                    seleccionadasVenta.clear();
+                    Swal.fire('Liquidado', `Se registraron ${data.clientes} cobro(s) en efectivo por ${fmtMoney(data.total)}.`, 'success');
+                    load();
+                } catch (e) {
+                    Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-60');
+                }
+            });
         });
 
         $('lq-fecha').value = hoy;

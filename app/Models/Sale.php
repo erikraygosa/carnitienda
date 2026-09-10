@@ -45,6 +45,9 @@ class Sale extends Model
         'delivery_attempts','delivery_notes','comentarios',
         'contraentrega_total','cobrado_efectivo','cobrado_confirmado_at','cobrado_confirmado_por',
         'driver_settlement_status','driver_settlement_at',
+        // CxC (igual que SalesOrder): saldo restante por abonar y cuándo se
+        // terminó de cobrar una nota a crédito.
+        'saldo_pendiente','cobrado_at',
     ];
 
     protected $casts = [
@@ -58,12 +61,14 @@ class Sale extends Model
         'no_entregado_at'        => 'datetime',
         'cobrado_confirmado_at'  => 'datetime',
         'driver_settlement_at'   => 'datetime',
+        'cobrado_at'             => 'datetime',
         'subtotal'               => 'decimal:2',
         'impuestos'              => 'decimal:2',
         'descuento'              => 'decimal:2',
         'total'                  => 'decimal:2',
         'contraentrega_total'    => 'decimal:2',
         'cobrado_efectivo'       => 'decimal:2',
+        'saldo_pendiente'        => 'decimal:2',
         'delivery_attempts'      => 'integer',
     ];
 

@@ -27,7 +27,7 @@ class ReportesController extends Controller implements HasMiddleware
         return [
             new Middleware('can:ver reporte notas de venta',     only: ['notasDeVenta', 'notasDeVentaData', 'notasDeVentaExport']),
             new Middleware('can:ver reporte ventas por producto', only: ['ventasPorProducto', 'ventasPorProductoData', 'ventasPorProductoExport']),
-            new Middleware('can:ver reporte liquidaciones',       only: ['liquidaciones', 'liquidacionesData', 'liquidacionesExport', 'liquidacionesConcentrado']),
+            new Middleware('can:ver reporte liquidaciones',       only: ['liquidaciones', 'liquidacionesData', 'liquidacionesExport', 'liquidacionesConcentrado', 'liquidacionesSalesData']),
         ];
     }
 
@@ -106,7 +106,9 @@ class ReportesController extends Controller implements HasMiddleware
             ->when($driverId, fn($q) => $q->where('dispatches.driver_id', $driverId))
             ->when($ronda,    fn($q) => $q->where('dispatches.ronda', $ronda))
             ->when($filtroRaw === 'pendientes', fn($q) => $q
-                ->where('sales_orders.driver_settlement_status', 'PENDIENTE')
+                // PARCIAL cuenta como "pendiente" — ya se abonó algo, pero
+                // todavía falta cobrarle el resto al chofer/cliente.
+                ->whereIn('sales_orders.driver_settlement_status', ['PENDIENTE', 'PARCIAL'])
                 ->whereNotIn('sales_orders.status', ['NO_ENTREGADO', 'CANCELADO']))
             ->when($filtroRaw === 'no_entregado', fn($q) => $q->where('sales_orders.status', 'NO_ENTREGADO'));
 
@@ -130,6 +132,7 @@ class ReportesController extends Controller implements HasMiddleware
                 'drivers.nombre as chofer_nombre',
                 'dispatches.fecha',
                 'sales_orders.total',
+                'sales_orders.saldo_pendiente',
                 'sales_orders.driver_settlement_status',
                 'sales_orders.status as order_status'
             )
@@ -138,6 +141,49 @@ class ReportesController extends Controller implements HasMiddleware
             ->leftJoin('drivers',         'drivers.id',         '=', 'dispatches.driver_id')
             ->orderBy('shipping_routes.nombre')
             ->orderBy('dispatches.id');
+    }
+
+    /**
+     * Notas de venta (mostrador) a crédito, para el apartado de Liquidaciones
+     * dedicado a Sale — igual que a los pedidos (SalesOrder), algunas notas
+     * de venta también salen a crédito y hay que poder verlas y liquidarlas
+     * (dar de baja su CxC) desde aquí. A diferencia de los pedidos, una Sale
+     * no pasa por Dispatch/DispatchItem — su ruta y chofer son campos
+     * propios de la tabla, así que el query es directo, sin ese join.
+     */
+    private function buildLiquidacionesSalesQuery(Request $request)
+    {
+        $fecha     = $request->get('fecha', now()->toDateString());
+        $routeId   = $request->get('route_id', '');
+        $driverId  = $request->get('driver_id', '');
+        $filtroRaw = $request->get('filtro_estatus', 'todas');
+
+        return Sale::query()
+            ->where('sales.tipo_venta', 'CREDITO')
+            ->when($fecha,    fn($q) => $q->whereDate('sales.fecha', $fecha))
+            ->when($routeId,  fn($q) => $q->where('sales.shipping_route_id', $routeId))
+            ->when($driverId, fn($q) => $q->where('sales.driver_id', $driverId))
+            ->when($filtroRaw === 'pendientes', fn($q) => $q
+                ->whereIn('sales.driver_settlement_status', ['PENDIENTE', 'PARCIAL'])
+                ->whereNotIn('sales.status', ['NO_ENTREGADO', 'CANCELADO']))
+            ->when($filtroRaw === 'no_entregado', fn($q) => $q->where('sales.status', 'NO_ENTREGADO'))
+            ->select(
+                'sales.id as sale_id',
+                'sales.folio',
+                'sales.client_id',
+                'clients.nombre as cliente_nombre',
+                'shipping_routes.nombre as ruta_nombre',
+                'drivers.nombre as chofer_nombre',
+                'sales.fecha',
+                'sales.total',
+                'sales.saldo_pendiente',
+                'sales.driver_settlement_status',
+                'sales.status as order_status'
+            )
+            ->leftJoin('clients',         'clients.id',         '=', 'sales.client_id')
+            ->leftJoin('shipping_routes', 'shipping_routes.id', '=', 'sales.shipping_route_id')
+            ->leftJoin('drivers',         'drivers.id',         '=', 'sales.driver_id')
+            ->orderBy('sales.fecha');
     }
 
     /**
@@ -233,6 +279,8 @@ class ReportesController extends Controller implements HasMiddleware
             'ENTREGADO'    => 'Entregado',
             'NO_ENTREGADO' => 'No entregado',
             'CANCELADO'    => 'Cancelado',
+            // Solo lo usan las notas de venta (Sale), no los pedidos.
+            'COMPLETADA'   => 'Completada',
         ];
     }
 
@@ -248,12 +296,20 @@ class ReportesController extends Controller implements HasMiddleware
             'ENTREGADO'    => 'bg-emerald-100 text-emerald-700',
             'NO_ENTREGADO' => 'bg-orange-100 text-orange-700',
             'CANCELADO'    => 'bg-rose-100 text-rose-700',
+            'COMPLETADA'   => 'bg-emerald-100 text-emerald-700',
         ];
     }
 
     /**
      * Estatus de liquidación a mostrar. Si el pedido nunca se entregó (NO_ENTREGADO/CANCELADO)
      * no hay nada que cobrar del chofer, así que "PENDIENTE" sería engañoso.
+     *
+     * driver_settlement_status ya soporta PENDIENTE/PARCIAL/LIQUIDADO desde su
+     * creación, pero antes solo se escribía PENDIENTE o LIQUIDADO — un abono
+     * parcial a la CxC dejaba la nota en PENDIENTE sin ningún indicio de que
+     * ya se le había cobrado algo. Eso se corrigió en el origen (ver
+     * ArPaymentsController::registrarCobro), así que aquí solo falta
+     * mostrar PARCIAL con su propio color.
      */
     private function liquidacionEstatus(?string $orderStatus, ?string $settlementStatus): array
     {
@@ -263,11 +319,15 @@ class ReportesController extends Controller implements HasMiddleware
 
         $settlementStatus = $settlementStatus ?? 'PENDIENTE';
 
+        $classes = [
+            'LIQUIDADO' => 'bg-emerald-100 text-emerald-700',
+            'PARCIAL'   => 'bg-sky-100 text-sky-700',
+            'PENDIENTE' => 'bg-amber-100 text-amber-700',
+        ];
+
         return [
             'label' => $settlementStatus,
-            'class' => $settlementStatus === 'LIQUIDADO'
-                ? 'bg-emerald-100 text-emerald-700'
-                : 'bg-amber-100 text-amber-700',
+            'class' => $classes[$settlementStatus] ?? 'bg-amber-100 text-amber-700',
         ];
     }
 
@@ -554,6 +614,51 @@ class ReportesController extends Controller implements HasMiddleware
         return view('admin.reportes.liquidaciones', compact('routes', 'drivers'));
     }
 
+    /**
+     * Notas de venta a crédito para el apartado de Liquidaciones — lista
+     * plana (no agrupada por ruta como el concentrado de pedidos, para no
+     * duplicar toda esa UI por un volumen que normalmente es mucho menor).
+     */
+    public function liquidacionesSalesData(Request $request)
+    {
+        $items = $this->buildLiquidacionesSalesQuery($request)->get();
+
+        $orderLabels  = $this->orderStatusLabels();
+        $orderClasses = $this->orderStatusClasses();
+
+        $rows = $items->map(function ($s) use ($orderLabels, $orderClasses) {
+            $liq = $this->liquidacionEstatus($s->order_status, $s->driver_settlement_status);
+            $saldo = ($s->saldo_pendiente !== null && (float) $s->saldo_pendiente > 0)
+                ? (float) $s->saldo_pendiente
+                : (float) $s->total;
+
+            return [
+                'sale_id'          => $s->sale_id,
+                'folio'            => $s->folio,
+                'url'              => route('admin.sales.edit', $s->sale_id),
+                'client_id'        => $s->client_id,
+                'cliente'          => $s->cliente_nombre ?? '—',
+                'ruta'             => $s->ruta_nombre  ?? '—',
+                'chofer'           => $s->chofer_nombre ?? '—',
+                'fecha'            => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',
+                'total'            => (float) $s->total,
+                'total_fmt'        => number_format((float) $s->total, 2),
+                'saldo_pendiente'  => $saldo,
+                'estatus'          => $liq['label'],
+                'liq_class'        => $liq['class'],
+                'estatus_pedido'   => $orderLabels[$s->order_status] ?? $s->order_status,
+                'pedido_class'     => $orderClasses[$s->order_status] ?? 'bg-gray-100 text-gray-700',
+            ];
+        })->values();
+
+        return response()->json([
+            'notas'          => $rows,
+            'total'          => $rows->count(),
+            'total_monto'    => number_format((float) $items->sum('total'), 2),
+            'ar_payment_url' => route('admin.ar-payments.create'),
+        ]);
+    }
+
     public function liquidacionesData(Request $request)
     {
         $perPage = in_array((int)$request->get('per_page'), [25, 50, 100]) ? (int)$request->get('per_page') : 50;
@@ -607,20 +712,27 @@ class ReportesController extends Controller implements HasMiddleware
                 'ruta'    => $ruta ?? 'Sin ruta',
                 'notas'   => $rows->map(function ($s) use ($orderLabels, $orderClasses) {
                     $liq = $this->liquidacionEstatus($s->order_status, $s->driver_settlement_status);
+                    $saldo = ($s->saldo_pendiente !== null && (float) $s->saldo_pendiente > 0)
+                        ? (float) $s->saldo_pendiente
+                        : (float) $s->total;
                     return [
-                        'order_id'       => $s->sales_order_id,
-                        'folio'          => $s->folio,
-                        'url'            => route('admin.sales-orders.edit', $s->sales_order_id),
-                        'client_id'      => $s->client_id,
-                        'cliente'        => $s->cliente_nombre ?? '—',
-                        'ronda'          => (int) ($s->ronda ?? 1),
-                        'fecha'          => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',
-                        'total'          => (float)$s->total,
-                        'total_fmt'      => number_format((float)$s->total, 2),
-                        'estatus'        => $liq['label'],
-                        'liq_class'      => $liq['class'],
-                        'estatus_pedido' => $orderLabels[$s->order_status] ?? $s->order_status,
-                        'pedido_class'   => $orderClasses[$s->order_status] ?? 'bg-gray-100 text-gray-700',
+                        'order_id'         => $s->sales_order_id,
+                        'folio'            => $s->folio,
+                        'url'              => route('admin.sales-orders.edit', $s->sales_order_id),
+                        'client_id'        => $s->client_id,
+                        'cliente'          => $s->cliente_nombre ?? '—',
+                        'ronda'            => (int) ($s->ronda ?? 1),
+                        'fecha'            => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '—',
+                        'total'            => (float)$s->total,
+                        'total_fmt'        => number_format((float)$s->total, 2),
+                        // Lo que realmente falta cobrar — igual al total si nunca se
+                        // abonó nada, menor si ya quedó PARCIAL. Es lo que debe
+                        // sumarse al liquidar en efectivo, no el total original.
+                        'saldo_pendiente'  => $saldo,
+                        'estatus'          => $liq['label'],
+                        'liq_class'        => $liq['class'],
+                        'estatus_pedido'   => $orderLabels[$s->order_status] ?? $s->order_status,
+                        'pedido_class'     => $orderClasses[$s->order_status] ?? 'bg-gray-100 text-gray-700',
                     ];
                 })->values(),
                 'subtotal'     => (float)$rows->sum('total'),

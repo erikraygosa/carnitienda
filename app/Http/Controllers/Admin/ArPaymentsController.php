@@ -10,6 +10,7 @@ use App\Services\ArService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\SalesOrder;
+use App\Models\Sale;
 use App\Models\ArMovement;
 use App\Models\ArPayment;
 
@@ -118,11 +119,13 @@ class ArPaymentsController extends Controller implements HasMiddleware
             'notes'           => 'nullable|string',
             'order_ids'       => 'nullable|array',
             'order_ids.*'     => 'integer|exists:sales_orders,id',
+            'sale_ids'        => 'nullable|array',
+            'sale_ids.*'      => 'integer|exists:sales,id',
             'invoice_ids'     => 'nullable|array',
             'invoice_ids.*'   => 'integer|exists:invoices,id',
         ]);
 
-        if (empty($data['order_ids']) && empty($data['invoice_ids'])) {
+        if (empty($data['order_ids']) && empty($data['sale_ids']) && empty($data['invoice_ids'])) {
             return back()
                 ->withInput()
                 ->withErrors(['order_ids' => 'Debes seleccionar al menos una nota o factura a cubrir.']);
@@ -198,9 +201,49 @@ class ArPaymentsController extends Controller implements HasMiddleware
                     $updateData['cobrado_at']              = now();
                     $updateData['driver_settlement_status'] = 'LIQUIDADO';
                     $updateData['driver_settlement_at']     = now();
+                } elseif ($abono > 0 && $orden->driver_settlement_status !== 'LIQUIDADO') {
+                    // Se abonó algo pero no se cubrió todo — que quede
+                    // reflejado como PARCIAL en vez de seguir en PENDIENTE
+                    // como si no se le hubiera cobrado nada.
+                    $updateData['driver_settlement_status'] = 'PARCIAL';
                 }
 
                 $orden->update($updateData);
+                $restante = round($restante - $abono, 2);
+            }
+
+            // Notas de venta (mostrador) a crédito — mismo reparto FIFO que
+            // los pedidos, con el sobrante que haya quedado.
+            $notasVenta = Sale::whereIn('id', $data['sale_ids'] ?? [])
+                ->orderBy('fecha')
+                ->get();
+
+            foreach ($notasVenta as $nota) {
+                if ($restante <= 0) break;
+
+                $saldo = ($nota->saldo_pendiente !== null && (float) $nota->saldo_pendiente > 0)
+                    ? (float) $nota->saldo_pendiente
+                    : (float) $nota->total;
+
+                $abono      = min($restante, $saldo);
+                $nuevoSaldo = round($saldo - $abono, 2);
+
+                \App\Models\ArPaymentItem::create([
+                    'ar_payment_id'  => $payment->id,
+                    'sale_id'        => $nota->id,
+                    'monto_aplicado' => $abono,
+                ]);
+
+                $updateData = ['saldo_pendiente' => $nuevoSaldo];
+                if ($nuevoSaldo <= 0) {
+                    $updateData['cobrado_at']              = now();
+                    $updateData['driver_settlement_status'] = 'LIQUIDADO';
+                    $updateData['driver_settlement_at']     = now();
+                } elseif ($abono > 0 && $nota->driver_settlement_status !== 'LIQUIDADO') {
+                    $updateData['driver_settlement_status'] = 'PARCIAL';
+                }
+
+                $nota->update($updateData);
                 $restante = round($restante - $abono, 2);
             }
 
@@ -240,10 +283,16 @@ class ArPaymentsController extends Controller implements HasMiddleware
     public function liquidarMasivo(Request $request)
     {
         $data = $request->validate([
-            'order_ids'   => 'required|array|min:1',
+            'order_ids'   => 'nullable|array',
             'order_ids.*' => 'integer|exists:sales_orders,id',
+            'sale_ids'    => 'nullable|array',
+            'sale_ids.*'  => 'integer|exists:sales,id',
             'fecha'       => 'nullable|date',
         ]);
+
+        if (empty($data['order_ids']) && empty($data['sale_ids'])) {
+            return response()->json(['ok' => false, 'message' => 'No se seleccionó ninguna nota.'], 422);
+        }
 
         $fecha = $data['fecha'] ?? now()->toDateString();
 
@@ -255,21 +304,45 @@ class ArPaymentsController extends Controller implements HasMiddleware
         $ordenes = SalesOrder::where('payment_method', 'CREDITO')
             ->whereIn('status', ['ENTREGADO'])
             ->whereNull('cobrado_at')
-            ->whereIn('id', $data['order_ids'])
+            ->whereIn('id', $data['order_ids'] ?? [])
             ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
             ->get();
 
-        if ($ordenes->isEmpty()) {
+        $notasVenta = Sale::where('tipo_venta', 'CREDITO')
+            ->whereIn('status', ['ENTREGADO', 'COMPLETADA'])
+            ->whereNull('cobrado_at')
+            ->whereIn('id', $data['sale_ids'] ?? [])
+            ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
+            ->get();
+
+        if ($ordenes->isEmpty() && $notasVenta->isEmpty()) {
             return response()->json(['ok' => false, 'message' => 'Las notas seleccionadas ya no están pendientes de cobro.'], 422);
+        }
+
+        // Un cobro por cliente, cubriendo de un jalón sus pedidos Y sus notas
+        // de venta a crédito seleccionadas.
+        $porCliente = [];
+        foreach ($ordenes->groupBy('client_id') as $clientId => $notasCliente) {
+            $porCliente[$clientId]['order_ids'] = $notasCliente->pluck('id')->all();
+            $porCliente[$clientId]['monto'] = ($porCliente[$clientId]['monto'] ?? 0) + $notasCliente->sum(
+                fn($o) => ($o->saldo_pendiente !== null && (float) $o->saldo_pendiente > 0)
+                    ? (float) $o->saldo_pendiente
+                    : (float) $o->total
+            );
+        }
+        foreach ($notasVenta->groupBy('client_id') as $clientId => $notasCliente) {
+            $porCliente[$clientId]['sale_ids'] = $notasCliente->pluck('id')->all();
+            $porCliente[$clientId]['monto'] = ($porCliente[$clientId]['monto'] ?? 0) + $notasCliente->sum(
+                fn($s) => ($s->saldo_pendiente !== null && (float) $s->saldo_pendiente > 0)
+                    ? (float) $s->saldo_pendiente
+                    : (float) $s->total
+            );
         }
 
         $pagos = [];
 
-        foreach ($ordenes->groupBy('client_id') as $clientId => $notasCliente) {
-            $monto = $notasCliente->sum(fn($o) => ($o->saldo_pendiente !== null && (float) $o->saldo_pendiente > 0)
-                ? (float) $o->saldo_pendiente
-                : (float) $o->total);
-
+        foreach ($porCliente as $clientId => $info) {
+            $monto = $info['monto'] ?? 0;
             if ($monto <= 0) continue;
 
             $payment = $this->registrarCobro([
@@ -279,7 +352,8 @@ class ArPaymentsController extends Controller implements HasMiddleware
                 'payment_type_id' => $efectivo->id,
                 'reference'       => null,
                 'notes'           => 'Liquidación masiva en efectivo (reporte de liquidaciones)',
-                'order_ids'       => $notasCliente->pluck('id')->all(),
+                'order_ids'       => $info['order_ids'] ?? [],
+                'sale_ids'        => $info['sale_ids'] ?? [],
                 'invoice_ids'     => [],
             ]);
 
@@ -290,7 +364,7 @@ class ArPaymentsController extends Controller implements HasMiddleware
             'ok'          => true,
             'pagos'       => $pagos,
             'total'       => round(collect($pagos)->sum('monto'), 2),
-            'notas'       => $ordenes->count(),
+            'notas'       => $ordenes->count() + $notasVenta->count(),
             'clientes'    => count($pagos),
         ]);
     }
