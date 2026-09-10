@@ -278,9 +278,13 @@ class OrderAssistantService
 
             // Igual que en el formulario manual: solo estos 3 valores son
             // válidos en la columna presentacion — cualquier otra cosa que
-            // mande el modelo (o nada) se guarda como null, sin tronar.
+            // mande el modelo se descarta. Y, también igual que el
+            // formulario manual (que nace en "Kilos"), si no vino nada se
+            // asume KILOS en vez de dejarlo en null — es el caso inmensamente
+            // más común y así el pedido creado por el asistente queda
+            // consistente con uno creado a mano.
             if (! in_array($presentacion, ['KILOS', 'PIEZAS', 'CAJAS'], true)) {
-                $presentacion = null;
+                $presentacion = 'KILOS';
             }
 
             // El texto que el usuario escribió entre paréntesis junto al
