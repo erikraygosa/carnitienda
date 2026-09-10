@@ -425,9 +425,14 @@
 
         function selectByRoute() {
             if (!selectedRoute) return;
+            // Solo entre las filas visibles con el filtro actual (fecha
+            // Programado para / búsqueda) — antes marcaba TODOS los pedidos
+            // de la ruta sin importar la fecha filtrada.
             document.querySelectorAll('.order-row').forEach(function(row) {
                 var cb = row.querySelector('.order-check');
-                if (cb) cb.checked = row.dataset.route === selectedRoute;
+                if (!cb) return;
+                var visible = row.style.display !== 'none';
+                cb.checked = visible && row.dataset.route === selectedRoute;
             });
             updateCounters();
         }
