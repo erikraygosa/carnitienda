@@ -242,6 +242,17 @@
                 </td>
             </tr>
             @endif
+            {{-- num_cajas: capturado al crear el pedido o, si no se puso ahí,
+                 durante Salida de Producto al momento de surtir — cualquiera
+                 de los dos casos queda en el mismo campo, así que se imprime
+                 igual sin importar de dónde salió. --}}
+            @if((int)($it->num_cajas ?? 0) > 0)
+            <tr>
+                <td colspan="3" class="sm" style="padding-bottom:2px;">
+                    {{ $it->num_cajas }} {{ (int)$it->num_cajas === 1 ? 'CAJA' : 'CAJAS' }}
+                </td>
+            </tr>
+            @endif
             @endforeach
         </tbody>
     </table>

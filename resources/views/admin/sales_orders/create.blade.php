@@ -24,7 +24,7 @@
         $seedItems    = $seedItems ?? [];
         $initialItems = (is_array($seedItems) && count($seedItems))
             ? $seedItems
-            : [['product_id'=>'','_productoNombre'=>'','descripcion'=>'','cantidad'=>1,'presentacion'=>'','precio'=>0,'descuento'=>0,'iva_pct'=>0,'impuesto'=>0,'total'=>0]];
+            : [['product_id'=>'','_productoNombre'=>'','descripcion'=>'','cantidad'=>1,'presentacion'=>'KILOS','precio'=>0,'descuento'=>0,'iva_pct'=>0,'impuesto'=>0,'total'=>0]];
 
         $JS_OVERRIDES       = json_encode($overrides   ?? [], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
         $JS_LISTPRICES      = json_encode($listItems   ?? [], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
@@ -647,7 +647,7 @@
             addRow() {
                 state.items.push({
                     product_id: '', _productoNombre: '',
-                    descripcion: '', cantidad: 1, presentacion: '',
+                    descripcion: '', cantidad: 1, presentacion: 'KILOS',
                     precio: 0, descuento: 0, iva_pct: 0, impuesto: 0, total: 0
                 });
                 renderAll();

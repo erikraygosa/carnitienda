@@ -239,6 +239,13 @@
                     </div>
                 </td>
             </tr>
+            @if((int)($it->num_cajas ?? 0) > 0)
+            <tr>
+                <td colspan="3" class="sm" style="padding-bottom:2px;">
+                    {{ $it->num_cajas }} {{ (int)$it->num_cajas === 1 ? 'CAJA' : 'CAJAS' }}
+                </td>
+            </tr>
+            @endif
             @endforeach
         </tbody>
     </table>

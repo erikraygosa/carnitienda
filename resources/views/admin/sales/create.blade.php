@@ -14,7 +14,7 @@
     @php
         $seedItems    = $seedItems ?? [];
         $initialItems = (is_array($seedItems) && count($seedItems)) ? $seedItems : [[
-            'product_id'=>'','descripcion'=>'','cantidad'=>1,'presentacion'=>'','precio'=>0,'descuento'=>0,'iva_pct'=>0,'impuesto'=>0,'total'=>0
+            'product_id'=>'','descripcion'=>'','cantidad'=>1,'presentacion'=>'KILOS','precio'=>0,'descuento'=>0,'iva_pct'=>0,'impuesto'=>0,'total'=>0
         ]];
 
         $JS_OVERRIDES       = json_encode($overrides       ?? [], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
@@ -518,7 +518,7 @@
 
         window.SNF = {
             addRow() {
-                state.items.push({product_id:'',descripcion:'',cantidad:1,presentacion:"",precio:0,descuento:0,iva_pct:0,impuesto:0,total:0});
+                state.items.push({product_id:'',descripcion:'',cantidad:1,presentacion:"KILOS",precio:0,descuento:0,iva_pct:0,impuesto:0,total:0});
                 renderAll();
             },
 
@@ -573,7 +573,7 @@
         // Init
         state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
         if (!state.items.length) {
-            state.items = [{product_id:'',descripcion:'',cantidad:1,presentacion:"",precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}];
+            state.items = [{product_id:'',descripcion:'',cantidad:1,presentacion:"KILOS",precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}];
         }
         renderAll();
 
