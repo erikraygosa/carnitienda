@@ -44,15 +44,22 @@ class OrderAssistantService
             return ['status' => 'not_found', 'candidates' => []];
         }
 
+        $candidates = Client::where('activo', true)->pluck('nombre', 'id')->all();
+        $matches    = $this->bestMatches($query, $candidates);
+
+        // Un alias guardado de una resolución anterior NO es un atajo ciego
+        // — cuenta como una coincidencia perfecta más, así sigue pasando
+        // por la misma detección de empate que cualquier otra búsqueda. Sin
+        // esto, un alias guardado por error (ej. de antes de un fix al
+        // algoritmo de matching) contestaría siempre primero y nunca
+        // dejaría que una ambigüedad real (dos clientes distintos con el
+        // mismo texto de búsqueda) se detecte.
         $alias = ClientAlias::whereRaw('LOWER(alias) = ?', [$this->normalize($query)])
             ->with('client')
             ->first();
-        if ($alias && $alias->client) {
-            return ['status' => 'found', 'client_id' => $alias->client_id, 'nombre' => $alias->client->nombre];
+        if ($alias && $alias->client && $alias->client->activo) {
+            $matches = $this->mergeAliasMatch($matches, $alias->client_id, $alias->client->nombre);
         }
-
-        $candidates = Client::where('activo', true)->pluck('nombre', 'id')->all();
-        $matches    = $this->bestMatches($query, $candidates);
 
         if (empty($matches)) {
             return ['status' => 'not_found', 'candidates' => []];
@@ -68,6 +75,36 @@ class OrderAssistantService
     }
 
     /**
+     * Mezcla el cliente/producto de un alias exacto en la lista de
+     * coincidencias como un match perfecto (score 1.0), sin duplicar si ya
+     * estaba, y reordena. Ver nota en resolveClient() sobre por qué el
+     * alias ya no es un atajo directo.
+     *
+     * @param array<int, array{id: int, nombre: string, score: float}> $matches
+     * @return array<int, array{id: int, nombre: string, score: float}>
+     */
+    private function mergeAliasMatch(array $matches, int $id, string $nombre): array
+    {
+        $existe = false;
+        foreach ($matches as &$m) {
+            if ($m['id'] === $id) {
+                $m['score'] = 1.0;
+                $existe = true;
+                break;
+            }
+        }
+        unset($m);
+
+        if (! $existe) {
+            $matches[] = ['id' => $id, 'nombre' => $nombre, 'score' => 1.0];
+        }
+
+        usort($matches, fn ($a, $b) => $b['score'] <=> $a['score']);
+
+        return array_slice($matches, 0, 3);
+    }
+
+    /**
      * Busca un producto por nombre/corte coloquial. Mismo formato de respuesta
      * que resolveClient().
      */
@@ -78,15 +115,15 @@ class OrderAssistantService
             return ['status' => 'not_found', 'candidates' => []];
         }
 
+        $candidates = Product::where('activo', true)->pluck('nombre', 'id')->all();
+        $matches    = $this->bestMatches($query, $candidates);
+
         $alias = ProductAlias::whereRaw('LOWER(alias) = ?', [$this->normalize($query)])
             ->with('product')
             ->first();
-        if ($alias && $alias->product) {
-            return ['status' => 'found', 'product_id' => $alias->product_id, 'nombre' => $alias->product->nombre];
+        if ($alias && $alias->product && $alias->product->activo) {
+            $matches = $this->mergeAliasMatch($matches, $alias->product_id, $alias->product->nombre);
         }
-
-        $candidates = Product::where('activo', true)->pluck('nombre', 'id')->all();
-        $matches    = $this->bestMatches($query, $candidates);
 
         if (empty($matches)) {
             return ['status' => 'not_found', 'candidates' => []];
