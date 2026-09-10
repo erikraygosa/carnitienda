@@ -152,6 +152,14 @@
                 <form action="{{ route('admin.dispatches.enruta',$dispatch) }}" method="POST">@csrf
                     <button type="submit" class="inline-flex px-3 py-1.5 text-xs rounded-md bg-violet-600 text-white hover:bg-violet-700">Salir a ruta</button>
                 </form>
+            @elseif($dispatch->status === 'EN_RUTA' && !$dispatch->traspasos_cerrado_at && !$dispatch->cobranza_cerrado_at)
+                <form action="{{ route('admin.dispatches.volver-a-planeado',$dispatch) }}" method="POST">@csrf
+                    <button type="submit"
+                            onclick="return confirm('¿Regresar este despacho a Planeado? Los pedidos que sigan EN_RUTA vuelven a Procesado (los ya entregados o no entregados no se tocan). Podrás agregarle más pedidos o CxC.')"
+                            class="inline-flex px-3 py-1.5 text-xs rounded-md bg-gray-500 text-white hover:bg-gray-600">
+                        ↩ Regresar a Planeado
+                    </button>
+                </form>
             @endif
             @if(!in_array($dispatch->status, ['CERRADO','CANCELADO','EN_RUTA']))
                 <form action="{{ route('admin.dispatches.cancelar',$dispatch) }}" method="POST">@csrf

@@ -221,6 +221,7 @@ Route::resource('dispatches', DispatchController::class)->except(['show']);
 Route::post('dispatches/{dispatch}/preparar',  [DispatchController::class,'preparar'])->name('dispatches.preparar');
 Route::post('dispatches/{dispatch}/cargar',    [DispatchController::class,'cargar'])->name('dispatches.cargar');
 Route::post('dispatches/{dispatch}/en-ruta',   [DispatchController::class,'enRuta'])->name('dispatches.enruta');
+Route::post('dispatches/{dispatch}/volver-a-planeado', [DispatchController::class,'volverAPlaneado'])->name('dispatches.volver-a-planeado');
 Route::post('dispatches/{dispatch}/entregar',  [DispatchController::class,'entregar'])->name('dispatches.entregar');
 Route::post('dispatches/{dispatch}/cancelar',  [DispatchController::class,'cancelar'])->name('dispatches.cancelar');
 

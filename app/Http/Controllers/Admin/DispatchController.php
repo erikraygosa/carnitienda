@@ -575,6 +575,62 @@ class DispatchController extends Controller implements HasMiddleware
         return back()->with('swal', ['icon' => 'success', 'title' => 'En ruta', 'text' => 'Despacho, pedidos y traspasos enviados a ruta.']);
     }
 
+    /**
+     * Regresa un despacho EN_RUTA a PLANEADO — para poder seguirle agregando
+     * pedidos o CxC (agregarPedidos()/agregarCxc() solo lo permiten en
+     * PLANEADO). Es el espejo de enRuta(): revierte a los pedidos que siguen
+     * EN_RUTA (no toca los que ya se entregaron o marcaron no entregados —
+     * esos ya avanzaron por su cuenta y no deben tocarse) y los traspasos que
+     * siguen EN_RUTA, de vuelta a como estaban antes de salir.
+     */
+    public function volverAPlaneado(Dispatch $dispatch)
+    {
+        if ($dispatch->status !== 'EN_RUTA') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo un despacho EN_RUTA puede regresar a Planeado.']);
+        }
+
+        if ($dispatch->traspasos_cerrado_at || $dispatch->cobranza_cerrado_at) {
+            return back()->with('swal', [
+                'icon'  => 'error',
+                'title' => 'No permitido',
+                'text'  => 'Este despacho ya empezó su cierre (traspasos y/o cobranza) — no se puede regresar a Planeado.',
+            ]);
+        }
+
+        DB::transaction(function () use ($dispatch) {
+            $dispatch->update(['status' => 'PLANEADO', 'en_ruta_at' => null]);
+
+            // Pedidos que siguen EN_RUTA → de vuelta a PROCESADO (el estado
+            // desde el que Salida de Producto ya los da por surtidos y listos
+            // para volver a salir). Los que ya se entregaron o se marcaron
+            // no entregados se quedan como están.
+            $dispatch->load('items.salesOrder');
+            foreach ($dispatch->items as $item) {
+                $order = $item->salesOrder;
+                if ($order && $order->status === 'EN_RUTA') {
+                    $order->update(['status' => 'PROCESADO', 'en_ruta_at' => null]);
+                }
+            }
+
+            // Traspasos que siguen EN_RUTA → de vuelta a ASIGNADO.
+            StockTransfer::where('dispatch_id', $dispatch->id)
+                ->where('status', 'EN_RUTA')
+                ->update(['status' => 'ASIGNADO']);
+
+            $dispatch->transferAssignments()
+                ->where('status', 'EN_RUTA')
+                ->update(['status' => 'ASIGNADO']);
+        });
+
+        $this->log->log($dispatch, 'CAMBIO_ESTADO', 'EN_RUTA', 'PLANEADO', null, 'Regresado a Planeado para agregar pedidos/CxC.');
+
+        return back()->with('swal', [
+            'icon'  => 'success',
+            'title' => 'Regresado a Planeado',
+            'text'  => 'Ya puedes agregarle más pedidos o cuentas por cobrar.',
+        ]);
+    }
+
     public function entregar(Dispatch $dispatch)
     {
         $old = $dispatch->status;
