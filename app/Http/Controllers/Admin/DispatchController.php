@@ -690,9 +690,26 @@ class DispatchController extends Controller implements HasMiddleware
             ->whereIn('status', ['ASIGNADO', 'EN_RUTA'])
             ->update(['status' => 'PENDIENTE', 'dispatch_id' => null]);
 
+        // Liberar también los pedidos — antes solo se liberaban los
+        // traspasos, así que un pedido asignado a un despacho cancelado
+        // se quedaba con dispatch_id apuntando a un despacho CANCELADO
+        // para siempre: nunca volvía a aparecer como "disponible" en
+        // ningún otro despacho (huérfano). Mismo criterio que
+        // quitarPedido(): si ya se surtió, se conserva el registro y
+        // solo se desasigna; si no, se borra (nunca llegó a tocarse).
+        $dispatch->load('items.lines');
+        foreach ($dispatch->items as $item) {
+            if ($item->lines->whereNotNull('qty_despachada')->isNotEmpty()) {
+                $item->update(['dispatch_id' => null]);
+            } else {
+                $item->lines()->delete();
+                $item->delete();
+            }
+        }
+
         $dispatch->update(['status' => 'CANCELADO']);
         $this->log->log($dispatch, 'CAMBIO_ESTADO', $old, 'CANCELADO');
-        return back()->with('swal', ['icon' => 'success', 'title' => 'Cancelado', 'text' => 'Despacho cancelado.']);
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Cancelado', 'text' => 'Despacho cancelado. Los pedidos que tenía quedan libres para asignarse a otro despacho.']);
     }
 
     // ── Quitar asignaciones hechas por error (solo mientras PLANEADO) ─────────
