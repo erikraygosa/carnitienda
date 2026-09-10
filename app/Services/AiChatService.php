@@ -105,6 +105,16 @@ class AiChatService
         $history    = $this->buildHistory($conversation);
         $draftOrder = null;
 
+        // Si el mensaje del usuario es solo un número (ej. "2") justo
+        // después de una pregunta de aclaración con lista numerada, no
+        // dejamos que el modelo tenga que "recordar" su propia lista y
+        // volver a buscar por su cuenta — varias veces se ha quedado
+        // repitiendo la misma pregunta en vez de resolverlo. Se le dice
+        // explícitamente a qué opción corresponde ese número.
+        if ($hint = $this->numericSelectionHint($conversation, $userMessage)) {
+            $history[] = ['role' => 'system', 'content' => $hint];
+        }
+
         for ($turno = 0; $turno < self::MAX_TURNOS; $turno++) {
             $resp = $this->chat($history);
 
@@ -182,6 +192,36 @@ class AiChatService
         return $history;
     }
 
+    /**
+     * Si $userMessage es solo un número y hay una "última lista de
+     * candidatos" guardada en la conversación (de la ambigüedad más
+     * reciente), regresa una nota que le dice al modelo exactamente a qué
+     * opción corresponde — para no depender de que él mismo cuente su
+     * propia lista numerada correctamente en un turno nuevo.
+     */
+    private function numericSelectionHint(AssistantConversation $conversation, string $userMessage): ?string
+    {
+        $trimmed = trim($userMessage);
+        if (! preg_match('/^\d+$/', $trimmed)) {
+            return null;
+        }
+
+        $last = $conversation->resolved_context['last_candidates'] ?? null;
+        if (! $last || empty($last['items'])) {
+            return null;
+        }
+
+        $idx = ((int) $trimmed) - 1;
+        if (! isset($last['items'][$idx])) {
+            return null;
+        }
+
+        $elegido = $last['items'][$idx];
+        $tool    = $last['type'] === 'products' ? 'buscar_producto' : 'buscar_cliente';
+
+        return "El usuario respondió \"{$trimmed}\" a tu pregunta de aclaración — en la lista numerada que tú mismo mostraste, la opción {$trimmed} es \"{$elegido['nombre']}\". Usa {$tool} con ese nombre exacto para obtener su id real antes de continuar (no repitas la misma pregunta de aclaración).";
+    }
+
     private function systemPrompt(): string
     {
         $hoy = now()->translatedFormat('l j \d\e F \d\e Y'); // ej. "jueves 27 de agosto de 2026"
@@ -197,6 +237,7 @@ Reglas:
 2b. Cuando el usuario responde a esa pregunta de aclaración (eligiendo un número, un nombre de la lista, o repitiéndolo), NUNCA calcules o inventes el id de memoria a partir de la lista que ya mostraste — vuelve a llamar buscar_cliente/buscar_producto con el nombre exacto de la opción elegida para obtener el id real, aunque ya hayas visto esa lista antes en la conversación.
 2c. Después de resolver esa aclaración, TERMINA de armar el pedido completo en ese mismo turno: usa el mensaje original del usuario (más arriba en la conversación) para saber qué productos/cantidades pedía, resuelve los que todavía falten con buscar_producto, y llama crear_borrador_pedido — no te quedes solo con un mensaje confirmando a qué cliente/producto se refería sin llegar a crear el borrador.
 2d. El sistema valida que cada client_id/product_id venga de un buscar_cliente/buscar_producto real de esta conversación — si crear_borrador_pedido o cambiar_cliente_pedido regresan un error de "no viene de una búsqueda válida", significa que mandaste un id sin haberlo resuelto de verdad en este turno (o lo recordaste mal de uno anterior). No insistas con el mismo id: vuelve a llamar buscar_cliente/buscar_producto con el nombre exacto y usa el id que te regrese esa llamada.
+2e. Si el usuario dice "cancelar", "olvídalo" o algo similar y TODAVÍA no has creado ningún borrador en esta conversación (no has llamado crear_borrador_pedido con éxito), no hay ningún order_id que cancelar — no uses cancelar_pedido en ese caso. Solo reconoce que no se hará nada y pregunta si quiere intentarlo de nuevo.
 3. Si el usuario menciona una fecha para el pedido, en cualquier formato ("28-08-2026", "28/08/2026", "28 de agosto", "28/08", "mañana", "el viernes"), interprétala usando la fecha de hoy como referencia y mándala en el campo "programado_para" de crear_borrador_pedido en formato YYYY-MM-DD. Si no menciona ninguna fecha, omite ese campo (el sistema usa mañana por default).
 4. Cuando ya tengas el cliente (o el usuario confirme que no hay cliente registrado) y todos los productos resueltos con su cantidad, usa crear_borrador_pedido.
 5. Después de crear el borrador, muestra un resumen claro (cliente, cada producto con cantidad y precio, fecha programada, total) y pregunta si lo confirma.
