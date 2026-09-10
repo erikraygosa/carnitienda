@@ -109,6 +109,10 @@
         </div>
     </x-wire-card>
 
+    {{-- Pedidos pendientes por procesar/surtir — va después de Notas de venta
+         a crédito (antes se mezclaba al final del concentrado por ruta). --}}
+    <div id="lq-pendientes-wrap" class="mt-6"></div>
+
     <script>
     (function(){
         const CONCENTRADO_URL     = '{{ route('admin.reportes.liquidaciones.concentrado') }}';
@@ -198,10 +202,13 @@
             const cxcPorRuta = {};
             (data.cxc_asignadas || []).forEach(g => { cxcPorRuta[g.ruta] = g; });
 
+            // Aparte de la tarjeta de rutas — se coloca después de "Notas de
+            // venta a crédito" en el DOM (ver #lq-pendientes-wrap), no aquí.
+            $('lq-pendientes-wrap').innerHTML = renderPendientes(data.pendientes_procesar || [], data.pendientes_label, data.pendientes_url);
+
             if (!data.rutas || data.rutas.length === 0) {
                 let sinRutasHtml = `<div class="text-center py-8 text-gray-400">Sin resultados para los filtros seleccionados.</div>`;
                 (data.cxc_asignadas || []).forEach(g => { sinRutasHtml += renderCxc(g); });
-                sinRutasHtml += renderPendientes(data.pendientes_procesar || [], data.pendientes_label, data.pendientes_url);
                 body.innerHTML = sinRutasHtml;
                 return;
             }
@@ -300,8 +307,6 @@
 
             // Cualquier CxC cuya ruta no tuvo notas en este filtro (caso raro) va al final
             Object.values(cxcPorRuta).forEach(g => { html += renderCxc(g); });
-
-            html += renderPendientes(data.pendientes_procesar || [], data.pendientes_label, data.pendientes_url);
 
             body.innerHTML = html;
         }
