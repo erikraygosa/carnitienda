@@ -180,7 +180,7 @@
             });
         });
 
-        window.__fcLoad = load; // select2 lo dispara directo (ver @push('js') más abajo)
+        window.__fcLoad = load; // select2 lo dispara directo (ver el bloque de scripts al final del archivo)
         $('fc-cliente').addEventListener('change', load);
         $('fc-buscar').addEventListener('input', function () { clearTimeout(this._t); this._t = setTimeout(load, 350); });
         $('fc-desde').addEventListener('change', load);
