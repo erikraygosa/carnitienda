@@ -180,6 +180,7 @@
             });
         });
 
+        window.__fcLoad = load; // select2 lo dispara directo (ver @push('js') más abajo)
         $('fc-cliente').addEventListener('change', load);
         $('fc-buscar').addEventListener('input', function () { clearTimeout(this._t); this._t = setTimeout(load, 350); });
         $('fc-desde').addEventListener('change', load);
@@ -227,9 +228,12 @@ $(function () {
         allowClear: true,
         width: '100%',
         language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
+    }).on('change', function () {
+        // El 'change' nativo (addEventListener) no siempre se entera cuando
+        // select2 lo dispara vía jQuery — se llama directo para no depender
+        // de eso.
+        if (window.__fcLoad) window.__fcLoad();
     });
-    // select2 dispara 'change' sobre el <select> original, así que el
-    // addEventListener('change', load) normal ya se entera solo.
 
     // Bug conocido de select2: al dar clic en la "x" de limpiar, el mismo clic
     // se propaga y vuelve a abrir el dropdown (se ve como "abre y cierra sin borrar").
