@@ -218,8 +218,21 @@ class AiChatService
 
         $elegido = $last['items'][$idx];
         $tool    = $last['type'] === 'products' ? 'buscar_producto' : 'buscar_cliente';
+        $campo   = $last['type'] === 'products' ? 'product_id' : 'client_id';
 
-        return "El usuario respondió \"{$trimmed}\" a tu pregunta de aclaración — en la lista numerada que tú mismo mostraste, la opción {$trimmed} es \"{$elegido['nombre']}\". Usa {$tool} con ese nombre exacto para obtener su id real antes de continuar (no repitas la misma pregunta de aclaración).";
+        // Antes esto le decía al modelo "vuelve a llamar {$tool} con ese
+        // nombre exacto" — pero cuando el nombre elegido es a su vez
+        // substring de otro candidato (ej. elegir "POLOMO" cuando también
+        // existe "POLOMO REJALADO"), buscar_producto("POLOMO") vuelve a
+        // regresar EXACTAMENTE la misma ambigüedad para siempre (ambos
+        // nombres empatan en score contra la búsqueda "polomo"), y el
+        // asistente se queda repitiendo la misma pregunta en bucle sin
+        // avanzar nunca (visto en vivo: conversación #52, "POLOMO" vs
+        // "POLOMO REJALADO", el usuario respondió "1" tres veces seguidas).
+        // El id de $elegido ya viene de una búsqueda real (quedó guardado en
+        // resolved_context al mostrar esta misma lista), así que aquí se le
+        // da directo en vez de pedirle que la vuelva a resolver por nombre.
+        return "El usuario respondió \"{$trimmed}\" a tu pregunta de aclaración — en la lista numerada que tú mismo mostraste, la opción {$trimmed} es \"{$elegido['nombre']}\" con {$campo}={$elegido['id']} (ya viene de una búsqueda válida en esta conversación). Usa ESE id directamente para continuar armando el pedido — NO vuelvas a llamar {$tool} con el nombre \"{$elegido['nombre']}\", porque si ese nombre es parte de otro candidato similar (ej. \"POLOMO\" dentro de \"POLOMO REJALADO\") la búsqueda va a regresar la misma ambigüedad otra vez y te vas a quedar repitiendo esta misma pregunta sin avanzar. Si todavía faltan otros productos/cantidades del pedido original por resolver, resuélvelos ahora y llama crear_borrador_pedido con todo.";
     }
 
     private function systemPrompt(): string
