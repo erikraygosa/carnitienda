@@ -154,13 +154,17 @@
                                         </thead>
                                         <tbody class="divide-y divide-gray-100 bg-white">
                                             @foreach($log->changes as $campo => $diff)
+                                            @php
+                                                $valorAntes = is_array($diff) ? ($diff['old'] ?? null) : $diff;
+                                                $valorDespues = is_array($diff) ? ($diff['new'] ?? null) : null;
+                                            @endphp
                                             <tr>
                                                 <td class="px-2 py-1 font-mono text-gray-600">{{ $campo }}</td>
-                                                <td class="px-2 py-1 text-rose-600 max-w-[150px] truncate" title="{{ $diff['old'] }}">
-                                                    {{ $diff['old'] ?? '—' }}
+                                                <td class="px-2 py-1 text-rose-600 max-w-[150px] truncate" title="{{ $valorAntes }}">
+                                                    {{ $valorAntes ?? '—' }}
                                                 </td>
-                                                <td class="px-2 py-1 text-emerald-600 max-w-[150px] truncate" title="{{ $diff['new'] }}">
-                                                    {{ $diff['new'] ?? '—' }}
+                                                <td class="px-2 py-1 text-emerald-600 max-w-[150px] truncate" title="{{ $valorDespues }}">
+                                                    {{ $valorDespues ?? '—' }}
                                                 </td>
                                             </tr>
                                             @endforeach
