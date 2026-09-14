@@ -61,7 +61,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'generar complementos pago', 'ver notas credito', 'crear notas credito',
 
             // CxC
-            'ver cxc', 'registrar cobros', 'ver reportes cxc',
+            'ver cxc', 'registrar cobros', 'ver reportes cxc', 'liquidar cuentas',
 
             // POS
             'usar pos', 'editar precio en pos',
@@ -132,7 +132,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver clientes',
             'ver pedidos',
             'ver facturas', 'crear facturas', 'facturar varios pedidos',
-            'ver cxc', 'registrar cobros', 'ver reportes cxc',
+            'ver cxc', 'registrar cobros', 'ver reportes cxc', 'liquidar cuentas',
             'generar complementos pago', 'ver notas credito', 'crear notas credito',
             'ver reportes',
             'ver reporte notas de venta',

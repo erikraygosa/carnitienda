@@ -25,6 +25,10 @@ class ArPaymentsController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('can:registrar cobros'),
+            // Botón "Liquidar en efectivo" del reporte de Liquidaciones —
+            // cobra y cierra de un jalón varias notas/pedidos, permiso aparte
+            // del de registrar un cobro manual uno por uno.
+            new Middleware('can:liquidar cuentas', only: ['liquidarMasivo']),
         ];
     }
 

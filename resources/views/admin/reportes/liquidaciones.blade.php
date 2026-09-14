@@ -63,11 +63,13 @@
             <div class="flex items-center gap-3">
                 <span id="lq-bulk-total" class="text-sm font-bold text-emerald-800"></span>
                 <button type="button" id="lq-bulk-clear" class="text-xs text-emerald-700 hover:underline">Quitar selección</button>
+                @can('liquidar cuentas')
                 <button type="button" id="lq-bulk-liquidar"
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700">
                     <i class="fa-solid fa-money-bill-wave"></i>
                     Liquidar en efectivo
                 </button>
+                @endcan
             </div>
         </div>
 
@@ -96,11 +98,13 @@
             <div class="flex items-center gap-3">
                 <span id="lqv-bulk-total" class="text-sm font-bold text-emerald-800"></span>
                 <button type="button" id="lqv-bulk-clear" class="text-xs text-emerald-700 hover:underline">Quitar selección</button>
+                @can('liquidar cuentas')
                 <button type="button" id="lqv-bulk-liquidar"
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700">
                     <i class="fa-solid fa-money-bill-wave"></i>
                     Liquidar en efectivo
                 </button>
+                @endcan
             </div>
         </div>
 
@@ -455,7 +459,8 @@
             actualizarBarraSeleccion();
         });
 
-        $('lq-bulk-liquidar').addEventListener('click', function() {
+        // Puede no existir si el usuario no tiene permiso 'liquidar cuentas'.
+        $('lq-bulk-liquidar')?.addEventListener('click', function() {
             if (seleccionadas.size === 0) return;
 
             let total = 0;
@@ -625,7 +630,8 @@
             actualizarBarraVenta();
         });
 
-        $('lqv-bulk-liquidar').addEventListener('click', function () {
+        // Puede no existir si el usuario no tiene permiso 'liquidar cuentas'.
+        $('lqv-bulk-liquidar')?.addEventListener('click', function () {
             if (seleccionadasVenta.size === 0) return;
 
             let total = 0;
