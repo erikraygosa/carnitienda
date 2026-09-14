@@ -393,8 +393,11 @@ class OrderAssistantService
                 'contraentrega_total'       => $paymentMethod === SalesOrder::PM_CONTRAENTREGA ? $subtotal : 0,
             ]);
 
+            // Mismo criterio que el formulario manual: el folio usa
+            // "Programado para" (el día que va a salir), no la fecha de
+            // captura.
             $order->updateQuietly([
-                'folio' => 'SO-' . now()->format('Ymd') . '-' . Str::padLeft((string) $order->id, 4, '0'),
+                'folio' => 'SO-' . Carbon::parse($resolvedFecha)->format('Ymd') . '-' . Str::padLeft((string) $order->id, 4, '0'),
             ]);
 
             foreach ($lineItems as $it) {

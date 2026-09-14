@@ -502,8 +502,12 @@ public function data(Request $request)
                 'contraentrega_total' => $data['payment_method'] === 'CONTRAENTREGA' ? $total : 0,
             ]);
 
+            // El folio usa la fecha de "Programado para" (el día que va a
+            // salir), no la fecha de captura — así el folio mismo dice qué
+            // día sale el pedido en vez del día en que se armó.
+            $fechaFolio = $data['programado_para'] ?? $data['fecha'];
             $order->updateQuietly([
-                'folio' => 'SO-' . now()->format('Ymd') . '-' . Str::padLeft((string) $order->id, 4, '0'),
+                'folio' => 'SO-' . \Carbon\Carbon::parse($fechaFolio)->format('Ymd') . '-' . Str::padLeft((string) $order->id, 4, '0'),
             ]);
 
             foreach ($data['items'] as $it) {
@@ -898,8 +902,9 @@ public function data(Request $request)
                 'owner_id'            => auth()->id(),
             ]);
 
+            // Mismo criterio que store(): el folio usa "Programado para".
             $nuevo->updateQuietly([
-                'folio' => 'SO-' . now()->format('Ymd') . '-' . Str::padLeft((string) $nuevo->id, 4, '0'),
+                'folio' => 'SO-' . \Carbon\Carbon::parse($nuevo->programado_para)->format('Ymd') . '-' . Str::padLeft((string) $nuevo->id, 4, '0'),
             ]);
 
             foreach ($order->items as $item) {
