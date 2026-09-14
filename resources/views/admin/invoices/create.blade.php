@@ -88,13 +88,18 @@
         </div>
     @endif
 
-    {{-- Aviso si viene de pedido --}}
+    {{-- Aviso si viene de pedido (uno solo, o consolidado de varios) --}}
     @if($fromOrder)
     <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800 text-sm flex items-center gap-2">
         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
         </svg>
-        Las partidas provienen del pedido y no pueden modificarse. Solo ajusta los datos fiscales.
+        @if(!empty($prefill['consolidado_de']))
+            Factura consolidada de {{ count($prefill['consolidado_de']) }} pedido(s): {{ implode(', ', $prefill['consolidado_de']) }}.
+            Las partidas se combinaron por producto y no pueden modificarse. Solo ajusta los datos fiscales.
+        @else
+            Las partidas provienen del pedido y no pueden modificarse. Solo ajusta los datos fiscales.
+        @endif
     </div>
     @endif
 
@@ -107,6 +112,11 @@
             <input type="hidden" name="regimen_fiscal_emisor" value="{{ old('regimen_fiscal_emisor', $emisorDefaults['regimen_fiscal_emisor']) }}">
             @if(!empty($prefill['sales_order_id']))
                 <input type="hidden" name="sales_order_id" value="{{ old('sales_order_id', $prefill['sales_order_id']) }}">
+            @endif
+            @if(!empty($prefill['sales_order_ids']))
+                @foreach($prefill['sales_order_ids'] as $soid)
+                    <input type="hidden" name="sales_order_ids[]" value="{{ $soid }}">
+                @endforeach
             @endif
             @if(!empty($prefill['sale_id']))
                 <input type="hidden" name="sale_id" value="{{ old('sale_id', $prefill['sale_id']) }}">

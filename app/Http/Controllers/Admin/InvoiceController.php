@@ -70,7 +70,7 @@ class InvoiceController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('can:ver facturas', only: ['index', 'edit', 'pdf', 'pdfDownload', 'sendForm', 'send']),
-            new Middleware('can:crear facturas', only: ['create', 'store', 'update', 'fromSalesOrder', 'fromSale']),
+            new Middleware('can:crear facturas', only: ['create', 'store', 'update', 'fromSalesOrder', 'fromSale', 'consolidadaIndex', 'consolidadaData', 'prepararConsolidada']),
             new Middleware('can:timbrar facturas', only: ['stamp']),
             new Middleware('can:cancelar facturas', only: ['cancel', 'refreshCancellation']),
             new Middleware('can:ver facturas', only: ['download']),
@@ -86,6 +86,104 @@ class InvoiceController extends Controller implements HasMiddleware
     $timbresInfo = $this->timbresInfo();
 
     return view('admin.invoices.index', compact('invoices', 'timbresInfo'));
+    }
+
+    /**
+     * Pantalla para armar una factura consolidada: filtra pedidos "sin
+     * facturar" (opcionalmente de un cliente en particular), se seleccionan
+     * varios con checkbox y se genera UNA sola factura que los cubre a
+     * todos — a nombre del cliente (si todos son del mismo) o a Público en
+     * general.
+     */
+    public function consolidadaIndex()
+    {
+        $clients = Client::orderBy('nombre')->get(['id', 'nombre']);
+        return view('admin.invoices.consolidada', compact('clients'));
+    }
+
+    public function consolidadaData(Request $request)
+    {
+        $clientId = $request->get('client_id', '');
+        $search   = $request->get('search', '');
+        $desde    = $request->get('fecha_desde', '');
+        $hasta    = $request->get('fecha_hasta', '');
+
+        $orders = SalesOrder::with('client:id,nombre')
+            ->whereNotIn('status', ['BORRADOR', 'CANCELADO'])
+            // "Sin facturar" con el mismo criterio que el filtro de Pedidos:
+            // que no tenga ninguna factura viva (timbrada/borrador/
+            // cancelación pendiente) cubriéndolo ya.
+            ->whereDoesntHave('invoices', fn($q) => $q->where('estatus', '!=', 'CANCELADA'))
+            ->when($clientId, fn($q) => $q->where('client_id', $clientId))
+            ->when($search, fn($q) =>
+                $q->where(fn($q2) =>
+                    $q2->where('folio', 'like', "%$search%")
+                       ->orWhereHas('client', fn($q3) => $q3->where('nombre', 'like', "%$search%"))
+                )
+            )
+            ->when($desde, fn($q) => $q->whereDate('fecha', '>=', $desde))
+            ->when($hasta, fn($q) => $q->whereDate('fecha', '<=', $hasta))
+            ->orderByDesc('fecha')
+            ->limit(500)
+            ->get(['id', 'folio', 'client_id', 'fecha', 'total', 'payment_method']);
+
+        $rows = $orders->map(fn($o) => [
+            'id'        => $o->id,
+            'folio'     => $o->folio,
+            'client_id' => $o->client_id,
+            'cliente'   => $o->client?->nombre ?? '—',
+            'fecha'     => optional($o->fecha)->format('d/m/Y'),
+            'total'     => (float) $o->total,
+        ])->values();
+
+        return response()->json(['rows' => $rows]);
+    }
+
+    public function prepararConsolidada(Request $request)
+    {
+        $data = $request->validate([
+            'order_ids'      => ['required', 'array', 'min:1'],
+            'order_ids.*'    => ['integer', 'exists:sales_orders,id'],
+            'modo_receptor'  => ['required', 'in:publico_general,cliente'],
+        ], [
+            'order_ids.required' => 'Selecciona al menos un pedido.',
+        ]);
+
+        $orders = SalesOrder::with('items.product', 'client')
+            ->whereIn('id', $data['order_ids'])
+            ->get();
+
+        $yaFacturados = $orders->filter(fn($o) => $o->invoices()->where('estatus', '!=', 'CANCELADA')->exists());
+        if ($yaFacturados->isNotEmpty()) {
+            return back()->with('swal', [
+                'icon' => 'error', 'title' => 'Ya facturado',
+                'text' => 'Estos pedidos ya tienen una factura viva: ' . $yaFacturados->pluck('folio')->implode(', '),
+            ]);
+        }
+
+        if ($data['modo_receptor'] === 'cliente') {
+            $clientIds = $orders->pluck('client_id')->unique()->filter();
+            if ($clientIds->count() !== 1) {
+                return back()->with('swal', [
+                    'icon' => 'error', 'title' => 'No se puede facturar así',
+                    'text' => 'Para facturar con los datos del cliente, todos los pedidos seleccionados deben ser del mismo cliente. Usa "Público en general" si son de clientes distintos.',
+                ]);
+            }
+            $clientId = $clientIds->first();
+        } else {
+            $publico = Client::where('nombre', 'PUBLICO EN GENERAL')->first();
+            if (! $publico) {
+                return back()->with('swal', [
+                    'icon' => 'error', 'title' => 'Falta configurar',
+                    'text' => 'No se encontró el cliente "PUBLICO EN GENERAL" — créalo primero en Clientes (RFC XAXX010101000).',
+                ]);
+            }
+            $clientId = $publico->id;
+        }
+
+        session(['consolidated_invoice_prefill' => $this->mapFromOrders($orders, $clientId)]);
+
+        return redirect()->route('admin.invoices.create', ['consolidado' => 1]);
     }
 
     // Crear desde: pedido, venta o directa
@@ -117,7 +215,15 @@ class InvoiceController extends Controller implements HasMiddleware
 
     $prefill = null;
 
-    if ($fromOrderId) {
+    if ($req->boolean('consolidado')) {
+        // Se llenó vía prepararConsolidada() — de un solo uso, se limpia de
+        // la sesión al leerla para que un F5 no reabra la misma consolidada.
+        $prefill = session()->pull('consolidated_invoice_prefill');
+        if (! $prefill) {
+            return redirect()->route('admin.invoices.consolidada')
+                ->with('swal', ['icon' => 'error', 'title' => 'Expiró', 'text' => 'Vuelve a seleccionar los pedidos a facturar.']);
+        }
+    } elseif ($fromOrderId) {
         $order   = SalesOrder::with('items.product', 'client')->findOrFail($fromOrderId);
         $prefill = $this->mapFromOrder($order);
     } elseif ($fromSaleId) {
@@ -164,6 +270,11 @@ public function store(Request $request)
     $data = $request->validate([
         'client_id'               => ['required', 'exists:clients,id'],
         'sales_order_id'          => ['nullable', 'exists:sales_orders,id'],
+        // Factura consolidada: varios pedidos en una sola factura (ver
+        // InvoiceController::prepararConsolidada()). sales_order_id puede
+        // venir vacío en ese caso — lo que manda es esta lista.
+        'sales_order_ids'         => ['nullable', 'array'],
+        'sales_order_ids.*'       => ['integer', 'exists:sales_orders,id'],
         'sale_id'                 => ['nullable', 'exists:sales,id'],
         'serie'                   => ['nullable', 'string', 'max:10'],
         'folio'                   => ['nullable', 'string', 'max:20'],
@@ -196,11 +307,30 @@ public function store(Request $request)
             ->withInput();
     }
 
+    // Todos los pedidos que va a cubrir esta factura — el de siempre
+    // (sales_order_id) más, si viene de una consolidada, la lista completa.
+    $ordenesACubrir = collect($data['sales_order_ids'] ?? [])
+        ->push($data['sales_order_id'] ?? null)
+        ->filter()
+        ->unique()
+        ->values();
+
+    if ($ordenesACubrir->isNotEmpty()) {
+        $yaFacturados = SalesOrder::whereIn('id', $ordenesACubrir)
+            ->whereHas('invoices', fn($q) => $q->where('estatus', '!=', 'CANCELADA'))
+            ->pluck('folio');
+        if ($yaFacturados->isNotEmpty()) {
+            return back()
+                ->with('swal', ['icon' => 'error', 'title' => 'Ya facturado', 'text' => 'Estos pedidos ya tienen una factura viva: ' . $yaFacturados->implode(', ')])
+                ->withInput();
+        }
+    }
+
     $data = $this->forceGenericRfcRegimen($data);
 
     $invoice = null;
 
-    DB::transaction(function () use (&$invoice, $data) {
+    DB::transaction(function () use (&$invoice, $data, $ordenesACubrir) {
         $subtotal  = 0;
         $iva       = 0;
         $ieps      = 0;
@@ -277,6 +407,10 @@ public function store(Request $request)
             'impuestos' => $impuestos,
             'total'     => $total,
         ]);
+
+        if ($ordenesACubrir->isNotEmpty()) {
+            $invoice->salesOrders()->attach($ordenesACubrir);
+        }
 
         if ($data['folio'] ?? null) {
             $folioGuardado = (int) $data['folio'];
@@ -479,6 +613,75 @@ public function pdfDownload(Invoice $invoice)
 
     return $pdf->download('factura-' . $invoice->serie . $invoice->folio . '.pdf');
 }
+
+    /**
+     * Factura consolidada: junta las partidas de varios pedidos en una sola
+     * factura — una línea por producto, sumando cantidad e importe entre
+     * todos los pedidos seleccionados (no una línea por pedido). El precio
+     * unitario de la línea combinada se recalcula como importe/cantidad
+     * para que valorUnitario × cantidad siga cuadrando con el importe real,
+     * incluso si el mismo producto se vendió a precios distintos entre
+     * pedidos (precio por cliente, ajustes, etc.).
+     */
+    protected function mapFromOrders(\Illuminate\Support\Collection $orders, int $clientId): array
+    {
+        $grupos = [];
+
+        foreach ($orders as $order) {
+            foreach ($order->items as $it) {
+                $p   = $it->product;
+                // Agrupa por producto si existe; si es una partida libre sin
+                // producto (descripción a mano), agrupa por esa descripción
+                // — dos partidas libres con el mismo texto sí se combinan,
+                // pero nunca se mezclan con las de un producto real.
+                $key = $it->product_id ? 'p:' . $it->product_id : 'd:' . mb_strtolower(trim($it->descripcion ?? ''));
+
+                $cantidad = (float) $it->cantidad;
+                $importe  = $cantidad * (float) $it->precio - (float) $it->descuento;
+
+                if (! isset($grupos[$key])) {
+                    $grupos[$key] = [
+                        'product_id'      => $it->product_id,
+                        'descripcion'     => $it->descripcion ?? ($p->nombre ?? ''),
+                        'clave_prod_serv' => $p->clave_prod_serv ?? null,
+                        'clave_unidad'    => $p->clave_unidad ?? null,
+                        'unidad'          => $p->unidad ?? null,
+                        'cantidad'        => 0.0,
+                        'importe'         => 0.0,
+                        'iva_pct'         => (float) ($p?->tasa_iva ?? 0),
+                    ];
+                }
+
+                $grupos[$key]['cantidad'] += $cantidad;
+                $grupos[$key]['importe']  += $importe;
+            }
+        }
+
+        $items = collect($grupos)->values()->map(function ($g) {
+            $valorUnitario = $g['cantidad'] > 0 ? round($g['importe'] / $g['cantidad'], 6) : 0;
+            return [
+                'product_id'      => $g['product_id'],
+                'descripcion'     => $g['descripcion'],
+                'clave_prod_serv' => $g['clave_prod_serv'],
+                'clave_unidad'    => $g['clave_unidad'],
+                'unidad'          => $g['unidad'],
+                'cantidad'        => $g['cantidad'],
+                'valor_unitario'  => $valorUnitario,
+                'descuento'       => 0,
+                'objeto_imp'      => '02',
+                'iva_pct'         => $g['iva_pct'],
+                'ieps_pct'        => 0,
+            ];
+        })->values()->toArray();
+
+        return [
+            'client_id'        => $clientId,
+            'sales_order_ids'  => $orders->pluck('id')->values()->toArray(),
+            'moneda'           => $orders->first()->moneda ?? 'MXN',
+            'items'            => $items,
+            'consolidado_de'   => $orders->pluck('folio')->values()->toArray(),
+        ];
+    }
 
     // ===== Helpers para precargar desde pedido/nota =====
     protected function mapFromOrder(SalesOrder $order): array

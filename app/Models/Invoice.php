@@ -32,6 +32,8 @@ class Invoice extends Model
     public function items()          { return $this->hasMany(InvoiceItem::class); }
     public function client()         { return $this->belongsTo(Client::class); }
     public function salesOrder()     { return $this->belongsTo(SalesOrder::class); }
+    /** Todos los pedidos que cubre esta factura (uno solo, o varios si es consolidada). */
+    public function salesOrders()    { return $this->belongsToMany(SalesOrder::class, 'invoice_sales_orders'); }
     public function sale()           { return $this->belongsTo(Sale::class); }
     public function arPayment()      { return $this->belongsTo(ArPayment::class); }
     public function complementDocs() { return $this->hasMany(InvoiceComplementDoc::class); }

@@ -69,7 +69,7 @@ public function data(Request $request)
     // — para pedidos viejos sin programado_para, se cae a la de captura.
     $fechaOrden = "COALESCE(programado_para, DATE(fecha))";
 
-    $q = SalesOrder::with(['client','warehouse','invoice'])
+    $q = SalesOrder::with(['client','warehouse','invoices'])
         ->when($search, fn($q) =>
             $q->where(fn($q) =>
                 $q->where('folio','like',"%$search%")
@@ -77,8 +77,10 @@ public function data(Request $request)
             )
         )
         ->when($status,     fn($q) => $q->where('status', $status))
-        ->when($facturada === 'facturada',    fn($q) => $q->whereHas('invoice', fn($q2) => $q2->where('estatus', 'TIMBRADA')))
-        ->when($facturada === 'sin_facturar', fn($q) => $q->whereDoesntHave('invoice', fn($q2) => $q2->where('estatus', 'TIMBRADA')))
+        // invoices() (pivote) es la fuente de verdad — cubre tanto la
+        // factura de un solo pedido como una consolidada que junte varios.
+        ->when($facturada === 'facturada',    fn($q) => $q->whereHas('invoices', fn($q2) => $q2->where('estatus', 'TIMBRADA')))
+        ->when($facturada === 'sin_facturar', fn($q) => $q->whereDoesntHave('invoices', fn($q2) => $q2->where('estatus', 'TIMBRADA')))
         ->when($fechaDesde, fn($q) => $q->whereRaw("$fechaOrden >= ?", [$fechaDesde]))
         ->when($fechaHasta, fn($q) => $q->whereRaw("$fechaOrden <= ?", [$fechaHasta]))
         ->when($sortBy === 'fecha', fn($q) => $q->orderByRaw("$fechaOrden $sortDir"))
@@ -111,7 +113,18 @@ public function data(Request $request)
             'CANCELADA'             => 'bg-rose-100 text-rose-700',
         ];
 
-        $rows = $orders->map(fn($o) => [
+        // Si un pedido llegó a tener más de una factura (p.ej. se canceló y
+        // se volvió a facturar), se prioriza la más relevante para mostrar
+        // en el badge: una viva (timbrada/borrador/cancelación pendiente)
+        // antes que una vieja cancelada.
+        $prioridadFactura = ['TIMBRADA' => 0, 'CANCELACION_PENDIENTE' => 1, 'BORRADOR' => 2, 'CANCELADA' => 3];
+        $facturaRelevante = fn($o) => $o->invoices
+            ->sortBy(fn($inv) => (($prioridadFactura[$inv->estatus] ?? 9) * 1000000) - $inv->id)
+            ->first();
+
+        $rows = $orders->map(function ($o) use ($statusClasses, $facturaEstatusLabels, $facturaEstatusClasses, $facturaRelevante) {
+            $factura = $facturaRelevante($o);
+            return [
     'id'            => $o->id,
     'folio'         => $o->folio,
     'cliente'       => $o->client?->nombre ?? '—',
@@ -133,9 +146,9 @@ public function data(Request $request)
     // su estatus real (borrador/timbrada/cancelada) y un link directo a
     // ella — antes no había ninguna forma de saber desde aquí si un
     // pedido ya se había facturado sin abrirlo uno por uno.
-    'factura_label'   => $o->invoice ? ($facturaEstatusLabels[$o->invoice->estatus] ?? $o->invoice->estatus) : null,
-    'factura_class'   => $o->invoice ? ($facturaEstatusClasses[$o->invoice->estatus] ?? 'bg-gray-100 text-gray-600') : null,
-    'factura_view_url'=> $o->invoice ? route('admin.invoices.edit', $o->invoice) : null,
+    'factura_label'   => $factura ? ($facturaEstatusLabels[$factura->estatus] ?? $factura->estatus) : null,
+    'factura_class'   => $factura ? ($facturaEstatusClasses[$factura->estatus] ?? 'bg-gray-100 text-gray-600') : null,
+    'factura_view_url'=> $factura ? route('admin.invoices.edit', $factura) : null,
     'approve_url'   => route('admin.sales-orders.approve',     $o),
     'process_url'   => route('admin.sales-orders.process',     $o),
     'cancel_url'    => route('admin.sales-orders.cancel',      $o),
@@ -143,7 +156,8 @@ public function data(Request $request)
     'deliver_url'   => route('admin.sales-orders.deliver',     $o),
     'nodeliver_url'   => route('admin.sales-orders.not-delivered',$o),
     'duplicate_url'   => route('admin.sales-orders.duplicate',   $o),
-]);
+            ];
+        });
 
     return response()->json([
         'rows'      => $rows,

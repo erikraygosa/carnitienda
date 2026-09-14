@@ -3,8 +3,12 @@
     :breadcrumbs="[['name'=>'Dashboard','url'=>route('admin.dashboard')],['name'=>'Pedidos']]"
 >
     <x-slot name="action">
+        <a href="{{ route('admin.invoices.consolidada') }}"
+           class="inline-flex px-3 py-1.5 text-sm rounded-md border border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+            Facturar varios pedidos
+        </a>
         <a href="{{ route('admin.sales-orders.create') }}"
-           class="inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+           class="ml-2 inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
             Nuevo pedido
         </a>
     </x-slot>

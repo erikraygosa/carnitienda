@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use App\Traits\BelongsToCompany;
 
 class SalesOrder extends Model
@@ -80,6 +81,13 @@ class SalesOrder extends Model
     public function cobradoConfirmadoPor(): BelongsTo { return $this->belongsTo(User::class,'cobrado_confirmado_por'); }
     public function posRegister(): BelongsTo    { return $this->belongsTo(PosRegister::class,'pos_register_id'); }
     public function invoice(): HasOne           { return $this->hasOne(Invoice::class)->whereIn('tipo_comprobante', ['I','E']); }
+    /**
+     * Todas las facturas que cubren este pedido — incluye tanto la factura
+     * "de un solo pedido" (invoice.sales_order_id) como una consolidada que
+     * junte varios pedidos en una sola. Fuente de verdad para saber si un
+     * pedido ya está facturado (ver invoice_sales_orders).
+     */
+    public function invoices(): BelongsToMany   { return $this->belongsToMany(Invoice::class, 'invoice_sales_orders'); }
     public function dispatchItem(): HasOne      { return $this->hasOne(DispatchItem::class, 'sales_order_id'); }
     public function assistantConversation(): BelongsTo { return $this->belongsTo(AssistantConversation::class); }
 
