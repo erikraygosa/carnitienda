@@ -55,6 +55,7 @@ public function data(Request $request)
 {
     $search     = $request->get('search', '');
     $status     = $request->get('status', '');
+    $facturada  = $request->get('facturada', ''); // '' | 'facturada' | 'sin_facturar'
     $defaultDesde = now()->startOfMonth()->format('Y-m-d');
     $defaultHasta = now()->endOfMonth()->format('Y-m-d');
     $fechaDesde = $request->get('fecha_desde', $defaultDesde);
@@ -76,6 +77,8 @@ public function data(Request $request)
             )
         )
         ->when($status,     fn($q) => $q->where('status', $status))
+        ->when($facturada === 'facturada',    fn($q) => $q->whereHas('invoice', fn($q2) => $q2->where('estatus', 'TIMBRADA')))
+        ->when($facturada === 'sin_facturar', fn($q) => $q->whereDoesntHave('invoice', fn($q2) => $q2->where('estatus', 'TIMBRADA')))
         ->when($fechaDesde, fn($q) => $q->whereRaw("$fechaOrden >= ?", [$fechaDesde]))
         ->when($fechaHasta, fn($q) => $q->whereRaw("$fechaOrden <= ?", [$fechaHasta]))
         ->when($sortBy === 'fecha', fn($q) => $q->orderByRaw("$fechaOrden $sortDir"))

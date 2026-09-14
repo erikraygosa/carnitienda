@@ -12,7 +12,7 @@
     <x-wire-card>
 
         {{-- Filtros --}}
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-6 gap-3 mb-4">
             <div class="md:col-span-2">
                 <input type="text" id="so-search"
                        placeholder="Buscar folio, cliente..."
@@ -30,6 +30,15 @@
                     <option value="ENTREGADO">Entregado</option>
                     <option value="NO_ENTREGADO">No entregado</option>
                     <option value="CANCELADO">Cancelado</option>
+                </select>
+            </div>
+            <div>
+                <select id="so-facturada"
+                        title="Filtrar por facturación"
+                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <option value="">Facturación: todas</option>
+                    <option value="facturada">Facturada</option>
+                    <option value="sin_facturar">Sin facturar</option>
                 </select>
             </div>
             <div>
@@ -114,6 +123,7 @@
         let state = {
             search:     '',
             status:     '',
+            facturada:  '',
             fechaDesde: '{{ now()->startOfMonth()->format('Y-m-d') }}',
             fechaHasta: '{{ now()->endOfMonth()->format('Y-m-d') }}',
             sortBy:     'id',
@@ -131,7 +141,7 @@
         function guardarFiltros() {
             try {
                 localStorage.setItem(FILTROS_KEY, JSON.stringify({
-                    search: state.search, status: state.status,
+                    search: state.search, status: state.status, facturada: state.facturada,
                     fechaDesde: state.fechaDesde, fechaHasta: state.fechaHasta,
                     sortBy: state.sortBy, sortDir: state.sortDir, perPage: state.perPage,
                 }));
@@ -143,6 +153,7 @@
         // Reflejar el filtro restaurado en los controles antes del primer load().
         $('so-search').value    = state.search;
         $('so-status').value    = state.status;
+        $('so-facturada').value = state.facturada;
         $('so-desde').value     = state.fechaDesde;
         $('so-hasta').value     = state.fechaHasta;
         $('so-per-page').value  = String(state.perPage);
@@ -202,6 +213,7 @@
             const params = new URLSearchParams({
                 search:      state.search,
                 status:      state.status,
+                facturada:   state.facturada,
                 fecha_desde: state.fechaDesde,
                 fecha_hasta: state.fechaHasta,
                 sort_by:     state.sortBy,
@@ -312,6 +324,13 @@
             load();
         });
 
+        $('so-facturada').addEventListener('change', function() {
+            state.facturada = this.value;
+            state.page      = 1;
+            guardarFiltros();
+            load();
+        });
+
         $('so-desde').addEventListener('change', function() {
             state.fechaDesde = this.value;
             state.page       = 1;
@@ -336,11 +355,12 @@
         $('so-clear').addEventListener('click', function() {
             const mesDesde = '{{ now()->startOfMonth()->format('Y-m-d') }}';
             const mesHasta = '{{ now()->endOfMonth()->format('Y-m-d') }}';
-            state.search = ''; state.status = '';
+            state.search = ''; state.status = ''; state.facturada = '';
             state.fechaDesde = mesDesde; state.fechaHasta = mesHasta;
             state.page = 1;
             $('so-search').value = '';
             $('so-status').value = '';
+            $('so-facturada').value = '';
             $('so-desde').value  = mesDesde;
             $('so-hasta').value  = mesHasta;
             guardarFiltros();
