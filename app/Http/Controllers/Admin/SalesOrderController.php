@@ -532,8 +532,24 @@ public function data(Request $request)
         });
 
         $this->log->log($order, 'CREADO', null, $order->status);
+
+        // Un pedido capturado desde el formulario ya no se queda en
+        // BORRADOR esperando un paso extra de "Aprobar" — pasa derecho a
+        // PROCESADO en el mismo guardado. Si algo lo bloquea (ej. límite de
+        // crédito excedido), se avisa pero el pedido queda guardado en
+        // BORRADOR para corregirlo y aprobarlo manualmente después.
+        $resultado = $this->aprobarPedido($order->fresh());
+        if (! $resultado['ok']) {
+            return redirect()->route('admin.sales-orders.edit', $order)
+                ->with('swal', [
+                    'icon'  => 'warning',
+                    'title' => 'Guardado, no se pudo procesar',
+                    'text'  => 'El pedido se guardó como borrador. ' . $resultado['message'],
+                ]);
+        }
+
         return redirect()->route('admin.sales-orders.edit', $order)
-            ->with('swal',['icon'=>'success','title'=>'Creado','text'=>'Pedido creado']);
+            ->with('swal',['icon'=>'success','title'=>'Creado','text'=>'Pedido creado y procesado, listo para salida de almacén.']);
     }
 
     public function edit(Request $request, SalesOrder $sales_order)
