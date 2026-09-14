@@ -9,7 +9,7 @@
     ]"
 >
     <x-slot name="action">
-        <x-wire-button href="{{ route('admin.ar-payments.create') }}" blue>Registrar cobro</x-wire-button>
+        <x-wire-button href="{{ route('admin.ar-payments.create', ['client_id' => $client->id]) }}" blue>Registrar cobro</x-wire-button>
     </x-slot>
 
     <div class="grid md:grid-cols-3 gap-4">

@@ -149,6 +149,26 @@ class ArClientLedgerTable extends Component
 
         $movimientos = $query->paginate($this->perPage);
 
+        // Trazabilidad: a qué pedido(s)/nota(s)/factura(s) se aplicó cada
+        // ABONO (reparto FIFO de ArPaymentsController::registrarCobro) —
+        // antes el ledger solo mostraba "Cobro" sin decir a qué se aplicó.
+        $paymentIds = collect($movimientos->items())->pluck('ar_payment_id')->filter()->unique();
+        $aplicaciones = \App\Models\ArPaymentItem::whereIn('ar_payment_id', $paymentIds)
+            ->with(['salesOrder:id,folio', 'sale:id,folio', 'invoiceLibre:id,serie,folio'])
+            ->get()
+            ->groupBy('ar_payment_id')
+            ->map(fn($items) => $items->map(function ($it) {
+                $folioFactura = trim(($it->invoiceLibre?->serie ?? '') . ($it->invoiceLibre?->folio ?? ''));
+                $url = $it->sales_order_id
+                    ? route('admin.sales-orders.edit', $it->sales_order_id)
+                    : ($it->sale_id ? route('admin.sales.edit', $it->sale_id) : null);
+                return [
+                    'folio' => $it->salesOrder?->folio ?? $it->sale?->folio ?? ($folioFactura ?: '—'),
+                    'monto' => (float) $it->monto_aplicado,
+                    'url'   => $url,
+                ];
+            }));
+
         // Saldo actual total del cliente
         $saldoActual = ArMovement::where('client_id', $this->clientId)
             ->selectRaw("COALESCE(SUM(CASE WHEN tipo='CARGO' THEN monto ELSE -monto END), 0) as saldo")
@@ -157,6 +177,6 @@ class ArClientLedgerTable extends Component
         $paymentTypes = PaymentType::where('activo', true)->orderBy('descripcion')->get();
 
         return view('livewire.admin.datatables.ar-client-ledger-table',
-            compact('movimientos', 'saldoActual', 'paymentTypes'));
+            compact('movimientos', 'saldoActual', 'paymentTypes', 'aplicaciones'));
     }
 }

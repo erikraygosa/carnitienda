@@ -92,6 +92,21 @@
                                 @if($mov->pago_referencia)
                                     <span class="block text-gray-400 mt-0.5">Ref: {{ $mov->pago_referencia }}</span>
                                 @endif
+                                @if($mov->tipo === 'ABONO' && $mov->ar_payment_id && ($aplicaciones[$mov->ar_payment_id] ?? null))
+                                    <div class="mt-1 space-y-0.5">
+                                        @foreach($aplicaciones[$mov->ar_payment_id] as $ap)
+                                            <span class="block text-gray-500">
+                                                →
+                                                @if($ap['url'])
+                                                    <a href="{{ $ap['url'] }}" class="text-indigo-600 hover:underline">{{ $ap['folio'] }}</a>
+                                                @else
+                                                    {{ $ap['folio'] }}
+                                                @endif
+                                                <span class="text-gray-400">(${{ number_format($ap['monto'], 2) }})</span>
+                                            </span>
+                                        @endforeach
+                                    </div>
+                                @endif
                             @else
                                 —
                             @endif
