@@ -146,7 +146,7 @@
     <table>
         <tr>
             <td>Nota no.:</td>
-            <td class="right bold">{{ $order->folio }}</td>
+            <td class="right bold" style="font-size:17px;">{{ $order->folio }}</td>
         </tr>
         <tr>
             {{-- La nota debe mostrar la fecha en que se va a entregar
