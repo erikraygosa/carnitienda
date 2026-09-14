@@ -57,6 +57,7 @@ class RolesAndPermissionsSeeder extends Seeder
 
             // Facturas
             'ver facturas', 'crear facturas', 'timbrar facturas', 'cancelar facturas',
+            'facturar varios pedidos',
             'generar complementos pago', 'ver notas credito', 'crear notas credito',
 
             // CxC
@@ -130,7 +131,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver dashboard',
             'ver clientes',
             'ver pedidos',
-            'ver facturas',
+            'ver facturas', 'crear facturas', 'facturar varios pedidos',
             'ver cxc', 'registrar cobros', 'ver reportes cxc',
             'generar complementos pago', 'ver notas credito', 'crear notas credito',
             'ver reportes',

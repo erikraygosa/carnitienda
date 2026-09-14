@@ -70,7 +70,8 @@ class InvoiceController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('can:ver facturas', only: ['index', 'edit', 'pdf', 'pdfDownload', 'sendForm', 'send']),
-            new Middleware('can:crear facturas', only: ['create', 'store', 'update', 'fromSalesOrder', 'fromSale', 'consolidadaIndex', 'consolidadaData', 'prepararConsolidada']),
+            new Middleware('can:crear facturas', only: ['create', 'store', 'update', 'fromSalesOrder', 'fromSale']),
+            new Middleware('can:facturar varios pedidos', only: ['consolidadaIndex', 'consolidadaData', 'prepararConsolidada']),
             new Middleware('can:timbrar facturas', only: ['stamp']),
             new Middleware('can:cancelar facturas', only: ['cancel', 'refreshCancellation']),
             new Middleware('can:ver facturas', only: ['download']),
