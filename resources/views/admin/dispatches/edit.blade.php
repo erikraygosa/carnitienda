@@ -427,6 +427,10 @@
                         $itemsSurtidosCount = $item->lines->whereNotNull('qty_despachada')->pluck('sales_order_item_id')->unique()->count();
                         $faltaSurtir        = $oStatus === 'PROCESADO' && ($totalItemsPedido === 0 || $itemsSurtidosCount < $totalItemsPedido);
                         $itemSinTocar       = $item->lines->whereNotNull('qty_despachada')->isEmpty();
+                        // Solo cambia la etiqueta que se ve aquí — $oStatus
+                        // (usado en las comparaciones de arriba) se queda
+                        // igual, así no se toca ninguna lógica.
+                        $oStatusLabel = $oStatus === 'PROCESADO' ? 'En proceso' : $oStatus;
                     @endphp
                     <tr class="border-b hover:bg-gray-50 {{ $faltaSurtir ? 'bg-amber-50' : '' }}">
                         <td class="p-2">
@@ -439,7 +443,7 @@
                         <td class="p-2 text-right">${{ number_format($o?->total ?? 0, 2) }}</td>
                         <td class="p-2">{{ $o?->payment_method ?? '—' }}</td>
                         <td class="p-2">
-                            <span class="px-2 py-0.5 rounded-full text-xs {{ $oStatusClass }}">{{ $oStatus }}</span>
+                            <span class="px-2 py-0.5 rounded-full text-xs {{ $oStatusClass }}">{{ $oStatusLabel }}</span>
                             @if($faltaSurtir)
                                 <span class="ml-1 px-2 py-0.5 rounded-full text-xs bg-amber-200 text-amber-800" title="Faltan productos por surtir en Salida de Producto">
                                     ⏳ Falta surtir ({{ $itemsSurtidosCount }}/{{ $totalItemsPedido }})
