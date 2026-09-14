@@ -981,6 +981,22 @@ private function aprobarPedido(SalesOrder $order): array
         return ['ok' => false, 'message' => 'Solo BORRADOR se puede aprobar.'];
     }
 
+    // assertPreciosCompletos() solo se ejecutaba en store()/update() (el
+    // formulario completo) — un pedido creado por otra vía (ej. el asistente
+    // de IA) podía llegar a BORRADOR con una línea en $0 y aprobarse aquí sin
+    // que nadie lo bloqueara. Se valida también en el propio paso de aprobar.
+    $sinPrecio = $order->items->filter(
+        fn ($it) => $it->product_id && (float) $it->precio <= 0
+    );
+    if ($sinPrecio->isNotEmpty()) {
+        $nombres = $sinPrecio->map(fn ($it) => $it->descripcion ?? ('#' . $it->product_id))->implode(', ');
+        return [
+            'ok'      => false,
+            'title'   => 'Falta precio',
+            'message' => "No se puede aprobar: falta precio para: {$nombres}. Corrige el precio en esa línea antes de aprobar.",
+        ];
+    }
+
     if ($order->payment_method === 'CREDITO' && $order->client_id) {
         $client = $order->client;
         $limite = (float) ($client->credito_limite ?? 0);

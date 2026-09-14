@@ -629,7 +629,12 @@ class OrderAssistantService
             $override = ClientPriceOverride::where('client_id', $client->id)
                 ->where('product_id', $product->id)
                 ->value('precio');
-            if ($override !== null) {
+            // Un override en $0 se trata igual que "sin override" (mismo
+            // criterio que precioOficial() en Pedidos/Notas) — de lo
+            // contrario un precio mal capturado en $0 se arrastra a cada
+            // pedido nuevo del cliente en vez de recurrir a la lista de
+            // precios o al precio base del producto.
+            if ($override !== null && (float) $override > 0) {
                 return (float) $override;
             }
 

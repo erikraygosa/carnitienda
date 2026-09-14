@@ -636,6 +636,23 @@ class SaleController extends Controller implements HasMiddleware
         if ($sale->status !== 'BORRADOR') {
             return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR puede aprobarse.']);
         }
+
+        // assertPreciosCompletos() solo se ejecutaba en store()/update() (el
+        // formulario completo) — una nota creada por otra vía podía llegar a
+        // BORRADOR con una línea en $0 y aprobarse aquí sin que nadie lo
+        // bloqueara. Se valida también en el propio paso de aprobar.
+        $sinPrecio = $sale->items->filter(
+            fn ($it) => $it->product_id && (float) $it->precio <= 0
+        );
+        if ($sinPrecio->isNotEmpty()) {
+            $nombres = $sinPrecio->map(fn ($it) => $it->descripcion ?? ('#' . $it->product_id))->implode(', ');
+            return back()->with('swal', [
+                'icon'  => 'error',
+                'title' => 'Falta precio',
+                'text'  => "No se puede aprobar: falta precio para: {$nombres}. Corrige el precio en esa línea antes de aprobar.",
+            ]);
+        }
+
         $sale->update(['status'=>'ABIERTA']);
         return back()->with('swal',['icon'=>'success','title'=>'Abierta','text'=>'Nota abierta.']);
     }
