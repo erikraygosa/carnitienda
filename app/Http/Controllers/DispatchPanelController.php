@@ -350,8 +350,14 @@ class DispatchPanelController extends Controller
                     ]
                 );
 
-                // 2. Descontar inventario con qty REAL
-                if ($qtyReal > 0) {
+                // 2. Descontar inventario con qty REAL — solo si la línea
+                // tiene un producto de catálogo. Una línea libre (sin
+                // product_id, ej. capturada a mano sin elegir del catálogo)
+                // no tiene de qué producto descontar stock; antes esto
+                // tronaba con "No query results for model [Product] 0"
+                // porque (int) null se volvía 0 y Product::findOrFail(0)
+                // nunca existe (ver SO-20260914-0999, línea "ESPALDILLA").
+                if ($qtyReal > 0 && $orderItem->product_id) {
                     $itemReal = (object)[
                         'product_id' => $orderItem->product_id,
                         'cantidad'   => $qtyReal,
