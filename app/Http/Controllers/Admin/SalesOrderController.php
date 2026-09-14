@@ -68,7 +68,7 @@ public function data(Request $request)
     // — para pedidos viejos sin programado_para, se cae a la de captura.
     $fechaOrden = "COALESCE(programado_para, DATE(fecha))";
 
-    $q = SalesOrder::with(['client','warehouse'])
+    $q = SalesOrder::with(['client','warehouse','invoice'])
         ->when($search, fn($q) =>
             $q->where(fn($q) =>
                 $q->where('folio','like',"%$search%")
@@ -95,6 +95,19 @@ public function data(Request $request)
         'CANCELADO'    => 'bg-rose-100 text-rose-700',
     ];
 
+        $facturaEstatusLabels = [
+            'BORRADOR'              => 'Factura en borrador',
+            'TIMBRADA'              => 'Facturada',
+            'CANCELACION_PENDIENTE' => 'Cancelación pendiente',
+            'CANCELADA'             => 'Factura cancelada',
+        ];
+        $facturaEstatusClasses = [
+            'BORRADOR'              => 'bg-gray-100 text-gray-600',
+            'TIMBRADA'              => 'bg-emerald-100 text-emerald-700',
+            'CANCELACION_PENDIENTE' => 'bg-amber-100 text-amber-700',
+            'CANCELADA'             => 'bg-rose-100 text-rose-700',
+        ];
+
         $rows = $orders->map(fn($o) => [
     'id'            => $o->id,
     'folio'         => $o->folio,
@@ -113,6 +126,13 @@ public function data(Request $request)
     'pdf_dl_url'    => route('admin.sales-orders.pdf.download', $o),
     'send_url'      => route('admin.sales-orders.send.form',   $o),
     'invoice_url' => route('admin.invoices.create').'?order_id='.$o->id,
+    // Trazabilidad: si ya se generó una factura desde este pedido, mostrar
+    // su estatus real (borrador/timbrada/cancelada) y un link directo a
+    // ella — antes no había ninguna forma de saber desde aquí si un
+    // pedido ya se había facturado sin abrirlo uno por uno.
+    'factura_label'   => $o->invoice ? ($facturaEstatusLabels[$o->invoice->estatus] ?? $o->invoice->estatus) : null,
+    'factura_class'   => $o->invoice ? ($facturaEstatusClasses[$o->invoice->estatus] ?? 'bg-gray-100 text-gray-600') : null,
+    'factura_view_url'=> $o->invoice ? route('admin.invoices.edit', $o->invoice) : null,
     'approve_url'   => route('admin.sales-orders.approve',     $o),
     'process_url'   => route('admin.sales-orders.process',     $o),
     'cancel_url'    => route('admin.sales-orders.cancel',      $o),

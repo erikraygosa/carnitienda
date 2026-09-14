@@ -243,6 +243,12 @@
                         <span class="px-2 py-1 text-xs rounded-full ${o.status_class}">
                             ${o.status_label}
                         </span>
+                        ${o.factura_label ? `
+                            <a href="${o.factura_view_url}" title="Ver factura"
+                               class="ml-1 inline-flex px-2 py-1 text-xs rounded-full ${o.factura_class} hover:opacity-75">
+                                🧾 ${o.factura_label}
+                            </a>
+                        ` : ''}
                     </td>
                     <td class="px-4 py-3 font-mono text-gray-700">$${o.total}</td>
                     <td class="px-4 py-3">${renderActions(o)}</td>
