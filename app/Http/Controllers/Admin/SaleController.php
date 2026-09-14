@@ -219,11 +219,13 @@ class SaleController extends Controller implements HasMiddleware
     /**
      * Bloquea el guardado si algún producto de catálogo queda sin precio
      * (ni oficial, ni capturado a mano en la línea) — igual que en Pedidos.
+     * También bloquea cualquier línea libre con cantidad>0 en $0 (ver
+     * SO-20260914-0999).
      */
     private function assertPreciosCompletos(array $items): void
     {
         $sinPrecio = collect($items)->filter(
-            fn ($it) => !empty($it['product_id']) && (float) ($it['precio'] ?? 0) <= 0
+            fn ($it) => (float) ($it['cantidad'] ?? 0) > 0 && (float) ($it['precio'] ?? 0) <= 0
         );
 
         if ($sinPrecio->isEmpty()) return;
@@ -642,7 +644,7 @@ class SaleController extends Controller implements HasMiddleware
         // BORRADOR con una línea en $0 y aprobarse aquí sin que nadie lo
         // bloqueara. Se valida también en el propio paso de aprobar.
         $sinPrecio = $sale->items->filter(
-            fn ($it) => $it->product_id && (float) $it->precio <= 0
+            fn ($it) => (float) $it->cantidad > 0 && (float) $it->precio <= 0
         );
         if ($sinPrecio->isNotEmpty()) {
             $nombres = $sinPrecio->map(fn ($it) => $it->descripcion ?? ('#' . $it->product_id))->implode(', ');

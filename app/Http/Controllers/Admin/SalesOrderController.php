@@ -378,13 +378,15 @@ public function data(Request $request)
      * Bloquea el guardado si algún producto de catálogo queda sin precio
      * (ni oficial resuelto por aplicarPreciosOficiales(), ni capturado a
      * mano en la línea) — antes se guardaba en $0 sin avisar y pasaba
-     * desapercibido. Líneas libres sin producto no se validan aquí (no
-     * tienen un "precio oficial" contra qué medirse).
+     * desapercibido. También bloquea cualquier línea libre (sin producto de
+     * catálogo) con cantidad>0 en $0 — no tienen "precio oficial" contra qué
+     * medirse, pero $0 con cantidad real casi siempre es un error de captura
+     * (ver SO-20260914-0999: línea libre "ESPALDILLA" aprobada en $0).
      */
     private function assertPreciosCompletos(array $items): void
     {
         $sinPrecio = collect($items)->filter(
-            fn ($it) => !empty($it['product_id']) && (float) ($it['precio'] ?? 0) <= 0
+            fn ($it) => (float) ($it['cantidad'] ?? 0) > 0 && (float) ($it['precio'] ?? 0) <= 0
         );
 
         if ($sinPrecio->isEmpty()) return;
@@ -984,9 +986,10 @@ private function aprobarPedido(SalesOrder $order): array
     // assertPreciosCompletos() solo se ejecutaba en store()/update() (el
     // formulario completo) — un pedido creado por otra vía (ej. el asistente
     // de IA) podía llegar a BORRADOR con una línea en $0 y aprobarse aquí sin
-    // que nadie lo bloqueara. Se valida también en el propio paso de aprobar.
+    // que nadie lo bloqueara. Se valida también en el propio paso de aprobar,
+    // incluyendo líneas libres sin producto de catálogo (ver SO-20260914-0999).
     $sinPrecio = $order->items->filter(
-        fn ($it) => $it->product_id && (float) $it->precio <= 0
+        fn ($it) => (float) $it->cantidad > 0 && (float) $it->precio <= 0
     );
     if ($sinPrecio->isNotEmpty()) {
         $nombres = $sinPrecio->map(fn ($it) => $it->descripcion ?? ('#' . $it->product_id))->implode(', ');
