@@ -186,7 +186,14 @@
                 html += btn(o.pdf_url,     'PDF',     'border-gray-300 text-gray-600 hover:bg-gray-50');
                 html += btn(o.pdf_dl_url,  '↓ PDF',   'border-gray-300 text-gray-600 hover:bg-gray-50');
                 html += btn(o.send_url,    'Enviar',   'border-violet-300 text-violet-700 hover:bg-violet-50');
-                html += btn(o.invoice_url, 'Facturar', 'border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100');
+                // Ya tiene una factura viva (borrador/timbrada/cancelación
+                // pendiente) — "Facturar" de nuevo crearía una duplicada, ya
+                // que /admin/invoices/create no valida eso. Si la única
+                // factura que tuvo se canceló, sí se puede volver a facturar.
+                const facturaViva = o.factura_label && o.factura_label !== 'Factura cancelada';
+                if (!facturaViva) {
+                    html += btn(o.invoice_url, 'Facturar', 'border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100');
+                }
             }
 
             if (o.status === 'BORRADOR') {
