@@ -12,12 +12,27 @@
     </x-slot>
 
     <div class="mb-4 rounded-md border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
-        Selecciona varios pedidos <strong>sin facturar</strong> para juntarlos en una sola factura. Las partidas se
-        combinan por producto (sumando cantidades). Si todos los pedidos son del mismo cliente puedes facturar con
+        Selecciona varios pedidos o notas de venta <strong>sin facturar</strong> para juntarlos en una sola factura. Las
+        partidas se combinan por producto (sumando cantidades). Si todos son del mismo cliente puedes facturar con
         sus datos reales; si no, se factura a "Público en general".
     </div>
 
     <x-wire-card>
+        {{-- Pedidos / Notas --}}
+        <div class="flex items-center gap-2 mb-4">
+            <span class="text-xs font-medium text-gray-500">Facturar:</span>
+            <div class="inline-flex rounded-md border border-gray-300 overflow-hidden text-sm">
+                <button type="button" id="fc-tipo-pedidos"
+                        class="px-3 py-1.5 bg-indigo-600 text-white">
+                    Pedidos
+                </button>
+                <button type="button" id="fc-tipo-notas"
+                        class="px-3 py-1.5 bg-white text-gray-600 hover:bg-gray-50 border-l border-gray-300">
+                    Notas de venta
+                </button>
+            </div>
+        </div>
+
         {{-- Filtros --}}
         <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
             <div>
@@ -89,6 +104,7 @@
     <form id="fc-form" method="POST" action="{{ route('admin.invoices.consolidada.preparar') }}" class="hidden">
         @csrf
         <input type="hidden" name="modo_receptor" id="fc-form-modo">
+        <input type="hidden" name="tipo" id="fc-form-tipo">
         <div id="fc-form-orders"></div>
     </form>
 
@@ -97,14 +113,28 @@
         const DATA_URL = '{{ route('admin.invoices.consolidada.data') }}';
         const $ = id => document.getElementById(id);
 
+        let tipo = 'pedidos'; // 'pedidos' | 'notas'
         let rows = [];
         let seleccionadas = new Map(); // id -> {total, client_id}
 
         const fmtMoney = v => '$' + parseFloat(v || 0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
+        function setTipo(nuevo) {
+            if (tipo === nuevo) return;
+            tipo = nuevo;
+            seleccionadas.clear();
+            $('fc-tipo-pedidos').className = 'px-3 py-1.5 ' + (tipo === 'pedidos' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50');
+            $('fc-tipo-notas').className   = 'px-3 py-1.5 border-l border-gray-300 ' + (tipo === 'notas' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50');
+            actualizarBarra();
+            load();
+        }
+        $('fc-tipo-pedidos').addEventListener('click', () => setTipo('pedidos'));
+        $('fc-tipo-notas').addEventListener('click', () => setTipo('notas'));
+
         async function load() {
             $('fc-tbody').innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-400">Cargando...</td></tr>`;
             const params = new URLSearchParams({
+                tipo:        tipo,
                 client_id:   $('fc-cliente').value,
                 search:      $('fc-buscar').value,
                 fecha_desde: $('fc-desde').value,
@@ -116,13 +146,13 @@
                 rows = data.rows || [];
                 render();
             } catch (e) {
-                $('fc-tbody').innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-400">Error cargando pedidos.</td></tr>`;
+                $('fc-tbody').innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-400">Error cargando ${tipo === 'notas' ? 'notas' : 'pedidos'}.</td></tr>`;
             }
         }
 
         function render() {
             if (!rows.length) {
-                $('fc-tbody').innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-400">Sin pedidos sin facturar para estos filtros.</td></tr>`;
+                $('fc-tbody').innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-400">Sin ${tipo === 'notas' ? 'notas' : 'pedidos'} sin facturar para estos filtros.</td></tr>`;
                 return;
             }
             $('fc-tbody').innerHTML = rows.map(r => {
@@ -200,6 +230,7 @@
                 ordersWrap.appendChild(input);
             });
             $('fc-form-modo').value = modo;
+            $('fc-form-tipo').value = tipo;
             $('fc-form').submit();
         });
 

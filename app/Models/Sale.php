@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use App\Traits\BelongsToCompany;
 
 class Sale extends Model
@@ -80,6 +81,8 @@ class Sale extends Model
     public function route(): BelongsTo              { return $this->belongsTo(ShippingRoute::class, 'shipping_route_id'); }
     public function priceList(): BelongsTo          { return $this->belongsTo(PriceList::class, 'price_list_id'); }
     public function posRegister(): BelongsTo        { return $this->belongsTo(PosRegister::class); }
+    /** Todas las facturas que cubren esta nota (una sola, o una consolidada que la junte con otras). */
+    public function invoices(): BelongsToMany       { return $this->belongsToMany(Invoice::class, 'invoice_sales'); }
     public function cashRegister(): BelongsTo       { return $this->belongsTo(CashRegister::class); }
     public function paymentType(): BelongsTo        { return $this->belongsTo(PaymentType::class, 'payment_type_id'); }
     public function cobradoConfirmadoPor(): BelongsTo { return $this->belongsTo(User::class,'cobrado_confirmado_por'); }

@@ -95,7 +95,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
         </svg>
         @if(!empty($prefill['consolidado_de']))
-            Factura consolidada de {{ count($prefill['consolidado_de']) }} pedido(s): {{ implode(', ', $prefill['consolidado_de']) }}.
+            Factura consolidada de {{ count($prefill['consolidado_de']) }} {{ !empty($prefill['sale_ids']) ? 'nota(s)' : 'pedido(s)' }}: {{ implode(', ', $prefill['consolidado_de']) }}.
             Las partidas se combinaron por producto y no pueden modificarse. Solo ajusta los datos fiscales.
         @else
             Las partidas provienen del pedido y no pueden modificarse. Solo ajusta los datos fiscales.
@@ -120,6 +120,11 @@
             @endif
             @if(!empty($prefill['sale_id']))
                 <input type="hidden" name="sale_id" value="{{ old('sale_id', $prefill['sale_id']) }}">
+            @endif
+            @if(!empty($prefill['sale_ids']))
+                @foreach($prefill['sale_ids'] as $said)
+                    <input type="hidden" name="sale_ids[]" value="{{ $said }}">
+                @endforeach
             @endif
             <input type="hidden" name="serie"       value="A">
             <input type="hidden" name="folio"       value="">

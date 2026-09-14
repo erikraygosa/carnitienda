@@ -35,6 +35,8 @@ class Invoice extends Model
     /** Todos los pedidos que cubre esta factura (uno solo, o varios si es consolidada). */
     public function salesOrders()    { return $this->belongsToMany(SalesOrder::class, 'invoice_sales_orders'); }
     public function sale()           { return $this->belongsTo(Sale::class); }
+    /** Todas las notas de venta que cubre esta factura (una sola, o varias si es consolidada). */
+    public function sales()          { return $this->belongsToMany(Sale::class, 'invoice_sales'); }
     public function arPayment()      { return $this->belongsTo(ArPayment::class); }
     public function complementDocs() { return $this->hasMany(InvoiceComplementDoc::class); }
 
