@@ -295,11 +295,8 @@
                     <span class="text-sm font-normal text-gray-400">(el chofer las cobra en ruta)</span>
                     <div class="ml-auto flex gap-2 flex-wrap">
                         <input type="text" id="buscar-cxc"
-                               placeholder="Buscar cliente..."
-                               class="w-48 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
-                        <input type="text" id="buscar-cxc-folio"
-                               placeholder="Buscar folio..."
-                               class="w-40 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                               placeholder="Buscar cliente o folio..."
+                               class="w-56 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                         <input type="date" id="filtro-cxc-fecha"
                                class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     </div>
@@ -642,36 +639,38 @@
         if (buscarPedido) buscarPedido.addEventListener('input', aplicarFiltrosPedidos);
         if (filtroFechaProg) filtroFechaProg.addEventListener('input', aplicarFiltrosPedidos);
 
-        // Cliente + folio + fecha filtran juntos. Filtrar por folio/fecha
-        // despliega automáticamente las notas de los clientes que sí tengan
-        // coincidencias, para no obligar a abrir "Ver notas" a mano.
+        // Una sola caja busca por nombre de cliente O por folio de
+        // cualquiera de sus notas (con que el folio CONTENGA lo escrito
+        // alcanza — así buscar solo los últimos 4 dígitos también
+        // encuentra la nota). La fecha filtra aparte, a nivel de nota.
+        // Filtrar por folio/fecha despliega automáticamente las notas de
+        // los clientes con coincidencias, sin obligar a abrir "Ver notas".
         var buscarCxc      = document.getElementById('buscar-cxc');
-        var buscarCxcFolio = document.getElementById('buscar-cxc-folio');
         var filtroCxcFecha = document.getElementById('filtro-cxc-fecha');
 
         function aplicarFiltrosCxc() {
-            var termCliente = buscarCxc      ? buscarCxc.value.toLowerCase().trim()      : '';
-            var termFolio   = buscarCxcFolio ? buscarCxcFolio.value.toLowerCase().trim() : '';
-            var fecha       = filtroCxcFecha ? filtroCxcFecha.value                      : '';
-            var filtrandoNotas = !!(termFolio || fecha);
+            var term  = buscarCxc      ? buscarCxc.value.toLowerCase().trim() : '';
+            var fecha = filtroCxcFecha ? filtroCxcFecha.value                 : '';
+            var filtrando = !!(term || fecha);
 
             document.querySelectorAll('.cxc-row').forEach(function(row) {
-                var pasaCliente = !termCliente || row.dataset.search.includes(termCliente);
-                if (!pasaCliente) { row.style.display = 'none'; return; }
-
+                var nombreMatch = !term || row.dataset.search.includes(term);
                 var notas = row.querySelectorAll('.cxc-nota-row');
-                var algunaVisible = notas.length === 0;
+                var algunaVisible = false;
+
                 notas.forEach(function(nr) {
-                    var pasaFolio = !termFolio || nr.dataset.folio.includes(termFolio);
-                    var pasaFecha = !fecha || nr.dataset.fecha === fecha;
-                    var visible   = pasaFolio && pasaFecha;
+                    var folioMatch  = !term || nr.dataset.folio.includes(term);
+                    var pasaTermino = nombreMatch || folioMatch;
+                    var pasaFecha   = !fecha || nr.dataset.fecha === fecha;
+                    var visible     = pasaTermino && pasaFecha;
                     nr.style.display = visible ? '' : 'none';
                     if (visible) algunaVisible = true;
                 });
 
-                row.style.display = algunaVisible ? '' : 'none';
+                var visibleFila = notas.length === 0 ? (nombreMatch && !fecha) : algunaVisible;
+                row.style.display = visibleFila ? '' : 'none';
 
-                if (algunaVisible && filtrandoNotas) {
+                if (visibleFila && filtrando) {
                     var panel = row.querySelector('[id^="notas-ar-"]');
                     var btn   = row.querySelector('.btn-toggle-notas');
                     if (panel && panel.classList.contains('hidden')) {
@@ -680,13 +679,12 @@
                     }
                 }
 
-                var clientId = row.querySelector('.ar-client-toggle');
-                if (clientId) syncClientToggle(clientId.id.replace('ar-', ''));
+                var toggle = row.querySelector('.ar-client-toggle');
+                if (toggle) syncClientToggle(toggle.id.replace('ar-', ''));
             });
         }
 
         if (buscarCxc)      buscarCxc.addEventListener('input', aplicarFiltrosCxc);
-        if (buscarCxcFolio) buscarCxcFolio.addEventListener('input', aplicarFiltrosCxc);
         if (filtroCxcFecha) filtroCxcFecha.addEventListener('input', aplicarFiltrosCxc);
 
         // Init

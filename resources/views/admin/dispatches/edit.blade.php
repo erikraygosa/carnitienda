@@ -852,10 +852,8 @@
             <form action="{{ route('admin.dispatches.cxc.agregar', $dispatch) }}" method="POST">
                 @csrf
                 <div class="flex items-center gap-2 mb-2 flex-wrap">
-                    <input type="text" id="buscar-cxc-disponible" placeholder="Buscar cliente..."
-                           class="w-48 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
-                    <input type="text" id="buscar-cxc-disp-folio" placeholder="Buscar folio..."
-                           class="w-40 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <input type="text" id="buscar-cxc-disponible" placeholder="Buscar cliente o folio..."
+                           class="w-56 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <input type="date" id="filtro-cxc-disp-fecha"
                            class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <span class="text-xs text-gray-400 ml-auto"><span id="cxc-disp-count">0</span> nota(s) seleccionada(s)</span>
@@ -1336,29 +1334,31 @@
                 });
             });
 
+            // Una sola caja busca por nombre de cliente O por folio de
+            // cualquiera de sus notas (basta con que el folio CONTENGA lo
+            // escrito, así los últimos 4 dígitos también encuentran la nota).
             var buscarCliente = document.getElementById('buscar-cxc-disponible');
-            var buscarFolio   = document.getElementById('buscar-cxc-disp-folio');
             var filtroFecha   = document.getElementById('filtro-cxc-disp-fecha');
 
             function aplicarFiltrosCxcDisp() {
-                var termCliente = buscarCliente ? buscarCliente.value.toLowerCase().trim() : '';
-                var termFolio   = buscarFolio   ? buscarFolio.value.toLowerCase().trim()   : '';
-                var fecha       = filtroFecha   ? filtroFecha.value                        : '';
+                var term  = buscarCliente ? buscarCliente.value.toLowerCase().trim() : '';
+                var fecha = filtroFecha   ? filtroFecha.value                        : '';
 
                 document.querySelectorAll('.cxc-disp-row').forEach(function(row) {
-                    var pasaCliente = !termCliente || row.dataset.search.includes(termCliente);
-                    if (!pasaCliente) { row.style.display = 'none'; return; }
-
+                    var nombreMatch = !term || row.dataset.search.includes(term);
                     var notas = row.querySelectorAll('.cxc-disp-nota-row');
-                    var algunaVisible = notas.length === 0;
+                    var algunaVisible = false;
+
                     notas.forEach(function(nr) {
-                        var pasaFolio = !termFolio || nr.dataset.folio.includes(termFolio);
-                        var pasaFecha = !fecha || nr.dataset.fecha === fecha;
-                        var visible   = pasaFolio && pasaFecha;
+                        var folioMatch  = !term || nr.dataset.folio.includes(term);
+                        var pasaTermino = nombreMatch || folioMatch;
+                        var pasaFecha   = !fecha || nr.dataset.fecha === fecha;
+                        var visible     = pasaTermino && pasaFecha;
                         nr.style.display = visible ? '' : 'none';
                         if (visible) algunaVisible = true;
                     });
-                    row.style.display = algunaVisible ? '' : 'none';
+
+                    row.style.display = (notas.length === 0 ? (nombreMatch && !fecha) : algunaVisible) ? '' : 'none';
 
                     var toggle = row.querySelector('.ar-disp-client-toggle');
                     if (toggle) syncDispClientToggle(toggle.id.replace('ard-', ''));
@@ -1366,7 +1366,6 @@
             }
 
             if (buscarCliente) buscarCliente.addEventListener('input', aplicarFiltrosCxcDisp);
-            if (buscarFolio)   buscarFolio.addEventListener('input', aplicarFiltrosCxcDisp);
             if (filtroFecha)   filtroFecha.addEventListener('input', aplicarFiltrosCxcDisp);
         })();
 
