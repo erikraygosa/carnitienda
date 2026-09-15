@@ -204,16 +204,6 @@ class ReportesController extends Controller implements HasMiddleware
         $driverId = $request->get('driver_id', '');
         $ronda    = $request->get('ronda', '');
 
-        $cxcStatusClasses = [
-            'COBRADO'    => 'bg-emerald-100 text-emerald-700',
-            'PARCIAL'    => 'bg-amber-100 text-amber-700',
-            'NO_COBRADO' => 'bg-red-100 text-red-700',
-            'PENDIENTE'  => 'bg-gray-100 text-gray-600',
-        ];
-
-        // 1) Lo asignado a mano con el botón "Asignar CxC" — se conserva tal
-        // cual porque ahí sí se le da seguimiento real (monto_cobrado,
-        // status) al cobro que el chofer va haciendo en la calle.
         $assignments = \App\Models\DispatchArAssignment::query()
             ->join('dispatches', 'dispatches.id', '=', 'dispatch_ar_assignments.dispatch_id')
             ->leftJoin('clients', 'clients.id', '=', 'dispatch_ar_assignments.client_id')
@@ -239,10 +229,20 @@ class ReportesController extends Controller implements HasMiddleware
             ->orderBy('clients.nombre')
             ->get();
 
-        $ar = app(\App\Services\ArService::class);
+        $cxcStatusClasses = [
+            'COBRADO'    => 'bg-emerald-100 text-emerald-700',
+            'PARCIAL'    => 'bg-amber-100 text-amber-700',
+            'NO_COBRADO' => 'bg-red-100 text-red-700',
+            'PENDIENTE'  => 'bg-gray-100 text-gray-600',
+        ];
 
         $rows = $assignments->map(function ($a) use ($cxcStatusClasses) {
-            $notas = $this->notasPendientesCliente($a->client_id);
+            $notas = SalesOrder::where('client_id', $a->client_id)
+                ->where('payment_method', 'CREDITO')
+                ->where('status', 'ENTREGADO')
+                ->whereNull('cobrado_at')
+                ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
+                ->get(['folio']);
 
             $saldoAsignado  = (float) $a->saldo_asignado;
             $montoCobrado   = (float) $a->monto_cobrado;
@@ -252,7 +252,6 @@ class ReportesController extends Controller implements HasMiddleware
 
             return [
                 'ruta'              => $a->ruta_nombre ?? 'Sin ruta',
-                'client_id'         => $a->client_id,
                 'cliente'           => $a->cliente_nombre ?? '—',
                 'saldo_asignado'    => $saldoAsignado,
                 'saldo_pendiente'   => $saldoPendiente,
@@ -264,80 +263,16 @@ class ReportesController extends Controller implements HasMiddleware
             ];
         });
 
-        // 2) Clientes con saldo CxC real pendiente en pedidos de esa misma
-        // ruta/despacho que NADIE asignó a mano — antes esto dejaba el
-        // reporte vacío en cuanto alguien se saltaba el botón "Asignar CxC",
-        // aunque el pedido sí fuera a crédito y el cliente sí tuviera saldo
-        // (visto en vivo: ninguna ruta del día tenía asignaciones manuales).
-        // Se calcula el saldo real del cliente (ArService::saldoCliente,
-        // igual que en Cobrar CxC) en vez de inventar un monto.
-        $yaAsignados = $assignments->pluck('client_id')->unique();
-
-        $pendientesAutomaticos = DispatchItem::query()
-            ->join('dispatches',    'dispatches.id',    '=', 'dispatch_items.dispatch_id')
-            ->join('sales_orders',  'sales_orders.id',  '=', 'dispatch_items.sales_order_id')
-            ->leftJoin('shipping_routes', 'shipping_routes.id', '=', 'dispatches.shipping_route_id')
-            ->leftJoin('clients',   'clients.id',        '=', 'sales_orders.client_id')
-            ->whereIn('dispatches.status', ['PLANEADO', 'EN_RUTA', 'CERRADO', 'ENTREGADO'])
-            ->where('sales_orders.payment_method', 'CREDITO')
-            ->whereNotNull('sales_orders.client_id')
-            ->whereNotIn('sales_orders.client_id', $yaAsignados)
-            ->when($fecha,    fn($q) => $q->whereDate('dispatches.fecha', $fecha))
-            ->when($routeId,  fn($q) => $q->where('dispatches.shipping_route_id', $routeId))
-            ->when($driverId, fn($q) => $q->where('dispatches.driver_id', $driverId))
-            ->when($ronda,    fn($q) => $q->where('dispatches.ronda', $ronda))
-            ->select('sales_orders.client_id', 'clients.nombre as cliente_nombre', 'shipping_routes.nombre as ruta_nombre')
-            ->distinct()
-            ->get()
-            ->map(function ($r) use ($ar, $cxcStatusClasses) {
-                $saldo = round($ar->saldoCliente((int) $r->client_id), 2);
-                if ($saldo <= 0) return null; // sin deuda real, no hay nada que cobrar
-
-                $notas = $this->notasPendientesCliente($r->client_id);
-
-                return [
-                    'ruta'              => $r->ruta_nombre ?? 'Sin ruta',
-                    'client_id'         => $r->client_id,
-                    'cliente'           => $r->cliente_nombre ?? '—',
-                    'saldo_asignado'    => $saldo,
-                    'saldo_pendiente'   => $saldo,
-                    'monto_cobrado'     => 0.0,
-                    'status'            => 'PENDIENTE',
-                    'status_class'      => $cxcStatusClasses['PENDIENTE'],
-                    'notas_pendientes'  => $notas->count(),
-                    'folios_pendientes' => $notas->pluck('folio')->implode(', '),
-                ];
-            })
-            ->filter()
-            ->values();
-
-        return $rows->concat($pendientesAutomaticos)
-            ->groupBy('ruta')
-            ->map(function ($grupo, $ruta) {
-                return [
-                    'ruta'                 => $ruta,
-                    'clientes'             => $grupo->values(),
-                    'count'                => $grupo->count(),
-                    'total_saldo'          => $grupo->sum('saldo_pendiente'),
-                    'total_saldo_asignado' => $grupo->sum('saldo_asignado'),
-                    'total_cobrado'        => $grupo->sum('monto_cobrado'),
-                ];
-            })->values();
-    }
-
-    /**
-     * Pedidos ENTREGADO a crédito de un cliente que todavía no se marcan
-     * como cobrados — usado tanto para lo asignado a mano como para lo
-     * calculado automáticamente en cxcAsignadas().
-     */
-    private function notasPendientesCliente(int $clientId)
-    {
-        return SalesOrder::where('client_id', $clientId)
-            ->where('payment_method', 'CREDITO')
-            ->where('status', 'ENTREGADO')
-            ->whereNull('cobrado_at')
-            ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
-            ->get(['folio']);
+        return $rows->groupBy('ruta')->map(function ($grupo, $ruta) {
+            return [
+                'ruta'               => $ruta,
+                'clientes'           => $grupo->values(),
+                'count'              => $grupo->count(),
+                'total_saldo'        => $grupo->sum('saldo_pendiente'),
+                'total_saldo_asignado' => $grupo->sum('saldo_asignado'),
+                'total_cobrado'      => $grupo->sum('monto_cobrado'),
+            ];
+        })->values();
     }
 
     private function orderStatusLabels(): array
