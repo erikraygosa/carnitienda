@@ -289,13 +289,20 @@
 
             {{-- ══ 3. CXC ══ --}}
             <div>
-                <div class="flex items-center gap-2 mb-2">
+                <div class="flex items-center gap-2 mb-2 flex-wrap">
                     <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">3</span>
                     <h3 class="font-semibold text-gray-800">Cuentas por cobrar pendientes</h3>
                     <span class="text-sm font-normal text-gray-400">(el chofer las cobra en ruta)</span>
-                    <input type="text" id="buscar-cxc"
-                           placeholder="Buscar cliente..."
-                           class="ml-auto w-64 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <div class="ml-auto flex gap-2 flex-wrap">
+                        <input type="text" id="buscar-cxc"
+                               placeholder="Buscar cliente..."
+                               class="w-48 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <input type="text" id="buscar-cxc-folio"
+                               placeholder="Buscar folio..."
+                               class="w-40 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <input type="date" id="filtro-cxc-fecha"
+                               class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
                 </div>
 
                 @if($clientesConSaldo->isEmpty())
@@ -316,15 +323,12 @@
                                 ->get(['id','folio','fecha','total','saldo_pendiente']);
                         @endphp
                         <div class="border rounded-lg overflow-hidden cxc-row" data-search="{{ strtolower($cs->nombre) }}">
-                            {{-- Fila cliente --}}
+                            {{-- Fila cliente: solo selecciona/deselecciona TODAS sus notas, no se manda al servidor --}}
                             <div class="flex items-center gap-3 px-4 py-3 bg-gray-50">
                                 <input type="checkbox"
-                                       name="clientes_ar[]"
-                                       value="{{ $cs->client_id }}"
-                                       class="ar-check rounded border-gray-300"
+                                       class="ar-client-toggle rounded border-gray-300"
                                        id="ar-{{ $cs->client_id }}"
-                                       data-saldo="{{ $cs->saldo }}"
-                                       {{ in_array($cs->client_id, old('clientes_ar', [])) ? 'checked' : '' }}>
+                                       {{ $notasPendientesCliente->isEmpty() ? 'disabled' : '' }}>
                                 <label for="ar-{{ $cs->client_id }}" class="flex-1 cursor-pointer">
                                     <div class="font-medium text-sm text-gray-800">{{ $cs->nombre }}</div>
                                     <div class="text-xs text-gray-500 mt-0.5">
@@ -341,7 +345,7 @@
                                 @endif
                             </div>
 
-                            {{-- Notas expandibles --}}
+                            {{-- Notas seleccionables individualmente --}}
                             @if($notasPendientesCliente->count() > 0)
                             <div id="notas-ar-{{ $cs->client_id }}" class="hidden border-t divide-y divide-gray-100">
                                 @foreach($notasPendientesCliente as $nota)
@@ -350,13 +354,21 @@
                                         ? (float)$nota->saldo_pendiente
                                         : (float)$nota->total;
                                     $parcialN = $saldoN < (float)$nota->total;
+                                    $fechaN   = \Carbon\Carbon::parse($nota->fecha);
                                 @endphp
-                                <div class="flex items-center gap-3 px-6 py-2 bg-white">
+                                <label class="flex items-center gap-3 px-6 py-2 bg-white cxc-nota-row cursor-pointer hover:bg-gray-50"
+                                       data-folio="{{ strtolower($nota->folio) }}"
+                                       data-fecha="{{ $fechaN->format('Y-m-d') }}">
+                                    <input type="checkbox"
+                                           name="notas_ar[]"
+                                           value="{{ $nota->id }}"
+                                           data-client="{{ $cs->client_id }}"
+                                           data-saldo="{{ $saldoN }}"
+                                           class="nota-ar-check rounded border-gray-300"
+                                           {{ in_array($nota->id, old('notas_ar', [])) ? 'checked' : '' }}>
                                     <div class="flex-1">
                                         <span class="font-mono text-xs text-indigo-600">{{ $nota->folio }}</span>
-                                        <span class="text-xs text-gray-400 ml-2">
-                                            {{ \Carbon\Carbon::parse($nota->fecha)->format('d/m/Y') }}
-                                        </span>
+                                        <span class="text-xs text-gray-400 ml-2">{{ $fechaN->format('d/m/Y') }}</span>
                                     </div>
                                     <div class="text-right">
                                         @if($parcialN)
@@ -369,7 +381,7 @@
                                             @endif
                                         </div>
                                     </div>
-                                </div>
+                                </label>
                                 @endforeach
                                 {{-- Total notas --}}
                                 @php
@@ -556,7 +568,7 @@
         // ── CxC ───────────────────────────────────────────────────────────
         function updateTotalAr() {
             var total = 0;
-            document.querySelectorAll('.ar-check:checked').forEach(function(chk) {
+            document.querySelectorAll('.nota-ar-check:checked').forEach(function(chk) {
                 total += parseFloat(chk.dataset.saldo || 0);
             });
             var el = document.getElementById('total-ar-selected');
@@ -565,8 +577,40 @@
             });
         }
 
-        document.querySelectorAll('.ar-check').forEach(function(chk) {
-            chk.addEventListener('change', updateTotalAr);
+        // El checkbox de cliente no se manda al servidor — solo marca/desmarca
+        // TODAS las notas visibles de ese cliente (respeta el filtro activo).
+        function syncClientToggle(clientId) {
+            var toggle = document.getElementById('ar-' + clientId);
+            if (!toggle) return;
+            var notas = document.querySelectorAll('.nota-ar-check[data-client="' + clientId + '"]');
+            var visibles = Array.prototype.filter.call(notas, function(n) {
+                return n.closest('.cxc-nota-row').style.display !== 'none';
+            });
+            var marcadas = visibles.filter(function(n) { return n.checked; });
+            toggle.checked = visibles.length > 0 && marcadas.length === visibles.length;
+            toggle.indeterminate = marcadas.length > 0 && marcadas.length < visibles.length;
+        }
+
+        document.querySelectorAll('.nota-ar-check').forEach(function(chk) {
+            chk.addEventListener('change', function() {
+                updateTotalAr();
+                syncClientToggle(this.dataset.client);
+            });
+            // El checkbox va dentro de un <label> que también selecciona la fila —
+            // evita que el click se duplique y desmarque lo que acaba de marcar.
+            chk.addEventListener('click', function(e) { e.stopPropagation(); });
+        });
+
+        document.querySelectorAll('.ar-client-toggle').forEach(function(toggle) {
+            toggle.addEventListener('click', function() {
+                var clientId = this.id.replace('ar-', '');
+                var marcar   = this.checked;
+                document.querySelectorAll('.nota-ar-check[data-client="' + clientId + '"]').forEach(function(chk) {
+                    if (chk.closest('.cxc-nota-row').style.display !== 'none') chk.checked = marcar;
+                });
+                updateTotalAr();
+                syncClientToggle(clientId);
+            });
         });
 
         // Toggle notas de CxC
@@ -598,19 +642,59 @@
         if (buscarPedido) buscarPedido.addEventListener('input', aplicarFiltrosPedidos);
         if (filtroFechaProg) filtroFechaProg.addEventListener('input', aplicarFiltrosPedidos);
 
-        var buscarCxc = document.getElementById('buscar-cxc');
-        if (buscarCxc) {
-            buscarCxc.addEventListener('input', function() {
-                var term = this.value.toLowerCase().trim();
-                document.querySelectorAll('.cxc-row').forEach(function(row) {
-                    row.style.display = row.dataset.search.includes(term) ? '' : 'none';
+        // Cliente + folio + fecha filtran juntos. Filtrar por folio/fecha
+        // despliega automáticamente las notas de los clientes que sí tengan
+        // coincidencias, para no obligar a abrir "Ver notas" a mano.
+        var buscarCxc      = document.getElementById('buscar-cxc');
+        var buscarCxcFolio = document.getElementById('buscar-cxc-folio');
+        var filtroCxcFecha = document.getElementById('filtro-cxc-fecha');
+
+        function aplicarFiltrosCxc() {
+            var termCliente = buscarCxc      ? buscarCxc.value.toLowerCase().trim()      : '';
+            var termFolio   = buscarCxcFolio ? buscarCxcFolio.value.toLowerCase().trim() : '';
+            var fecha       = filtroCxcFecha ? filtroCxcFecha.value                      : '';
+            var filtrandoNotas = !!(termFolio || fecha);
+
+            document.querySelectorAll('.cxc-row').forEach(function(row) {
+                var pasaCliente = !termCliente || row.dataset.search.includes(termCliente);
+                if (!pasaCliente) { row.style.display = 'none'; return; }
+
+                var notas = row.querySelectorAll('.cxc-nota-row');
+                var algunaVisible = notas.length === 0;
+                notas.forEach(function(nr) {
+                    var pasaFolio = !termFolio || nr.dataset.folio.includes(termFolio);
+                    var pasaFecha = !fecha || nr.dataset.fecha === fecha;
+                    var visible   = pasaFolio && pasaFecha;
+                    nr.style.display = visible ? '' : 'none';
+                    if (visible) algunaVisible = true;
                 });
+
+                row.style.display = algunaVisible ? '' : 'none';
+
+                if (algunaVisible && filtrandoNotas) {
+                    var panel = row.querySelector('[id^="notas-ar-"]');
+                    var btn   = row.querySelector('.btn-toggle-notas');
+                    if (panel && panel.classList.contains('hidden')) {
+                        panel.classList.remove('hidden');
+                        if (btn) btn.textContent = 'Ocultar ▲';
+                    }
+                }
+
+                var clientId = row.querySelector('.ar-client-toggle');
+                if (clientId) syncClientToggle(clientId.id.replace('ar-', ''));
             });
         }
+
+        if (buscarCxc)      buscarCxc.addEventListener('input', aplicarFiltrosCxc);
+        if (buscarCxcFolio) buscarCxcFolio.addEventListener('input', aplicarFiltrosCxc);
+        if (filtroCxcFecha) filtroCxcFecha.addEventListener('input', aplicarFiltrosCxc);
 
         // Init
         updateCounters();
         updateTotalAr();
+        document.querySelectorAll('.ar-client-toggle').forEach(function(toggle) {
+            syncClientToggle(toggle.id.replace('ar-', ''));
+        });
     })();
     </script>
 

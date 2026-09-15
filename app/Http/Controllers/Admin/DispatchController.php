@@ -134,12 +134,12 @@ class DispatchController extends Controller implements HasMiddleware
         'transfers.*'       => ['integer', 'exists:stock_transfers,id'],
         'orders'            => ['nullable', 'array'],
         'orders.*'          => ['integer', 'exists:sales_orders,id'],
-        'clientes_ar'       => ['nullable', 'array'],
-        'clientes_ar.*'     => ['integer', 'exists:clients,id'],
+        'notas_ar'          => ['nullable', 'array'],
+        'notas_ar.*'        => ['integer', 'exists:sales_orders,id'],
         ]);
 
         // Debe tener al menos algo asignado
-        if (empty($data['transfers']) && empty($data['orders']) && empty($data['clientes_ar'])) {
+        if (empty($data['transfers']) && empty($data['orders']) && empty($data['notas_ar'])) {
             return back()
                 ->withErrors(['orders' => 'Selecciona al menos un traspaso, pedido o cuenta por cobrar.'])
                 ->withInput();
@@ -213,22 +213,25 @@ class DispatchController extends Controller implements HasMiddleware
                 }
             }
 
-            // 3. Asignar clientes con CxC pendiente
-            if (!empty($data['clientes_ar'])) {
-                $saldos = DB::table('ar_movements')
-                    ->whereIn('client_id', $data['clientes_ar'])
-                    ->selectRaw("
-                        client_id,
-                        SUM(CASE WHEN tipo='CARGO' THEN monto ELSE -monto END) as saldo
-                    ")
-                    ->groupBy('client_id')
-                    ->pluck('saldo', 'client_id');
+            // 3. Asignar CxC — por nota seleccionada, no todo el saldo del
+            // cliente: si de sus 5 notas pendientes solo 2 van en esta ruta,
+            // solo esas 2 se asignan (antes se le asignaba TODO su saldo en
+            // ar_movements sin importar cuántas notas se hubieran marcado).
+            if (!empty($data['notas_ar'])) {
+                $notasPorCliente = SalesOrder::whereIn('id', $data['notas_ar'])
+                    ->whereNotNull('client_id')
+                    ->get(['id', 'client_id', 'total', 'saldo_pendiente'])
+                    ->groupBy('client_id');
 
-                foreach ($data['clientes_ar'] as $clientId) {
+                foreach ($notasPorCliente as $clientId => $notas) {
+                    $saldoAsignado = $notas->sum(fn ($n) => ($n->saldo_pendiente !== null && (float) $n->saldo_pendiente > 0)
+                        ? (float) $n->saldo_pendiente
+                        : (float) $n->total);
+
                     DispatchArAssignment::create([
                         'dispatch_id'    => $dispatch->id,
                         'client_id'      => $clientId,
-                        'saldo_asignado' => (float) ($saldos[$clientId] ?? 0),
+                        'saldo_asignado' => round($saldoAsignado, 2),
                         'monto_cobrado'  => 0,
                         'status'         => 'PENDIENTE',
                     ]);
@@ -428,37 +431,46 @@ class DispatchController extends Controller implements HasMiddleware
         }
 
         $data = $request->validate([
-            'clientes_ar'   => ['required', 'array', 'min:1'],
-            'clientes_ar.*' => ['integer', 'exists:clients,id'],
+            'notas_ar'   => ['required', 'array', 'min:1'],
+            'notas_ar.*' => ['integer', 'exists:sales_orders,id'],
         ], [
-            'clientes_ar.required' => 'Selecciona al menos un cliente.',
+            'notas_ar.required' => 'Selecciona al menos una nota.',
         ]);
 
         $yaAsignados = $dispatch->arAssignments()->pluck('client_id')->all();
-        $nuevos      = array_diff($data['clientes_ar'], $yaAsignados);
 
-        if (empty($nuevos)) {
+        // Igual que en store(): se asigna solo el saldo de las notas
+        // seleccionadas, no todo el saldo del cliente. Un cliente que ya
+        // tiene una asignación en este despacho se salta por completo — no
+        // hay forma de "sumarle" más notas a una asignación existente sin
+        // perder de vista cuánto llevaba cobrado ya.
+        $notasPorCliente = SalesOrder::whereIn('id', $data['notas_ar'])
+            ->whereNotNull('client_id')
+            ->get(['id', 'client_id', 'total', 'saldo_pendiente'])
+            ->groupBy('client_id')
+            ->filter(fn ($notas, $clientId) => ! in_array($clientId, $yaAsignados));
+
+        if ($notasPorCliente->isEmpty()) {
             return back()->with('swal', ['icon' => 'info', 'title' => 'Sin cambios', 'text' => 'Esos clientes ya estaban asignados a este despacho.']);
         }
 
-        $saldos = DB::table('ar_movements')
-            ->whereIn('client_id', $nuevos)
-            ->selectRaw("client_id, SUM(CASE WHEN tipo='CARGO' THEN monto ELSE -monto END) as saldo")
-            ->groupBy('client_id')
-            ->pluck('saldo', 'client_id');
+        foreach ($notasPorCliente as $clientId => $notas) {
+            $saldoAsignado = $notas->sum(fn ($n) => ($n->saldo_pendiente !== null && (float) $n->saldo_pendiente > 0)
+                ? (float) $n->saldo_pendiente
+                : (float) $n->total);
 
-        foreach ($nuevos as $clientId) {
             DispatchArAssignment::create([
                 'dispatch_id'    => $dispatch->id,
                 'client_id'      => $clientId,
-                'saldo_asignado' => (float) ($saldos[$clientId] ?? 0),
+                'saldo_asignado' => round($saldoAsignado, 2),
                 'monto_cobrado'  => 0,
                 'status'         => 'PENDIENTE',
             ]);
         }
 
-        $this->log->log($dispatch, 'CXC_AGREGADAS', null, null, null, count($nuevos) . ' cliente(s) con CxC agregado(s) al despacho.');
-        return back()->with('swal', ['icon' => 'success', 'title' => 'Agregado', 'text' => count($nuevos) . ' cliente(s) agregado(s) al despacho.']);
+        $nuevos = $notasPorCliente->count();
+        $this->log->log($dispatch, 'CXC_AGREGADAS', null, null, null, $nuevos . ' cliente(s) con CxC agregado(s) al despacho.');
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Agregado', 'text' => $nuevos . ' cliente(s) agregado(s) al despacho.']);
     }
 
     // ── Update ────────────────────────────────────────────────────────────────

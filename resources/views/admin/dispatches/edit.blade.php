@@ -851,13 +851,17 @@
         <div id="panel-add-cxc" class="hidden mt-4 border-t pt-4">
             <form action="{{ route('admin.dispatches.cxc.agregar', $dispatch) }}" method="POST">
                 @csrf
-                <div class="flex items-center gap-2 mb-2">
+                <div class="flex items-center gap-2 mb-2 flex-wrap">
                     <input type="text" id="buscar-cxc-disponible" placeholder="Buscar cliente..."
-                           class="flex-1 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
-                    <span class="text-xs text-gray-400"><span id="cxc-disp-count">0</span> seleccionado(s)</span>
+                           class="w-48 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <input type="text" id="buscar-cxc-disp-folio" placeholder="Buscar folio..."
+                           class="w-40 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <input type="date" id="filtro-cxc-disp-fecha"
+                           class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <span class="text-xs text-gray-400 ml-auto"><span id="cxc-disp-count">0</span> nota(s) seleccionada(s)</span>
                     <button type="submit"
                             class="inline-flex items-center px-3 py-1.5 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
-                        Agregar seleccionados
+                        Agregar seleccionadas
                     </button>
                 </div>
                 @if($clientesConSaldoDisponibles->isEmpty())
@@ -865,28 +869,46 @@
                         No hay clientes con saldo pendiente sin asignar por el momento.
                     </div>
                 @else
-                    <div class="overflow-auto border rounded max-h-72">
-                        <table class="min-w-full text-sm">
-                            <thead class="bg-gray-50 border-b sticky top-0">
-                                <tr>
-                                    <th class="p-2 w-8"></th>
-                                    <th class="p-2 text-left">Cliente</th>
-                                    <th class="p-2 text-right">Saldo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($clientesConSaldoDisponibles as $cd)
-                                <tr class="border-b hover:bg-gray-50 cxc-disp-row"
-                                    data-search="{{ strtolower($cd->nombre) }}">
-                                    <td class="p-2">
-                                        <input type="checkbox" name="clientes_ar[]" value="{{ $cd->client_id }}" class="cxc-disp-check rounded border-gray-300">
-                                    </td>
-                                    <td class="p-2">{{ $cd->nombre }}</td>
-                                    <td class="p-2 text-right font-mono font-semibold text-amber-700">${{ number_format($cd->saldo, 2) }}</td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                    <div class="space-y-2 overflow-auto max-h-96" id="cxc-disp-list">
+                        @foreach($clientesConSaldoDisponibles as $cd)
+                        @php
+                            $notasDisp = \App\Models\SalesOrder::where('client_id', $cd->client_id)
+                                ->where('payment_method', 'CREDITO')
+                                ->where('status', 'ENTREGADO')
+                                ->whereNull('cobrado_at')
+                                ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
+                                ->get(['id','folio','fecha','total','saldo_pendiente']);
+                        @endphp
+                        <div class="border rounded-lg overflow-hidden cxc-disp-row" data-search="{{ strtolower($cd->nombre) }}">
+                            <div class="flex items-center gap-3 px-4 py-2 bg-gray-50">
+                                <input type="checkbox" class="ar-disp-client-toggle rounded border-gray-300"
+                                       id="ard-{{ $cd->client_id }}" {{ $notasDisp->isEmpty() ? 'disabled' : '' }}>
+                                <label for="ard-{{ $cd->client_id }}" class="flex-1 cursor-pointer text-sm">
+                                    <span class="font-medium text-gray-800">{{ $cd->nombre }}</span>
+                                    <span class="text-xs text-gray-500 ml-1">
+                                        · {{ $notasDisp->count() }} nota(s) · Saldo total:
+                                        <span class="font-semibold text-amber-700">${{ number_format($cd->saldo, 2) }}</span>
+                                    </span>
+                                </label>
+                            </div>
+                            @foreach($notasDisp as $nota)
+                            @php
+                                $saldoN   = ($nota->saldo_pendiente !== null && (float)$nota->saldo_pendiente > 0)
+                                    ? (float)$nota->saldo_pendiente : (float)$nota->total;
+                                $fechaN   = \Carbon\Carbon::parse($nota->fecha);
+                            @endphp
+                            <label class="flex items-center gap-3 px-6 py-1.5 bg-white border-t cxc-disp-nota-row cursor-pointer hover:bg-gray-50"
+                                   data-folio="{{ strtolower($nota->folio) }}" data-fecha="{{ $fechaN->format('Y-m-d') }}">
+                                <input type="checkbox" name="notas_ar[]" value="{{ $nota->id }}"
+                                       data-client="{{ $cd->client_id }}"
+                                       class="nota-ar-disp-check rounded border-gray-300">
+                                <span class="font-mono text-xs text-indigo-600">{{ $nota->folio }}</span>
+                                <span class="text-xs text-gray-400">{{ $fechaN->format('d/m/Y') }}</span>
+                                <span class="ml-auto text-sm font-mono font-semibold text-amber-700">${{ number_format($saldoN, 2) }}</span>
+                            </label>
+                            @endforeach
+                        </div>
+                        @endforeach
                     </div>
                 @endif
             </form>
@@ -1277,22 +1299,75 @@
                 });
             }
 
-            var buscar = document.getElementById('buscar-cxc-disponible');
-            if (buscar) {
-                buscar.addEventListener('input', function() {
-                    var term = this.value.toLowerCase().trim();
-                    document.querySelectorAll('.cxc-disp-row').forEach(function(row) {
-                        row.style.display = row.dataset.search.includes(term) ? '' : 'none';
-                    });
+            function syncDispClientToggle(clientId) {
+                var toggle = document.getElementById('ard-' + clientId);
+                if (!toggle) return;
+                var notas = document.querySelectorAll('.nota-ar-disp-check[data-client="' + clientId + '"]');
+                var visibles = Array.prototype.filter.call(notas, function(n) {
+                    return n.closest('.cxc-disp-nota-row').style.display !== 'none';
                 });
+                var marcadas = visibles.filter(function(n) { return n.checked; });
+                toggle.checked = visibles.length > 0 && marcadas.length === visibles.length;
+                toggle.indeterminate = marcadas.length > 0 && marcadas.length < visibles.length;
             }
 
             var countEl = document.getElementById('cxc-disp-count');
-            document.querySelectorAll('.cxc-disp-check').forEach(function(chk) {
+            function updateDispCount() {
+                if (countEl) countEl.textContent = document.querySelectorAll('.nota-ar-disp-check:checked').length;
+            }
+
+            document.querySelectorAll('.nota-ar-disp-check').forEach(function(chk) {
                 chk.addEventListener('change', function() {
-                    if (countEl) countEl.textContent = document.querySelectorAll('.cxc-disp-check:checked').length;
+                    updateDispCount();
+                    syncDispClientToggle(this.dataset.client);
+                });
+                chk.addEventListener('click', function(e) { e.stopPropagation(); });
+            });
+
+            document.querySelectorAll('.ar-disp-client-toggle').forEach(function(toggle) {
+                toggle.addEventListener('click', function() {
+                    var clientId = this.id.replace('ard-', '');
+                    var marcar   = this.checked;
+                    document.querySelectorAll('.nota-ar-disp-check[data-client="' + clientId + '"]').forEach(function(chk) {
+                        if (chk.closest('.cxc-disp-nota-row').style.display !== 'none') chk.checked = marcar;
+                    });
+                    updateDispCount();
+                    syncDispClientToggle(clientId);
                 });
             });
+
+            var buscarCliente = document.getElementById('buscar-cxc-disponible');
+            var buscarFolio   = document.getElementById('buscar-cxc-disp-folio');
+            var filtroFecha   = document.getElementById('filtro-cxc-disp-fecha');
+
+            function aplicarFiltrosCxcDisp() {
+                var termCliente = buscarCliente ? buscarCliente.value.toLowerCase().trim() : '';
+                var termFolio   = buscarFolio   ? buscarFolio.value.toLowerCase().trim()   : '';
+                var fecha       = filtroFecha   ? filtroFecha.value                        : '';
+
+                document.querySelectorAll('.cxc-disp-row').forEach(function(row) {
+                    var pasaCliente = !termCliente || row.dataset.search.includes(termCliente);
+                    if (!pasaCliente) { row.style.display = 'none'; return; }
+
+                    var notas = row.querySelectorAll('.cxc-disp-nota-row');
+                    var algunaVisible = notas.length === 0;
+                    notas.forEach(function(nr) {
+                        var pasaFolio = !termFolio || nr.dataset.folio.includes(termFolio);
+                        var pasaFecha = !fecha || nr.dataset.fecha === fecha;
+                        var visible   = pasaFolio && pasaFecha;
+                        nr.style.display = visible ? '' : 'none';
+                        if (visible) algunaVisible = true;
+                    });
+                    row.style.display = algunaVisible ? '' : 'none';
+
+                    var toggle = row.querySelector('.ar-disp-client-toggle');
+                    if (toggle) syncDispClientToggle(toggle.id.replace('ard-', ''));
+                });
+            }
+
+            if (buscarCliente) buscarCliente.addEventListener('input', aplicarFiltrosCxcDisp);
+            if (buscarFolio)   buscarFolio.addEventListener('input', aplicarFiltrosCxcDisp);
+            if (filtroFecha)   filtroFecha.addEventListener('input', aplicarFiltrosCxcDisp);
         })();
 
         // ── Auto-sumar notas seleccionadas ────────────────────────────────
