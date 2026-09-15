@@ -242,7 +242,7 @@ class ReportesController extends Controller implements HasMiddleware
                 ->where('status', 'ENTREGADO')
                 ->whereNull('cobrado_at')
                 ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
-                ->get(['folio']);
+                ->get(['folio', 'fecha', 'total', 'saldo_pendiente']);
 
             $saldoAsignado  = (float) $a->saldo_asignado;
             $montoCobrado   = (float) $a->monto_cobrado;
@@ -260,6 +260,15 @@ class ReportesController extends Controller implements HasMiddleware
                 'status_class'      => $cxcStatusClasses[$a->status] ?? 'bg-gray-100 text-gray-600',
                 'notas_pendientes'  => $notas->count(),
                 'folios_pendientes' => $notas->pluck('folio')->implode(', '),
+                // Detalle por nota (folio/fecha/monto) — usado en el Excel
+                // para listar una fila por nota en vez de una por cliente.
+                'notas'             => $notas->map(fn ($n) => [
+                    'folio' => $n->folio,
+                    'fecha' => $n->fecha,
+                    'monto' => ($n->saldo_pendiente !== null && (float) $n->saldo_pendiente > 0)
+                        ? (float) $n->saldo_pendiente
+                        : (float) $n->total,
+                ])->values(),
             ];
         });
 
@@ -846,7 +855,10 @@ class ReportesController extends Controller implements HasMiddleware
                 ]);
                 $row++;
 
-                foreach (['Cliente','Folio','Notas pendientes','Saldo pendiente','Cobrado','Estatus'] as $ci => $h) {
+                // Una fila por nota (folio) en vez de una por cliente — mismo
+                // formato que la tabla de "Nota" de arriba (Nota/Cliente/
+                // Fecha/Monto/Estatus), para que ambas tablas se lean igual.
+                foreach (['Folio','Cliente','Fecha','Saldo pendiente','Cobrado','Estatus'] as $ci => $h) {
                     $cell = $this->col($ci + 1) . $row;
                     $sheet->setCellValue($cell, $h);
                     $sheet->getStyle($cell)->applyFromArray([
@@ -857,14 +869,32 @@ class ReportesController extends Controller implements HasMiddleware
                 $row++;
 
                 foreach ($cxcRuta['clientes'] as $c) {
-                    $sheet->setCellValue("A{$row}", $c['cliente']);
-                    $sheet->setCellValue("B{$row}", $c['folios_pendientes'] ?: '—');
-                    $sheet->setCellValue("C{$row}", $c['notas_pendientes']);
-                    $sheet->setCellValue("D{$row}", $c['saldo_pendiente']);
-                    $sheet->setCellValue("E{$row}", $c['monto_cobrado']);
-                    $sheet->setCellValue("F{$row}", $c['status']);
-                    $sheet->getStyle("D{$row}:E{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
-                    $row++;
+                    $notas = $c['notas'] ?? collect();
+                    if ($notas->isEmpty()) {
+                        // Sin notas ENTREGADO detectadas pero sí saldo asignado
+                        // (ej. saldo de arrastre) — se muestra una fila igual,
+                        // solo sin folio, para no perder el cliente del reporte.
+                        $sheet->setCellValue("A{$row}", '—');
+                        $sheet->setCellValue("B{$row}", $c['cliente']);
+                        $sheet->setCellValue("C{$row}", '');
+                        $sheet->setCellValue("D{$row}", $c['saldo_pendiente']);
+                        $sheet->setCellValue("E{$row}", $c['monto_cobrado']);
+                        $sheet->setCellValue("F{$row}", $c['status']);
+                        $sheet->getStyle("D{$row}:E{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+                        $row++;
+                        continue;
+                    }
+
+                    foreach ($notas as $n) {
+                        $sheet->setCellValue("A{$row}", $n['folio']);
+                        $sheet->setCellValue("B{$row}", $c['cliente']);
+                        $sheet->setCellValue("C{$row}", $n['fecha'] ? \Carbon\Carbon::parse($n['fecha'])->format('d/m/Y') : '');
+                        $sheet->setCellValue("D{$row}", $n['monto']);
+                        $sheet->setCellValue("E{$row}", $c['monto_cobrado']);
+                        $sheet->setCellValue("F{$row}", $c['status']);
+                        $sheet->getStyle("D{$row}:E{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+                        $row++;
+                    }
                 }
 
                 $sheet->setCellValue("C{$row}", 'Totales:');
