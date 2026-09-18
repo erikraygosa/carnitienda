@@ -107,7 +107,10 @@ class DispatchController extends Controller implements HasMiddleware
                 'cliente'          => $p->client?->nombre ?? '—',
                 'status'           => $p->status,
                 'programado_para'  => optional($p->programado_para)->format('d/m/Y'),
-                'despacho_folio'   => $dispatch?->folio,
+                // Los despachos no tienen folio propio en este sistema (el
+                // campo existe pero se queda null salvo los "AUTO-..." del
+                // Panel de Surtido) — se identifican como "Despacho #id".
+                'despacho_folio'   => $dispatch ? ('Despacho #' . $dispatch->id) : null,
                 'despacho_ruta'    => $dispatch?->route?->nombre,
                 'despacho_chofer'  => $dispatch?->driver?->nombre,
                 'despacho_fecha'   => $dispatch ? optional($dispatch->fecha)->format('d/m/Y') : null,

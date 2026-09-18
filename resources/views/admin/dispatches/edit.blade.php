@@ -604,7 +604,7 @@
                                         @if($pd->dispatchItem?->dispatch)
                                             <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium bg-rose-50 text-rose-600"
                                                   title="Se moverá aquí — dejará de aparecer en ese otro despacho">
-                                                mover de {{ $pd->dispatchItem->dispatch->folio }}
+                                                mover de Despacho #{{ $pd->dispatchItem->dispatch->id }}
                                             </span>
                                         @endif
                                     </td>
