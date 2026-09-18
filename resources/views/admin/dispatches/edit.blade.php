@@ -576,6 +576,7 @@
                                     <th class="p-2 text-left">Cliente</th>
                                     <th class="p-2 text-right">Total</th>
                                     <th class="p-2 text-left">Pago</th>
+                                    <th class="p-2 text-left">Ruta</th>
                                     <th class="p-2 text-left">Programado</th>
                                 </tr>
                             </thead>
@@ -603,6 +604,15 @@
                                     </td>
                                     <td class="p-2 text-right font-medium">${{ number_format($pd->total, 2) }}</td>
                                     <td class="p-2 text-xs">{{ $pd->payment_method }}</td>
+                                    <td class="p-2 text-xs">
+                                        @if($pd->shipping_route_id)
+                                            <span class="px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700">
+                                                {{ $pd->route?->nombre ?? '#'.$pd->shipping_route_id }}
+                                            </span>
+                                        @else
+                                            <span class="text-gray-300">—</span>
+                                        @endif
+                                    </td>
                                     <td class="p-2 text-gray-400 text-xs">{{ optional($pd->programado_para)->format('d/m/Y') ?? '—' }}</td>
                                 </tr>
                                 @endforeach
