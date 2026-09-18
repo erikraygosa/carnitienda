@@ -98,6 +98,13 @@
                 </div>
             @endif
 
+            {{-- Folio de la nota — antes solo salía hasta abajo en Acciones,
+                 sin decir arriba a qué nota corresponde el formulario. --}}
+            <div class="flex items-center gap-2 -mb-2">
+                <span class="font-mono text-sm font-semibold text-gray-700">{{ $sale->folio ?? ('Sale #'.$sale->id) }}</span>
+                <span class="px-2 py-0.5 text-xs rounded-full {{ $statusClass }}">{{ $sale->status }}</span>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
 
                 {{-- Caja --}}

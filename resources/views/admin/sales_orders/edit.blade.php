@@ -131,6 +131,13 @@
                 </div>
             @endif
 
+            {{-- Folio del pedido — antes solo salía en el breadcrumb como
+                 "Editar", sin decir a qué pedido correspondía. --}}
+            <div class="flex items-center gap-2 -mb-2">
+                <span class="font-mono text-sm font-semibold text-gray-700">{{ $order->folio }}</span>
+                <span class="px-2 py-0.5 text-xs rounded-full {{ $statusClass }}">{{ $order->status_label }}</span>
+            </div>
+
             {{-- ====== ENCABEZADO ====== --}}
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
 
