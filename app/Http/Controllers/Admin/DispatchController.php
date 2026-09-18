@@ -299,12 +299,22 @@ class DispatchController extends Controller implements HasMiddleware
             // buscador de la pantalla filtra en el navegador sobre lo que
             // ya se cargó aquí, así que si no venían en esta consulta
             // tampoco aparecían al escribir su folio.
+            // Antes esto excluía cualquier pedido ya asignado a OTRO
+            // despacho — pero agregarPedidos() (abajo) ya sabe moverlo sin
+            // problema (mismo updateOrCreate que usa store() al crear un
+            // despacho nuevo), solo que la lista nunca lo mostraba como
+            // candidato. Resultado: un pedido atrapado en un despacho viejo
+            // (ej. el AUTO- o una ruta "de pendientes" de otro día) no
+            // aparecía aquí y solo se le podía sacar creando un despacho
+            // nuevo desde cero (ver caso real: SO-20260918-1216, atorado en
+            // el despacho #126 de RUTA DE PENDIENTES de un día anterior).
+            // Solo se excluye lo que YA está en ESTE MISMO despacho.
             $pedidosDisponibles = SalesOrder::whereIn('status', ['PROCESADO', 'DESPACHADO'])
-                ->where(function ($q) {
+                ->where(function ($q) use ($dispatch) {
                     $q->whereDoesntHave('dispatchItem')
-                      ->orWhereHas('dispatchItem', fn ($q2) => $q2->whereNull('dispatch_id'));
+                      ->orWhereHas('dispatchItem', fn ($q2) => $q2->whereNull('dispatch_id')->orWhere('dispatch_id', '!=', $dispatch->id));
                 })
-                ->with(['client:id,nombre', 'route:id,nombre'])
+                ->with(['client:id,nombre', 'route:id,nombre', 'dispatchItem.dispatch:id,folio,shipping_route_id,fecha'])
                 ->orderByDesc('fecha')
                 ->get(['id','folio','client_id','shipping_route_id','ronda','status','total','programado_para','payment_method','ticket_impreso']);
 

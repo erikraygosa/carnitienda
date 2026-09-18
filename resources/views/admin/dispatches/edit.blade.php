@@ -601,6 +601,12 @@
                                                 ya surtido
                                             </span>
                                         @endif
+                                        @if($pd->dispatchItem?->dispatch)
+                                            <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium bg-rose-50 text-rose-600"
+                                                  title="Se moverá aquí — dejará de aparecer en ese otro despacho">
+                                                mover de {{ $pd->dispatchItem->dispatch->folio }}
+                                            </span>
+                                        @endif
                                     </td>
                                     <td class="p-2 text-right font-medium">${{ number_format($pd->total, 2) }}</td>
                                     <td class="p-2 text-xs">{{ $pd->payment_method }}</td>
