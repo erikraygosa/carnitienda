@@ -583,7 +583,7 @@ public function data(Request $request)
             $product = Product::find($it['product_id']);
             return [
                 'product_id'   => $it['product_id'],
-                'descripcion'  => $it['descripcion'] ?: ($product->nombre ?? ''),
+                'descripcion'  => ($it['descripcion'] ?? '') ?: ($product->nombre ?? ''),
                 'cantidad'     => $it['cantidad'],
                 'presentacion' => $it['presentacion'] ?? 'KILOS',
                 'precio'       => (float) ($it['precio'] ?? 0),
