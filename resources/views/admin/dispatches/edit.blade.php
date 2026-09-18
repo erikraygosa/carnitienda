@@ -533,12 +533,18 @@
         <div id="panel-add-pedidos" class="hidden mt-4 border-t pt-4">
             <form action="{{ route('admin.dispatches.pedidos.agregar', $dispatch) }}" method="POST">
                 @csrf
-                <div class="flex items-center gap-2 mb-2">
+                <div class="flex items-center gap-2 mb-2 flex-wrap">
                     <input type="date" id="filtro-pedido-disponible-programado"
                            title="Filtrar por fecha Programado para"
                            class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <input type="text" id="buscar-pedido-disponible" placeholder="Buscar por folio o cliente..."
                            class="flex-1 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    @if($dispatch->shipping_route_id)
+                        <button type="button" id="btn-select-route-disp"
+                                class="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">
+                            ✓ Seleccionar todos de {{ $dispatch->route?->nombre ?? 'la ruta' }}
+                        </button>
+                    @endif
                     <span class="text-xs text-gray-400"><span id="pedidos-disp-count">0</span> seleccionado(s)</span>
                     <button type="submit"
                             class="inline-flex items-center px-3 py-1.5 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
@@ -566,7 +572,8 @@
                                 @foreach($pedidosDisponibles as $pd)
                                 <tr class="border-b hover:bg-gray-50 pedido-disp-row"
                                     data-search="{{ strtolower($pd->folio.' '.($pd->client?->nombre ?? '')) }}"
-                                    data-programado="{{ optional($pd->programado_para)->format('Y-m-d') }}">
+                                    data-programado="{{ optional($pd->programado_para)->format('Y-m-d') }}"
+                                    data-route="{{ $pd->shipping_route_id ?? '' }}">
                                     <td class="p-2">
                                         <input type="checkbox" name="orders[]" value="{{ $pd->id }}" class="pedido-disp-check rounded border-gray-300">
                                     </td>
@@ -1285,6 +1292,23 @@
                     if (countEl) countEl.textContent = document.querySelectorAll('.pedido-disp-check:checked').length;
                 });
             });
+
+            // "Seleccionar todos de [la ruta del despacho]" — mismo patrón
+            // que en Nuevo despacho: solo entre las filas visibles con el
+            // filtro actual (fecha/búsqueda), y solo las de esta ruta.
+            var btnRoute = document.getElementById('btn-select-route-disp');
+            if (btnRoute) {
+                btnRoute.addEventListener('click', function() {
+                    var routeId = '{{ (string) $dispatch->shipping_route_id }}';
+                    document.querySelectorAll('.pedido-disp-row').forEach(function(row) {
+                        var cb = row.querySelector('.pedido-disp-check');
+                        if (!cb) return;
+                        var visible = row.style.display !== 'none';
+                        cb.checked = visible && row.dataset.route === routeId;
+                    });
+                    if (countEl) countEl.textContent = document.querySelectorAll('.pedido-disp-check:checked').length;
+                });
+            }
         })();
 
         // ── Agregar CxC (mientras el despacho sigue PLANEADO) ──────────────
