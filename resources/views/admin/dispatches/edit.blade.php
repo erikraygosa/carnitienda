@@ -539,12 +539,23 @@
                            class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <input type="text" id="buscar-pedido-disponible" placeholder="Buscar por folio o cliente..."
                            class="flex-1 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
-                    @if($dispatch->shipping_route_id)
-                        <button type="button" id="btn-select-route-disp"
-                                class="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">
-                            ✓ Seleccionar todos de {{ $dispatch->route?->nombre ?? 'la ruta' }}
-                        </button>
-                    @endif
+                    <select id="ruta-select-pedidos-disp"
+                            class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="">-- ruta --</option>
+                        @foreach($routes as $r)
+                            <option value="{{ $r->id }}" {{ (string) $dispatch->shipping_route_id === (string) $r->id ? 'selected' : '' }}>{{ $r->nombre }}</option>
+                        @endforeach
+                    </select>
+                    <button type="button" id="btn-select-route-disp"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+                            style="{{ $dispatch->shipping_route_id ? '' : 'display:none' }}">
+                        ✓ Seleccionar de esta ruta
+                    </button>
+                    <button type="button" id="btn-deselect-route-disp"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
+                            style="{{ $dispatch->shipping_route_id ? '' : 'display:none' }}">
+                        ✗ Deseleccionar
+                    </button>
                     <span class="text-xs text-gray-400"><span id="pedidos-disp-count">0</span> seleccionado(s)</span>
                     <button type="submit"
                             class="inline-flex items-center px-3 py-1.5 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
@@ -1293,22 +1304,40 @@
                 });
             });
 
-            // "Seleccionar todos de [la ruta del despacho]" — mismo patrón
-            // que en Nuevo despacho: solo entre las filas visibles con el
-            // filtro actual (fecha/búsqueda), y solo las de esta ruta.
-            var btnRoute = document.getElementById('btn-select-route-disp');
-            if (btnRoute) {
-                btnRoute.addEventListener('click', function() {
-                    var routeId = '{{ (string) $dispatch->shipping_route_id }}';
-                    document.querySelectorAll('.pedido-disp-row').forEach(function(row) {
-                        var cb = row.querySelector('.pedido-disp-check');
-                        if (!cb) return;
-                        var visible = row.style.display !== 'none';
-                        cb.checked = visible && row.dataset.route === routeId;
-                    });
-                    if (countEl) countEl.textContent = document.querySelectorAll('.pedido-disp-check:checked').length;
-                });
+            // Selector de ruta + seleccionar/deseleccionar — los pedidos
+            // candidatos no necesariamente son de la misma ruta del
+            // despacho (ej. RUTA DE PENDIENTES junta pedidos de rutas
+            // distintas), así que se puede elegir cualquier ruta, no solo
+            // la ya asignada a este despacho.
+            var selectRuta   = document.getElementById('ruta-select-pedidos-disp');
+            var btnRoute     = document.getElementById('btn-select-route-disp');
+            var btnDeselect  = document.getElementById('btn-deselect-route-disp');
+
+            function toggleBotonesRuta() {
+                var tieneRuta = !!(selectRuta && selectRuta.value);
+                if (btnRoute)    btnRoute.style.display    = tieneRuta ? '' : 'none';
+                if (btnDeselect) btnDeselect.style.display = tieneRuta ? '' : 'none';
             }
+
+            if (selectRuta) {
+                selectRuta.addEventListener('change', toggleBotonesRuta);
+                toggleBotonesRuta();
+            }
+
+            function marcarPorRuta(marcar) {
+                var routeId = selectRuta ? selectRuta.value : '';
+                if (!routeId) return;
+                document.querySelectorAll('.pedido-disp-row').forEach(function(row) {
+                    var cb = row.querySelector('.pedido-disp-check');
+                    if (!cb) return;
+                    var visible = row.style.display !== 'none';
+                    if (visible && row.dataset.route === routeId) cb.checked = marcar;
+                });
+                if (countEl) countEl.textContent = document.querySelectorAll('.pedido-disp-check:checked').length;
+            }
+
+            if (btnRoute)    btnRoute.addEventListener('click', function() { marcarPorRuta(true); });
+            if (btnDeselect) btnDeselect.addEventListener('click', function() { marcarPorRuta(false); });
         })();
 
         // ── Agregar CxC (mientras el despacho sigue PLANEADO) ──────────────
