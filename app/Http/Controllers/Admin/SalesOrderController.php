@@ -40,6 +40,7 @@ class SalesOrderController extends Controller implements HasMiddleware
         return [
             new Middleware('can:ver pedidos', only: ['index', 'data']),
             new Middleware('can:crear pedidos', only: ['create', 'store']),
+            new Middleware('can:crear pedidos desde surtido', only: ['quickStore']),
             new Middleware('can:editar pedidos', only: ['edit', 'update', 'updateRuta', 'reopen', 'approve', 'startPreparing', 'dispatchToRoute', 'deliver', 'notDelivered', 'recordCash', 'settleDriver', 'sendForm', 'send', 'pdf', 'pdfDownload', 'ticketPdf']),
             new Middleware('can:cancelar pedidos', only: ['cancel']),
             // process() is gated by $this->authorize('procesar pedidos') inline
@@ -550,6 +551,121 @@ public function data(Request $request)
 
         return redirect()->route('admin.sales-orders.edit', $order)
             ->with('swal',['icon'=>'success','title'=>'Creado','text'=>'Pedido creado y procesado, listo para salida de almacén.']);
+    }
+
+    /**
+     * Alta rápida de un pedido desde el Panel de Surtido — pensada para la
+     * prisa de la mañana, cuando no hay tiempo de pasar por el formulario
+     * completo de Crear pedido antes de surtir. Solo pide cliente + líneas;
+     * almacén, tipo de entrega y forma de pago se resuelven solos (crédito
+     * fijo, mismo criterio de "envío si el cliente ya tiene ruta" que usa
+     * el asistente de IA). Reutiliza exactamente la misma resolución de
+     * precios y el mismo auto-aprobado que store() — un pedido creado aquí
+     * queda PROCESADO y aparece de inmediato en la lista de este mismo
+     * panel, listo para surtir.
+     */
+    public function quickStore(Request $request)
+    {
+        $data = $request->validate([
+            'client_id'            => ['required', 'exists:clients,id'],
+            'fecha'                => ['nullable', 'date'],
+            'items'                => ['required', 'array', 'min:1'],
+            'items.*.product_id'   => ['required', 'exists:products,id'],
+            'items.*.descripcion'  => ['nullable', 'string', 'max:255'],
+            'items.*.cantidad'     => ['required', 'numeric', 'gt:0'],
+            'items.*.precio'       => ['nullable', 'numeric', 'gte:0'],
+            'items.*.presentacion' => ['nullable', 'in:KILOS,PIEZAS,CAJAS'],
+        ]);
+
+        $client = Client::find($data['client_id']);
+
+        $items = collect($data['items'])->map(function ($it) {
+            $product = Product::find($it['product_id']);
+            return [
+                'product_id'   => $it['product_id'],
+                'descripcion'  => $it['descripcion'] ?: ($product->nombre ?? ''),
+                'cantidad'     => $it['cantidad'],
+                'presentacion' => $it['presentacion'] ?? 'KILOS',
+                'precio'       => (float) ($it['precio'] ?? 0),
+                'descuento'    => 0,
+                'impuesto'     => 0,
+            ];
+        })->all();
+
+        $items = $this->aplicarPreciosOficiales($items, $data['client_id'], null);
+        $this->registrarPreciosNuevos($items, $data['client_id'], null);
+        $this->assertPreciosCompletos($items);
+
+        $programadoPara = $data['fecha'] ?? now()->toDateString();
+        $warehouseId = Warehouse::where('is_primary', true)->value('id') ?: Warehouse::orderBy('id')->value('id');
+
+        if (! $warehouseId) {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'No hay almacenes configurados en el sistema.']);
+        }
+
+        $order = null;
+
+        DB::transaction(function () use (&$order, $items, $client, $data, $programadoPara, $warehouseId) {
+            $subtotal = 0;
+            foreach ($items as $it) {
+                $subtotal += (float) $it['cantidad'] * (float) $it['precio'];
+            }
+
+            $order = SalesOrder::create([
+                'client_id'         => $client->id,
+                'warehouse_id'      => $warehouseId,
+                'folio'             => 'TEMP-' . uniqid(),
+                'fecha'             => now(),
+                'programado_para'   => $programadoPara,
+                'delivery_type'     => $client->shipping_route_id ? 'ENVIO' : 'RECOGER',
+                'shipping_route_id' => $client->shipping_route_id,
+                'payment_method'    => 'CREDITO',
+                'credit_days'       => $client->credito_dias ?? 0,
+                'moneda'            => 'MXN',
+                'subtotal'          => $subtotal,
+                'impuestos'         => 0,
+                'descuento'         => 0,
+                'total'             => $subtotal,
+                'status'            => 'BORRADOR',
+                'created_by'        => auth()->id(),
+                'owner_id'          => auth()->id(),
+            ]);
+
+            // Mismo criterio que store(): el folio usa "Programado para".
+            $order->updateQuietly([
+                'folio' => 'SO-' . \Carbon\Carbon::parse($programadoPara)->format('Ymd') . '-' . Str::padLeft((string) $order->id, 4, '0'),
+            ]);
+
+            foreach ($items as $it) {
+                $lineTotal = (float) $it['cantidad'] * (float) $it['precio'];
+                SalesOrderItem::create([
+                    'sales_order_id' => $order->id,
+                    'product_id'     => $it['product_id'],
+                    'descripcion'    => $it['descripcion'],
+                    'cantidad'       => $it['cantidad'],
+                    'presentacion'   => $it['presentacion'],
+                    'precio'         => $it['precio'],
+                    'descuento'      => 0,
+                    'impuesto'       => 0,
+                    'total'          => $lineTotal,
+                ]);
+            }
+        });
+
+        $this->log->log($order, 'CREADO', null, $order->status, null, 'Creado desde el alta rápida del Panel de Surtido.');
+
+        $resultado = $this->aprobarPedido($order->fresh());
+        if (! $resultado['ok']) {
+            return redirect()->route('admin.sales-orders.edit', $order)
+                ->with('swal', [
+                    'icon'  => 'warning',
+                    'title' => 'Guardado, no se pudo procesar',
+                    'text'  => 'El pedido se guardó como borrador. ' . $resultado['message'],
+                ]);
+        }
+
+        return redirect()->route('admin.despacho.panel')
+            ->with('swal', ['icon' => 'success', 'title' => 'Pedido creado', 'text' => "{$order->folio} listo para surtir."]);
     }
 
     public function edit(Request $request, SalesOrder $sales_order)

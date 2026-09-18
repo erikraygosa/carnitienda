@@ -58,7 +58,17 @@ class DispatchPanelController extends Controller
         $impresionZplActiva = SystemSetting::get('etiquetas.modo_impresion', 'ticket') === 'zpl';
         $imprimirPorCajas   = (bool) SystemSetting::get('etiquetas.imprimir_por_cajas', false);
 
-        return view('admin.dispatch_panel.index', compact('pedidos', 'rutas', 'rutaId', 'ronda', 'fecha', 'itemsDespachadosIds', 'impresionZplActiva', 'imprimirPorCajas'));
+        // Solo se cargan si el usuario puede usar el alta rápida — para no
+        // mandar clientes/productos completos al navegador de quien no
+        // tiene el permiso.
+        $puedeAltaRapida = auth()->user()->can('crear pedidos desde surtido');
+        $clientesRapido  = $puedeAltaRapida ? \App\Models\Client::orderBy('nombre')->get(['id', 'nombre']) : collect();
+        $productosRapido = $puedeAltaRapida ? \App\Models\Product::where('activo', 1)->orderBy('nombre')->get(['id', 'nombre']) : collect();
+
+        return view('admin.dispatch_panel.index', compact(
+            'pedidos', 'rutas', 'rutaId', 'ronda', 'fecha', 'itemsDespachadosIds', 'impresionZplActiva', 'imprimirPorCajas',
+            'puedeAltaRapida', 'clientesRapido', 'productosRapido'
+        ));
     }
 
     // ── Polling: conteo de pedidos PROCESADOS para notificaciones ───

@@ -112,6 +112,7 @@ Route::get ('quotes/{quote}/pdf/download',  [QuoteController::class, 'pdfDownloa
 
 Route::get('sales-orders/data', [SalesOrderController::class, 'data'])->name('sales-orders.data');
 Route::get('sales-orders/client-prices/{client}', [SalesOrderController::class, 'clientPrices'])->name('sales-orders.client-prices');
+Route::post('sales-orders/quick', [SalesOrderController::class, 'quickStore'])->name('sales-orders.quick-store');
 Route::resource('sales-orders', SalesOrderController::class)->except(['show']);
 
     // Ticket térmico + PDF

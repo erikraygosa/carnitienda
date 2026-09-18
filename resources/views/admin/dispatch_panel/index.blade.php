@@ -69,6 +69,12 @@
                         </svg>
                         Imprimir pendientes
                     </a>
+                    @if($puedeAltaRapida)
+                        <button type="button" id="btn-abrir-alta-rapida"
+                                class="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 whitespace-nowrap">
+                            + Agregar pedido
+                        </button>
+                    @endif
                 </div>
             </div>
 
@@ -788,5 +794,176 @@
         })();
     })();
     </script>
+
+    @if($puedeAltaRapida)
+    {{-- Alta rápida de pedido — para la mañana, cuando no hay tiempo de
+         pasar por el formulario completo antes de surtir. Reutiliza la
+         misma resolución de precios y el mismo auto-aprobado del formulario
+         completo (ver SalesOrderController::quickStore) — solo pide
+         cliente y líneas; almacén/tipo de entrega/pago se resuelven solos
+         (crédito fijo). --}}
+    <div id="modal-alta-rapida" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between px-5 py-4 border-b">
+                <h3 class="font-semibold text-gray-800">Agregar pedido (alta rápida)</h3>
+                <button type="button" id="btn-cerrar-alta-rapida" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+            </div>
+            <form action="{{ route('admin.sales-orders.quick-store') }}" method="POST" class="p-5 space-y-4">
+                @csrf
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                        <select name="client_id" id="alta-rapida-client" class="w-full rounded-md border-gray-300 text-sm" required>
+                            <option value="">-- seleccionar --</option>
+                            @foreach($clientesRapido as $c)
+                                <option value="{{ $c->id }}">{{ $c->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha (Programado para)</label>
+                        <input type="date" name="fecha" value="{{ now()->format('Y-m-d') }}"
+                               class="w-full rounded-md border-gray-300 text-sm" required>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Productos</label>
+                    <div id="alta-rapida-items" class="space-y-2"></div>
+                    <button type="button" id="alta-rapida-add-item" class="mt-2 text-sm text-indigo-600 hover:text-indigo-800">
+                        + Agregar línea
+                    </button>
+                </div>
+
+                <p class="text-xs text-gray-400">
+                    El precio se completa solo si el cliente ya tiene uno registrado para ese producto; si no, captúralo tú.
+                    Pago: Crédito. Al guardar, el pedido queda procesado y listo para surtir de inmediato.
+                </p>
+
+                <div class="flex justify-end gap-2 pt-2 border-t">
+                    <button type="button" class="btn-cerrar-alta-rapida-2 px-3 py-1.5 text-sm rounded-md border">Cancelar</button>
+                    <button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+                        Crear y procesar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {{-- Plantilla de una línea de producto — se clona por JS --}}
+    <template id="alta-rapida-item-template">
+        <div class="flex items-end gap-2 alta-rapida-item-row">
+            <div class="flex-1">
+                <select class="alta-rapida-producto w-full rounded-md border-gray-300 text-sm" required>
+                    <option value="">-- producto --</option>
+                    @foreach($productosRapido as $p)
+                        <option value="{{ $p->id }}">{{ $p->nombre }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="w-24">
+                <input type="number" step="0.001" min="0.001" placeholder="Cant." class="alta-rapida-cantidad w-full rounded-md border-gray-300 text-sm" required>
+            </div>
+            <div class="w-28">
+                <select class="alta-rapida-presentacion w-full rounded-md border-gray-300 text-sm">
+                    <option value="KILOS">Kilos</option>
+                    <option value="PIEZAS">Piezas</option>
+                    <option value="CAJAS">Cajas</option>
+                </select>
+            </div>
+            <div class="w-24">
+                <input type="number" step="0.01" min="0" placeholder="Precio" class="alta-rapida-precio w-full rounded-md border-gray-300 text-sm">
+            </div>
+            <button type="button" class="alta-rapida-quitar text-gray-400 hover:text-red-500 px-1" title="Quitar línea">✕</button>
+        </div>
+    </template>
+
+    @push('css')
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+    <style>
+        .select2-container .select2-selection--single { height: 38px !important; border-color: #d1d5db !important; border-radius: 6px !important; }
+        .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 36px !important; font-size: 0.875rem; color: #374151; padding-left: 10px; }
+        .select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px !important; }
+        .select2-dropdown { border-color: #d1d5db; border-radius: 6px; font-size: 0.875rem; }
+    </style>
+    @endpush
+
+    @push('js')
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+    (function () {
+        var modal      = document.getElementById('modal-alta-rapida');
+        var btnAbrir   = document.getElementById('btn-abrir-alta-rapida');
+        var itemsWrap  = document.getElementById('alta-rapida-items');
+        var template   = document.getElementById('alta-rapida-item-template');
+        var contador   = 0;
+
+        function cerrar() { modal.classList.add('hidden'); }
+        function abrir()  {
+            modal.classList.remove('hidden');
+            $('#alta-rapida-client').select2({ width: '100%', dropdownParent: $(modal) });
+            if (itemsWrap.children.length === 0) agregarLinea();
+        }
+
+        function agregarLinea() {
+            var nodo = template.content.cloneNode(true);
+            var fila = nodo.querySelector('.alta-rapida-item-row');
+            var id   = 'alta-rapida-producto-' + (contador++);
+            fila.querySelector('.alta-rapida-producto').id = id;
+            itemsWrap.appendChild(fila);
+            $('#' + id).select2({ width: '100%', dropdownParent: $(modal), placeholder: 'Producto' });
+        }
+
+        itemsWrap.addEventListener('click', function(e) {
+            if (e.target.classList.contains('alta-rapida-quitar')) {
+                var fila = e.target.closest('.alta-rapida-item-row');
+                if (itemsWrap.children.length > 1) fila.remove();
+            }
+        });
+
+        if (btnAbrir) btnAbrir.addEventListener('click', abrir);
+        document.getElementById('btn-cerrar-alta-rapida').addEventListener('click', cerrar);
+        document.querySelectorAll('.btn-cerrar-alta-rapida-2').forEach(function(b) { b.addEventListener('click', cerrar); });
+        document.getElementById('alta-rapida-add-item').addEventListener('click', agregarLinea);
+
+        // Antes de enviar, mete a inputs ocultos "items[i][...]" los valores
+        // de cada línea armada dinámicamente (los selects/inputs de la
+        // plantilla no llevan "name" porque se clonan — evita duplicar ids).
+        modal.querySelector('form').addEventListener('submit', function(e) {
+            var filas = itemsWrap.querySelectorAll('.alta-rapida-item-row');
+            if (filas.length === 0) {
+                e.preventDefault();
+                alert('Agrega al menos un producto.');
+                return;
+            }
+            var form = e.target;
+            form.querySelectorAll('.alta-rapida-hidden').forEach(function(el) { el.remove(); });
+
+            filas.forEach(function(fila, i) {
+                var producto = fila.querySelector('.alta-rapida-producto').value;
+                var cantidad = fila.querySelector('.alta-rapida-cantidad').value;
+                var presentacion = fila.querySelector('.alta-rapida-presentacion').value;
+                var precio = fila.querySelector('.alta-rapida-precio').value;
+
+                [
+                    ['product_id', producto],
+                    ['cantidad', cantidad],
+                    ['presentacion', presentacion],
+                    ['precio', precio],
+                ].forEach(function(pair) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.className = 'alta-rapida-hidden';
+                    input.name = 'items[' + i + '][' + pair[0] + ']';
+                    input.value = pair[1] || '';
+                    form.appendChild(input);
+                });
+            });
+        });
+    })();
+    </script>
+    @endpush
+    @endif
 
 </x-admin-layout>
