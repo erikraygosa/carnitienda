@@ -59,7 +59,7 @@
         {{-- Filtros --}}
         <div class="flex flex-wrap gap-3 mb-4">
             <input id="filter-search" type="text"
-                placeholder="Buscar chofer / ruta / almacén..."
+                placeholder="Buscar # despacho / chofer / ruta / almacén..."
                 class="flex-1 min-w-[200px] rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
             <select id="filter-status"
@@ -76,6 +76,7 @@
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50">
                     <tr>
+                        <th class="px-4 py-3 text-left font-medium text-gray-500">Despacho</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500">Fecha</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500">Chofer</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500">Ruta</th>
@@ -106,9 +107,15 @@
                         $pendientes   = $total - $entregados - $noEntregados;
                     @endphp
                     <tr
-                        data-search="{{ strtolower(($dispatch->driver?->nombre ?? '') . ' ' . ($dispatch->route?->nombre ?? '') . ' ' . ($dispatch->warehouse?->nombre ?? '')) }}"
+                        data-search="{{ strtolower('#'.$dispatch->id . ' ' . $dispatch->id . ' ' . ($dispatch->driver?->nombre ?? '') . ' ' . ($dispatch->route?->nombre ?? '') . ' ' . ($dispatch->warehouse?->nombre ?? '')) }}"
                         data-status="{{ $dispatch->status }}"
                     >
+                        <td class="px-4 py-3">
+                            <a href="{{ route('admin.dispatches.edit', $dispatch) }}"
+                               class="font-mono text-xs text-indigo-600 hover:underline">
+                                #{{ $dispatch->id }}
+                            </a>
+                        </td>
                         <td class="px-4 py-3 text-gray-600">
                             {{ $dispatch->fecha ? \Carbon\Carbon::parse($dispatch->fecha)->format('d/m/Y H:i') : '—' }}
                         </td>
