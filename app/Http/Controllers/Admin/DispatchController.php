@@ -270,13 +270,14 @@ class DispatchController extends Controller implements HasMiddleware
                         ? (float) $n->saldo_pendiente
                         : (float) $n->total);
 
-                    DispatchArAssignment::create([
+                    $assignment = DispatchArAssignment::create([
                         'dispatch_id'    => $dispatch->id,
                         'client_id'      => $clientId,
                         'saldo_asignado' => round($saldoAsignado, 2),
                         'monto_cobrado'  => 0,
                         'status'         => 'PENDIENTE',
                     ]);
+                    $assignment->orders()->attach($notas->pluck('id'));
                 }
             }
 
@@ -511,13 +512,14 @@ class DispatchController extends Controller implements HasMiddleware
                 ? (float) $n->saldo_pendiente
                 : (float) $n->total);
 
-            DispatchArAssignment::create([
+            $assignment = DispatchArAssignment::create([
                 'dispatch_id'    => $dispatch->id,
                 'client_id'      => $clientId,
                 'saldo_asignado' => round($saldoAsignado, 2),
                 'monto_cobrado'  => 0,
                 'status'         => 'PENDIENTE',
             ]);
+            $assignment->orders()->attach($notas->pluck('id'));
         }
 
         $nuevos = $notasPorCliente->count();
@@ -1051,14 +1053,14 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
             'status'        => $nuevoStatus,
         ]);
 
-        // Si no se marcaron notas específicas, se aplica FIFO a las notas pendientes
-        // del cliente — sin esto, el dinero quedaba trazado en dispatch_ar_assignments
-        // pero sales_orders.saldo_pendiente nunca se actualizaba, y la nota seguía
-        // apareciendo con el monto completo en Cuentas por cobrar.
+        // Si no se marcaron notas específicas, se aplica FIFO solo sobre las
+        // notas que quedaron asignadas a ESTE despacho (tabla pivote
+        // dispatch_ar_assignment_orders) — antes caía a TODAS las notas
+        // pendientes del cliente, cobrando también notas que el usuario
+        // había dejado fuera de la ruta a propósito.
         $ordenes = $request->filled('order_ids')
             ? SalesOrder::whereIn('id', $request->order_ids)->orderBy('fecha')->get()
-            : SalesOrder::where('client_id', $assignment->client_id)
-                ->where('payment_method', 'CREDITO')
+            : $assignment->orders()
                 ->whereIn('status', ['ENTREGADO'])
                 ->whereNull('cobrado_at')
                 ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))

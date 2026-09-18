@@ -702,14 +702,7 @@
                     'NO_COBRADO' => 'bg-red-100 text-red-700',
                     default      => 'bg-gray-100 text-gray-600',
                 };
-                $notasCliente = \App\Models\SalesOrder::where('client_id', $assignment->client_id)
-                    ->where('payment_method', 'CREDITO')
-                    ->whereIn('status', ['ENTREGADO'])
-                    ->whereNull('cobrado_at')
-                    ->where(function($q) {
-                        $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0);
-                    })
-                    ->get(['id','folio','total','saldo_pendiente']);
+                $notasCliente = $assignment->orders()->get(['sales_orders.id','folio','total','saldo_pendiente']);
                 $puedeAccion = in_array($assignment->status, ['PENDIENTE','PARCIAL']);
                 $saldoRestante = round((float)$assignment->saldo_asignado - (float)$assignment->monto_cobrado, 2);
             @endphp
