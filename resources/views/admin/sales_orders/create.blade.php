@@ -529,8 +529,8 @@
                 <td class="p-2 text-right">
                     <div class="flex items-center justify-end gap-0.5">
                         <button type="button" class="btn-qty-step w-5 h-6 shrink-0 border rounded text-xs text-gray-500 hover:bg-gray-100" data-step="-0.5" tabindex="-1">−</button>
-                        <input type="number" min="0.001" step="0.001"
-                               class="w-16 border rounded p-1 text-right text-sm inp-cantidad"
+                        <input type="number" min="0.01" step="0.01"
+                               class="w-16 border rounded p-1 text-right text-sm inp-cantidad inp-sin-flechas"
                                name="items[${i}][cantidad]" value="${it.cantidad}" required>
                         <button type="button" class="btn-qty-step w-5 h-6 shrink-0 border rounded text-xs text-gray-500 hover:bg-gray-100" data-step="0.5" tabindex="-1">+</button>
                     </div>
@@ -804,6 +804,10 @@
 .select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px !important; }
 .select2-dropdown { border-color: #d1d5db; border-radius: 6px; font-size: 0.875rem; }
 .select2-container--default .select2-search--dropdown .select2-search__field { border-color: #d1d5db; border-radius: 4px; padding: 4px 8px; }
+/* Sin flechitas de incremento — solo se captura el número directo. */
+.inp-sin-flechas::-webkit-outer-spin-button,
+.inp-sin-flechas::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.inp-sin-flechas { -moz-appearance: textfield; }
 </style>
 @endpush
 

@@ -581,8 +581,8 @@
                            name="items[${i}][descripcion]" value="${escHtml(it.descripcion)}" ${dis} required>
                 </td>
                 <td class="p-2 text-right">
-                    <input type="number" min="0.001" step="0.001"
-                           class="w-24 border rounded p-1 text-right text-sm inp-cantidad"
+                    <input type="number" min="0.01" step="0.01"
+                           class="w-24 border rounded p-1 text-right text-sm inp-cantidad inp-sin-flechas"
                            name="items[${i}][cantidad]" value="${it.cantidad}" ${dis} required>
                 </td>
                 <td class="p-2 text-center">
@@ -730,5 +730,14 @@
         };
     }
     </script>
+
+@push('css')
+<style>
+/* Sin flechitas de incremento — solo se captura el número directo. */
+.inp-sin-flechas::-webkit-outer-spin-button,
+.inp-sin-flechas::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.inp-sin-flechas { -moz-appearance: textfield; }
+</style>
+@endpush
 
 </x-admin-layout>

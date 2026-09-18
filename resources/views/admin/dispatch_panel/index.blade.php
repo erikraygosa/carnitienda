@@ -862,7 +862,7 @@
                 </select>
             </div>
             <div class="w-24">
-                <input type="number" step="0.001" min="0.001" placeholder="Cant." class="alta-rapida-cantidad w-full rounded-md border-gray-300 text-sm" required>
+                <input type="number" step="0.01" min="0.01" placeholder="Cant." class="alta-rapida-cantidad inp-sin-flechas w-full rounded-md border-gray-300 text-sm" required>
             </div>
             <div class="w-28">
                 <select class="alta-rapida-presentacion w-full rounded-md border-gray-300 text-sm">
@@ -885,6 +885,10 @@
         .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 36px !important; font-size: 0.875rem; color: #374151; padding-left: 10px; }
         .select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px !important; }
         .select2-dropdown { border-color: #d1d5db; border-radius: 6px; font-size: 0.875rem; }
+        /* Sin flechitas de incremento — solo se captura el número directo. */
+        .inp-sin-flechas::-webkit-outer-spin-button,
+        .inp-sin-flechas::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .inp-sin-flechas { -moz-appearance: textfield; }
     </style>
     @endpush
 
