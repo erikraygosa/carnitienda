@@ -899,11 +899,48 @@
         var template   = document.getElementById('alta-rapida-item-template');
         var contador   = 0;
 
+        // Precios del cliente elegido (override registrado por producto) —
+        // se usan solo para MOSTRAR en pantalla lo que va a cobrarse; el
+        // que de verdad manda es el servidor al guardar (aplicarPreciosOficiales),
+        // esto es nada más para que no se vea vacío y parezca que no va a
+        // tomar el precio correcto.
+        var preciosCliente = {};
+        var CLIENT_PRICES_URL = '{{ route('admin.sales-orders.client-prices', ['client' => '__ID__']) }}';
+
+        function cargarPreciosCliente(clientId) {
+            preciosCliente = {};
+            if (!clientId) return;
+            fetch(CLIENT_PRICES_URL.replace('__ID__', clientId), { headers: { 'Accept': 'application/json' } })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    preciosCliente = data || {};
+                    // Ya con los precios cargados, autocompleta las líneas
+                    // que ya tenían producto elegido pero precio vacío.
+                    itemsWrap.querySelectorAll('.alta-rapida-item-row').forEach(actualizarPrecioFila);
+                })
+                .catch(function() { preciosCliente = {}; });
+        }
+
+        function actualizarPrecioFila(fila) {
+            var productoSel = fila.querySelector('.alta-rapida-producto');
+            var precioInput = fila.querySelector('.alta-rapida-precio');
+            if (!productoSel || !precioInput) return;
+            var productId = productoSel.value;
+            // No se pisa un precio que el usuario ya haya escrito a mano.
+            if (!productId || precioInput.value !== '') return;
+            if (Object.prototype.hasOwnProperty.call(preciosCliente, productId)) {
+                precioInput.value = preciosCliente[productId];
+                precioInput.placeholder = '';
+            }
+        }
+
         function cerrar() { modal.classList.add('hidden'); }
         function abrir()  {
             modal.classList.remove('hidden');
-            $('#alta-rapida-client').select2({ width: '100%', dropdownParent: $(modal) });
+            $('#alta-rapida-client').select2({ width: '100%', dropdownParent: $(modal) })
+                .on('change', function() { cargarPreciosCliente(this.value); });
             if (itemsWrap.children.length === 0) agregarLinea();
+            cargarPreciosCliente($('#alta-rapida-client').val());
         }
 
         function agregarLinea() {
@@ -912,7 +949,8 @@
             var id   = 'alta-rapida-producto-' + (contador++);
             fila.querySelector('.alta-rapida-producto').id = id;
             itemsWrap.appendChild(fila);
-            $('#' + id).select2({ width: '100%', dropdownParent: $(modal), placeholder: 'Producto' });
+            $('#' + id).select2({ width: '100%', dropdownParent: $(modal), placeholder: 'Producto' })
+                .on('change', function() { actualizarPrecioFila(fila); });
         }
 
         itemsWrap.addEventListener('click', function(e) {
