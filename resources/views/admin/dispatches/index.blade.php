@@ -205,6 +205,31 @@
         </div>
     </x-wire-card>
 
+    {{-- Buscar un pedido y ver en qué despacho quedó asignado (o si no lo está) --}}
+    <x-wire-card class="mt-4">
+        <div class="flex items-center gap-2 mb-3">
+            <h3 class="font-semibold text-gray-800">Buscar pedido</h3>
+            <span class="text-sm font-normal text-gray-400">(ver en qué despacho está asignado, o si no lo está)</span>
+        </div>
+        <input type="text" id="buscar-pedido-asignacion" placeholder="Folio o cliente..."
+               class="w-full max-w-md rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+        <div id="resultado-pedido-asignacion" class="mt-3 hidden">
+            <div class="overflow-x-auto border rounded-lg">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left font-medium text-gray-500">Folio</th>
+                            <th class="px-4 py-2 text-left font-medium text-gray-500">Cliente</th>
+                            <th class="px-4 py-2 text-left font-medium text-gray-500">Estatus</th>
+                            <th class="px-4 py-2 text-left font-medium text-gray-500">Despacho asignado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultado-pedido-asignacion-body" class="divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </div>
+    </x-wire-card>
+
     {{-- Pedidos PROCESADOS pendientes por asignar a un despacho --}}
     <x-wire-card class="mt-4">
         <div class="flex items-center gap-2 mb-3">
@@ -230,9 +255,9 @@
                         <th class="px-4 py-3 text-left font-medium text-gray-500">Programado</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200">
-                    @forelse($pedidosSinAsignar as $pedido)
-                        <tr>
+                <tbody id="pending-tbody" class="divide-y divide-gray-200">
+                    @foreach($pedidosSinAsignar as $pedido)
+                        <tr class="pending-row">
                             <td class="px-4 py-3 font-mono text-xs text-indigo-600">{{ $pedido->folio }}</td>
                             <td class="px-4 py-3 text-gray-700">{{ $pedido->client?->nombre ?? '—' }}</td>
                             <td class="px-4 py-3 text-xs text-gray-500">
@@ -255,15 +280,28 @@
                                 {{ optional($pedido->programado_para)->format('d/m/Y') ?? '—' }}
                             </td>
                         </tr>
-                    @empty
-                        <tr>
-                            <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">
-                                No hay pedidos pendientes por asignar.
-                            </td>
-                        </tr>
-                    @endforelse
+                    @endforeach
                 </tbody>
             </table>
+
+            <div id="pending-no-results" class="hidden py-8 text-center text-sm text-gray-400">
+                No hay pedidos pendientes por asignar.
+            </div>
+
+            {{-- Paginación --}}
+            <div class="flex items-center justify-between mt-4 text-sm text-gray-600">
+                <span id="pending-pagination-info"></span>
+                <div class="flex gap-2">
+                    <button id="pending-btn-prev"
+                        class="px-3 py-1 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                        ← Anterior
+                    </button>
+                    <button id="pending-btn-next"
+                        class="px-3 py-1 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                        Siguiente →
+                    </button>
+                </div>
+            </div>
         </div>
     </x-wire-card>
 
@@ -333,6 +371,101 @@
         });
 
         applyFilters();
+    })();
+
+    // ── Pedidos pendientes por asignar: paginación (client-side, mismo
+    // patrón que la tabla de despachos de arriba) ──────────────────────
+    (function() {
+        var tbody          = document.getElementById('pending-tbody');
+        var noResults      = document.getElementById('pending-no-results');
+        var paginationInfo = document.getElementById('pending-pagination-info');
+        var btnPrev        = document.getElementById('pending-btn-prev');
+        var btnNext        = document.getElementById('pending-btn-next');
+        if (!tbody) return;
+
+        var PER_PAGE = 15;
+        var currentPage = 1;
+        var rows = Array.from(tbody.querySelectorAll('.pending-row'));
+
+        function renderPage() {
+            rows.forEach(function(r) { r.classList.add('hidden'); });
+
+            var start = (currentPage - 1) * PER_PAGE;
+            var end   = start + PER_PAGE;
+            rows.slice(start, end).forEach(function(r) { r.classList.remove('hidden'); });
+
+            var total      = rows.length;
+            var totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+
+            noResults.classList.toggle('hidden', total > 0);
+            paginationInfo.textContent = total > 0
+                ? ('Mostrando ' + (start+1) + '–' + Math.min(end,total) + ' de ' + total + ' pedidos')
+                : '';
+
+            btnPrev.disabled = currentPage <= 1;
+            btnNext.disabled = currentPage >= totalPages;
+        }
+
+        btnPrev.addEventListener('click', function() { currentPage--; renderPage(); });
+        btnNext.addEventListener('click', function() { currentPage++; renderPage(); });
+
+        renderPage();
+    })();
+
+    // ── Buscar pedido → ver despacho asignado ──────────────────────────
+    (function() {
+        var input   = document.getElementById('buscar-pedido-asignacion');
+        var wrap    = document.getElementById('resultado-pedido-asignacion');
+        var body    = document.getElementById('resultado-pedido-asignacion-body');
+        if (!input) return;
+
+        var BUSCAR_URL = '{{ route('admin.dispatches.buscar-pedido') }}';
+        var timer = null;
+
+        function escHtml(str) {
+            return String(str ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function render(resultados) {
+            if (!resultados.length) {
+                body.innerHTML = '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-400">Sin coincidencias.</td></tr>';
+                wrap.classList.remove('hidden');
+                return;
+            }
+
+            body.innerHTML = resultados.map(function(r) {
+                var despacho = r.despacho_folio
+                    ? '<a href="' + r.despacho_url + '" class="text-indigo-600 hover:underline font-mono text-xs">' + escHtml(r.despacho_folio) + '</a>'
+                        + ' <span class="text-gray-400 text-xs">(' + escHtml(r.despacho_ruta || 'sin ruta') + (r.despacho_chofer ? ' · ' + escHtml(r.despacho_chofer) : '')
+                        + (r.despacho_fecha ? ' · ' + escHtml(r.despacho_fecha) : '') + ' · ' + escHtml(r.despacho_status) + ')</span>'
+                    : '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Sin asignar</span>';
+
+                return '<tr>'
+                    + '<td class="px-4 py-2 font-mono text-xs text-indigo-600">' + escHtml(r.folio) + '</td>'
+                    + '<td class="px-4 py-2 text-gray-700">' + escHtml(r.cliente) + '</td>'
+                    + '<td class="px-4 py-2 text-xs text-gray-500">' + escHtml(r.status) + '</td>'
+                    + '<td class="px-4 py-2">' + despacho + '</td>'
+                    + '</tr>';
+            }).join('');
+
+            wrap.classList.remove('hidden');
+        }
+
+        input.addEventListener('input', function() {
+            var q = this.value.trim();
+            clearTimeout(timer);
+            if (q.length < 2) { wrap.classList.add('hidden'); return; }
+
+            timer = setTimeout(function() {
+                fetch(BUSCAR_URL + '?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) { render(data.resultados || []); })
+                    .catch(function() {
+                        body.innerHTML = '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-red-400">Error buscando.</td></tr>';
+                        wrap.classList.remove('hidden');
+                    });
+            }, 300);
+        });
     })();
     </script>
 

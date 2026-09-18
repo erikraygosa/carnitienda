@@ -221,8 +221,9 @@ Route::prefix('driver-cash')->name('driver-cash.')->group(function () {
     Route::post('/{register}/close', [DriverCashRegisterController::class,'close'])->name('close');
 });
 
+Route::get('dispatches/buscar-pedido', [DispatchController::class,'buscarPedidoAsignacion'])->name('dispatches.buscar-pedido');
 Route::resource('dispatches', DispatchController::class)->except(['show']);
- 
+
 // Acciones de flujo del despacho
 Route::post('dispatches/{dispatch}/preparar',  [DispatchController::class,'preparar'])->name('dispatches.preparar');
 Route::post('dispatches/{dispatch}/cargar',    [DispatchController::class,'cargar'])->name('dispatches.cargar');

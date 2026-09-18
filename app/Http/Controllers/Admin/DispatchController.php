@@ -40,7 +40,7 @@ class DispatchController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('can:ver despachos', only: ['index', 'edit', 'printRuta', 'printLiquidacion']),
+            new Middleware('can:ver despachos', only: ['index', 'edit', 'printRuta', 'printLiquidacion', 'buscarPedidoAsignacion']),
             new Middleware('can:crear despachos', only: ['create', 'store']),
             new Middleware('can:editar despachos', only: [
                 'update', 'preparar', 'cargar', 'enRuta', 'entregar', 'cancelar', 'destroy',
@@ -78,6 +78,45 @@ class DispatchController extends Controller implements HasMiddleware
             ->get(['id', 'folio', 'client_id', 'shipping_route_id', 'total', 'payment_method', 'programado_para']);
 
         return view('admin.dispatches.index', compact('dispatches', 'fechaDesde', 'fechaHasta', 'pedidosSinAsignar'));
+    }
+
+    /**
+     * Busca un pedido por folio o cliente y dice en qué despacho está
+     * asignado (o si no está asignado a ninguno) — para no tener que
+     * adivinarlo abriendo despachos uno por uno.
+     */
+    public function buscarPedidoAsignacion(Request $request)
+    {
+        $q = trim((string) $request->get('q', ''));
+        if (mb_strlen($q) < 2) {
+            return response()->json(['resultados' => []]);
+        }
+
+        $pedidos = SalesOrder::query()
+            ->where(fn ($w) => $w->where('folio', 'like', "%{$q}%")
+                ->orWhereHas('client', fn ($c) => $c->where('nombre', 'like', "%{$q}%")))
+            ->with(['client:id,nombre', 'dispatchItem.dispatch.route:id,nombre', 'dispatchItem.dispatch.driver:id,nombre'])
+            ->orderByDesc('id')
+            ->limit(30)
+            ->get(['id', 'folio', 'client_id', 'status', 'total', 'programado_para']);
+
+        $resultados = $pedidos->map(function ($p) {
+            $dispatch = $p->dispatchItem?->dispatch;
+            return [
+                'folio'            => $p->folio,
+                'cliente'          => $p->client?->nombre ?? '—',
+                'status'           => $p->status,
+                'programado_para'  => optional($p->programado_para)->format('d/m/Y'),
+                'despacho_folio'   => $dispatch?->folio,
+                'despacho_ruta'    => $dispatch?->route?->nombre,
+                'despacho_chofer'  => $dispatch?->driver?->nombre,
+                'despacho_fecha'   => $dispatch ? optional($dispatch->fecha)->format('d/m/Y') : null,
+                'despacho_status'  => $dispatch?->status,
+                'despacho_url'     => $dispatch ? route('admin.dispatches.edit', $dispatch->id) : null,
+            ];
+        });
+
+        return response()->json(['resultados' => $resultados]);
     }
 
     // ── Create ────────────────────────────────────────────────────────────────
