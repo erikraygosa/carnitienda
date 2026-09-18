@@ -1,13 +1,19 @@
+@php
+    // Preserva el filtro de fechas de la lista de despachos al regresar —
+    // sin esto, "Regresar" siempre volvía al mes actual por defecto aunque
+    // se hubiera entrado desde una búsqueda con otro rango de fechas.
+    $volverUrl = route('admin.dispatches.index', request()->only(['fecha_desde', 'fecha_hasta']));
+@endphp
 <x-admin-layout
     title="Despacho #{{ $dispatch->id }}"
     :breadcrumbs="[
         ['name'=>'Dashboard','url'=>route('admin.dashboard')],
-        ['name'=>'Despachos','url'=>route('admin.dispatches.index')],
+        ['name'=>'Despachos','url'=>$volverUrl],
         ['name'=>'Despacho #'.$dispatch->id],
     ]"
 >
     <x-slot name="action">
-        <a href="{{ route('admin.dispatches.index') }}" class="inline-flex px-3 py-1.5 text-sm rounded-md border">Regresar</a>
+        <a href="{{ $volverUrl }}" class="inline-flex px-3 py-1.5 text-sm rounded-md border">Regresar</a>
         @if(!in_array($dispatch->status, ['CERRADO','CANCELADO']))
             <button form="dispatch-edit" type="submit"
                     class="ml-2 inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white">

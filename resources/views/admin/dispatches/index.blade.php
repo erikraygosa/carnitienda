@@ -111,7 +111,7 @@
                         data-status="{{ $dispatch->status }}"
                     >
                         <td class="px-4 py-3">
-                            <a href="{{ route('admin.dispatches.edit', $dispatch) }}"
+                            <a href="{{ route('admin.dispatches.edit', $dispatch) }}?fecha_desde={{ $fechaDesde }}&fecha_hasta={{ $fechaHasta }}"
                                class="font-mono text-xs text-indigo-600 hover:underline">
                                 #{{ $dispatch->id }}
                             </a>
@@ -155,7 +155,7 @@
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-1 flex-wrap">
-                                <a href="{{ route('admin.dispatches.edit', $dispatch) }}"
+                                <a href="{{ route('admin.dispatches.edit', $dispatch) }}?fecha_desde={{ $fechaDesde }}&fecha_hasta={{ $fechaHasta }}"
                                    class="px-2 py-1 text-xs rounded border border-indigo-300 text-indigo-600 hover:bg-indigo-50">
                                     Ver
                                 </a>
