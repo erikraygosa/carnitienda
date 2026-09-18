@@ -25,7 +25,7 @@
         @endforeach
     </div>
 
-    <div class="flex flex-col md:flex-row gap-4">
+    <div class="flex gap-4">
         {{-- Lista de pedidos --}}
         <x-wire-card class="flex-1 min-w-0">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
@@ -171,7 +171,7 @@
         </x-wire-card>
 
         {{-- Panel lateral de despacho --}}
-        <div id="panel-despacho" class="hidden w-full md:w-[520px] md:shrink-0">
+        <div id="panel-despacho" class="hidden w-[520px] shrink-0">
             <x-wire-card>
                 <div class="flex items-center justify-between mb-3">
                     <div>
