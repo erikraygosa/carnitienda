@@ -25,14 +25,14 @@
         @endforeach
     </div>
 
-    <div class="flex gap-4">
+    <div class="flex flex-col md:flex-row gap-4">
         {{-- Lista de pedidos --}}
         <x-wire-card class="flex-1 min-w-0">
-            <div class="flex items-center justify-between mb-3">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
                 <h2 class="font-semibold text-gray-700">Pedidos procesados</h2>
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2">
                     {{-- Filtro por ruta --}}
-                    <form method="GET" action="{{ route('admin.despacho.panel') }}" class="flex items-center gap-2">
+                    <form method="GET" action="{{ route('admin.despacho.panel') }}" class="flex flex-wrap items-center gap-2">
                         <input type="date" name="fecha" value="{{ $fecha }}" onchange="this.form.submit()"
                                title="Filtrar por fecha programada"
                                class="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
@@ -57,7 +57,7 @@
                         @endif
                     </form>
                     <input id="filter-search" type="text" placeholder="Buscar folio / cliente..."
-                        class="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 w-56"/>
+                        class="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 w-56 max-w-full"/>
                     @php
                         $printQuery = array_filter(['ruta_id' => $rutaId, 'ronda' => $ronda, 'fecha' => $fecha]);
                     @endphp
@@ -171,7 +171,7 @@
         </x-wire-card>
 
         {{-- Panel lateral de despacho --}}
-        <div id="panel-despacho" class="hidden w-[520px] shrink-0">
+        <div id="panel-despacho" class="hidden w-full md:w-[520px] md:shrink-0">
             <x-wire-card>
                 <div class="flex items-center justify-between mb-3">
                     <div>
@@ -852,8 +852,8 @@
 
     {{-- Plantilla de una línea de producto — se clona por JS --}}
     <template id="alta-rapida-item-template">
-        <div class="flex items-end gap-2 alta-rapida-item-row">
-            <div class="flex-1">
+        <div class="flex flex-wrap items-end gap-2 alta-rapida-item-row">
+            <div class="flex-1 min-w-[160px]">
                 <select class="alta-rapida-producto w-full rounded-md border-gray-300 text-sm" required>
                     <option value="">-- producto --</option>
                     @foreach($productosRapido as $p)
@@ -861,17 +861,17 @@
                     @endforeach
                 </select>
             </div>
-            <div class="w-24">
+            <div class="w-20">
                 <input type="number" step="0.01" min="0.01" placeholder="Cant." class="alta-rapida-cantidad inp-sin-flechas w-full rounded-md border-gray-300 text-sm" required>
             </div>
-            <div class="w-28">
+            <div class="w-24">
                 <select class="alta-rapida-presentacion w-full rounded-md border-gray-300 text-sm">
                     <option value="KILOS">Kilos</option>
                     <option value="PIEZAS">Piezas</option>
                     <option value="CAJAS">Cajas</option>
                 </select>
             </div>
-            <div class="w-24">
+            <div class="w-20">
                 <input type="number" step="0.01" min="0" placeholder="Precio" class="alta-rapida-precio w-full rounded-md border-gray-300 text-sm">
             </div>
             <button type="button" class="alta-rapida-quitar text-gray-400 hover:text-red-500 px-1" title="Quitar línea">✕</button>
