@@ -202,10 +202,10 @@
                     <td class="p-2 text-right">
                         <div class="flex items-center justify-end gap-0.5">
                             <button type="button" class="btn-qty-step w-5 h-6 shrink-0 border rounded text-xs text-gray-500 hover:bg-gray-100" data-step="-0.5" tabindex="-1">−</button>
-                            <input type="number" min="0.001" step="0.001"
+                            <input type="number" min="0.01" step="0.01"
                                    name="items[${i}][qty]"
                                    value="${it.qty}"
-                                   class="w-16 border rounded p-1 text-right text-sm inp-qty" required>
+                                   class="w-16 border rounded p-1 text-right text-sm inp-qty inp-sin-flechas" required>
                             <button type="button" class="btn-qty-step w-5 h-6 shrink-0 border rounded text-xs text-gray-500 hover:bg-gray-100" data-step="0.5" tabindex="-1">+</button>
                         </div>
                     </td>
@@ -442,5 +442,12 @@
 
     })();
     </script>
+
+    <style>
+        /* Sin flechitas de incremento — solo se captura el número directo. */
+        .inp-sin-flechas::-webkit-outer-spin-button,
+        .inp-sin-flechas::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .inp-sin-flechas { -moz-appearance: textfield; }
+    </style>
 
 </x-admin-layout>
