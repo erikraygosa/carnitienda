@@ -13,6 +13,7 @@ use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Quote;
+use App\Models\Sale;
 use App\Models\SalesOrder;
 use App\Models\StockMovement;
 use App\Models\StockTransfer;
@@ -42,21 +43,24 @@ class AuditoriaController extends Controller implements HasMiddleware
         'caja'        => CashRegister::class,
         'usuario'     => User::class,
         'cobro'       => ArPayment::class,
+        'nota_venta'  => Sale::class,
     ];
 
     public function index(Request $request)
     {
-        $tipo    = $request->input('tipo');
-        $userId  = $request->input('user_id');
-        $action  = $request->input('action');
-        $desde   = $request->input('desde');
-        $hasta   = $request->input('hasta');
+        $tipo         = $request->input('tipo');
+        $userId       = $request->input('user_id');
+        $action       = $request->input('action');
+        $documentId   = $request->input('document_id');
+        $desde        = $request->input('desde');
+        $hasta        = $request->input('hasta');
 
         $logs = DocumentActivityLog::with('user')
             ->when($tipo && isset($this->tiposMap[$tipo]),
                 fn($q) => $q->where('document_type', $this->tiposMap[$tipo]))
             ->when($userId, fn($q) => $q->where('user_id', $userId))
             ->when($action, fn($q) => $q->where('action', $action))
+            ->when($documentId, fn($q) => $q->where('document_id', $documentId))
             ->when($desde,  fn($q) => $q->whereDate('created_at', '>=', $desde))
             ->when($hasta,  fn($q) => $q->whereDate('created_at', '<=', $hasta))
             ->latest()
@@ -66,6 +70,15 @@ class AuditoriaController extends Controller implements HasMiddleware
         $usuarios = User::orderBy('name')->get(['id','name']);
         $tiposInvertido = array_flip($this->tiposMap);
 
-        return view('admin.auditoria.index', compact('logs', 'usuarios', 'tiposInvertido'));
+        // Se listan las acciones que realmente existen en la tabla en vez de
+        // un catálogo fijo — las acciones reales (CREADO, EDITADO,
+        // CAMBIO_ESTADO, PEDIDO_QUITADO, etc.) no coincidían con las 3
+        // opciones fijas que había antes (CREATED/UPDATED/STATUS_CHANGED),
+        // así que el filtro de Acción no servía para despachos ni para casi
+        // nada más.
+        $acciones = DocumentActivityLog::query()
+            ->select('action')->distinct()->orderBy('action')->pluck('action');
+
+        return view('admin.auditoria.index', compact('logs', 'usuarios', 'tiposInvertido', 'acciones'));
     }
 }

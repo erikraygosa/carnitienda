@@ -15,13 +15,20 @@
                 <select name="tipo"
                         class="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
                     <option value="">Todos</option>
-                    <option value="producto"   @selected(request('tipo')=='producto')>Producto</option>
-                    <option value="pedido"     @selected(request('tipo')=='pedido')>Pedido</option>
-                    <option value="cobro"      @selected(request('tipo')=='cobro')>Cobro</option>
-                    <option value="factura"    @selected(request('tipo')=='factura')>Factura</option>
-                    <option value="movimiento" @selected(request('tipo')=='movimiento')>Movimiento stock</option>
-                    <option value="traspaso"   @selected(request('tipo')=='traspaso')>Traspaso</option>
-                    <option value="inventario" @selected(request('tipo')=='inventario')>Inventario</option>
+                    <option value="producto"    @selected(request('tipo')=='producto')>Producto</option>
+                    <option value="cliente"     @selected(request('tipo')=='cliente')>Cliente</option>
+                    <option value="pedido"      @selected(request('tipo')=='pedido')>Pedido</option>
+                    <option value="nota_venta"  @selected(request('tipo')=='nota_venta')>Nota de venta</option>
+                    <option value="cotizacion"  @selected(request('tipo')=='cotizacion')>Cotización</option>
+                    <option value="despacho"    @selected(request('tipo')=='despacho')>Despacho</option>
+                    <option value="cobro"       @selected(request('tipo')=='cobro')>Cobro</option>
+                    <option value="factura"     @selected(request('tipo')=='factura')>Factura</option>
+                    <option value="compra"      @selected(request('tipo')=='compra')>Compra</option>
+                    <option value="movimiento"  @selected(request('tipo')=='movimiento')>Movimiento stock</option>
+                    <option value="traspaso"    @selected(request('tipo')=='traspaso')>Traspaso</option>
+                    <option value="inventario"  @selected(request('tipo')=='inventario')>Inventario</option>
+                    <option value="caja"        @selected(request('tipo')=='caja')>Caja</option>
+                    <option value="usuario"     @selected(request('tipo')=='usuario')>Usuario</option>
                 </select>
             </div>
 
@@ -41,10 +48,16 @@
                 <select name="action"
                         class="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
                     <option value="">Todas</option>
-                    <option value="CREATED"       @selected(request('action')=='CREATED')>Creado</option>
-                    <option value="UPDATED"       @selected(request('action')=='UPDATED')>Editado</option>
-                    <option value="STATUS_CHANGED" @selected(request('action')=='STATUS_CHANGED')>Cambio de estatus</option>
+                    @foreach($acciones as $accion)
+                        <option value="{{ $accion }}" @selected(request('action')==$accion)>{{ $accion }}</option>
+                    @endforeach
                 </select>
+            </div>
+
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">ID documento</label>
+                <input type="number" name="document_id" value="{{ request('document_id') }}" placeholder="Ej. 143"
+                       class="w-28 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
             </div>
 
             <div>
@@ -107,7 +120,18 @@
                             </span>
                         </td>
                         <td class="px-3 py-2 font-mono text-xs text-gray-500">
-                            {{ $log->document_id }}
+                            @php
+                                $verUrl = match($log->document_type) {
+                                    \App\Models\Dispatch::class   => route('admin.dispatches.edit', $log->document_id),
+                                    \App\Models\SalesOrder::class => route('admin.sales-orders.edit', $log->document_id),
+                                    default => null,
+                                };
+                            @endphp
+                            @if($verUrl)
+                                <a href="{{ $verUrl }}" target="_blank" class="text-indigo-600 hover:underline">#{{ $log->document_id }}</a>
+                            @else
+                                {{ $log->document_id }}
+                            @endif
                             @if($log->nota)
                                 <p class="text-gray-400 text-xs mt-0.5 italic">{{ $log->nota }}</p>
                             @endif
