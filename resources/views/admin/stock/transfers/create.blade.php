@@ -1,27 +1,36 @@
 <x-admin-layout
-    title="Crear transferencia"
+    title="{{ isset($transfer) ? 'Editar transferencia' : 'Crear transferencia' }}"
     :breadcrumbs="[
         ['name'=>'Dashboard','url'=>route('admin.dashboard')],
         ['name'=>'Stock','url'=>route('admin.stock.index')],
-        ['name'=>'Transferir'],
+        ['name'=> isset($transfer) ? 'Editar transferencia' : 'Transferir'],
     ]"
 >
     <x-slot name="action">
-        <a href="{{ route('admin.stock.index') }}" class="inline-flex px-3 py-1.5 text-sm rounded-md border">
+        <a href="{{ isset($transfer) ? route('admin.stock.transfers.show', $transfer) : route('admin.stock.index') }}"
+           class="inline-flex px-3 py-1.5 text-sm rounded-md border">
             Regresar
         </a>
         <button type="button"
                 onclick="TF.validate() && document.getElementById('transfer-form').submit()"
                 class="ml-2 inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white">
-            Guardar
+            {{ isset($transfer) ? 'Guardar cambios' : 'Guardar' }}
         </button>
     </x-slot>
 
     @php
-        $selFrom   = (string) old('from_warehouse_id', (string)($prefill['from_warehouse_id'] ?? ''));
-        $selTo     = (string) old('to_warehouse_id', '');
-        $today     = old('fecha', now()->toDateString());
+        $selFrom   = (string) old('from_warehouse_id', (string)($transfer->from_warehouse_id ?? ($prefill['from_warehouse_id'] ?? '')));
+        $selTo     = (string) old('to_warehouse_id', (string)($transfer->to_warehouse_id ?? ''));
+        $today     = old('fecha', $transfer->fecha?->toDateString() ?? now()->toDateString());
         $seedItems = old('items', []);
+        if (empty($seedItems) && isset($transfer)) {
+            $seedItems = $transfer->items->map(fn($it) => [
+                'product_id'  => $it->product_id,
+                'qty'         => $it->qty,
+                'num_cajas'   => $it->num_cajas,
+                'comentarios' => $it->comentarios,
+            ])->values()->all();
+        }
         if (empty($seedItems) && !empty($prefill['product_id'])) {
             $seedItems = [['product_id' => (int)$prefill['product_id'], 'qty' => 1]];
         }
@@ -46,9 +55,10 @@
 
     <x-wire-card>
         <form id="transfer-form" method="POST"
-              action="{{ route('admin.stock.transfers.store') }}"
+              action="{{ isset($transfer) ? route('admin.stock.transfers.update', $transfer) : route('admin.stock.transfers.store') }}"
               class="space-y-6">
             @csrf
+            @if(isset($transfer)) @method('PUT') @endif
 
             {{-- Encabezado --}}
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -94,7 +104,7 @@
                 <div class="md:col-span-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Notas</label>
                     <textarea name="notas" rows="2"
-                              class="w-full rounded-md border-gray-300 shadow-sm text-sm">{{ old('notas') }}</textarea>
+                              class="w-full rounded-md border-gray-300 shadow-sm text-sm">{{ old('notas', $transfer->notas ?? '') }}</textarea>
                 </div>
 
             </div>

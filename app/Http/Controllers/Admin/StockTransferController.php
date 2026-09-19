@@ -61,6 +61,14 @@ class StockTransferController extends Controller implements HasMiddleware
         }
         if ($request->filled('from_warehouse_id')) {
             $prefill['from_warehouse_id'] = $request->from_warehouse_id;
+        } else {
+            // Por defecto el origen es el almacén principal (MATRIZ) — la
+            // mayoría de los traspasos salen de ahí, así se evita tener que
+            // seleccionarlo a mano cada vez.
+            $primary = Warehouse::where('is_primary', true)->value('id');
+            if ($primary) {
+                $prefill['from_warehouse_id'] = $primary;
+            }
         }
 
         return view('admin.stock.transfers.create', compact('warehouses', 'products', 'prefill'));
@@ -108,6 +116,75 @@ class StockTransferController extends Controller implements HasMiddleware
         return redirect()
             ->route('admin.stock.transfers.show', $transfer)
             ->with('swal', ['icon' => 'success', 'title' => 'Traspaso creado', 'text' => "Folio: {$transfer->folio}"]);
+    }
+
+    public function edit(StockTransfer $transfer)
+    {
+        if ($transfer->status !== 'PENDIENTE') {
+            return redirect()->route('admin.stock.transfers.show', $transfer)
+                ->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo se puede editar mientras el traspaso está PENDIENTE.']);
+        }
+
+        $transfer->load('items');
+        $warehouses = Warehouse::orderBy('nombre')->get(['id', 'nombre']);
+        $products   = Product::orderBy('nombre')->get(['id', 'nombre', 'unidad']);
+        $prefill    = [];
+
+        return view('admin.stock.transfers.create', compact('transfer', 'warehouses', 'products', 'prefill'));
+    }
+
+    public function update(Request $request, StockTransfer $transfer)
+    {
+        if ($transfer->status !== 'PENDIENTE') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo se puede editar mientras el traspaso está PENDIENTE.']);
+        }
+
+        $data = $request->validate([
+            'from_warehouse_id' => ['required', 'exists:warehouses,id'],
+            'to_warehouse_id'   => ['required', 'exists:warehouses,id', 'different:from_warehouse_id'],
+            'fecha'             => ['required', 'date'],
+            'notas'             => ['nullable', 'string', 'max:500'],
+            'items'                => ['required', 'array', 'min:1'],
+            'items.*.product_id'   => ['required', 'exists:products,id'],
+            'items.*.qty'          => ['required', 'numeric', 'min:0.001'],
+            'items.*.num_cajas'    => ['nullable', 'integer', 'min:0'],
+            'items.*.comentarios'  => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $cambios = null;
+
+        DB::transaction(function () use ($transfer, $data, &$cambios) {
+            // diff() debe capturarse entre fill() y save() — después de
+            // guardar, Eloquent sincroniza los "originales" y getDirty() ya
+            // no ve nada.
+            $transfer->fill([
+                'from_warehouse_id' => $data['from_warehouse_id'],
+                'to_warehouse_id'   => $data['to_warehouse_id'],
+                'fecha'             => $data['fecha'],
+                'notas'             => $data['notas'] ?? null,
+            ]);
+            $cambios = $this->log->diff($transfer);
+            $transfer->save();
+
+            // Se reemplazan las partidas completas en vez de intentar
+            // hacer match uno a uno — más simple y suficiente porque el
+            // traspaso sigue PENDIENTE (nada de esto movió inventario
+            // todavía).
+            $transfer->items()->delete();
+            foreach ($data['items'] as $it) {
+                StockTransferItem::create([
+                    'stock_transfer_id' => $transfer->id,
+                    'product_id'        => $it['product_id'],
+                    'qty'               => $it['qty'],
+                    'num_cajas'         => $it['num_cajas'] ?? null,
+                    'comentarios'       => $it['comentarios'] ?? null,
+                ]);
+            }
+        });
+
+        $this->log->log($transfer, 'EDITADO', null, null, null, 'Traspaso editado (corrección de datos/partidas).', $cambios ?: null);
+        return redirect()->route('admin.stock.transfers.show', $transfer)
+            ->with('swal', ['icon' => 'success', 'title' => 'Actualizado', 'text' => 'Traspaso actualizado correctamente.']);
     }
 
     public function show(StockTransfer $transfer)

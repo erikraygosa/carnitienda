@@ -12,6 +12,10 @@
         <a href="{{ route('admin.stock.transfers.print', $transfer) }}"
            target="_blank"
            class="ml-2 inline-flex px-3 py-1.5 text-sm rounded-md border">🖨 Imprimir</a>
+        @if($transfer->status === 'PENDIENTE')
+            <a href="{{ route('admin.stock.transfers.edit', $transfer) }}"
+               class="ml-2 inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">✎ Editar</a>
+        @endif
     </x-slot>
 
     <x-wire-card>

@@ -308,6 +308,8 @@ Route::prefix('stock/transfers')->name('stock.transfers.')->group(function () {
     Route::get('/create',              [StockTransferController::class, 'create'])->name('create');
     Route::post('/',                   [StockTransferController::class, 'store'])->name('store');
     Route::get('/{transfer}',          [StockTransferController::class, 'show'])->name('show');
+    Route::get('/{transfer}/edit',     [StockTransferController::class, 'edit'])->name('edit');
+    Route::put('/{transfer}',          [StockTransferController::class, 'update'])->name('update');
     Route::get('/{transfer}/print',    [StockTransferController::class, 'print'])->name('print');
     Route::post('/{transfer}/complete',[StockTransferController::class, 'complete'])->name('complete');
     Route::post('/{transfer}/cancel',  [StockTransferController::class, 'cancel'])->name('cancel');
