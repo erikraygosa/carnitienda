@@ -19,9 +19,9 @@
     </x-slot>
 
     @php
-        $selFrom   = (string) old('from_warehouse_id', (string)($transfer->from_warehouse_id ?? ($prefill['from_warehouse_id'] ?? '')));
-        $selTo     = (string) old('to_warehouse_id', (string)($transfer->to_warehouse_id ?? ''));
-        $today     = old('fecha', $transfer->fecha?->toDateString() ?? now()->toDateString());
+        $selFrom   = (string) old('from_warehouse_id', (string)(isset($transfer) ? $transfer->from_warehouse_id : ($prefill['from_warehouse_id'] ?? '')));
+        $selTo     = (string) old('to_warehouse_id', (string)(isset($transfer) ? $transfer->to_warehouse_id : ''));
+        $today     = old('fecha', isset($transfer) ? $transfer->fecha->toDateString() : now()->toDateString());
         $seedItems = old('items', []);
         if (empty($seedItems) && isset($transfer)) {
             $seedItems = $transfer->items->map(fn($it) => [
@@ -104,7 +104,7 @@
                 <div class="md:col-span-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Notas</label>
                     <textarea name="notas" rows="2"
-                              class="w-full rounded-md border-gray-300 shadow-sm text-sm">{{ old('notas', $transfer->notas ?? '') }}</textarea>
+                              class="w-full rounded-md border-gray-300 shadow-sm text-sm">{{ old('notas', isset($transfer) ? $transfer->notas : '') }}</textarea>
                 </div>
 
             </div>
