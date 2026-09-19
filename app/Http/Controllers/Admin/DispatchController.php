@@ -206,11 +206,20 @@ class DispatchController extends Controller implements HasMiddleware
                 'notas'             => $data['notas']             ?? null,
             ]);
 
+            // Detalle de lo asignado al crear — antes el log "CREADO" no
+            // decía qué SO, traspasos o CxC se habían metido al despacho,
+            // así que no se podía auditar/demostrar qué se asignó.
+            $resumenCreacion = [];
+
             // 1. Asignar traspasos
             if (!empty($data['transfers'])) {
                 $transfers = StockTransfer::whereIn('id', $data['transfers'])
                     ->where('status', 'PENDIENTE')
                     ->get();
+
+                if ($transfers->isNotEmpty()) {
+                    $resumenCreacion[] = 'Traspasos: ' . $transfers->pluck('folio')->implode(', ');
+                }
 
                 foreach ($transfers as $t) {
                     DispatchTransferAssignment::create([
@@ -225,6 +234,9 @@ class DispatchController extends Controller implements HasMiddleware
             // 2. Asociar pedidos
             if (!empty($data['orders'])) {
                 $orders = SalesOrder::whereIn('id', $data['orders'])->get();
+                if ($orders->isNotEmpty()) {
+                    $resumenCreacion[] = 'Pedidos: ' . $orders->pluck('folio')->implode(', ');
+                }
                 foreach ($orders as $o) {
                     // Si el pedido ya se surtió antes de asignarlo a este
                     // despacho (Panel de Surtido crea su propio DispatchItem
@@ -262,7 +274,7 @@ class DispatchController extends Controller implements HasMiddleware
             if (!empty($data['notas_ar'])) {
                 $notasPorCliente = SalesOrder::whereIn('id', $data['notas_ar'])
                     ->whereNotNull('client_id')
-                    ->get(['id', 'client_id', 'total', 'saldo_pendiente'])
+                    ->get(['id', 'client_id', 'folio', 'total', 'saldo_pendiente'])
                     ->groupBy('client_id');
 
                 foreach ($notasPorCliente as $clientId => $notas) {
@@ -278,10 +290,13 @@ class DispatchController extends Controller implements HasMiddleware
                         'status'         => 'PENDIENTE',
                     ]);
                     $assignment->orders()->attach($notas->pluck('id'));
+
+                    $clienteNombre = Client::find($clientId)?->nombre ?? "cliente #{$clientId}";
+                    $resumenCreacion[] = "CxC {$clienteNombre}: " . $notas->pluck('folio')->implode(', ') . ' ($' . number_format($saldoAsignado, 2) . ')';
                 }
             }
 
-            $this->log->log($dispatch, 'CREADO', null, 'PLANEADO');
+            $this->log->log($dispatch, 'CREADO', null, 'PLANEADO', null, $resumenCreacion ? implode(' | ', $resumenCreacion) : null);
             session()->flash('swal', ['icon' => 'success', 'title' => 'Despacho creado', 'text' => 'Listo para salir a ruta.']);
             return redirect()->route('admin.dispatches.edit', $dispatch);
         });
@@ -415,7 +430,7 @@ class DispatchController extends Controller implements HasMiddleware
             $t->update(['status' => 'ASIGNADO', 'dispatch_id' => $dispatch->id]);
         }
 
-        $this->log->log($dispatch, 'TRASPASOS_AGREGADOS', null, null, null, count($transfers) . ' traspaso(s) agregado(s) al despacho.');
+        $this->log->log($dispatch, 'TRASPASOS_AGREGADOS', null, null, null, count($transfers) . ' traspaso(s) agregado(s): ' . $transfers->pluck('folio')->implode(', '));
         return back()->with('swal', ['icon' => 'success', 'title' => 'Agregado', 'text' => count($transfers) . ' traspaso(s) agregado(s) al despacho.']);
     }
 
@@ -445,7 +460,7 @@ class DispatchController extends Controller implements HasMiddleware
             $this->limpiarDespachoAutoSiQuedaVacio($dispatchOrigenId, $dispatch->id);
         }
 
-        $this->log->log($dispatch, 'PEDIDOS_AGREGADOS', null, null, null, count($orders) . ' pedido(s) agregado(s) al despacho.');
+        $this->log->log($dispatch, 'PEDIDOS_AGREGADOS', null, null, null, count($orders) . ' pedido(s) agregado(s): ' . $orders->pluck('folio')->implode(', '));
         return back()->with('swal', ['icon' => 'success', 'title' => 'Agregado', 'text' => count($orders) . ' pedido(s) agregado(s) al despacho.']);
     }
 
@@ -499,7 +514,7 @@ class DispatchController extends Controller implements HasMiddleware
         // perder de vista cuánto llevaba cobrado ya.
         $notasPorCliente = SalesOrder::whereIn('id', $data['notas_ar'])
             ->whereNotNull('client_id')
-            ->get(['id', 'client_id', 'total', 'saldo_pendiente'])
+            ->get(['id', 'client_id', 'folio', 'total', 'saldo_pendiente'])
             ->groupBy('client_id')
             ->filter(fn ($notas, $clientId) => ! in_array($clientId, $yaAsignados));
 
@@ -507,6 +522,7 @@ class DispatchController extends Controller implements HasMiddleware
             return back()->with('swal', ['icon' => 'info', 'title' => 'Sin cambios', 'text' => 'Esos clientes ya estaban asignados a este despacho.']);
         }
 
+        $resumenCxc = [];
         foreach ($notasPorCliente as $clientId => $notas) {
             $saldoAsignado = $notas->sum(fn ($n) => ($n->saldo_pendiente !== null && (float) $n->saldo_pendiente > 0)
                 ? (float) $n->saldo_pendiente
@@ -520,10 +536,13 @@ class DispatchController extends Controller implements HasMiddleware
                 'status'         => 'PENDIENTE',
             ]);
             $assignment->orders()->attach($notas->pluck('id'));
+
+            $clienteNombre = Client::find($clientId)?->nombre ?? "cliente #{$clientId}";
+            $resumenCxc[] = "{$clienteNombre}: " . $notas->pluck('folio')->implode(', ') . ' ($' . number_format($saldoAsignado, 2) . ')';
         }
 
         $nuevos = $notasPorCliente->count();
-        $this->log->log($dispatch, 'CXC_AGREGADAS', null, null, null, $nuevos . ' cliente(s) con CxC agregado(s) al despacho.');
+        $this->log->log($dispatch, 'CXC_AGREGADAS', null, null, null, $nuevos . ' cliente(s) con CxC agregado(s): ' . implode(' | ', $resumenCxc));
         return back()->with('swal', ['icon' => 'success', 'title' => 'Agregado', 'text' => $nuevos . ' cliente(s) agregado(s) al despacho.']);
     }
 
@@ -550,8 +569,13 @@ class DispatchController extends Controller implements HasMiddleware
             $data['driver_id'] = $driver->id;
         }
 
-        $dispatch->update($data);
-        $this->log->log($dispatch, 'EDITADO', null, null, null, 'Datos generales actualizados');
+        // diff() debe capturarse ANTES de save() — después de guardar,
+        // Eloquent sincroniza los "originales" y getDirty() ya no ve nada,
+        // así que el log de auditoría se quedaba sin "Campos modificados".
+        $dispatch->fill($data);
+        $cambios = $this->log->diff($dispatch);
+        $dispatch->save();
+        $this->log->log($dispatch, 'EDITADO', null, null, null, 'Datos generales actualizados', $cambios);
         session()->flash('swal', ['icon' => 'success', 'title' => 'Actualizado', 'text' => 'Despacho actualizado.']);
         return back();
     }
