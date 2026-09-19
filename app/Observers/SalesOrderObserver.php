@@ -9,7 +9,7 @@ class SalesOrderObserver
 {
     public function created(SalesOrder $so): void
     {
-        app(DocumentLogService::class)->log($so, 'CREATED', null, $so->status, $so->created_by);
+        app(DocumentLogService::class)->log($so, 'CREATED', null, $so->status, $so->created_by, $so->auditNota);
     }
 
     public function updated(SalesOrder $so): void

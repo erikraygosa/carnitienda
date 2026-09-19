@@ -18,10 +18,21 @@ class SaleObserver
 
     public function updated(Sale $sale): void
     {
+        $svc = app(DocumentLogService::class);
+
         if ($sale->wasChanged('status')) {
             $old = $sale->getOriginal('status');
             $new = $sale->status;
-            app(DocumentLogService::class)->log($sale, 'STATUS_CHANGED', $old, $new, $sale->owner_id);
+            $svc->log($sale, 'STATUS_CHANGED', $old, $new, $sale->owner_id);
+        }
+
+        // Antes solo se auditaba el cambio de estatus — cualquier otra
+        // edición a una nota de venta (cliente, items, totales, etc.) no
+        // dejaba rastro. Igual que SalesOrderObserver, se registra el resto
+        // de campos modificados.
+        $changes = $svc->diff($sale, ['status']);
+        if ($changes) {
+            $svc->log($sale, 'UPDATED', null, null, $sale->owner_id, null, $changes);
         }
 
         // En transición a CERRADA o ENTREGADA, descontar inventario según BOM/subproducto

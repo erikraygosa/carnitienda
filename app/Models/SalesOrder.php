@@ -12,6 +12,12 @@ use App\Traits\BelongsToCompany;
 class SalesOrder extends Model
 {
     use BelongsToCompany;
+
+    // Nota opcional para el log de auditoría de creación — no se persiste,
+    // solo la lee SalesOrderObserver::created() para no duplicar el evento
+    // CREATED con una segunda llamada manual a $this->log->log().
+    public ?string $auditNota = null;
+
     // === Constantes de estado ===
     public const S_BORRADOR     = 'BORRADOR';
     public const S_APROBADO     = 'APROBADO';

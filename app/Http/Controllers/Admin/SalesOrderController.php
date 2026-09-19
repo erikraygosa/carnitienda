@@ -532,7 +532,9 @@ public function data(Request $request)
             }
         });
 
-        $this->log->log($order, 'CREADO', null, $order->status);
+        // Sin log manual aquí — SalesOrderObserver::created() ya registra el
+        // CREATED automáticamente; una segunda llamada solo duplicaba la fila
+        // en auditoría con un nombre distinto (CREADO vs CREATED).
 
         // Un pedido capturado desde el formulario ya no se queda en
         // BORRADOR esperando un paso extra de "Aprobar" — pasa derecho a
@@ -611,7 +613,7 @@ public function data(Request $request)
                 $subtotal += (float) $it['cantidad'] * (float) $it['precio'];
             }
 
-            $order = SalesOrder::create([
+            $order = new SalesOrder([
                 'client_id'         => $client->id,
                 'warehouse_id'      => $warehouseId,
                 'folio'             => 'TEMP-' . uniqid(),
@@ -630,6 +632,11 @@ public function data(Request $request)
                 'created_by'        => auth()->id(),
                 'owner_id'          => auth()->id(),
             ]);
+            // Se fija antes de save() para que SalesOrderObserver::created()
+            // la incluya en el mismo log CREATED, en vez de una segunda
+            // llamada manual duplicando la fila en auditoría.
+            $order->auditNota = 'Creado desde el alta rápida del Panel de Surtido.';
+            $order->save();
 
             // Mismo criterio que store(): el folio usa "Programado para".
             $order->updateQuietly([
@@ -651,8 +658,6 @@ public function data(Request $request)
                 ]);
             }
         });
-
-        $this->log->log($order, 'CREADO', null, $order->status, null, 'Creado desde el alta rápida del Panel de Surtido.');
 
         $resultado = $this->aprobarPedido($order->fresh());
         if (! $resultado['ok']) {
@@ -1156,7 +1161,6 @@ private function aprobarPedido(SalesOrder $order): array
     }
 
     $order->update(['status' => 'PROCESADO', 'despachado_at' => now()]);
-    $this->log->log($order, 'CAMBIO_ESTADO', 'BORRADOR', 'PROCESADO');
 
     return ['ok' => true, 'message' => 'Pedido aprobado y listo para salida de almacén.'];
 }
@@ -1167,7 +1171,6 @@ private function aprobarPedido(SalesOrder $order): array
             return back()->with('swal',['icon'=>'error','title'=>'No permitido','text'=>'Solo APROBADO pasa a PREPARANDO.']);
         }
         $order->update(['status'=>'PREPARANDO','preparado_at'=>now()]);
-        $this->log->log($order, 'CAMBIO_ESTADO', 'APROBADO', 'PREPARANDO');
         return back()->with('swal',['icon'=>'success','title'=>'Preparando','text'=>'Pedido en preparación.']);
     }
 
@@ -1183,9 +1186,7 @@ private function aprobarPedido(SalesOrder $order): array
 
         // ⚠️ Ya NO descuenta inventario aquí
         // El descuento real ocurre en Panel de Salida de Producto
-        $old = $order->getOriginal('status');
         $order->update(['status' => 'PROCESADO', 'despachado_at' => now()]);
-        $this->log->log($order, 'CAMBIO_ESTADO', $old, 'PROCESADO');
         return back()->with('swal', ['icon'=>'success','title'=>'Procesado','text'=>'Pedido PROCESADO. Pendiente de salida de almacén.']);
     }
 
@@ -1218,7 +1219,6 @@ private function aprobarPedido(SalesOrder $order): array
             ]);
         }
         $order->update(['status'=>'EN_RUTA','en_ruta_at'=>now()]);
-        $this->log->log($order, 'CAMBIO_ESTADO', 'PROCESADO', 'EN_RUTA');
         return back()->with('swal',['icon'=>'success','title'=>'En ruta','text'=>'El pedido salió a ruta.']);
     }
 
@@ -1244,7 +1244,6 @@ private function aprobarPedido(SalesOrder $order): array
         }
     });
 
-    $this->log->log($order, 'CAMBIO_ESTADO', 'EN_RUTA', 'ENTREGADO');
     return back()->with('swal', ['icon'=>'success','title'=>'Entregado','text'=>'Pedido entregado correctamente.']);
 }
 
@@ -1279,7 +1278,6 @@ private function aprobarPedido(SalesOrder $order): array
         $order->increment('delivery_attempts');
     });
 
-    $this->log->log($order, 'CAMBIO_ESTADO', 'EN_RUTA', 'NO_ENTREGADO');
     return back()->with('swal', ['icon'=>'success','title'=>'No entregado','text'=>'Pedido marcado y stock revertido.']);
 }
 
@@ -1367,9 +1365,7 @@ private function aprobarPedido(SalesOrder $order): array
         if (in_array($order->status,['EN_RUTA','ENTREGADO'])) {
             return back()->with('swal',['icon'=>'error','title'=>'Error','text'=>'No se puede cancelar en este estado.']);
         }
-        $old = $order->status;
         $order->update(['status'=>'CANCELADO']);
-        $this->log->log($order, 'CAMBIO_ESTADO', $old, 'CANCELADO');
         return back()->with('swal',['icon'=>'success','title'=>'Cancelado','text'=>'Pedido cancelado']);
     }
 
