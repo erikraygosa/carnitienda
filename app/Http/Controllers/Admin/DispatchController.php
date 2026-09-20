@@ -239,14 +239,13 @@ class DispatchController extends Controller implements HasMiddleware
                 }
                 foreach ($orders as $o) {
                     // Si el pedido ya se surtió antes de asignarlo a este
-                    // despacho (Panel de Surtido crea su propio DispatchItem
-                    // vía getOrCreateDispatch(), que puede caer en otro
-                    // despacho PLANEADO de hoy), NO crear uno nuevo y vacío
-                    // — eso dejaba las líneas reales de surtido colgadas del
-                    // despacho viejo mientras este quedaba con un duplicado
-                    // vacío marcando "falta surtir" por error. En vez de
-                    // eso, movemos el DispatchItem existente (con sus
-                    // líneas) a este despacho.
+                    // despacho, el Panel de Surtido ya le creó su propio
+                    // DispatchItem (libre, dispatch_id null) con las líneas
+                    // reales de lo surtido — NO crear uno nuevo y vacío, eso
+                    // dejaba las líneas colgadas del item libre mientras este
+                    // quedaba con un duplicado vacío marcando "falta surtir"
+                    // por error. En vez de eso, movemos el DispatchItem
+                    // existente (con sus líneas) a este despacho.
                     $itemExistente   = DispatchItem::where('sales_order_id', $o->id)->first();
                     $dispatchOrigenId = $itemExistente?->dispatch_id;
 

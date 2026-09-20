@@ -186,10 +186,16 @@ class DispatchPanelController extends Controller
             return response()->json(['ok' => false, 'message' => 'Este pedido ya no está Procesado — probablemente el surtido ya se completó.'], 422);
         }
 
+        // Sin despacho todavía — un pedido recién surtido queda LIBRE
+        // (dispatch_id null) para que el operador lo asigne a mano a la ruta
+        // que corresponda. Antes se autoasignaba con getOrCreateDispatch() a
+        // CUALQUIER despacho PLANEADO que ya existiera para hoy (por ejemplo
+        // uno armado un día antes para la ruta de mañana), colando pedidos
+        // ajenos a esa ruta sin que nadie los hubiera seleccionado.
         $dispatchItem = DispatchItem::firstOrCreate(
             ['sales_order_id' => $order->id],
             [
-                'dispatch_id' => $this->getOrCreateDispatch(),
+                'dispatch_id' => null,
                 'referencia'  => $order->folio,
                 'status'      => 'ASIGNADO',
             ]
@@ -328,10 +334,12 @@ class DispatchPanelController extends Controller
 
         DB::transaction(function () use ($request, $order, $inv) {
 
+            // Mismo criterio que saveLine(): libre por defecto, se asigna a
+            // mano desde /admin/dispatches.
             $dispatchItem = DispatchItem::firstOrCreate(
                 ['sales_order_id' => $order->id],
                 [
-                    'dispatch_id' => $this->getOrCreateDispatch(),
+                    'dispatch_id' => null,
                     'referencia'  => $order->folio,
                     'status'      => 'ASIGNADO',
                 ]
@@ -436,21 +444,4 @@ class DispatchPanelController extends Controller
         return response()->json(['ok' => true, 'message' => 'Salida de producto guardada correctamente.']);
     }
 
-    // ── Helper: obtiene o crea un dispatch del día ───────────────────
-    private function getOrCreateDispatch(): int
-    {
-        $dispatch = \App\Models\Dispatch::whereDate('fecha', today())
-            ->where('status', 'PLANEADO')
-            ->first();
-
-        if (!$dispatch) {
-            $dispatch = \App\Models\Dispatch::create([
-                'folio'  => 'AUTO-' . now()->format('Ymd'),
-                'fecha'  => now(),
-                'status' => 'PLANEADO',
-            ]);
-        }
-
-        return $dispatch->id;
-    }
 }
