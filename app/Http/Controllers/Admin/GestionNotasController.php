@@ -267,10 +267,14 @@ class GestionNotasController extends Controller implements HasMiddleware
     {
         abort_unless(auth()->user()->can('editar pedidos cerrados'), 403);
 
-        if (!in_array($order->status, ['EN_RUTA', 'ENTREGADO', 'NO_ENTREGADO'])) {
+        // DESPACHADO se agrega para el caso de un pedido que sí pasó completo
+        // por Salida de Producto (ya descontó inventario real) pero nunca
+        // llegó a asignarse a un despacho — se queda pegado ahí sin poder
+        // avanzar ni corregirse desde el flujo normal.
+        if (!in_array($order->status, ['DESPACHADO', 'EN_RUTA', 'ENTREGADO', 'NO_ENTREGADO'])) {
             return back()->with('swal', [
                 'icon' => 'info', 'title' => 'No aplica',
-                'text' => 'Solo tiene sentido para un pedido En ruta, Entregado o No entregado.',
+                'text' => 'Solo tiene sentido para un pedido Despachado, En ruta, Entregado o No entregado.',
             ]);
         }
 
