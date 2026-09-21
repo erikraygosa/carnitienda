@@ -130,12 +130,14 @@ class DispatchController extends Controller implements HasMiddleware
         $routes     = ShippingRoute::orderBy('nombre')->get(['id', 'nombre']);
         $drivers    = Driver::orderBy('nombre')->get(['id', 'nombre']);
 
-        // Pedidos PROCESADOS listos para salir
-      $orders = SalesOrder::whereIn('status', ['PROCESADO', 'DESPACHADO'])
-    ->with(['client:id,nombre', 'route:id,nombre'])
-    ->latest()
-    ->limit(200)
-    ->get(['id','folio','client_id','shipping_route_id','ronda','status','total','programado_para','payment_method','ticket_impreso','despachado_at']);
+        // Pedidos PROCESADOS/DESPACHADOS listos para salir — sin límite fijo,
+        // igual que ya se corrigió en edit(): un tope de 200 dejaba invisibles
+        // (y sin forma de buscarlos por folio) a los pedidos más viejos que
+        // llevaban rato surtidos sin asignarse a ningún despacho.
+        $orders = SalesOrder::whereIn('status', ['PROCESADO', 'DESPACHADO'])
+            ->with(['client:id,nombre', 'route:id,nombre'])
+            ->latest()
+            ->get(['id','folio','client_id','shipping_route_id','ronda','status','total','programado_para','payment_method','ticket_impreso','despachado_at']);
         // Traspasos PENDIENTES listos para asignar
         $traspasosPendientes = StockTransfer::where('status', 'PENDIENTE')
             ->with(['fromWarehouse:id,nombre', 'toWarehouse:id,nombre'])
