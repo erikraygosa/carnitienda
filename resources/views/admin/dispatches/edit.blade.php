@@ -956,6 +956,9 @@
                                     <span class="text-xs text-gray-500 ml-1">
                                         · {{ $notasDisp->count() }} nota(s) · Saldo total:
                                         <span class="font-semibold text-amber-700">${{ number_format($cd->saldo, 2) }}</span>
+                                        <span class="sel-count-client-disp font-semibold text-indigo-600" data-client="{{ $cd->client_id }}" style="display:none">
+                                            · <span class="sel-count-num">0</span> seleccionada(s)
+                                        </span>
                                     </span>
                                 </label>
                             </div>
@@ -1472,14 +1475,25 @@
 
             function syncDispClientToggle(clientId) {
                 var toggle = document.getElementById('ard-' + clientId);
-                if (!toggle) return;
-                var notas = document.querySelectorAll('.nota-ar-disp-check[data-client="' + clientId + '"]');
-                var visibles = Array.prototype.filter.call(notas, function(n) {
-                    return n.closest('.cxc-disp-nota-row').style.display !== 'none';
-                });
-                var marcadas = visibles.filter(function(n) { return n.checked; });
-                toggle.checked = visibles.length > 0 && marcadas.length === visibles.length;
-                toggle.indeterminate = marcadas.length > 0 && marcadas.length < visibles.length;
+                var notas  = document.querySelectorAll('.nota-ar-disp-check[data-client="' + clientId + '"]');
+
+                if (toggle) {
+                    var visibles = Array.prototype.filter.call(notas, function(n) {
+                        return n.closest('.cxc-disp-nota-row').style.display !== 'none';
+                    });
+                    var marcadasVisibles = visibles.filter(function(n) { return n.checked; });
+                    toggle.checked = visibles.length > 0 && marcadasVisibles.length === visibles.length;
+                    toggle.indeterminate = marcadasVisibles.length > 0 && marcadasVisibles.length < visibles.length;
+                }
+
+                // Igual que en create.blade.php: cuenta sobre TODAS las notas
+                // del cliente, sin importar si el buscador las oculta.
+                var todasMarcadas = Array.prototype.filter.call(notas, function(n) { return n.checked; });
+                var contador = document.querySelector('.sel-count-client-disp[data-client="' + clientId + '"]');
+                if (contador) {
+                    contador.style.display = todasMarcadas.length > 0 ? '' : 'none';
+                    contador.querySelector('.sel-count-num').textContent = todasMarcadas.length;
+                }
             }
 
             var countEl = document.getElementById('cxc-disp-count');

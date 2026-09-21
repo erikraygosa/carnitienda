@@ -337,6 +337,15 @@
                                     <div class="text-xs text-gray-500 mt-0.5">
                                         {{ $notasPendientesCliente->count() }} nota(s) · Saldo total:
                                         <span class="font-semibold text-amber-700">${{ number_format($cs->saldo, 2) }}</span>
+                                        {{-- Cuenta SIEMPRE sobre todas las notas del cliente, sin
+                                             importar si el buscador las oculta — al filtrar por
+                                             folio, una nota marcada de antes (ej. por "Clientes de
+                                             esta ruta") queda oculta pero SIGUE marcada y se manda
+                                             igual al guardar; sin este contador no había forma de
+                                             notar que seguía seleccionada. --}}
+                                        <span class="sel-count-client font-semibold text-indigo-600" data-client="{{ $cs->client_id }}" style="display:none">
+                                            · <span class="sel-count-num">0</span> seleccionada(s)
+                                        </span>
                                     </div>
                                 </label>
                                 @if($notasPendientesCliente->count() > 0)
@@ -586,14 +595,26 @@
         // TODAS las notas visibles de ese cliente (respeta el filtro activo).
         function syncClientToggle(clientId) {
             var toggle = document.getElementById('ar-' + clientId);
-            if (!toggle) return;
             var notas = document.querySelectorAll('.nota-ar-check[data-client="' + clientId + '"]');
-            var visibles = Array.prototype.filter.call(notas, function(n) {
-                return n.closest('.cxc-nota-row').style.display !== 'none';
-            });
-            var marcadas = visibles.filter(function(n) { return n.checked; });
-            toggle.checked = visibles.length > 0 && marcadas.length === visibles.length;
-            toggle.indeterminate = marcadas.length > 0 && marcadas.length < visibles.length;
+
+            if (toggle) {
+                var visibles = Array.prototype.filter.call(notas, function(n) {
+                    return n.closest('.cxc-nota-row').style.display !== 'none';
+                });
+                var marcadasVisibles = visibles.filter(function(n) { return n.checked; });
+                toggle.checked = visibles.length > 0 && marcadasVisibles.length === visibles.length;
+                toggle.indeterminate = marcadasVisibles.length > 0 && marcadasVisibles.length < visibles.length;
+            }
+
+            // Contador que SIEMPRE cuenta sobre todas las notas del cliente
+            // (visibles u ocultas por el buscador) — para que no se pierda de
+            // vista una nota marcada de antes que el filtro está ocultando.
+            var todasMarcadas = Array.prototype.filter.call(notas, function(n) { return n.checked; });
+            var contador = document.querySelector('.sel-count-client[data-client="' + clientId + '"]');
+            if (contador) {
+                contador.style.display = todasMarcadas.length > 0 ? '' : 'none';
+                contador.querySelector('.sel-count-num').textContent = todasMarcadas.length;
+            }
         }
 
         document.querySelectorAll('.nota-ar-check').forEach(function(chk) {
