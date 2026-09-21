@@ -293,6 +293,12 @@
                     <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">3</span>
                     <h3 class="font-semibold text-gray-800">Cuentas por cobrar pendientes</h3>
                     <span class="text-sm font-normal text-gray-400">(el chofer las cobra en ruta)</span>
+                    <button type="button"
+                            id="btn-select-route-cxc"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+                            style="{{ $selR ? '' : 'display:none' }}">
+                        ✓ Seleccionar clientes de la ruta
+                    </button>
                     <div class="ml-auto flex gap-2 flex-wrap">
                         <input type="text" id="buscar-cxc"
                                placeholder="Buscar cliente o folio..."
@@ -319,7 +325,7 @@
                                 })
                                 ->get(['id','folio','fecha','total','saldo_pendiente']);
                         @endphp
-                        <div class="border rounded-lg overflow-hidden cxc-row" data-search="{{ strtolower($cs->nombre) }}">
+                        <div class="border rounded-lg overflow-hidden cxc-row" data-search="{{ strtolower($cs->nombre) }}" data-route="{{ $cs->shipping_route_id ?? '' }}">
                             {{-- Fila cliente: solo selecciona/deselecciona TODAS sus notas, no se manda al servidor --}}
                             <div class="flex items-center gap-3 px-4 py-3 bg-gray-50">
                                 <input type="checkbox"
@@ -427,8 +433,10 @@
             selectedRoute = val;
             var btn  = document.getElementById('btn-select-route');
             var wrap = document.getElementById('route-count-wrap');
+            var btnCxc = document.getElementById('btn-select-route-cxc');
             if (btn)  btn.style.display  = val ? '' : 'none';
             if (wrap) wrap.style.display = val ? '' : 'none';
+            if (btnCxc) btnCxc.style.display = val ? '' : 'none';
             updateCounters();
         }
 
@@ -598,17 +606,36 @@
             chk.addEventListener('click', function(e) { e.stopPropagation(); });
         });
 
+        function marcarNotasCliente(clientId, marcar) {
+            document.querySelectorAll('.nota-ar-check[data-client="' + clientId + '"]').forEach(function(chk) {
+                if (chk.closest('.cxc-nota-row').style.display !== 'none') chk.checked = marcar;
+            });
+            updateTotalAr();
+            syncClientToggle(clientId);
+        }
+
         document.querySelectorAll('.ar-client-toggle').forEach(function(toggle) {
             toggle.addEventListener('click', function() {
                 var clientId = this.id.replace('ar-', '');
-                var marcar   = this.checked;
-                document.querySelectorAll('.nota-ar-check[data-client="' + clientId + '"]').forEach(function(chk) {
-                    if (chk.closest('.cxc-nota-row').style.display !== 'none') chk.checked = marcar;
-                });
-                updateTotalAr();
-                syncClientToggle(clientId);
+                marcarNotasCliente(clientId, this.checked);
             });
         });
+
+        // ── Seleccionar todos los clientes con CxC de la ruta elegida arriba ──
+        var btnRouteCxc = document.getElementById('btn-select-route-cxc');
+        if (btnRouteCxc) {
+            btnRouteCxc.addEventListener('click', function() {
+                if (!selectedRoute) return;
+                document.querySelectorAll('.cxc-row').forEach(function(row) {
+                    var visible = row.style.display !== 'none';
+                    if (!visible || row.dataset.route !== selectedRoute) return;
+                    var toggle = row.querySelector('.ar-client-toggle');
+                    if (!toggle || toggle.disabled) return;
+                    toggle.checked = true;
+                    marcarNotasCliente(toggle.id.replace('ar-', ''), true);
+                });
+            });
+        }
 
         // Toggle notas de CxC
         document.querySelectorAll('.btn-toggle-notas').forEach(function(btn) {

@@ -906,6 +906,11 @@
                            class="w-56 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <input type="date" id="filtro-cxc-disp-fecha"
                            class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <button type="button" id="btn-select-route-cxc-disp"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+                            title="Usa la ruta elegida arriba, junto a Pedidos">
+                        ✓ Clientes de esta ruta
+                    </button>
                     <span class="text-xs text-gray-400 ml-auto"><span id="cxc-disp-count">0</span> nota(s) seleccionada(s)</span>
                     <button type="submit"
                             class="inline-flex items-center px-3 py-1.5 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
@@ -927,7 +932,7 @@
                                 ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
                                 ->get(['id','folio','fecha','total','saldo_pendiente']);
                         @endphp
-                        <div class="border rounded-lg overflow-hidden cxc-disp-row" data-search="{{ strtolower($cd->nombre) }}">
+                        <div class="border rounded-lg overflow-hidden cxc-disp-row" data-search="{{ strtolower($cd->nombre) }}" data-route="{{ $cd->shipping_route_id ?? '' }}">
                             <div class="flex items-center gap-3 px-4 py-2 bg-gray-50">
                                 <input type="checkbox" class="ar-disp-client-toggle rounded border-gray-300"
                                        id="ard-{{ $cd->client_id }}" {{ $notasDisp->isEmpty() ? 'disabled' : '' }}>
@@ -1461,17 +1466,42 @@
                 chk.addEventListener('click', function(e) { e.stopPropagation(); });
             });
 
+            function marcarNotasClienteDisp(clientId, marcar) {
+                document.querySelectorAll('.nota-ar-disp-check[data-client="' + clientId + '"]').forEach(function(chk) {
+                    if (chk.closest('.cxc-disp-nota-row').style.display !== 'none') chk.checked = marcar;
+                });
+                updateDispCount();
+                syncDispClientToggle(clientId);
+            }
+
             document.querySelectorAll('.ar-disp-client-toggle').forEach(function(toggle) {
                 toggle.addEventListener('click', function() {
                     var clientId = this.id.replace('ard-', '');
-                    var marcar   = this.checked;
-                    document.querySelectorAll('.nota-ar-disp-check[data-client="' + clientId + '"]').forEach(function(chk) {
-                        if (chk.closest('.cxc-disp-nota-row').style.display !== 'none') chk.checked = marcar;
-                    });
-                    updateDispCount();
-                    syncDispClientToggle(clientId);
+                    marcarNotasClienteDisp(clientId, this.checked);
                 });
             });
+
+            // ── Seleccionar todos los clientes con CxC de la ruta elegida
+            // junto a Pedidos (mismo <select> id="ruta-select-pedidos-disp") ──
+            var btnRouteCxcDisp = document.getElementById('btn-select-route-cxc-disp');
+            if (btnRouteCxcDisp) {
+                btnRouteCxcDisp.addEventListener('click', function() {
+                    var rutaSelect = document.getElementById('ruta-select-pedidos-disp');
+                    var ruta = rutaSelect ? rutaSelect.value : '';
+                    if (!ruta) {
+                        Swal.fire({ icon: 'info', title: 'Elige una ruta', text: 'Selecciona una ruta arriba, junto a Pedidos.', confirmButtonColor: '#4f46e5' });
+                        return;
+                    }
+                    document.querySelectorAll('.cxc-disp-row').forEach(function(row) {
+                        var visible = row.style.display !== 'none';
+                        if (!visible || row.dataset.route !== ruta) return;
+                        var toggle = row.querySelector('.ar-disp-client-toggle');
+                        if (!toggle || toggle.disabled) return;
+                        toggle.checked = true;
+                        marcarNotasClienteDisp(toggle.id.replace('ard-', ''), true);
+                    });
+                });
+            }
 
             // Una sola caja busca por nombre de cliente O por folio de
             // cualquiera de sus notas (basta con que el folio CONTENGA lo

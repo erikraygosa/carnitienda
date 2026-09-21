@@ -149,9 +149,10 @@ class DispatchController extends Controller implements HasMiddleware
             ->selectRaw("
                 ar_movements.client_id,
                 clients.nombre,
+                clients.shipping_route_id,
                 SUM(CASE WHEN ar_movements.tipo = 'CARGO' THEN ar_movements.monto ELSE -ar_movements.monto END) as saldo
             ")
-            ->groupBy('ar_movements.client_id', 'clients.nombre')
+            ->groupBy('ar_movements.client_id', 'clients.nombre', 'clients.shipping_route_id')
             ->havingRaw("SUM(CASE WHEN ar_movements.tipo = 'CARGO' THEN ar_movements.monto ELSE -ar_movements.monto END) > 0")
             ->orderBy('clients.nombre')
             ->get();
@@ -381,9 +382,10 @@ class DispatchController extends Controller implements HasMiddleware
                 ->selectRaw("
                     ar_movements.client_id,
                     clients.nombre,
+                    clients.shipping_route_id,
                     SUM(CASE WHEN ar_movements.tipo = 'CARGO' THEN ar_movements.monto ELSE -ar_movements.monto END) as saldo
                 ")
-                ->groupBy('ar_movements.client_id', 'clients.nombre')
+                ->groupBy('ar_movements.client_id', 'clients.nombre', 'clients.shipping_route_id')
                 ->havingRaw("SUM(CASE WHEN ar_movements.tipo = 'CARGO' THEN ar_movements.monto ELSE -ar_movements.monto END) > 0")
                 ->whereNotIn('ar_movements.client_id', $yaAsignados->isNotEmpty() ? $yaAsignados : [0])
                 ->orderBy('clients.nombre')
