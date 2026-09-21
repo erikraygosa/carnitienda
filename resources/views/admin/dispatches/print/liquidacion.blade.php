@@ -208,16 +208,13 @@
         <tbody>
             @foreach($dispatch->arAssignments as $a)
                 @php
-                    // Notas de este cliente que aún quedan pendientes después del
-                    // cierre — si el cobro fue total no debería quedar ninguna;
-                    // si fue parcial, aquí se ve exactamente qué folio(s) siguen
-                    // debiendo (antes esto no se mostraba, solo el total).
-                    $notasPendientesCliente = \App\Models\SalesOrder::where('client_id', $a->client_id)
-                        ->where('payment_method', 'CREDITO')
-                        ->whereIn('status', ['ENTREGADO'])
-                        ->whereNull('cobrado_at')
+                    // Notas de ESTA asignación (no todas las del cliente) que
+                    // aún quedan pendientes después del cierre — si el cobro
+                    // fue total no debería quedar ninguna; si fue parcial, aquí
+                    // se ve exactamente qué folio(s) siguen debiendo.
+                    $notasPendientesCliente = $a->orders()
                         ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
-                        ->get(['id', 'folio', 'fecha', 'total', 'saldo_pendiente']);
+                        ->get(['sales_orders.id', 'folio', 'fecha', 'total', 'saldo_pendiente']);
                 @endphp
                 <tr class="{{ $a->status === 'COBRADO' ? 'highlight' : 'alert' }}">
                     <td>{{ $a->client?->nombre ?? '—' }}</td>

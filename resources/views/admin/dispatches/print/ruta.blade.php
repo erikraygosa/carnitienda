@@ -216,15 +216,12 @@
             @foreach($dispatch->arAssignments as $a)
                 @php
                     $totalCxc += $a->saldo_asignado;
-                    // Notas (pedidos a crédito) que componen el saldo asignado — sin
-                    // esto solo se veía el total del cliente, sin decir de qué
-                    // folio(s) sale ese monto.
-                    $notasCliente = \App\Models\SalesOrder::where('client_id', $a->client_id)
-                        ->where('payment_method', 'CREDITO')
-                        ->whereIn('status', ['ENTREGADO'])
-                        ->whereNull('cobrado_at')
-                        ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
-                        ->get(['id', 'folio', 'fecha', 'total', 'saldo_pendiente']);
+                    // Notas (pedidos a crédito) que componen el saldo asignado —
+                    // deben ser SOLO las que realmente se marcaron para este
+                    // despacho ($a->orders()), no todas las pendientes del
+                    // cliente — si tiene otra nota asignada a otro despacho o
+                    // aún sin asignar, no debe salir aquí mezclada.
+                    $notasCliente = $a->orders()->get(['sales_orders.id', 'folio', 'fecha', 'total', 'saldo_pendiente']);
                 @endphp
                 <tr>
                     <td>{{ $a->client?->nombre ?? '—' }}</td>
