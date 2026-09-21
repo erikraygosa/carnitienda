@@ -661,12 +661,24 @@
             <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">3</span>
             <h3 class="font-semibold text-gray-800">CxC asignadas al chofer</h3>
             <span class="text-sm font-normal text-gray-400">({{ $dispatch->arAssignments->count() }} cliente(s))</span>
+            @if($dispatch->status === 'PLANEADO')
+                <label class="flex items-center gap-1 text-xs text-gray-500">
+                    <input type="checkbox" id="chk-cxc-all"> Todas
+                </label>
+            @endif
 
             @if($dispatch->status === 'PLANEADO')
+                <button type="button" id="btn-quitar-cxc-sel"
+                        class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hidden">
+                    🗑 Quitar seleccionadas (<span id="cxc-sel-count">0</span>)
+                </button>
                 <button type="button" id="btn-toggle-add-cxc"
-                        class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">
+                        class="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">
                     + Agregar CxC
                 </button>
+                <form id="form-quitar-cxc-bulk" action="{{ route('admin.dispatches.cxc.quitar-bulk', $dispatch) }}" method="POST" class="hidden">
+                    @csrf
+                </form>
             @endif
 
             @if($enRuta && $cxcPendientes->count() > 0)
@@ -733,6 +745,9 @@
             <div class="border rounded-lg overflow-hidden">
                 {{-- Fila resumen del cliente --}}
                 <div class="flex items-center gap-3 px-4 py-3 bg-gray-50 flex-wrap">
+                    @if($dispatch->status === 'PLANEADO' && $assignment->status === 'PENDIENTE' && (float) $assignment->monto_cobrado === 0.0)
+                        <input type="checkbox" class="chk-cxc" value="{{ $assignment->id }}">
+                    @endif
                     <div class="flex-1 min-w-0">
                         <div class="font-medium text-sm text-gray-800">{{ $assignment->client?->nombre ?? '—' }}</div>
                         <div class="text-xs text-gray-500 mt-0.5">
@@ -930,7 +945,7 @@
                                 ->where('status', 'ENTREGADO')
                                 ->whereNull('cobrado_at')
                                 ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
-                                ->get(['id','folio','fecha','total','saldo_pendiente']);
+                                ->get(['id','folio','fecha','programado_para','total','saldo_pendiente']);
                         @endphp
                         <div class="border rounded-lg overflow-hidden cxc-disp-row" data-search="{{ strtolower($cd->nombre) }}" data-route="{{ $cd->shipping_route_id ?? '' }}">
                             <div class="flex items-center gap-3 px-4 py-2 bg-gray-50">
@@ -948,7 +963,7 @@
                             @php
                                 $saldoN   = ($nota->saldo_pendiente !== null && (float)$nota->saldo_pendiente > 0)
                                     ? (float)$nota->saldo_pendiente : (float)$nota->total;
-                                $fechaN   = \Carbon\Carbon::parse($nota->fecha);
+                                $fechaN   = \Carbon\Carbon::parse($nota->programado_para ?? $nota->fecha);
                             @endphp
                             <label class="flex items-center gap-3 px-6 py-1.5 bg-white border-t cxc-disp-nota-row cursor-pointer hover:bg-gray-50"
                                    data-folio="{{ strtolower($nota->folio) }}" data-fecha="{{ $fechaN->format('Y-m-d') }}">
@@ -1220,16 +1235,16 @@
         return false;
     }
 
-    // ── Selección múltiple de pedidos para quitar varios a la vez ───────────
-    (function () {
-        var chkAll   = document.getElementById('chk-pedidos-all');
-        var btnQuitar = document.getElementById('btn-quitar-pedidos-sel');
-        var countEl  = document.getElementById('pedidos-sel-count');
-        var form     = document.getElementById('form-quitar-pedidos-bulk');
+    // ── Selección múltiple para quitar varios a la vez (pedidos / CxC) ──────
+    function initQuitarBulk(opts) {
+        var chkAll    = document.getElementById(opts.chkAllId);
+        var btnQuitar = document.getElementById(opts.btnId);
+        var countEl   = document.getElementById(opts.countId);
+        var form      = document.getElementById(opts.formId);
         if (!btnQuitar || !form) return;
 
         function checks() {
-            return Array.prototype.slice.call(document.querySelectorAll('.chk-pedido'));
+            return Array.prototype.slice.call(document.querySelectorAll(opts.checkClass));
         }
 
         function actualizar() {
@@ -1252,8 +1267,8 @@
             if (!ids.length) return;
 
             Swal.fire({
-                title: '¿Quitar ' + ids.length + ' pedido(s) del despacho?',
-                text: 'Los que ya tengan productos surtidos quedarán libres para asignarse a otro despacho, sin tocar su inventario.',
+                title: opts.tituloConfirm(ids.length),
+                text: opts.textoConfirm,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Sí, quitar',
@@ -1272,7 +1287,21 @@
                 form.submit();
             });
         });
-    })();
+    }
+
+    initQuitarBulk({
+        chkAllId: 'chk-pedidos-all', btnId: 'btn-quitar-pedidos-sel', countId: 'pedidos-sel-count',
+        formId: 'form-quitar-pedidos-bulk', checkClass: '.chk-pedido',
+        tituloConfirm: function (n) { return '¿Quitar ' + n + ' pedido(s) del despacho?'; },
+        textoConfirm: 'Los que ya tengan productos surtidos quedarán libres para asignarse a otro despacho, sin tocar su inventario.',
+    });
+
+    initQuitarBulk({
+        chkAllId: 'chk-cxc-all', btnId: 'btn-quitar-cxc-sel', countId: 'cxc-sel-count',
+        formId: 'form-quitar-cxc-bulk', checkClass: '.chk-cxc',
+        tituloConfirm: function (n) { return '¿Quitar ' + n + ' cuenta(s) por cobrar del despacho?'; },
+        textoConfirm: 'Quedarán libres para asignarse a otro despacho.',
+    });
 
     (function () {
         // ── Monto entregado con comas de miles (input visible formateado +

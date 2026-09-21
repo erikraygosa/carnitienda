@@ -243,6 +243,7 @@ Route::post('dispatches/{dispatch}/pedido/{item}/quitar',       [DispatchControl
 Route::post('dispatches/{dispatch}/pedidos/quitar-bulk',        [DispatchController::class,'quitarPedidosBulk'])->name('dispatches.pedidos.quitar-bulk');
 Route::post('dispatches/{dispatch}/traspaso/{assignment}/quitar', [DispatchController::class,'quitarTraspaso'])->name('dispatches.traspaso.quitar');
 Route::post('dispatches/{dispatch}/cxc/{assignment}/quitar',    [DispatchController::class,'quitarCxc'])->name('dispatches.cxc.quitar');
+Route::post('dispatches/{dispatch}/cxc/quitar-bulk',             [DispatchController::class,'quitarCxcBulk'])->name('dispatches.cxc.quitar-bulk');
 Route::post('dispatches/{dispatch}/cerrar-traspasos', [DispatchController::class,'cerrarTraspasos'])->name('dispatches.cerrar-traspasos');
 Route::post('dispatches/{dispatch}/cerrar-cobranza',   [DispatchController::class,'cerrarCobranza'])->name('dispatches.cerrar-cobranza');
 Route::post('dispatches/{dispatch}/cerrar-completo',   [DispatchController::class,'cerrarCompleto'])->name('dispatches.cerrar-completo');

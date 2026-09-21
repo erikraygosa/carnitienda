@@ -918,6 +918,36 @@ class DispatchController extends Controller implements HasMiddleware
         return back()->with('swal', ['icon' => 'success', 'title' => 'Quitada', 'text' => "CxC de {$cliente} quitada del despacho."]);
     }
 
+    /**
+     * Igual que quitarCxc() pero para varias asignaciones seleccionadas a la
+     * vez — mismo criterio que quitarPedidosBulk().
+     */
+    public function quitarCxcBulk(Request $request, Dispatch $dispatch)
+    {
+        if ($dispatch->status !== 'PLANEADO') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo se puede quitar CxC mientras el despacho está Planeado.']);
+        }
+
+        $data = $request->validate([
+            'ids'   => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:dispatch_ar_assignments,id'],
+        ], [
+            'ids.required' => 'Selecciona al menos una cuenta por cobrar.',
+        ]);
+
+        $assignments = DispatchArAssignment::whereIn('id', $data['ids'])
+            ->where('dispatch_id', $dispatch->id)
+            ->where('monto_cobrado', 0)
+            ->with('client:id,nombre')
+            ->get();
+
+        $clientes = $assignments->map(fn ($a) => $a->client?->nombre ?? ('#' . $a->client_id))->all();
+        DispatchArAssignment::whereIn('id', $assignments->pluck('id'))->delete();
+
+        $this->log->log($dispatch, 'CXC_QUITADAS', null, null, null, count($clientes) . ' CxC quitadas: ' . implode(', ', $clientes));
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Quitadas', 'text' => count($clientes) . ' cuenta(s) por cobrar quitada(s) del despacho.']);
+    }
+
     // ── Pedidos individuales ──────────────────────────────────────────────────
 
     public function entregarPedido(Request $request, Dispatch $dispatch, DispatchItem $item)

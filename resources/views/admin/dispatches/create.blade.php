@@ -323,7 +323,7 @@
                                 ->where(function($q) {
                                     $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0);
                                 })
-                                ->get(['id','folio','fecha','total','saldo_pendiente']);
+                                ->get(['id','folio','fecha','programado_para','total','saldo_pendiente']);
                         @endphp
                         <div class="border rounded-lg overflow-hidden cxc-row" data-search="{{ strtolower($cs->nombre) }}" data-route="{{ $cs->shipping_route_id ?? '' }}">
                             {{-- Fila cliente: solo selecciona/deselecciona TODAS sus notas, no se manda al servidor --}}
@@ -357,7 +357,7 @@
                                         ? (float)$nota->saldo_pendiente
                                         : (float)$nota->total;
                                     $parcialN = $saldoN < (float)$nota->total;
-                                    $fechaN   = \Carbon\Carbon::parse($nota->fecha);
+                                    $fechaN   = \Carbon\Carbon::parse($nota->programado_para ?? $nota->fecha);
                                 @endphp
                                 <label class="flex items-center gap-3 px-6 py-2 bg-white cxc-nota-row cursor-pointer hover:bg-gray-50"
                                        data-folio="{{ strtolower($nota->folio) }}"
