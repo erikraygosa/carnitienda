@@ -361,10 +361,17 @@
             <h3 class="font-semibold text-gray-800">Pedidos</h3>
             <span class="text-sm font-normal text-gray-500">({{ $dispatch->items->count() }} en total)</span>
             @if($dispatch->status === 'PLANEADO')
+                <button type="button" id="btn-quitar-pedidos-sel"
+                        class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hidden">
+                    🗑 Quitar seleccionados (<span id="pedidos-sel-count">0</span>)
+                </button>
                 <button type="button" id="btn-toggle-add-pedidos"
-                        class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">
+                        class="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">
                     + Agregar pedidos
                 </button>
+                <form id="form-quitar-pedidos-bulk" action="{{ route('admin.dispatches.pedidos.quitar-bulk', $dispatch) }}" method="POST" class="hidden">
+                    @csrf
+                </form>
             @endif
             @if($enRuta && $pedidosPendientesItems->count() > 0)
                 <div class="ml-auto flex gap-2">
@@ -395,11 +402,16 @@
                 </div>
             @endif
         </div>
-        @php $pedidosNumCols = 6 + ($enRuta ? 1 : 0) + ($dispatch->status === 'PLANEADO' ? 1 : 0); @endphp
+        @php $pedidosNumCols = 6 + ($enRuta ? 1 : 0) + ($dispatch->status === 'PLANEADO' ? 2 : 0); @endphp
         <div class="overflow-auto border rounded">
             <table class="min-w-full text-sm">
                 <thead class="border-b bg-gray-50">
                     <tr>
+                        @if($dispatch->status === 'PLANEADO')
+                        <th class="p-2 w-8">
+                            <input type="checkbox" id="chk-pedidos-all" title="Seleccionar todos">
+                        </th>
+                        @endif
                         <th class="p-2 text-left">Folio</th>
                         <th class="p-2 text-left">Cliente</th>
                         <th class="p-2 text-right">Total</th>
@@ -439,6 +451,11 @@
                         $oStatusLabel = $oStatus === 'PROCESADO' ? 'En proceso' : $oStatus;
                     @endphp
                     <tr class="border-b hover:bg-gray-50 {{ $faltaSurtir ? 'bg-amber-50' : '' }}">
+                        @if($dispatch->status === 'PLANEADO')
+                        <td class="p-2 text-center">
+                            <input type="checkbox" class="chk-pedido" value="{{ $item->id }}">
+                        </td>
+                        @endif
                         <td class="p-2">
                             <a href="{{ route('admin.sales-orders.edit', $o) }}"
                                class="text-indigo-600 hover:underline font-mono text-xs">
@@ -1197,6 +1214,60 @@
         });
         return false;
     }
+
+    // ── Selección múltiple de pedidos para quitar varios a la vez ───────────
+    (function () {
+        var chkAll   = document.getElementById('chk-pedidos-all');
+        var btnQuitar = document.getElementById('btn-quitar-pedidos-sel');
+        var countEl  = document.getElementById('pedidos-sel-count');
+        var form     = document.getElementById('form-quitar-pedidos-bulk');
+        if (!btnQuitar || !form) return;
+
+        function checks() {
+            return Array.prototype.slice.call(document.querySelectorAll('.chk-pedido'));
+        }
+
+        function actualizar() {
+            var seleccionados = checks().filter(function (c) { return c.checked; });
+            countEl.textContent = seleccionados.length;
+            btnQuitar.classList.toggle('hidden', seleccionados.length === 0);
+        }
+
+        checks().forEach(function (c) { c.addEventListener('change', actualizar); });
+
+        if (chkAll) {
+            chkAll.addEventListener('change', function () {
+                checks().forEach(function (c) { c.checked = chkAll.checked; });
+                actualizar();
+            });
+        }
+
+        btnQuitar.addEventListener('click', function () {
+            var ids = checks().filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+            if (!ids.length) return;
+
+            Swal.fire({
+                title: '¿Quitar ' + ids.length + ' pedido(s) del despacho?',
+                text: 'Los que ya tengan productos surtidos quedarán libres para asignarse a otro despacho, sin tocar su inventario.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, quitar',
+                confirmButtonColor: '#dc2626',
+                cancelButtonText: 'Cancelar',
+            }).then(function (result) {
+                if (!result.isConfirmed) return;
+                form.querySelectorAll('input[name="ids[]"]').forEach(function (i) { i.remove(); });
+                ids.forEach(function (id) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'ids[]';
+                    input.value = id;
+                    form.appendChild(input);
+                });
+                form.submit();
+            });
+        });
+    })();
 
     (function () {
         // ── Monto entregado con comas de miles (input visible formateado +

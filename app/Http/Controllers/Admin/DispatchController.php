@@ -832,6 +832,48 @@ class DispatchController extends Controller implements HasMiddleware
         return back()->with('swal', ['icon' => 'success', 'title' => 'Quitado', 'text' => "Pedido {$folio} quitado del despacho."]);
     }
 
+    /**
+     * Igual que quitarPedido() pero para varios seleccionados a la vez —
+     * antes solo se podía quitar uno por uno, tardado cuando hay que
+     * corregir varios pedidos mal asignados de un jalón.
+     */
+    public function quitarPedidosBulk(Request $request, Dispatch $dispatch)
+    {
+        if ($dispatch->status !== 'PLANEADO') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo se puede quitar pedidos mientras el despacho está Planeado.']);
+        }
+
+        $data = $request->validate([
+            'ids'   => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:dispatch_items,id'],
+        ], [
+            'ids.required' => 'Selecciona al menos un pedido.',
+        ]);
+
+        $items = DispatchItem::whereIn('id', $data['ids'])
+            ->where('dispatch_id', $dispatch->id)
+            ->with(['lines', 'salesOrder:id,folio'])
+            ->get();
+
+        $folios = [];
+        DB::transaction(function () use ($items, &$folios) {
+            foreach ($items as $item) {
+                $folios[] = $item->salesOrder?->folio ?? ('#' . $item->sales_order_id);
+
+                if ($item->lines->whereNotNull('qty_despachada')->isNotEmpty()) {
+                    // Ya tiene productos surtidos — se desasigna, no se borra.
+                    $item->update(['dispatch_id' => null]);
+                } else {
+                    $item->lines()->delete();
+                    $item->delete();
+                }
+            }
+        });
+
+        $this->log->log($dispatch, 'PEDIDOS_QUITADOS', null, null, null, count($folios) . ' pedido(s) quitados: ' . implode(', ', $folios));
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Quitados', 'text' => count($folios) . ' pedido(s) quitado(s) del despacho.']);
+    }
+
     public function quitarTraspaso(Dispatch $dispatch, DispatchTransferAssignment $assignment)
     {
         abort_unless($assignment->dispatch_id === $dispatch->id, 404);
