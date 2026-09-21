@@ -237,12 +237,13 @@ class ReportesController extends Controller implements HasMiddleware
         ];
 
         $rows = $assignments->map(function ($a) use ($cxcStatusClasses) {
-            $notas = SalesOrder::where('client_id', $a->client_id)
-                ->where('payment_method', 'CREDITO')
-                ->where('status', 'ENTREGADO')
-                ->whereNull('cobrado_at')
-                ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
-                ->get(['folio', 'fecha', 'total', 'saldo_pendiente']);
+            // Solo las notas que realmente se marcaron para ESTA asignación
+            // (tabla pivote dispatch_ar_assignment_orders) — antes traía
+            // TODAS las notas de crédito pendientes del cliente, mezclando
+            // en el reporte notas de otras rutas o aún sin asignar.
+            $notas = \App\Models\DispatchArAssignment::find($a->id)
+                ?->orders()->get(['sales_orders.folio', 'sales_orders.fecha', 'sales_orders.total', 'sales_orders.saldo_pendiente'])
+                ?? collect();
 
             $saldoAsignado  = (float) $a->saldo_asignado;
             $montoCobrado   = (float) $a->monto_cobrado;
