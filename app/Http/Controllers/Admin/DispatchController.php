@@ -950,6 +950,54 @@ class DispatchController extends Controller implements HasMiddleware
         return back()->with('swal', ['icon' => 'success', 'title' => 'Quitadas', 'text' => count($clientes) . ' cuenta(s) por cobrar quitada(s) del despacho.']);
     }
 
+    /**
+     * Quita una o varias notas puntuales de una CxC ya asignada, sin quitar
+     * al cliente completo — antes solo se podía quitar la asignación entera
+     * (todas sus notas de un jalón). Recalcula el saldo con las notas que
+     * queden; si no queda ninguna, la asignación se borra igual que
+     * quitarCxc().
+     */
+    public function quitarNotasCxc(Request $request, Dispatch $dispatch, DispatchArAssignment $assignment)
+    {
+        abort_unless($assignment->dispatch_id === $dispatch->id, 404);
+
+        if ($dispatch->status !== 'PLANEADO') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo se puede quitar notas mientras el despacho está Planeado.']);
+        }
+
+        if ((float) $assignment->monto_cobrado > 0) {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Esta cuenta ya tiene un cobro registrado — no se puede modificar.']);
+        }
+
+        $data = $request->validate([
+            'notas'   => ['required', 'array', 'min:1'],
+            'notas.*' => ['integer', 'exists:sales_orders,id'],
+        ], [
+            'notas.required' => 'Selecciona al menos una nota.',
+        ]);
+
+        $folios = SalesOrder::whereIn('id', $data['notas'])->pluck('folio')->all();
+        $cliente = $assignment->client?->nombre ?? ('#' . $assignment->client_id);
+
+        DB::transaction(function () use ($assignment, $data) {
+            $assignment->orders()->detach($data['notas']);
+
+            $restantes = $assignment->orders()->get(['sales_orders.id', 'total', 'saldo_pendiente']);
+            if ($restantes->isEmpty()) {
+                $assignment->delete();
+                return;
+            }
+
+            $nuevoSaldo = $restantes->sum(fn ($n) => ($n->saldo_pendiente !== null && (float) $n->saldo_pendiente > 0)
+                ? (float) $n->saldo_pendiente
+                : (float) $n->total);
+            $assignment->update(['saldo_asignado' => round($nuevoSaldo, 2)]);
+        });
+
+        $this->log->log($dispatch, 'CXC_NOTAS_QUITADAS', null, null, null, "Nota(s) de {$cliente} quitada(s) del despacho: " . implode(', ', $folios));
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Quitadas', 'text' => count($folios) . " nota(s) quitada(s) de la CxC de {$cliente}."]);
+    }
+
     // ── Pedidos individuales ──────────────────────────────────────────────────
 
     public function entregarPedido(Request $request, Dispatch $dispatch, DispatchItem $item)

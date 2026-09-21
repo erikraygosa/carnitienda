@@ -753,6 +753,10 @@
                         <div class="text-xs text-gray-500 mt-0.5">
                             @if($notasCliente->count() > 0)
                                 {{ $notasCliente->count() }} nota(s) pendiente(s)
+                                @if($dispatch->status === 'PLANEADO' && $assignment->status === 'PENDIENTE' && (float) $assignment->monto_cobrado === 0.0)
+                                    <button type="button" data-toggle="notas-cxc-{{ $assignment->id }}"
+                                            class="btn-toggle-notas-cxc ml-1 text-indigo-600 hover:underline">Ver notas ▼</button>
+                                @endif
                             @else
                                 Sin notas pendientes
                             @endif
@@ -793,6 +797,33 @@
                         </form>
                     @endif
                 </div>
+
+                {{-- Panel expandible de notas — quitar una o varias notas puntuales
+                     de la CxC sin quitar al cliente completo --}}
+                @if($dispatch->status === 'PLANEADO' && $assignment->status === 'PENDIENTE' && (float) $assignment->monto_cobrado === 0.0 && $notasCliente->count() > 0)
+                <div id="notas-cxc-{{ $assignment->id }}" class="hidden border-t bg-white px-4 py-3">
+                    <form action="{{ route('admin.dispatches.cxc.notas.quitar', [$dispatch, $assignment]) }}" method="POST">
+                        @csrf
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs text-gray-400">Selecciona la(s) nota(s) a quitar de esta CxC</span>
+                            <button type="button" class="btn-quitar-notas-cxc hidden px-2 py-1 text-xs rounded border border-red-300 text-red-600 hover:bg-red-50"
+                                    onclick="return confirmarAccionMasiva(this, '¿Quitar las notas seleccionadas de esta CxC?')">
+                                🗑 Quitar seleccionadas (<span class="notas-cxc-sel-count">0</span>)
+                            </button>
+                        </div>
+                        <div class="divide-y divide-gray-100 border rounded">
+                            @foreach($notasCliente as $nota)
+                            @php $saldoN = ($nota->saldo_pendiente !== null && (float)$nota->saldo_pendiente > 0) ? (float)$nota->saldo_pendiente : (float)$nota->total; @endphp
+                            <label class="flex items-center gap-3 px-3 py-1.5 cursor-pointer hover:bg-gray-50">
+                                <input type="checkbox" name="notas[]" value="{{ $nota->id }}" class="chk-nota-cxc">
+                                <span class="font-mono text-xs text-indigo-600">{{ $nota->folio }}</span>
+                                <span class="ml-auto text-sm font-mono font-semibold text-amber-700">${{ number_format($saldoN, 2) }}</span>
+                            </label>
+                            @endforeach
+                        </div>
+                    </form>
+                </div>
+                @endif
 
                 {{-- Panel expandible de cobro --}}
                 @if($enRuta && $puedeAccion)
@@ -1363,6 +1394,31 @@
                 var isHidden = panel.classList.contains('hidden');
                 panel.classList.toggle('hidden', !isHidden);
                 if (icon) icon.textContent = isHidden ? '▲' : '▼';
+            });
+        });
+
+        // ── Ver/quitar notas puntuales de una CxC ya asignada ─────────────
+        document.querySelectorAll('.btn-toggle-notas-cxc').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var panel = document.getElementById(this.dataset.toggle);
+                if (!panel) return;
+                var isHidden = panel.classList.contains('hidden');
+                panel.classList.toggle('hidden', !isHidden);
+                this.textContent = isHidden ? 'Ocultar ▲' : 'Ver notas ▼';
+            });
+        });
+
+        document.querySelectorAll('[id^="notas-cxc-"]').forEach(function(panel) {
+            var checks   = panel.querySelectorAll('.chk-nota-cxc');
+            var btnQuit  = panel.querySelector('.btn-quitar-notas-cxc');
+            var countEl  = panel.querySelector('.notas-cxc-sel-count');
+            if (!btnQuit) return;
+            checks.forEach(function(c) {
+                c.addEventListener('change', function() {
+                    var n = Array.prototype.filter.call(checks, function(x) { return x.checked; }).length;
+                    countEl.textContent = n;
+                    btnQuit.classList.toggle('hidden', n === 0);
+                });
             });
         });
 
