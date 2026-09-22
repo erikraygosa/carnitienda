@@ -145,7 +145,14 @@ class DispatchController extends Controller implements HasMiddleware
             ->latest()
             ->get();
 
-        // Clientes con saldo pendiente en ar_movements
+        // Clientes con saldo pendiente en ar_movements — pero solo los que
+        // tengan al menos una NOTA DE PEDIDO asignable a una ruta (CREDITO,
+        // ENTREGADO, con saldo). Una Nota de Venta (POS) también genera
+        // cargo en ar_movements y sí sale a crédito, pero NO se reparte en
+        // despacho/ruta — su cobro sigue el flujo normal de abonos en CxC.
+        // Sin este filtro, un cliente cuya única deuda es de una NV
+        // aparecía en esta lista con saldo pero "0 nota(s)" y sin forma de
+        // seleccionarlo (caso real: SUSUKI CANO, saldo de NV-20260917-0206).
         $clientesConSaldo = DB::table('ar_movements')
             ->join('clients', 'clients.id', '=', 'ar_movements.client_id')
             ->selectRaw("
@@ -156,6 +163,17 @@ class DispatchController extends Controller implements HasMiddleware
             ")
             ->groupBy('ar_movements.client_id', 'clients.nombre', 'clients.shipping_route_id')
             ->havingRaw("SUM(CASE WHEN ar_movements.tipo = 'CARGO' THEN ar_movements.monto ELSE -ar_movements.monto END) > 0")
+            ->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                  ->from('sales_orders')
+                  ->whereColumn('sales_orders.client_id', 'ar_movements.client_id')
+                  ->where('sales_orders.payment_method', 'CREDITO')
+                  ->where('sales_orders.status', 'ENTREGADO')
+                  ->whereNull('sales_orders.cobrado_at')
+                  ->where(function ($q2) {
+                      $q2->whereNull('sales_orders.saldo_pendiente')->orWhere('sales_orders.saldo_pendiente', '>', 0);
+                  });
+            })
             ->orderBy('clients.nombre')
             ->get();
 
@@ -379,6 +397,9 @@ class DispatchController extends Controller implements HasMiddleware
                 ->get(['id','folio','client_id','shipping_route_id','ronda','status','total','programado_para','payment_method','ticket_impreso']);
 
             $yaAsignados = $dispatch->arAssignments->pluck('client_id');
+            // Mismo filtro que en create(): solo clientes con al menos una
+            // nota de PEDIDO asignable — una Nota de Venta (POS) no entra a
+            // despacho aunque genere saldo en ar_movements.
             $clientesConSaldoDisponibles = DB::table('ar_movements')
                 ->join('clients', 'clients.id', '=', 'ar_movements.client_id')
                 ->selectRaw("
@@ -390,6 +411,17 @@ class DispatchController extends Controller implements HasMiddleware
                 ->groupBy('ar_movements.client_id', 'clients.nombre', 'clients.shipping_route_id')
                 ->havingRaw("SUM(CASE WHEN ar_movements.tipo = 'CARGO' THEN ar_movements.monto ELSE -ar_movements.monto END) > 0")
                 ->whereNotIn('ar_movements.client_id', $yaAsignados->isNotEmpty() ? $yaAsignados : [0])
+                ->whereExists(function ($q) {
+                    $q->select(DB::raw(1))
+                      ->from('sales_orders')
+                      ->whereColumn('sales_orders.client_id', 'ar_movements.client_id')
+                      ->where('sales_orders.payment_method', 'CREDITO')
+                      ->where('sales_orders.status', 'ENTREGADO')
+                      ->whereNull('sales_orders.cobrado_at')
+                      ->where(function ($q2) {
+                          $q2->whereNull('sales_orders.saldo_pendiente')->orWhere('sales_orders.saldo_pendiente', '>', 0);
+                      });
+                })
                 ->orderBy('clients.nombre')
                 ->get();
         }
