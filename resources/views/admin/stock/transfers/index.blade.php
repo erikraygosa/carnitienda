@@ -6,8 +6,14 @@
         ['name'=>'Traspasos'],
     ]"
 >
+    @php
+        // Se reenvía a create/show para que su "Regresar" pueda reconstruir
+        // esta misma URL filtrada, en vez de resetear siempre a la lista sin
+        // filtros (mismo criterio ya aplicado en /admin/dispatches).
+        $filtrosActuales = request()->only(['search', 'status', 'from_warehouse', 'to_warehouse', 'fecha_desde', 'fecha_hasta']);
+    @endphp
     <x-slot name="action">
-        <a href="{{ route('admin.stock.transfers.create') }}"
+        <a href="{{ route('admin.stock.transfers.create', $filtrosActuales) }}"
            class="inline-flex px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
             + Nuevo traspaso
         </a>
@@ -54,6 +60,18 @@
                 @endforeach
             </select>
 
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Desde</label>
+                <input type="date" name="fecha_desde" value="{{ request('fecha_desde') }}"
+                    class="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200">
+            </div>
+
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Hasta</label>
+                <input type="date" name="fecha_hasta" value="{{ request('fecha_hasta') }}"
+                    class="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200">
+            </div>
+
             <button type="submit"
                 class="px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
                 Filtrar
@@ -93,7 +111,7 @@
                         @endphp
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
                             <td class="px-4 py-3 font-mono text-indigo-600 font-medium">
-                                <a href="{{ route('admin.stock.transfers.show', $t) }}" class="hover:underline">
+                                <a href="{{ route('admin.stock.transfers.show', ['transfer' => $t->id] + $filtrosActuales) }}" class="hover:underline">
                                     {{ $t->folio }}
                                 </a>
                             </td>
@@ -123,7 +141,7 @@
                             </td>
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-2">
-                                    <a href="{{ route('admin.stock.transfers.show', $t) }}"
+                                    <a href="{{ route('admin.stock.transfers.show', ['transfer' => $t->id] + $filtrosActuales) }}"
                                        class="inline-flex items-center px-2 py-1 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
                                         Ver
                                     </a>

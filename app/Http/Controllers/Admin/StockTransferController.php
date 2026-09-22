@@ -43,6 +43,12 @@ class StockTransferController extends Controller implements HasMiddleware
         ->when(request('to_warehouse'), fn($q) =>
             $q->where('to_warehouse_id', request('to_warehouse'))
         )
+        ->when(request('fecha_desde'), fn($q) =>
+            $q->whereDate('fecha', '>=', request('fecha_desde'))
+        )
+        ->when(request('fecha_hasta'), fn($q) =>
+            $q->whereDate('fecha', '<=', request('fecha_hasta'))
+        )
         ->latest()
         ->paginate(20)
         ->withQueryString();

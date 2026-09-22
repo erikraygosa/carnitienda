@@ -1,13 +1,18 @@
+@php
+    // Igual que en /admin/dispatches: "Regresar" reconstruye la lista con el
+    // mismo filtro con el que se entró, en vez de resetearlo siempre.
+    $volverUrl = route('admin.stock.transfers.index', request()->only(['search', 'status', 'from_warehouse', 'to_warehouse', 'fecha_desde', 'fecha_hasta']));
+@endphp
 <x-admin-layout
     title="Traspaso {{ $transfer->folio }}"
     :breadcrumbs="[
         ['name'=>'Dashboard','url'=>route('admin.dashboard')],
-        ['name'=>'Traspasos','url'=>route('admin.stock.transfers.index')],
+        ['name'=>'Traspasos','url'=>$volverUrl],
         ['name'=>$transfer->folio],
     ]"
 >
     <x-slot name="action">
-        <a href="{{ route('admin.stock.transfers.index') }}"
+        <a href="{{ $volverUrl }}"
            class="inline-flex px-3 py-1.5 text-sm rounded-md border">Regresar</a>
         <a href="{{ route('admin.stock.transfers.print', $transfer) }}"
            target="_blank"

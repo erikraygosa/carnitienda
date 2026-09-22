@@ -1,3 +1,12 @@
+@php
+    // Si se entró desde la lista de traspasos filtrada (ej. desde
+    // "+ Nuevo traspaso"), "Regresar" vuelve a esa misma lista con el
+    // filtro con el que se venía, no siempre a Stock.
+    $filtrosLista = request()->only(['search', 'status', 'from_warehouse', 'to_warehouse', 'fecha_desde', 'fecha_hasta']);
+    $volverUrlCrear = !empty($filtrosLista)
+        ? route('admin.stock.transfers.index', $filtrosLista)
+        : route('admin.stock.index');
+@endphp
 <x-admin-layout
     title="{{ isset($transfer) ? 'Editar transferencia' : 'Crear transferencia' }}"
     :breadcrumbs="[
@@ -7,7 +16,7 @@
     ]"
 >
     <x-slot name="action">
-        <a href="{{ isset($transfer) ? route('admin.stock.transfers.show', $transfer) : route('admin.stock.index') }}"
+        <a href="{{ isset($transfer) ? route('admin.stock.transfers.show', $transfer) : $volverUrlCrear }}"
            class="inline-flex px-3 py-1.5 text-sm rounded-md border">
             Regresar
         </a>
