@@ -91,7 +91,6 @@
                 <th style="width:24px;">#</th>
                 <th>Folio</th>
                 <th>Origen</th>
-                <th>Destino</th>
                 <th class="no-ticket">Productos</th>
                 <th class="text-center no-ticket" style="width:60px;">✓</th>
             </tr>
@@ -103,7 +102,6 @@
                 <td style="font-weight:bold;color:#555;">{{ $i + 1 }}</td>
                 <td><strong style="font-size:11px;">{{ $t?->folio ?? '—' }}</strong></td>
                 <td class="traspaso-origen">{{ $t?->fromWarehouse?->nombre ?? '—' }}</td>
-                <td class="traspaso-destino">{{ $t?->toWarehouse?->nombre ?? '—' }}</td>
                 <td class="no-ticket prods">
                     @if($t)
                         @foreach($t->items as $it)
@@ -133,7 +131,6 @@
                 <th class="no-ticket">Dirección</th>
                 <th>Productos</th>
                 <th class="text-right" style="width:70px;">Total</th>
-                <th style="width:70px;">Pago</th>
                 <th class="text-center no-ticket" style="width:30px;">✓</th>
             </tr>
         </thead>
@@ -182,19 +179,13 @@
                         @endforeach
                     </td>
                     <td class="text-right"><strong>${{ number_format($o->total, 2) }}</strong></td>
-                    <td>
-                        <span style="font-size:10px;padding:1px 5px;border-radius:9999px;border:1px solid #ccc;
-                            {{ $o->payment_method === 'CREDITO' ? 'background:#dbeafe;color:#1d4ed8;' : 'background:#f3f4f6;' }}">
-                            {{ $o->payment_method }}
-                        </span>
-                    </td>
                     <td class="text-center no-ticket" style="font-size:18px;">☐</td>
                 </tr>
             @endforeach
            <tr class="total-row">
             <td colspan="5" class="text-right">Total pedidos:</td>
             <td class="text-right">${{ number_format($totalPedidos, 2) }}</td>
-            <td colspan="2"></td>
+            <td></td>
         </tr>
         </tbody>
     </table>
