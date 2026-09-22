@@ -124,18 +124,19 @@ body { font-size: 11px; color: #1a1a1a; padding: 28px 32px; }
             <th>Producto</th>
             <th style="width:80px;">Unidad</th>
             <th class="r" style="width:100px;">Cantidad</th>
-            <th class="r" style="width:60px;">Cajas</th>
+            <th class="r" style="width:60px;">Present.</th>
             <th>Observaciones</th>
         </tr>
     </thead>
     <tbody>
+        @php $presentLabels = ['KILOS'=>'Kilos','PIEZAS'=>'Piezas','CAJAS'=>'Cajas']; @endphp
         @foreach($transfer->items as $i => $it)
         <tr>
             <td style="color:#9ca3af;">{{ $i + 1 }}</td>
             <td><strong>{{ $it->product?->nombre ?? '—' }}</strong></td>
             <td>{{ $it->product?->unidad ?? '' }}</td>
             <td class="r" style="font-weight:bold;font-family:monospace;">{{ number_format($it->qty, 3) }}</td>
-            <td class="r">{{ $it->num_cajas ?? '—' }}</td>
+            <td class="r">{{ $presentLabels[$it->presentacion] ?? '—' }}</td>
             <td>{{ $it->comentarios ?? '' }}</td>
         </tr>
         @endforeach

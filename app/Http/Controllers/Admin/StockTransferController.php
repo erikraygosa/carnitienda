@@ -90,7 +90,7 @@ class StockTransferController extends Controller implements HasMiddleware
             'items'                => ['required', 'array', 'min:1'],
             'items.*.product_id'   => ['required', 'exists:products,id'],
             'items.*.qty'          => ['required', 'numeric', 'min:0.001'],
-            'items.*.num_cajas'    => ['nullable', 'integer', 'min:0'],
+            'items.*.presentacion' => ['nullable', 'in:KILOS,PIEZAS,CAJAS'],
             'items.*.comentarios'  => ['nullable', 'string', 'max:200'],
         ]);
 
@@ -110,7 +110,7 @@ class StockTransferController extends Controller implements HasMiddleware
                     'stock_transfer_id' => $transfer->id,
                     'product_id'        => $it['product_id'],
                     'qty'               => $it['qty'],
-                    'num_cajas'         => $it['num_cajas'] ?? null,
+                    'presentacion'      => $it['presentacion'] ?? null,
                     'comentarios'       => $it['comentarios'] ?? null,
                 ]);
             }
@@ -153,7 +153,7 @@ class StockTransferController extends Controller implements HasMiddleware
             'items'                => ['required', 'array', 'min:1'],
             'items.*.product_id'   => ['required', 'exists:products,id'],
             'items.*.qty'          => ['required', 'numeric', 'min:0.001'],
-            'items.*.num_cajas'    => ['nullable', 'integer', 'min:0'],
+            'items.*.presentacion' => ['nullable', 'in:KILOS,PIEZAS,CAJAS'],
             'items.*.comentarios'  => ['nullable', 'string', 'max:200'],
         ]);
 
@@ -182,7 +182,7 @@ class StockTransferController extends Controller implements HasMiddleware
                     'stock_transfer_id' => $transfer->id,
                     'product_id'        => $it['product_id'],
                     'qty'               => $it['qty'],
-                    'num_cajas'         => $it['num_cajas'] ?? null,
+                    'presentacion'      => $it['presentacion'] ?? null,
                     'comentarios'       => $it['comentarios'] ?? null,
                 ]);
             }

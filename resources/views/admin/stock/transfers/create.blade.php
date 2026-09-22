@@ -34,10 +34,10 @@
         $seedItems = old('items', []);
         if (empty($seedItems) && isset($transfer)) {
             $seedItems = $transfer->items->map(fn($it) => [
-                'product_id'  => $it->product_id,
-                'qty'         => $it->qty,
-                'num_cajas'   => $it->num_cajas,
-                'comentarios' => $it->comentarios,
+                'product_id'   => $it->product_id,
+                'qty'          => $it->qty,
+                'presentacion' => $it->presentacion,
+                'comentarios'  => $it->comentarios,
             ])->values()->all();
         }
         if (empty($seedItems) && !empty($prefill['product_id'])) {
@@ -158,7 +158,7 @@
                             <th class="p-2 text-left text-gray-400 text-xs">Código</th>
                             <th class="p-2 text-right w-28">Cantidad</th>
                             <th class="p-2 text-left w-20">Unidad</th>
-                            <th class="p-2 text-right w-24">Cajas</th>
+                            <th class="p-2 text-center w-24" title="Presentación en que se pide (opcional)">Present.</th>
                             <th class="p-2 text-left w-56">Observaciones</th>
                             <th class="p-2 w-8"></th>
                         </tr>
@@ -229,12 +229,14 @@
                         </div>
                     </td>
                     <td class="p-2 text-xs text-gray-500">${escHtml(p?.unidad || '—')}</td>
-                    <td class="p-2 text-right">
-                        <input type="number" min="0" step="1"
-                               name="items[${i}][num_cajas]"
-                               value="${it.num_cajas ?? ''}"
-                               placeholder="—"
-                               class="w-20 border rounded p-1 text-right text-sm inp-cajas">
+                    <td class="p-2 text-center">
+                        <select class="w-24 border rounded p-1 text-center text-sm inp-presentacion"
+                                name="items[${i}][presentacion]" title="Presentación en que se pide">
+                            <option value="" ${!it.presentacion ? 'selected' : ''}>—</option>
+                            <option value="KILOS"  ${it.presentacion === 'KILOS'  ? 'selected' : ''}>Kilos</option>
+                            <option value="PIEZAS" ${it.presentacion === 'PIEZAS' ? 'selected' : ''}>Piezas</option>
+                            <option value="CAJAS"  ${it.presentacion === 'CAJAS'  ? 'selected' : ''}>Cajas</option>
+                        </select>
                     </td>
                     <td class="p-2">
                         <input type="text" maxlength="200"
@@ -258,8 +260,8 @@
                         items[i].qty = parseFloat(inp.value) || 0;
                     });
                 });
-                tr.querySelector('.inp-cajas').addEventListener('input', function() {
-                    items[i].num_cajas = this.value === '' ? null : parseInt(this.value, 10);
+                tr.querySelector('.inp-presentacion').addEventListener('change', function() {
+                    items[i].presentacion = this.value || '';
                 });
                 tr.querySelector('.inp-comentarios').addEventListener('input', function() {
                     items[i].comentarios = this.value;
@@ -285,7 +287,7 @@
         // distintos (antes se sumaba a la línea existente y no dejaba
         // tener dos líneas separadas del mismo producto).
         function addProduct(product, qty = 1) {
-            items.push({ product_id: product.id, nombre: product.nombre, qty, num_cajas: null, comentarios: '' });
+            items.push({ product_id: product.id, nombre: product.nombre, qty, presentacion: 'KILOS', comentarios: '' });
             renderAll();
             showToast(`✓ ${product.nombre} agregado`);
         }
@@ -454,7 +456,7 @@
         if (SEED_ITEMS && SEED_ITEMS.length) {
             SEED_ITEMS.forEach(it => {
                 const p = PRODUCTS.find(p => p.id == it.product_id);
-                if (p) items.push({ product_id: p.id, nombre: p.nombre, qty: it.qty || 1, num_cajas: it.num_cajas ?? null, comentarios: it.comentarios || '' });
+                if (p) items.push({ product_id: p.id, nombre: p.nombre, qty: it.qty || 1, presentacion: it.presentacion || 'KILOS', comentarios: it.comentarios || '' });
             });
         }
         renderAll();

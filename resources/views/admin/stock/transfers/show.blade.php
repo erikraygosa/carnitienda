@@ -71,17 +71,18 @@
                     <th class="p-2 text-left">Producto</th>
                     <th class="p-2 text-right">Cantidad</th>
                     <th class="p-2 text-left">Unidad</th>
-                    <th class="p-2 text-right">Cajas</th>
+                    <th class="p-2 text-center">Present.</th>
                     <th class="p-2 text-left">Observaciones</th>
                 </tr>
             </thead>
             <tbody>
+                @php $presentLabels = ['KILOS'=>'Kilos','PIEZAS'=>'Piezas','CAJAS'=>'Cajas']; @endphp
                 @foreach($transfer->items as $it)
                 <tr class="border-b">
                     <td class="p-2 font-medium">{{ $it->product?->nombre ?? '—' }}</td>
                     <td class="p-2 text-right font-mono">{{ number_format($it->qty, 3) }}</td>
                     <td class="p-2 text-gray-500">{{ $it->product?->unidad }}</td>
-                    <td class="p-2 text-right">{{ $it->num_cajas ?? '—' }}</td>
+                    <td class="p-2 text-center">{{ $presentLabels[$it->presentacion] ?? '—' }}</td>
                     <td class="p-2 text-gray-600">{{ $it->comentarios ?? '—' }}</td>
                 </tr>
                 @endforeach
