@@ -85,6 +85,7 @@
                             <th class="px-3 py-2 text-left font-medium text-gray-500">Folio</th>
                             <th class="px-3 py-2 text-left font-medium text-gray-500">Cliente</th>
                             <th class="px-3 py-2 text-left font-medium text-gray-500">Fecha</th>
+                            <th class="px-3 py-2 text-left font-medium text-gray-500">Ruta</th>
                             <th class="px-3 py-2 text-left font-medium text-gray-500">Producto</th>
                             <th class="px-3 py-2 text-right font-medium text-gray-500">Cant.</th>
                             <th class="px-3 py-2 text-center font-medium text-gray-500">Present.</th>
@@ -119,6 +120,39 @@
                                 @php $fechaMostrar = $pedido->programado_para ?? $pedido->fecha; @endphp
                                 <td class="px-3 py-2 text-gray-500 text-xs whitespace-nowrap">
                                     {{ $itemIdx === 0 && $fechaMostrar ? $fechaMostrar->format('d/m/Y') : '' }}
+                                </td>
+                                {{-- Ruta — solo en la primera fila del pedido, con lápiz para
+                                     reasignar sin salir del panel (mismo endpoint que usa el
+                                     lápiz de /admin/dispatches/create). --}}
+                                <td class="px-3 py-2 text-xs whitespace-nowrap ruta-cell">
+                                    @if($itemIdx === 0)
+                                        <span class="ruta-display inline-flex items-center gap-1">
+                                            @if($pedido->shipping_route_id)
+                                                <span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-xs ruta-badge">
+                                                    {{ $pedido->route?->nombre ?? '#'.$pedido->shipping_route_id }}
+                                                </span>
+                                            @else
+                                                <span class="text-gray-300 ruta-badge">—</span>
+                                            @endif
+                                            <button type="button" class="btn-edit-ruta text-gray-300 hover:text-indigo-600"
+                                                    data-order-id="{{ $pedido->id }}" title="Reasignar ruta de este pedido">
+                                                <i class="fa-solid fa-pen text-xs"></i>
+                                            </button>
+                                        </span>
+                                        <span class="ruta-edit hidden items-center gap-1">
+                                            <select class="ruta-select text-xs rounded border-gray-300 py-0.5">
+                                                @foreach($rutas as $r)
+                                                    <option value="{{ $r->id }}" {{ (string) $pedido->shipping_route_id === (string) $r->id ? 'selected' : '' }}>{{ $r->nombre }}</option>
+                                                @endforeach
+                                            </select>
+                                            <button type="button" class="btn-save-ruta text-emerald-600 hover:text-emerald-800" title="Guardar">
+                                                <i class="fa-solid fa-check text-xs"></i>
+                                            </button>
+                                            <button type="button" class="btn-cancel-ruta text-gray-400 hover:text-red-600" title="Cancelar">
+                                                <i class="fa-solid fa-xmark text-xs"></i>
+                                            </button>
+                                        </span>
+                                    @endif
                                 </td>
                                 <td class="px-3 py-2 {{ $yaDespachado ? 'text-emerald-800 font-medium' : 'text-gray-800' }}">
                                     {{ $item->descripcion ?: ($item->product?->nombre ?? '—') }}
@@ -793,6 +827,64 @@
             poll(); // primera llamada inmediata para inicializar
         })();
     })();
+    </script>
+
+    {{-- Reasignar ruta de un pedido sin salir del panel — mismo endpoint que
+         usa el lápiz de /admin/dispatches/create. --}}
+    <script>
+    document.querySelectorAll('.btn-edit-ruta').forEach(function(btn) {
+        var cell    = btn.closest('.ruta-cell');
+        var display = cell.querySelector('.ruta-display');
+        var edit    = cell.querySelector('.ruta-edit');
+
+        btn.addEventListener('click', function() {
+            display.classList.add('hidden');
+            edit.classList.remove('hidden');
+            edit.classList.add('flex');
+        });
+
+        cell.querySelector('.btn-cancel-ruta').addEventListener('click', function() {
+            edit.classList.add('hidden');
+            edit.classList.remove('flex');
+            display.classList.remove('hidden');
+        });
+
+        cell.querySelector('.btn-save-ruta').addEventListener('click', function() {
+            var select  = cell.querySelector('.ruta-select');
+            var orderId = btn.dataset.orderId;
+            var saveBtn = cell.querySelector('.btn-save-ruta');
+            saveBtn.disabled = true;
+
+            fetch('{{ url("admin/sales-orders") }}/' + orderId + '/ruta', {
+                method:  'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept':       'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({ shipping_route_id: select.value }),
+            })
+            .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
+            .then(function(res) {
+                saveBtn.disabled = false;
+                if (res.status === 200 && res.data.ok) {
+                    var badge = cell.querySelector('.ruta-badge');
+                    badge.outerHTML = '<span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-xs ruta-badge"></span>';
+                    cell.querySelector('.ruta-badge').textContent = res.data.route_name;
+                    edit.classList.add('hidden');
+                    edit.classList.remove('flex');
+                    display.classList.remove('hidden');
+                    Swal.fire({ icon: 'success', title: 'Ruta actualizada', text: 'También se actualizó en el cliente.', timer: 1800, showConfirmButton: false });
+                } else {
+                    Swal.fire('Error', res.data.message || 'No se pudo actualizar la ruta.', 'error');
+                }
+            })
+            .catch(function() {
+                saveBtn.disabled = false;
+                Swal.fire('Error', 'No se pudo actualizar la ruta.', 'error');
+            });
+        });
+    });
     </script>
 
     @if($puedeAltaRapida)

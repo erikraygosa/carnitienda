@@ -30,7 +30,7 @@ class DispatchPanelController extends Controller
 
         // Filtra por la misma fecha que se muestra en la tabla (programada
         // de entrega; si el pedido no tiene una, se usa la de captura).
-        $pedidos = SalesOrder::with(['client', 'items.product'])
+        $pedidos = SalesOrder::with(['client', 'items.product', 'route'])
             ->where('status', SalesOrder::S_PROCESADO)
             ->when($rutaId, fn($q) => $q->where('shipping_route_id', $rutaId))
             ->when($ronda,  fn($q) => $q->where('ronda', $ronda))
