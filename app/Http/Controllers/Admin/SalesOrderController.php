@@ -811,6 +811,19 @@ public function data(Request $request)
         );
         $this->assertPreciosCompletos($data['items']);
 
+        // Si se corrige el cliente del pedido (ej. se había capturado con el
+        // cliente equivocado), la ruta del pedido debe seguir a la ruta real
+        // del nuevo cliente — de lo contrario se queda con la ruta del
+        // cliente anterior y el pedido aparece en la ruta equivocada al
+        // filtrar en Salida de Producto (caso real: pedido reasignado a
+        // Rey David — ruta Juan Pablo — pero se quedó mostrando Progreso,
+        // la ruta del cliente incorrecto original).
+        if (array_key_exists('client_id', $data) && $data['client_id'] != $sales_order->client_id) {
+            $data['shipping_route_id'] = $data['client_id']
+                ? Client::find($data['client_id'])?->shipping_route_id
+                : null;
+        }
+
         // Partidas ya surtidas con producto real (Panel de Surtido) — se
         // ignora lo que venga del form para ellas, se conservan tal cual
         // están en BD; ya salieron del almacén, no se pueden tocar aquí.
