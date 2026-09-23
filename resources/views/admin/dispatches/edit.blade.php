@@ -104,7 +104,7 @@
                 <form action="{{ route('admin.dispatches.reabrir', $dispatch) }}" method="POST" class="ml-auto">
                     @csrf
                     <button type="submit"
-                            onclick="return confirm('¿Reabrir este despacho? Se destraba para agregarle más pedidos, traspasos o CxC — tendrás que volver a cerrarlo (traspasos y cobranza) cuando termines.')"
+                            onclick="return confirmarAccionMasiva(this, '¿Reabrir este despacho? Se destraba para agregarle más pedidos, traspasos o CxC — tendrás que volver a cerrarlo (traspasos y cobranza) cuando termines.')"
                             class="inline-flex px-3 py-1.5 text-xs rounded-md bg-amber-500 text-white hover:bg-amber-600">
                         ↩ Reabrir despacho
                     </button>
