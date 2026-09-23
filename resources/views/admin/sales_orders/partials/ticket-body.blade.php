@@ -259,6 +259,25 @@
 
     <hr class="dashed">
 
+    {{-- COMENTARIOS DEL SURTIDO: la nota que se captura en el Panel de
+         Surtido (/admin/despacho) al momento de despachar el pedido, no la
+         del pedido en sí — se guarda por línea en DispatchItemLine.nota. --}}
+    @php
+        $notasSurtido = $order->dispatchItem?->lines
+            ->pluck('nota')
+            ->filter()
+            ->unique()
+            ->values() ?? collect();
+    @endphp
+    @if($notasSurtido->isNotEmpty())
+    <div class="observaciones" style="margin-bottom:2mm;">
+        <div class="bold">COMENTARIOS:</div>
+        @foreach($notasSurtido as $nota)
+        <div style="margin-top:2px;">{{ $nota }}</div>
+        @endforeach
+    </div>
+    @endif
+
     {{-- TOTALES --}}
     <table class="totals">
         @if((float)$order->descuento > 0)

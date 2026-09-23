@@ -1412,7 +1412,7 @@ private function aprobarPedido(SalesOrder $order): array
     // ========= TICKET TÉRMICO =========
     public function ticket(SalesOrder $order)
     {
-        $order->load('client', 'items.product', 'warehouse');
+        $order->load('client', 'items.product', 'warehouse', 'dispatchItem.lines');
         $empresa = app(\App\Services\CompanyService::class)->activa();
 
         if (!$order->ticket_impreso) {
@@ -1424,7 +1424,7 @@ private function aprobarPedido(SalesOrder $order): array
 
     public function ticketPdf(SalesOrder $order)
     {
-        $order->load('client', 'items.product', 'warehouse');
+        $order->load('client', 'items.product', 'warehouse', 'dispatchItem.lines');
         $empresa = app(\App\Services\CompanyService::class)->activa();
 
         // Página de 80mm para que el ticket (72mm) tenga margen y no se
