@@ -271,9 +271,8 @@
     @endphp
     @if($notasSurtido->isNotEmpty())
     <div class="observaciones" style="margin-bottom:2mm;">
-        <div class="bold">COMENTARIOS:</div>
         @foreach($notasSurtido as $nota)
-        <div style="margin-top:2px;">{{ $nota }}</div>
+        <div style="margin-top:2px;font-size:15px;">{{ $nota }}</div>
         @endforeach
     </div>
     @endif
@@ -308,8 +307,7 @@
     {{-- COMENTARIOS DEL PEDIDO --}}
     @if($order->comentarios)
     <div class="observaciones" style="margin-top:3mm;">
-        <div class="bold">COMENTARIOS:</div>
-        <div style="margin-top:2px;">{{ $order->comentarios }}</div>
+        <div style="margin-top:2px;font-size:15px;">{{ $order->comentarios }}</div>
     </div>
     @endif
 
