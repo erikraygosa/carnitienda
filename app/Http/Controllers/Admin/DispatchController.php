@@ -51,6 +51,7 @@ class DispatchController extends Controller implements HasMiddleware
                 'agregarPedidos', 'agregarCxc',
             ]),
             new Middleware('can:cerrar despachos', only: ['cerrarTraspasos', 'cerrarCobranza', 'cerrarCompleto']),
+            new Middleware('can:reabrir despachos', only: ['reabrir']),
         ];
     }
 
@@ -1484,6 +1485,35 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
         }
 
         return back()->with('swal', ['icon' => 'success', 'title' => 'Despacho cerrado', 'text' => 'Traspasos y cobranza quedaron cerrados por completo.']);
+    }
+
+    /**
+     * Reabre un despacho ya CERRADO para poder seguirle agregando pedidos —
+     * permiso especial ('reabrir despachos'), no cualquiera con "editar
+     * despachos" puede hacerlo. Igual que volverAPlaneado() (EN_RUTA →
+     * PLANEADO), pero desde CERRADO: aquí los pedidos ya están en su estado
+     * final (ENTREGADO/NO_ENTREGADO), así que no hay que revertir nada de
+     * ellos — solo destrabar el despacho y limpiar los cierres parciales
+     * para que, al volver a cerrarlo, cerrarTraspasos()/cerrarCobranza()
+     * vuelvan a validar TODO (incluyendo lo que se agregue ahora), no solo
+     * lo que ya estaba antes.
+     */
+    public function reabrir(Dispatch $dispatch)
+    {
+        if ($dispatch->status !== 'CERRADO') {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo un despacho CERRADO se puede reabrir.']);
+        }
+
+        $dispatch->update([
+            'status'               => 'PLANEADO',
+            'cerrado_at'           => null,
+            'traspasos_cerrado_at' => null,
+            'cobranza_cerrado_at'  => null,
+        ]);
+
+        $this->log->log($dispatch, 'CAMBIO_ESTADO', 'CERRADO', 'PLANEADO', null, 'Despacho reabierto para agregar más pedidos.');
+
+        return back()->with('swal', ['icon' => 'success', 'title' => 'Despacho reabierto', 'text' => 'Ya puedes agregarle más pedidos, traspasos o CxC.']);
     }
 
     /**

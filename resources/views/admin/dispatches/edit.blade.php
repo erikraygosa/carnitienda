@@ -92,6 +92,16 @@
             <span class="px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{{ ($dispatch->ronda ?? 1) == 2 ? '2da ruta' : '1ra ruta' }}</span>
             <span class="text-sm text-gray-500">Chofer: <strong>{{ $dispatch->driver?->nombre ?? '—' }}</strong></span>
             <span class="text-sm text-gray-500">Fecha: <strong>{{ optional($dispatch->fecha)->format('d/m/Y H:i') }}</strong></span>
+            @if($dispatch->status === 'CERRADO' && auth()->user()?->can('reabrir despachos'))
+                <form action="{{ route('admin.dispatches.reabrir', $dispatch) }}" method="POST" class="ml-auto">
+                    @csrf
+                    <button type="submit"
+                            onclick="return confirm('¿Reabrir este despacho? Se destraba para agregarle más pedidos, traspasos o CxC — tendrás que volver a cerrarlo (traspasos y cobranza) cuando termines.')"
+                            class="inline-flex px-3 py-1.5 text-xs rounded-md bg-amber-500 text-white hover:bg-amber-600">
+                        ↩ Reabrir despacho
+                    </button>
+                </form>
+            @endif
         </div>
 
         @if(!$locked)
