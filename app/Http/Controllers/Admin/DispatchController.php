@@ -467,6 +467,7 @@ class DispatchController extends Controller implements HasMiddleware
         }
 
         $this->log->log($dispatch, 'TRASPASOS_AGREGADOS', null, null, null, count($transfers) . ' traspaso(s) agregado(s): ' . $transfers->pluck('folio')->implode(', '));
+        $this->regresarAEnRutaSiYaSalio($dispatch);
         return back()->with('swal', ['icon' => 'success', 'title' => 'Agregado', 'text' => count($transfers) . ' traspaso(s) agregado(s) al despacho.']);
     }
 
@@ -497,6 +498,7 @@ class DispatchController extends Controller implements HasMiddleware
         }
 
         $this->log->log($dispatch, 'PEDIDOS_AGREGADOS', null, null, null, count($orders) . ' pedido(s) agregado(s): ' . $orders->pluck('folio')->implode(', '));
+        $this->regresarAEnRutaSiYaSalio($dispatch);
         return back()->with('swal', ['icon' => 'success', 'title' => 'Agregado', 'text' => count($orders) . ' pedido(s) agregado(s) al despacho.']);
     }
 
@@ -579,7 +581,46 @@ class DispatchController extends Controller implements HasMiddleware
 
         $nuevos = $notasPorCliente->count();
         $this->log->log($dispatch, 'CXC_AGREGADAS', null, null, null, $nuevos . ' cliente(s) con CxC agregado(s): ' . implode(' | ', $resumenCxc));
+        $this->regresarAEnRutaSiYaSalio($dispatch);
         return back()->with('swal', ['icon' => 'success', 'title' => 'Agregado', 'text' => $nuevos . ' cliente(s) agregado(s) al despacho.']);
+    }
+
+    /**
+     * Si el despacho ya había salido a ruta antes (en_ruta_at sigue con
+     * valor) y se agregó algo mientras seguía en PLANEADO — típico tras
+     * reabrir() un CERRADO — lo regresa a EN_RUTA: el chofer ya anda en la
+     * calle, dejarlo como si nunca hubiera salido no tiene sentido y
+     * bloquearía "Entregar" en lo recién agregado (exige status EN_RUTA).
+     * No aplica cuando volverAPlaneado() lo trajo de EN_RUTA a propósito
+     * (ese método sí limpia en_ruta_at, para permitir edición libre antes
+     * de volver a salir).
+     */
+    private function regresarAEnRutaSiYaSalio(Dispatch $dispatch): void
+    {
+        $dispatch->refresh();
+        if (! $dispatch->en_ruta_at || $dispatch->status !== 'PLANEADO') {
+            return;
+        }
+
+        $dispatch->update(['status' => 'EN_RUTA']);
+
+        $dispatch->load('items.salesOrder');
+        foreach ($dispatch->items as $item) {
+            $order = $item->salesOrder;
+            if ($order && in_array($order->status, ['PROCESADO', 'DESPACHADO'])) {
+                $order->update([
+                    'status'     => 'EN_RUTA',
+                    'en_ruta_at' => now(),
+                    'driver_id'  => $dispatch->driver_id ?? $order->driver_id,
+                ]);
+            }
+        }
+
+        StockTransfer::where('dispatch_id', $dispatch->id)
+            ->where('status', 'ASIGNADO')
+            ->update(['status' => 'EN_RUTA']);
+
+        $this->log->log($dispatch, 'CAMBIO_ESTADO', 'PLANEADO', 'EN_RUTA', null, 'El chofer ya había salido — regresa a En Ruta tras agregarle más.');
     }
 
     // ── Update ────────────────────────────────────────────────────────────────
