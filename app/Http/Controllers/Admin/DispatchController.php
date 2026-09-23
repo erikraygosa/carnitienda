@@ -1541,10 +1541,16 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
      */
     public function reabrir(Dispatch $dispatch)
     {
-        if ($dispatch->status !== 'CERRADO') {
-            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo un despacho CERRADO se puede reabrir.']);
+        // También aplica a un EN_RUTA con algún lado ya cerrado (traspasos
+        // y/o cobranza) — ahí "Regresar a Planeado" normal no aparece
+        // (solo se ofrece cuando NINGÚN lado se ha cerrado todavía), así que
+        // sin esto un despacho que ya cerró un lado se quedaba sin forma de
+        // agregarle más nada aunque el chofer siguiera en la calle.
+        if (! in_array($dispatch->status, ['CERRADO', 'EN_RUTA'])) {
+            return back()->with('swal', ['icon' => 'error', 'title' => 'No permitido', 'text' => 'Solo un despacho CERRADO o EN_RUTA se puede reabrir.']);
         }
 
+        $old = $dispatch->status;
         $dispatch->update([
             'status'               => 'PLANEADO',
             'cerrado_at'           => null,
@@ -1552,7 +1558,9 @@ public function cobrarCxc(Request $request, Dispatch $dispatch, DispatchArAssign
             'cobranza_cerrado_at'  => null,
         ]);
 
-        $this->log->log($dispatch, 'CAMBIO_ESTADO', 'CERRADO', 'PLANEADO', null, 'Despacho reabierto para agregar más pedidos.');
+        // regresarAEnRutaSiYaSalio() lo regresará solo a EN_RUTA en cuanto
+        // se le agregue algo (en_ruta_at no se toca aquí a propósito).
+        $this->log->log($dispatch, 'CAMBIO_ESTADO', $old, 'PLANEADO', null, 'Despacho reabierto para agregar más pedidos.');
 
         return back()->with('swal', ['icon' => 'success', 'title' => 'Despacho reabierto', 'text' => 'Ya puedes agregarle más pedidos, traspasos o CxC.']);
     }

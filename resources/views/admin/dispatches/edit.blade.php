@@ -92,7 +92,15 @@
             <span class="px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{{ ($dispatch->ronda ?? 1) == 2 ? '2da ruta' : '1ra ruta' }}</span>
             <span class="text-sm text-gray-500">Chofer: <strong>{{ $dispatch->driver?->nombre ?? '—' }}</strong></span>
             <span class="text-sm text-gray-500">Fecha: <strong>{{ optional($dispatch->fecha)->format('d/m/Y H:i') }}</strong></span>
-            @if($dispatch->status === 'CERRADO' && auth()->user()?->can('reabrir despachos'))
+            @php
+                // Un EN_RUTA con algún lado ya cerrado (traspasos y/o
+                // cobranza) no tiene el botón normal "Regresar a Planeado"
+                // (ese solo aparece si NINGÚN lado se cerró) — a esos también
+                // les aplica "Reabrir", igual que a un CERRADO completo.
+                $puedeReabrir = $dispatch->status === 'CERRADO'
+                    || ($dispatch->status === 'EN_RUTA' && ($dispatch->traspasos_cerrado_at || $dispatch->cobranza_cerrado_at));
+            @endphp
+            @if($puedeReabrir && auth()->user()?->can('reabrir despachos'))
                 <form action="{{ route('admin.dispatches.reabrir', $dispatch) }}" method="POST" class="ml-auto">
                     @csrf
                     <button type="submit"
