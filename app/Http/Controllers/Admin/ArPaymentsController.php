@@ -61,7 +61,7 @@ class ArPaymentsController extends Controller implements HasMiddleware
                   ->orWhere('saldo_pendiente', '>', 0);
             })
             ->orderBy('fecha')
-            ->get(['id','folio','fecha','total','saldo_pendiente']);
+            ->get(['id','folio','fecha','entregado_at','total','saldo_pendiente']);
     }
 
     /**
@@ -82,7 +82,7 @@ class ArPaymentsController extends Controller implements HasMiddleware
                   ->orWhere('saldo_pendiente', '>', 0);
             })
             ->orderBy('fecha')
-            ->get(['id','folio','fecha','total','saldo_pendiente']);
+            ->get(['id','folio','fecha','entregado_at','total','saldo_pendiente']);
     }
 
     /**
@@ -116,7 +116,9 @@ class ArPaymentsController extends Controller implements HasMiddleware
             ->map(fn($o) => [
                 'id'              => $o->id,
                 'folio'           => $o->folio,
-                'fecha'           => \Carbon\Carbon::parse($o->fecha)->format('d/m/Y'),
+                // Fecha de entrega (cuando se "abrió" la cuenta con el
+                // cliente), no la de captura del pedido.
+                'fecha'           => \Carbon\Carbon::parse($o->entregado_at ?? $o->fecha)->format('d/m/Y'),
                 'total'           => (float) $o->total,
                 'saldo_pendiente' => ($o->saldo_pendiente !== null && (float)$o->saldo_pendiente > 0)
                     ? (float) $o->saldo_pendiente
@@ -127,7 +129,7 @@ class ArPaymentsController extends Controller implements HasMiddleware
             ->map(fn($s) => [
                 'id'              => $s->id,
                 'folio'           => $s->folio,
-                'fecha'           => \Carbon\Carbon::parse($s->fecha)->format('d/m/Y'),
+                'fecha'           => \Carbon\Carbon::parse($s->entregado_at ?? $s->fecha)->format('d/m/Y'),
                 'total'           => (float) $s->total,
                 'saldo_pendiente' => ($s->saldo_pendiente !== null && (float)$s->saldo_pendiente > 0)
                     ? (float) $s->saldo_pendiente

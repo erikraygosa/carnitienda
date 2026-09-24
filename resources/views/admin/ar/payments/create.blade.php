@@ -68,7 +68,7 @@
                                    {{ in_array($orden->id, old('order_ids', [])) ? 'checked' : '' }}>
                             <div class="flex-1">
                                 <div class="text-sm font-medium text-gray-800">{{ $orden->folio }}</div>
-                                <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($orden->fecha)->format('d/m/Y') }}</div>
+                                <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($orden->entregado_at ?? $orden->fecha)->format('d/m/Y') }}</div>
                             </div>
                             <div class="text-right">
                                 @if($tieneParcial)
@@ -102,7 +102,7 @@
                                     {{ $venta->folio }}
                                     <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 align-middle">Nota de venta</span>
                                 </div>
-                                <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($venta->fecha)->format('d/m/Y') }}</div>
+                                <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($venta->entregado_at ?? $venta->fecha)->format('d/m/Y') }}</div>
                             </div>
                             <div class="text-right">
                                 @if($ventaParcial)
