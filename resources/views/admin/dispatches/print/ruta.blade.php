@@ -128,7 +128,6 @@
                 <th style="width:24px;">#</th>
                <th style="width:100px;">Folio</th>
                 <th style="width:140px;">Cliente</th>
-                <th class="no-ticket">Dirección</th>
                 <th>Productos</th>
                 <th class="text-right" style="width:70px;">Total</th>
                 <th class="text-center no-ticket" style="width:30px;">✓</th>
@@ -142,11 +141,6 @@
                     if(!$o) continue;
                     $totalPedidos += $o->total;
                     if(in_array($o->payment_method, ['EFECTIVO','CONTRAENTREGA'])) $totalEfectivo += $o->total;
-                    $dir = collect([
-                        trim(($o->entrega_calle ?? '').' '.($o->entrega_numero ?? '')),
-                        $o->entrega_colonia ?? '',
-                        $o->entrega_ciudad  ?? '',
-                    ])->filter()->implode(', ');
                     $productosLineas = $o->items->map(fn($it) =>
                         ($it->product?->nombre ?? $it->descripcion)
                         . ' × ' . number_format((float)$it->cantidad, 2)
@@ -172,7 +166,6 @@
                         <div class="cliente" style="{{ $faltaSurtir ? 'color:#dc2626;' : '' }}">{{ $o->client?->nombre ?? '—' }}</div>
 
                     </td>
-                    <td class="no-ticket dir" style="{{ $faltaSurtir ? 'color:#dc2626;' : '' }}">{{ $dir ?: '—' }}</td>
                     <td class="prods" style="{{ $faltaSurtir ? 'color:#dc2626;' : '' }}">
                         @foreach($productosLineas as $linea)
                             <div>{{ $linea }}</div>
@@ -183,7 +176,7 @@
                 </tr>
             @endforeach
            <tr class="total-row">
-            <td colspan="5" class="text-right">Total pedidos:</td>
+            <td colspan="4" class="text-right">Total pedidos:</td>
             <td class="text-right">${{ number_format($totalPedidos, 2) }}</td>
             <td></td>
         </tr>
