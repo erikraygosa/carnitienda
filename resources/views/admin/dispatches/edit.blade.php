@@ -1456,6 +1456,9 @@
             if (btnToggle && panel) {
                 btnToggle.addEventListener('click', function() {
                     panel.classList.toggle('hidden');
+                    if (!panel.classList.contains('hidden')) {
+                        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
                 });
             }
 
@@ -1484,6 +1487,9 @@
             if (btnToggle && panel) {
                 btnToggle.addEventListener('click', function() {
                     panel.classList.toggle('hidden');
+                    if (!panel.classList.contains('hidden')) {
+                        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
                 });
             }
 
@@ -1553,6 +1559,12 @@
             if (btnToggle && panel) {
                 btnToggle.addEventListener('click', function() {
                     panel.classList.toggle('hidden');
+                    // Sin esto, al abrir el panel parecía que el botón no
+                    // había hecho nada — se activaba fuera de la vista y
+                    // había que scrollear a mano para notarlo.
+                    if (!panel.classList.contains('hidden')) {
+                        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
                 });
             }
 
