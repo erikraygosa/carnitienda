@@ -212,7 +212,7 @@
 
             if (!data.rutas || data.rutas.length === 0) {
                 let sinRutasHtml = `<div class="text-center py-8 text-gray-400">Sin resultados para los filtros seleccionados.</div>`;
-                (data.cxc_asignadas || []).forEach(g => { sinRutasHtml += renderCxc(g); });
+                (data.cxc_asignadas || []).forEach(g => { sinRutasHtml += renderCxc(g, data.ar_payment_url); });
                 body.innerHTML = sinRutasHtml;
                 return;
             }
@@ -296,7 +296,7 @@
 
                 // CxC asignadas al chofer de esta misma ruta/despacho
                 if (cxcPorRuta[grupo.ruta]) {
-                    html += renderCxc(cxcPorRuta[grupo.ruta]);
+                    html += renderCxc(cxcPorRuta[grupo.ruta], data.ar_payment_url);
                     delete cxcPorRuta[grupo.ruta];
                 }
             });
@@ -310,7 +310,7 @@
             `;
 
             // Cualquier CxC cuya ruta no tuvo notas en este filtro (caso raro) va al final
-            Object.values(cxcPorRuta).forEach(g => { html += renderCxc(g); });
+            Object.values(cxcPorRuta).forEach(g => { html += renderCxc(g, data.ar_payment_url); });
 
             body.innerHTML = html;
         }
@@ -325,7 +325,19 @@
             return pedidoBadge(status, cls);
         }
 
-        function renderCxc(cxc) {
+        // Igual que liqBadge() para Pedidos: si sigue PENDIENTE/PARCIAL y se
+        // conoce el cliente, el badge abre "Cobrar CxC" con el cliente
+        // preseleccionado — antes esta tarjeta era solo de lectura y para
+        // abonar/liquidar había que ir a buscar al cliente a mano en otra
+        // pantalla.
+        function cxcLiqBadge(c, arPaymentUrl) {
+            const badge = cxcBadge(c.status);
+            if (!['PENDIENTE', 'PARCIAL'].includes(c.status) || !c.client_id || !arPaymentUrl) return badge;
+            const url = `${arPaymentUrl}?client_id=${c.client_id}`;
+            return `<a href="${url}" onclick="abrirCobroCxc(event, '${url}')" class="hover:opacity-75" title="Cobrar/abonar CxC de este cliente">${badge}</a>`;
+        }
+
+        function renderCxc(cxc, arPaymentUrl) {
             if (!cxc || !cxc.clientes || cxc.clientes.length === 0) return '';
 
             const rows = cxc.clientes.map(c => `
@@ -346,7 +358,7 @@
                         <div class="text-xs text-gray-400">Cobrado</div>
                         <div class="font-semibold text-emerald-700">${c.monto_cobrado > 0 ? fmtMoney(c.monto_cobrado) : '—'}</div>
                     </div>
-                    ${cxcBadge(c.status)}
+                    ${cxcLiqBadge(c, arPaymentUrl)}
                 </div>
             `).join('');
 

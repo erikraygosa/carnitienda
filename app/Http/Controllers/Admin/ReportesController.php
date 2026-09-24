@@ -253,6 +253,7 @@ class ReportesController extends Controller implements HasMiddleware
 
             return [
                 'ruta'              => $a->ruta_nombre ?? 'Sin ruta',
+                'client_id'         => $a->client_id,
                 'cliente'           => $a->cliente_nombre ?? '—',
                 'saldo_asignado'    => $saldoAsignado,
                 'saldo_pendiente'   => $saldoPendiente,
