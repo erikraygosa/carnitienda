@@ -994,9 +994,9 @@
                                 ->where('status', 'ENTREGADO')
                                 ->whereNull('cobrado_at')
                                 ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
-                                {{-- Si el cliente ya tiene una asignación en ESTE despacho, no
-                                     repetir las notas que ya están ahí — solo mostrar las que
-                                     de verdad se le pueden sumar. --}}
+                                // Si el cliente ya tiene una asignación en ESTE despacho, no
+                                // repetir las notas que ya están ahí — solo mostrar las que
+                                // de verdad se le pueden sumar.
                                 ->whereNotIn('id', function ($sub) use ($dispatch) {
                                     $sub->select('dispatch_ar_assignment_orders.sales_order_id')
                                         ->from('dispatch_ar_assignment_orders')
