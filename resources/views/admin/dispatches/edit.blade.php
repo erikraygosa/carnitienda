@@ -994,6 +994,15 @@
                                 ->where('status', 'ENTREGADO')
                                 ->whereNull('cobrado_at')
                                 ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
+                                {{-- Si el cliente ya tiene una asignación en ESTE despacho, no
+                                     repetir las notas que ya están ahí — solo mostrar las que
+                                     de verdad se le pueden sumar. --}}
+                                ->whereNotIn('id', function ($sub) use ($dispatch) {
+                                    $sub->select('dispatch_ar_assignment_orders.sales_order_id')
+                                        ->from('dispatch_ar_assignment_orders')
+                                        ->join('dispatch_ar_assignments', 'dispatch_ar_assignments.id', '=', 'dispatch_ar_assignment_orders.dispatch_ar_assignment_id')
+                                        ->where('dispatch_ar_assignments.dispatch_id', $dispatch->id);
+                                })
                                 ->get(['id','folio','fecha','programado_para','total','saldo_pendiente']);
                         @endphp
                         <div class="border rounded-lg overflow-hidden cxc-disp-row" data-search="{{ strtolower($cd->nombre) }}" data-route="{{ $cd->shipping_route_id ?? '' }}">

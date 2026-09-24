@@ -397,10 +397,14 @@ class DispatchController extends Controller implements HasMiddleware
                 ->orderByDesc('fecha')
                 ->get(['id','folio','client_id','shipping_route_id','ronda','status','total','programado_para','payment_method','ticket_impreso']);
 
-            $yaAsignados = $dispatch->arAssignments->pluck('client_id');
             // Mismo filtro que en create(): solo clientes con al menos una
             // nota de PEDIDO asignable — una Nota de Venta (POS) no entra a
-            // despacho aunque genere saldo en ar_movements.
+            // despacho aunque genere saldo en ar_movements. Ya NO se excluye
+            // a un cliente solo por ya tener una asignación en este mismo
+            // despacho — agregarCxc() ahora le suma las notas nuevas a esa
+            // asignación existente en vez de saltárselo. Lo que sí se
+            // descuenta son las notas que ya están en esa asignación, para
+            // no ofrecerlas de nuevo como si fueran candidatas.
             $clientesConSaldoDisponibles = DB::table('ar_movements')
                 ->join('clients', 'clients.id', '=', 'ar_movements.client_id')
                 ->selectRaw("
@@ -411,8 +415,7 @@ class DispatchController extends Controller implements HasMiddleware
                 ")
                 ->groupBy('ar_movements.client_id', 'clients.nombre', 'clients.shipping_route_id')
                 ->havingRaw("SUM(CASE WHEN ar_movements.tipo = 'CARGO' THEN ar_movements.monto ELSE -ar_movements.monto END) > 0")
-                ->whereNotIn('ar_movements.client_id', $yaAsignados->isNotEmpty() ? $yaAsignados : [0])
-                ->whereExists(function ($q) {
+                ->whereExists(function ($q) use ($dispatch) {
                     $q->select(DB::raw(1))
                       ->from('sales_orders')
                       ->whereColumn('sales_orders.client_id', 'ar_movements.client_id')
@@ -421,6 +424,12 @@ class DispatchController extends Controller implements HasMiddleware
                       ->whereNull('sales_orders.cobrado_at')
                       ->where(function ($q2) {
                           $q2->whereNull('sales_orders.saldo_pendiente')->orWhere('sales_orders.saldo_pendiente', '>', 0);
+                      })
+                      ->whereNotIn('sales_orders.id', function ($sub) use ($dispatch) {
+                          $sub->select('dispatch_ar_assignment_orders.sales_order_id')
+                              ->from('dispatch_ar_assignment_orders')
+                              ->join('dispatch_ar_assignments', 'dispatch_ar_assignments.id', '=', 'dispatch_ar_assignment_orders.dispatch_ar_assignment_id')
+                              ->where('dispatch_ar_assignments.dispatch_id', $dispatch->id);
                       });
                 })
                 ->orderBy('clients.nombre')
@@ -543,40 +552,54 @@ class DispatchController extends Controller implements HasMiddleware
             'notas_ar.required' => 'Selecciona al menos una nota.',
         ]);
 
-        $yaAsignados = $dispatch->arAssignments()->pluck('client_id')->all();
-
         // Igual que en store(): se asigna solo el saldo de las notas
-        // seleccionadas, no todo el saldo del cliente. Un cliente que ya
-        // tiene una asignación en este despacho se salta por completo — no
-        // hay forma de "sumarle" más notas a una asignación existente sin
-        // perder de vista cuánto llevaba cobrado ya.
+        // seleccionadas, no todo el saldo del cliente. Si el cliente YA
+        // tiene una asignación en este despacho, las notas nuevas se le
+        // suman a esa misma asignación (recalculando el saldo sobre TODAS
+        // sus notas, viejas + nuevas) en vez de saltárselo por completo —
+        // antes no había forma de agregarle más notas a una asignación ya
+        // existente (caso real: SO-20260924-1551, cliente con una
+        // asignación pendiente previa en el mismo despacho).
+        $asignacionesExistentes = $dispatch->arAssignments()->get()->keyBy('client_id');
+
         $notasPorCliente = SalesOrder::whereIn('id', $data['notas_ar'])
             ->whereNotNull('client_id')
             ->get(['id', 'client_id', 'folio', 'total', 'saldo_pendiente'])
-            ->groupBy('client_id')
-            ->filter(fn ($notas, $clientId) => ! in_array($clientId, $yaAsignados));
+            ->groupBy('client_id');
 
         if ($notasPorCliente->isEmpty()) {
-            return back()->with('swal', ['icon' => 'info', 'title' => 'Sin cambios', 'text' => 'Esos clientes ya estaban asignados a este despacho.']);
+            return back()->with('swal', ['icon' => 'info', 'title' => 'Sin cambios', 'text' => 'No se encontraron notas válidas para agregar.']);
         }
 
         $resumenCxc = [];
         foreach ($notasPorCliente as $clientId => $notas) {
-            $saldoAsignado = $notas->sum(fn ($n) => ($n->saldo_pendiente !== null && (float) $n->saldo_pendiente > 0)
+            $montoNotasNuevas = $notas->sum(fn ($n) => ($n->saldo_pendiente !== null && (float) $n->saldo_pendiente > 0)
                 ? (float) $n->saldo_pendiente
                 : (float) $n->total);
 
-            $assignment = DispatchArAssignment::create([
-                'dispatch_id'    => $dispatch->id,
-                'client_id'      => $clientId,
-                'saldo_asignado' => round($saldoAsignado, 2),
-                'monto_cobrado'  => 0,
-                'status'         => 'PENDIENTE',
-            ]);
-            $assignment->orders()->attach($notas->pluck('id'));
+            $assignment = $asignacionesExistentes->get($clientId);
+
+            if ($assignment) {
+                $assignment->orders()->syncWithoutDetaching($notas->pluck('id'));
+
+                $todasLasNotas = $assignment->orders()->get(['sales_orders.id', 'total', 'saldo_pendiente']);
+                $saldoTotal = $todasLasNotas->sum(fn ($n) => ($n->saldo_pendiente !== null && (float) $n->saldo_pendiente > 0)
+                    ? (float) $n->saldo_pendiente
+                    : (float) $n->total);
+                $assignment->update(['saldo_asignado' => round($saldoTotal, 2)]);
+            } else {
+                $assignment = DispatchArAssignment::create([
+                    'dispatch_id'    => $dispatch->id,
+                    'client_id'      => $clientId,
+                    'saldo_asignado' => round($montoNotasNuevas, 2),
+                    'monto_cobrado'  => 0,
+                    'status'         => 'PENDIENTE',
+                ]);
+                $assignment->orders()->attach($notas->pluck('id'));
+            }
 
             $clienteNombre = Client::find($clientId)?->nombre ?? "cliente #{$clientId}";
-            $resumenCxc[] = "{$clienteNombre}: " . $notas->pluck('folio')->implode(', ') . ' ($' . number_format($saldoAsignado, 2) . ')';
+            $resumenCxc[] = "{$clienteNombre}: " . $notas->pluck('folio')->implode(', ') . ' ($' . number_format($montoNotasNuevas, 2) . ')';
         }
 
         $nuevos = $notasPorCliente->count();
