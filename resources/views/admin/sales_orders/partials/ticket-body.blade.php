@@ -156,10 +156,15 @@
             <td>Fecha:</td>
             <td class="right">{{ optional($order->programado_para ?? $order->fecha)->format('d/m/Y') }}</td>
         </tr>
+        {{-- La hora debe ser la de cuando se surtió el pedido (para que
+             coincida con la salida real de la ruta), no la de captura del
+             pedido — si todavía no se ha surtido, no hay hora que mostrar. --}}
+        @if($order->despachado_at)
         <tr>
             <td>Hora:</td>
-            <td class="right">{{ optional($order->fecha)->format('h:i:s a') }}</td>
+            <td class="right">{{ $order->despachado_at->format('h:i:s a') }}</td>
         </tr>
+        @endif
     </table>
 
     <hr class="dashed">
@@ -211,7 +216,6 @@
     <hr class="dashed">
 
     {{-- PARTIDAS --}}
-    <div class="sm bold center" style="margin-bottom:3px;">Emisión de notas de Producto</div>
     <table class="items">
         <thead>
             <tr>
