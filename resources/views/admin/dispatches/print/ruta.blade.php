@@ -127,6 +127,7 @@
             <tr>
                 <th style="width:24px;">#</th>
                <th style="width:100px;">Folio</th>
+                <th style="width:80px;">Fecha</th>
                 <th style="width:140px;">Cliente</th>
                 <th class="text-right" style="width:70px;">Total</th>
                 <th class="text-center no-ticket" style="width:30px;">✓</th>
@@ -156,6 +157,7 @@
                             <div style="font-size:9px;font-weight:bold;color:#dc2626;">⏳ FALTA SURTIR</div>
                         @endif
                     </td>
+                    <td style="{{ $faltaSurtir ? 'color:#dc2626;' : '' }}">{{ optional($o->programado_para ?? $o->fecha)->format('d/m/Y') }}</td>
                     <td>
                         <div class="cliente" style="{{ $faltaSurtir ? 'color:#dc2626;' : '' }}">{{ $o->client?->nombre ?? '—' }}</div>
 
@@ -165,7 +167,7 @@
                 </tr>
             @endforeach
            <tr class="total-row">
-            <td colspan="3" class="text-right">Total pedidos:</td>
+            <td colspan="4" class="text-right">Total pedidos:</td>
             <td class="text-right">${{ number_format($totalPedidos, 2) }}</td>
             <td></td>
         </tr>
