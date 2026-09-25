@@ -225,12 +225,41 @@
             </tr>
         </thead>
         <tbody>
+            @php
+                // Nota capturada en el Panel de Surtido para este producto en
+                // particular (DispatchItemLine.nota) — se muestra a nivel de
+                // cada partida, arriba de su precio, no como un bloque
+                // aparte al final del ticket.
+                $notasPorItem = $order->dispatchItem?->lines->pluck('nota', 'sales_order_item_id')->filter() ?? collect();
+            @endphp
             @foreach($order->items as $it)
             @continue((float)$it->cantidad <= 0)
+            {{-- Presentación (num_cajas) en la MISMA línea que cantidad +
+                 producto, con letra un poco más chica, para que quepan
+                 juntos en el ancho del ticket sin partirse en varios
+                 renglones. El texto respeta la presentación elegida
+                 (Cajas/Piezas), antes siempre decía "CAJAS" aunque fueran
+                 piezas. --}}
+            @php
+                $tieneCajas    = (int) ($it->num_cajas ?? 0) > 0;
+                $presLabelSing = $it->presentacion === 'PIEZAS' ? 'PIEZA' : 'CAJA';
+                $presLabelPlur = $it->presentacion === 'PIEZAS' ? 'PIEZAS' : 'CAJAS';
+            @endphp
             <tr>
-                <td colspan="3">{{ number_format((float)$it->cantidad, 2) }}
-                    {{ strtoupper($it->descripcion ?: ($it->product->nombre ?? '#'.$it->product_id)) }}</td>
+                <td colspan="3" style="font-size:12px;"><span style="font-size:15px;">{{ number_format((float)$it->cantidad, 2) }}</span>
+                    {{ strtoupper($it->descripcion ?: ($it->product->nombre ?? '#'.$it->product_id)) }}
+                    @if($tieneCajas)
+                    <span style="font-size:11px;">{{ $it->num_cajas }} {{ (int)$it->num_cajas === 1 ? $presLabelSing : $presLabelPlur }}</span>
+                    @endif
+                </td>
             </tr>
+            @if($notasPorItem->get($it->id))
+            <tr>
+                <td colspan="3" class="sm" style="font-style:italic;padding-bottom:2px;">
+                    📝 {{ $notasPorItem->get($it->id) }}
+                </td>
+            </tr>
+            @endif
             <tr class="item-precio-row">
                 <td colspan="3">
                     <div style="display:flex; justify-content:space-between;">
@@ -246,40 +275,11 @@
                 </td>
             </tr>
             @endif
-            {{-- num_cajas: capturado al crear el pedido o, si no se puso ahí,
-                 durante Salida de Producto al momento de surtir — cualquiera
-                 de los dos casos queda en el mismo campo, así que se imprime
-                 igual sin importar de dónde salió. --}}
-            @if((int)($it->num_cajas ?? 0) > 0)
-            <tr>
-                <td colspan="3" class="sm" style="padding-bottom:2px;">
-                    {{ $it->num_cajas }} {{ (int)$it->num_cajas === 1 ? 'CAJA' : 'CAJAS' }}
-                </td>
-            </tr>
-            @endif
             @endforeach
         </tbody>
     </table>
 
     <hr class="dashed">
-
-    {{-- COMENTARIOS DEL SURTIDO: la nota que se captura en el Panel de
-         Surtido (/admin/despacho) al momento de despachar el pedido, no la
-         del pedido en sí — se guarda por línea en DispatchItemLine.nota. --}}
-    @php
-        $notasSurtido = $order->dispatchItem?->lines
-            ->pluck('nota')
-            ->filter()
-            ->unique()
-            ->values() ?? collect();
-    @endphp
-    @if($notasSurtido->isNotEmpty())
-    <div class="observaciones" style="margin-bottom:2mm;">
-        @foreach($notasSurtido as $nota)
-        <div style="margin-top:2px;font-size:15px;">{{ $nota }}</div>
-        @endforeach
-    </div>
-    @endif
 
     {{-- TOTALES --}}
     <table class="totals">
