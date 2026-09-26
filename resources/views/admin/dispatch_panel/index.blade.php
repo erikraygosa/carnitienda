@@ -100,7 +100,7 @@
                             <tr
                                 data-order-id="{{ $pedido->id }}"
                                 data-item-id="{{ $item->id }}"
-                                data-search="{{ strtolower($pedido->folio . ' ' . ($pedido->client?->nombre ?? '') . ' ' . ($item->descripcion ?: ($item->product?->nombre ?? ''))) }}"
+                                data-search="{{ strtolower($pedido->folio . ' ' . ($pedido->client?->nombre ?? '') . ' ' . ($item->product?->nombre ?? '') . ' ' . ($item->descripcion ?? '')) }}"
                                 class="transition {{ $itemIdx === 0 ? 'border-t-2 border-gray-300' : 'border-t border-gray-100' }} {{ $yaDespachado ? 'bg-emerald-50 hover:bg-emerald-100' : 'hover:bg-indigo-50' }}"
                             >
                                 {{-- Folio solo en primera fila del pedido --}}
@@ -154,10 +154,24 @@
                                         </span>
                                     @endif
                                 </td>
+                                @php
+                                    // El nombre del producto siempre debe verse aquí — la
+                                    // "descripción" es un comentario que deja quien captura el
+                                    // pedido (instrucciones para surtirlo), no un reemplazo del
+                                    // producto. Se muestra aparte solo cuando de verdad trae algo
+                                    // distinto al nombre del producto (si no hay producto de
+                                    // catálogo, ahí sí es el único identificador del renglón).
+                                    $descTexto    = trim((string) ($item->descripcion ?? ''));
+                                    $esComentario = $item->product && $descTexto !== ''
+                                        && mb_strtolower($descTexto) !== mb_strtolower($item->product->nombre);
+                                @endphp
                                 <td class="px-3 py-2 {{ $yaDespachado ? 'text-emerald-800 font-medium' : 'text-gray-800' }}">
-                                    {{ $item->descripcion ?: ($item->product?->nombre ?? '—') }}
+                                    {{ $item->product?->nombre ?: ($descTexto ?: '—') }}
                                     @if($yaDespachado)
                                         <span class="ml-1 text-emerald-600" title="Ya guardado">✓</span>
+                                    @endif
+                                    @if($esComentario)
+                                        <div class="text-xs text-amber-600 italic">📝 {{ $descTexto }}</div>
                                     @endif
                                 </td>
                                 <td class="px-3 py-2 text-right tabular-nums {{ $yaDespachado ? 'text-emerald-700' : 'text-gray-600' }}">

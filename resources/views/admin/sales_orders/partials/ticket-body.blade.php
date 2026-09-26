@@ -225,13 +225,6 @@
             </tr>
         </thead>
         <tbody>
-            @php
-                // Nota capturada en el Panel de Surtido para este producto en
-                // particular (DispatchItemLine.nota) — se muestra a nivel de
-                // cada partida, arriba de su precio, no como un bloque
-                // aparte al final del ticket.
-                $notasPorItem = $order->dispatchItem?->lines->pluck('nota', 'sales_order_item_id')->filter() ?? collect();
-            @endphp
             @foreach($order->items as $it)
             @continue((float)$it->cantidad <= 0)
             {{-- Presentación (num_cajas) en la MISMA línea que cantidad +
@@ -245,21 +238,21 @@
                 $presLabelSing = $it->presentacion === 'PIEZAS' ? 'PIEZA' : 'CAJA';
                 $presLabelPlur = $it->presentacion === 'PIEZAS' ? 'PIEZAS' : 'CAJAS';
             @endphp
+            {{-- El nombre del PRODUCTO siempre debe salir en la nota, aunque
+                 quien capturó el pedido haya modificado la "descripción" —
+                 esa descripción es un comentario interno para logística
+                 (para que Monse sepa cómo surtirlo en el Panel de Surtido),
+                 no algo que deba verse en el ticket del cliente. Solo se usa
+                 como identificador si el renglón no tiene producto de
+                 catálogo (item libre). --}}
             <tr>
                 <td colspan="3" style="font-size:12px;"><span style="font-size:15px;">{{ number_format((float)$it->cantidad, 2) }}</span>
-                    {{ strtoupper($it->descripcion ?: ($it->product->nombre ?? '#'.$it->product_id)) }}
+                    {{ strtoupper($it->product->nombre ?? ($it->descripcion ?: '#'.$it->product_id)) }}
                     @if($tieneCajas)
                     <span style="font-size:11px;">{{ $it->num_cajas }} {{ (int)$it->num_cajas === 1 ? $presLabelSing : $presLabelPlur }}</span>
                     @endif
                 </td>
             </tr>
-            @if($notasPorItem->get($it->id))
-            <tr>
-                <td colspan="3" class="sm" style="font-style:italic;padding-bottom:2px;">
-                    📝 {{ $notasPorItem->get($it->id) }}
-                </td>
-            </tr>
-            @endif
             <tr class="item-precio-row">
                 <td colspan="3">
                     <div style="display:flex; justify-content:space-between;">
