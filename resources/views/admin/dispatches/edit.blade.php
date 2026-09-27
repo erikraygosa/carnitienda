@@ -23,7 +23,8 @@
     </x-slot>
 
     @php
-        $fechaVal    = old('fecha', optional($dispatch->fecha)->format('Y-m-d\TH:i'));
+        $fechaVal    = old('fecha', optional($dispatch->fecha)->format('Y-m-d'));
+        $fechaHora   = optional($dispatch->fecha)->format('H:i') ?: '08:00';
         $statusClass = $statusClasses[$dispatch->status] ?? 'bg-slate-100 text-slate-700';
         $locked      = in_array($dispatch->status, ['CERRADO','CANCELADO']);
         $enRuta      = $dispatch->status === 'EN_RUTA';
@@ -151,8 +152,12 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-                    <input type="datetime-local" name="fecha" value="{{ $fechaVal }}" required
+                    <input type="date" id="fecha_date" value="{{ $fechaVal }}" required
                            class="w-full rounded-md border-gray-300 text-sm">
+                    {{-- La hora no se usa en ningún lado — se manda oculta,
+                         conservando la que ya tenía el despacho, para no
+                         tocar la validación/columna 'fecha' (datetime). --}}
+                    <input type="hidden" name="fecha" id="fecha_full" value="{{ $fechaVal }}T{{ $fechaHora }}">
                 </div>
             </div>
             <div class="mt-3">
@@ -161,6 +166,25 @@
                           class="w-full rounded-md border-gray-300 text-sm">{{ old('notas',$dispatch->notas) }}</textarea>
             </div>
         </form>
+        @endif
+
+        @if($locked && $dispatch->status === 'CERRADO')
+            {{-- Un despacho CERRADO ya no se puede editar de forma general,
+                 pero la fecha de envío sí se debe poder corregir (por
+                 ejemplo si se capturó mal), sin tener que reabrirlo. --}}
+            <form action="{{ route('admin.dispatches.update', $dispatch) }}" method="POST" class="flex items-end gap-2"
+                  onsubmit="document.getElementById('fecha_full_cerrado').value = document.getElementById('fecha_date_cerrado').value + 'T{{ $fechaHora }}';">
+                @csrf @method('PUT')
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de envío</label>
+                    <input type="date" id="fecha_date_cerrado" value="{{ old('fecha', $fechaVal) }}" required
+                           class="rounded-md border-gray-300 text-sm">
+                    <input type="hidden" name="fecha" id="fecha_full_cerrado" value="{{ $fechaVal }}T{{ $fechaHora }}">
+                </div>
+                <button type="submit" class="inline-flex px-3 py-1.5 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+                    Actualizar fecha
+                </button>
+            </form>
         @endif
 
         <div class="mt-4 flex flex-wrap gap-2">
@@ -1280,6 +1304,18 @@
     @endif
 
     <script>
+    // ── Fecha (solo día, hora fija oculta) ───────────────────────────────────
+    (function() {
+        var fechaDate = document.getElementById('fecha_date');
+        var fechaFull = document.getElementById('fecha_full');
+        var hora = '{{ $fechaHora }}';
+        if (fechaDate && fechaFull) {
+            fechaDate.addEventListener('change', function() {
+                fechaFull.value = (fechaDate.value || '') + 'T' + hora;
+            });
+        }
+    })();
+
     // ── Confirmación de acciones masivas (antes confirm() nativo) ───────────
     function confirmarAccionMasiva(btn, mensaje) {
         var form = btn.closest('form');

@@ -16,7 +16,7 @@
     </x-slot>
 
     @php
-        $valueFecha = old('fecha', now()->format('Y-m-d\TH:i'));
+        $valueFecha = old('fecha', now()->format('Y-m-d'));
         $selR = (string) old('shipping_route_id', '');
     @endphp
 
@@ -30,7 +30,7 @@
            
 
             @php
-    $valueFecha = old('fecha', now()->format('Y-m-d\TH:i'));
+    $valueFecha = old('fecha', now()->format('Y-m-d'));
     $selR = (string) old('shipping_route_id', '');
 @endphp
 
@@ -94,8 +94,12 @@
     {{-- Fecha --}}
     <div class="md:col-span-2">
         <label class="block text-sm font-medium text-gray-700 mb-1">Fecha <span class="text-red-500">*</span></label>
-        <input type="datetime-local" name="fecha" value="{{ $valueFecha }}" required
+        <input type="date" id="fecha_date" value="{{ $valueFecha }}" required
                class="w-full rounded-md border-gray-300 shadow-sm text-sm">
+        {{-- La hora no se usa en ningún lado — se manda una hora fija oculta
+             para no tocar la validación/columna 'fecha' (datetime) que ya
+             existe. El usuario solo ve y captura la fecha. --}}
+        <input type="hidden" name="fecha" id="fecha_full" value="{{ $valueFecha }}T08:00">
     </div>
 
 </div>
@@ -436,6 +440,15 @@
     <script>
     (function(){
         var selectedRoute = '{{ $selR }}';
+
+        // ── Fecha (solo día, hora fija oculta) ──────────────────────────────
+        var fechaDate = document.getElementById('fecha_date');
+        var fechaFull = document.getElementById('fecha_full');
+        if (fechaDate && fechaFull) {
+            fechaDate.addEventListener('change', function() {
+                fechaFull.value = (fechaDate.value || '') + 'T08:00';
+            });
+        }
 
         // ── Ruta ──────────────────────────────────────────────────────────
         function onRouteChange(val) {
