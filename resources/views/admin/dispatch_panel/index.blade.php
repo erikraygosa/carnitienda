@@ -78,9 +78,22 @@
                 </div>
             </div>
 
-            <div class="overflow-x-auto">
+            {{-- Notificación de pedidos nuevos: antes esto recargaba la
+                 página sola cada vez que detectaba un pedido nuevo — si
+                 Monse tenía el panel de Surtir abierto, se le cerraba y
+                 tenía que volver a buscar el pedido en el que iba. Ahora
+                 solo avisa; ella decide cuándo recargar. --}}
+            <div id="aviso-pedidos-nuevos" class="hidden mb-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                <span>🔔 Hay pedidos nuevos.</span>
+                <button type="button" onclick="location.reload()"
+                        class="px-3 py-1 text-xs rounded-md bg-amber-600 text-white hover:bg-amber-700 whitespace-nowrap">
+                    Recargar
+                </button>
+            </div>
+
+            <div class="overflow-x-auto max-h-[70vh] overflow-y-auto">
                 <table class="min-w-full text-sm">
-                    <thead class="bg-gray-50 border-b border-gray-200">
+                    <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                         <tr>
                             <th class="px-3 py-2 text-left font-medium text-gray-500">Folio</th>
                             <th class="px-3 py-2 text-left font-medium text-gray-500">Cliente</th>
@@ -202,19 +215,13 @@
                 </div>
             </div>
 
-            {{-- Paginación --}}
+            {{-- Antes había paginación (15 por página) con Anterior/Siguiente
+                 — Monse reportó que conforme se agregan más pedidos, los
+                 primeros terminan varias páginas atrás y hay que ir
+                 navegando para encontrarlos. Ahora se muestran todos y solo
+                 se navega con scroll dentro de la tabla (ver max-h arriba). --}}
             <div class="flex items-center justify-between mt-4 text-sm text-gray-600">
                 <span id="pagination-info"></span>
-                <div class="flex gap-2">
-                    <button id="btn-prev"
-                        class="px-3 py-1 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
-                        ← Anterior
-                    </button>
-                    <button id="btn-next"
-                        class="px-3 py-1 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
-                        Siguiente →
-                    </button>
-                </div>
             </div>
         </x-wire-card>
 
@@ -273,40 +280,26 @@
     var IMPRESION_ZPL_ACTIVA = @json($impresionZplActiva);
     var IMPRIMIR_POR_CAJAS   = @json($imprimirPorCajas);
     (function () {
-        // ── Filtro + paginación ──────────────────────────────────────────
+        // ── Filtro (sin paginación — todo visible, se navega con scroll) ──
         var tbody     = document.getElementById('pedidos-tbody');
         var noResults = document.getElementById('no-results');
-        var btnPrev   = document.getElementById('btn-prev');
-        var btnNext   = document.getElementById('btn-next');
         var pagInfo   = document.getElementById('pagination-info');
         var fSearch   = document.getElementById('filter-search');
-        var PER_PAGE  = 15, currentPage = 1, filteredRows = [];
+        var filteredRows = [];
 
         function applyFilters() {
             var s = fSearch.value.toLowerCase().trim();
-            filteredRows = Array.from(tbody.querySelectorAll('tr')).filter(function(r) {
+            var allRows = Array.from(tbody.querySelectorAll('tr'));
+            filteredRows = allRows.filter(function(r) {
                 return r.dataset.search.includes(s);
             });
-            currentPage = 1;
-            renderPage();
-        }
-
-        function renderPage() {
-            Array.from(tbody.querySelectorAll('tr')).forEach(function(r) { r.classList.add('hidden'); });
-            var start = (currentPage - 1) * PER_PAGE;
-            var end   = start + PER_PAGE;
-            filteredRows.slice(start, end).forEach(function(r) { r.classList.remove('hidden'); });
-            var total = filteredRows.length, totalPages = Math.ceil(total / PER_PAGE);
+            allRows.forEach(function(r) { r.classList.add('hidden'); });
+            filteredRows.forEach(function(r) { r.classList.remove('hidden'); });
+            var total = filteredRows.length;
             noResults.classList.toggle('hidden', total > 0);
-            pagInfo.textContent = total > 0
-                ? 'Mostrando ' + (start+1) + '–' + Math.min(end,total) + ' de ' + total
-                : '';
-            btnPrev.disabled = currentPage <= 1;
-            btnNext.disabled = currentPage >= totalPages;
+            pagInfo.textContent = total > 0 ? total + ' pedido(s)' : '';
         }
 
-        btnPrev.addEventListener('click', function() { currentPage--; renderPage(); });
-        btnNext.addEventListener('click', function() { currentPage++; renderPage(); });
         fSearch.addEventListener('input', applyFilters);
         applyFilters();
 
@@ -818,9 +811,14 @@
         }
 
         // ── Polling: detectar nuevos pedidos PROCESADOS ──────────────
+        // Antes esto recargaba la página sola en cuanto detectaba un pedido
+        // nuevo — si Monse tenía abierto el panel de Surtir de otro pedido,
+        // se le cerraba de golpe y tenía que volver a buscarlo. Ahora solo
+        // muestra un aviso con botón "Recargar"; ella decide cuándo.
         (function () {
             var POLL_URL     = '{{ route('admin.despacho.poll-count') }}';
             var knownCount = null; // null = primera carga, no notificar
+            var aviso      = document.getElementById('aviso-pedidos-nuevos');
 
             function poll() {
                 fetch(POLL_URL, { headers: { 'Accept': 'application/json' } })
@@ -830,8 +828,7 @@
                         if (knownCount === null) {
                             knownCount = count; // primer check: solo memorizar
                         } else if (count > knownCount) {
-                            // Nuevo pedido detectado → recargar automáticamente
-                            location.reload();
+                            aviso.classList.remove('hidden');
                         }
                     })
                     .catch(function() {}); // silencioso si falla
