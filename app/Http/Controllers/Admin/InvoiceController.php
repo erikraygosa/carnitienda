@@ -280,7 +280,15 @@ class InvoiceController extends Controller implements HasMiddleware
         ->first();
 
     $nextSerie = $series?->serie ?? 'A';
-    $nextFolio = $series ? ($series->folio_actual + 1) : 1;
+    // El contador 'folio_actual' puede quedar desincronizado si algún folio
+    // se guardó sin pasar por este flujo (ej. captura manual/de prueba) —
+    // en ese caso seguía sugiriendo un folio ya usado y facturar tronaba
+    // con error 500 (Duplicate entry) cada vez, sin forma de recuperarse
+    // solo. Se autocorrige tomando también el folio máximo ya usado.
+    $folioMaxUsado = (int) \App\Models\Invoice::where('serie', $nextSerie)
+        ->where('tipo_comprobante', 'I')
+        ->max('folio');
+    $nextFolio = max($series->folio_actual ?? 0, $folioMaxUsado) + 1;
 
     $timbresInfo = $this->timbresInfo();
 
@@ -376,7 +384,8 @@ public function store(Request $request)
 
     $invoice = null;
 
-    DB::transaction(function () use (&$invoice, $data, $ordenesACubrir, $notasACubrir) {
+    try {
+        DB::transaction(function () use (&$invoice, $data, $ordenesACubrir, $notasACubrir) {
         $subtotal  = 0;
         $iva       = 0;
         $ieps      = 0;
@@ -471,7 +480,16 @@ public function store(Request $request)
                 $series->update(['folio_actual' => $folioGuardado]);
             }
         }
-    });
+        });
+    } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+        // El folio sugerido ya se había usado (contador desincronizado o dos
+        // personas facturando al mismo tiempo) — antes esto tronaba con
+        // error 500 sin explicación. Ahora se avisa y se pide reintentar;
+        // create() ya recalcula el folio tomando en cuenta el máximo real.
+        return back()
+            ->with('swal', ['icon' => 'error', 'title' => 'Folio ya usado', 'text' => 'El folio sugerido ya existe. Vuelve a intentar — se recalculó el siguiente folio disponible.'])
+            ->withInput();
+    }
 
     $this->log->log($invoice, 'CREADO', null, 'BORRADOR');
     return redirect()->route('admin.invoices.edit', $invoice)
