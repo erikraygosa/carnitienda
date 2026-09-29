@@ -17,6 +17,13 @@
         ['id' => '02', 'name' => '02 – Sí objeto de impuesto'],
         ['id' => '03', 'name' => '03 – Sí objeto, no desglosado'],
     ];
+    // Default del negocio (Superadmin → Configuración → Facturación) — por
+    // default carnes = "01 No objeto de impuesto" / 0%, en vez del "02
+    // Tasa" fijo que traía antes cualquier producto nuevo.
+    $objetoImpDefault = \App\Models\SystemSetting::get('facturacion.objeto_imp_default', '01');
+    $ivaPctDefault    = (int) \App\Models\SystemSetting::get('facturacion.iva_pct_default', '0');
+    $tipoFactorDefault = $ivaPctDefault > 0 ? 'Tasa' : 'Exento';
+
     $tipoFactorOpts = [
         ['id' => 'Tasa',   'name' => 'Tasa'],
         ['id' => 'Exento', 'name' => 'Exento'],
@@ -111,7 +118,7 @@
             type="number" step="0.01" min="0" max="100"
             name="tasa_iva" label="Tasa IVA (%)"
             placeholder="0.00"
-            :value="old('tasa_iva', $isEdit ? $product->tasa_iva : 0)"
+            :value="old('tasa_iva', $isEdit ? $product->tasa_iva : $ivaPctDefault)"
             required
         />
 
@@ -218,12 +225,12 @@
                     class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200">
                 @foreach($objetoImpOpts as $opt)
                     <option value="{{ $opt['id'] }}"
-                        {{ old('sat_objeto_imp', $isEdit ? ($product->sat_objeto_imp ?? '02') : '02') === $opt['id'] ? 'selected' : '' }}>
+                        {{ old('sat_objeto_imp', $isEdit ? ($product->sat_objeto_imp ?? $objetoImpDefault) : $objetoImpDefault) === $opt['id'] ? 'selected' : '' }}>
                         {{ $opt['name'] }}
                     </option>
                 @endforeach
             </select>
-            <p class="mt-1 text-xs text-gray-400">c_ObjetoImp — casi siempre "02"</p>
+            <p class="mt-1 text-xs text-gray-400">c_ObjetoImp — default del negocio: "{{ $objetoImpDefault }}" (Superadmin → Configuración → Facturación)</p>
         </div>
 
         <div>
@@ -232,7 +239,7 @@
                     class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200">
                 @foreach($tipoFactorOpts as $opt)
                     <option value="{{ $opt['id'] }}"
-                        {{ old('sat_tipo_factor', $isEdit ? ($product->sat_tipo_factor ?? 'Tasa') : 'Tasa') === $opt['id'] ? 'selected' : '' }}>
+                        {{ old('sat_tipo_factor', $isEdit ? ($product->sat_tipo_factor ?? $tipoFactorDefault) : $tipoFactorDefault) === $opt['id'] ? 'selected' : '' }}>
                         {{ $opt['name'] }}
                     </option>
                 @endforeach

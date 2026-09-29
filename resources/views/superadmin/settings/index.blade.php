@@ -101,6 +101,37 @@
                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
             </div>
         </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-800">
+            <h4 class="text-sm text-gray-300 font-medium mb-1">Impuesto por defecto para productos sin configurar</h4>
+            <p class="text-xs text-gray-500 mb-3">
+                Se usa al facturar cuando un producto NO tiene su propio impuesto configurado
+                (Productos → editar → pestaña SAT). Por default carnes = "01 – No objeto de impuesto" y 0% IVA.
+                Un producto que sí tenga su impuesto configurado en su ficha siempre usa el suyo, no este default.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Objeto de impuesto por defecto</label>
+                    @php $objDefault = $facturacion['facturacion.objeto_imp_default']?->valor ?? '01'; @endphp
+                    <select name="facturacion_objeto_imp_default"
+                            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                        <option value="01" {{ $objDefault === '01' ? 'selected' : '' }}>01 — No objeto de impuesto</option>
+                        <option value="02" {{ $objDefault === '02' ? 'selected' : '' }}>02 — Sí objeto de impuesto</option>
+                        <option value="03" {{ $objDefault === '03' ? 'selected' : '' }}>03 — Sí objeto, no desglosado</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">% IVA por defecto</label>
+                    @php $ivaDefault = $facturacion['facturacion.iva_pct_default']?->valor ?? '0'; @endphp
+                    <select name="facturacion_iva_pct_default"
+                            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                        <option value="0"  {{ $ivaDefault === '0'  ? 'selected' : '' }}>0%</option>
+                        <option value="8"  {{ $ivaDefault === '8'  ? 'selected' : '' }}>8%</option>
+                        <option value="16" {{ $ivaDefault === '16' ? 'selected' : '' }}>16%</option>
+                    </select>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">

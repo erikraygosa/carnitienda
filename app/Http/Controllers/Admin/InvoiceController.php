@@ -245,14 +245,42 @@ class InvoiceController extends Controller implements HasMiddleware
     // a mano en esa línea (ver create.blade.php / edit.blade.php).
     private function productsMapForInvoices()
     {
+        // Objeto de impuesto / % IVA por defecto del negocio (Superadmin →
+        // Configuración → Facturación) — antes, si el producto no tenía
+        // nada en su ficha SAT, se dejaba la línea en blanco obligando a
+        // elegir el impuesto a mano en CADA factura. Como el negocio vende
+        // carne (por default "01 – No objeto de impuesto" / 0%), ahora ese
+        // caso usa este default configurable en vez de forzar captura
+        // manual repetida — un producto que SÍ tenga su propio impuesto en
+        // su ficha (ej. algo procesado con IVA) sigue usando el suyo,
+        // nunca este default.
+        $objetoImpDefault = \App\Models\SystemSetting::get('facturacion.objeto_imp_default', '01');
+        $ivaPctDefault    = (int) \App\Models\SystemSetting::get('facturacion.iva_pct_default', '0');
+
         return Product::orderBy('nombre')->get([
             'id', 'nombre', 'precio_base', 'unidad',
             'sat_clave_prod_serv', 'sat_clave_unidad',
             'sat_objeto_imp', 'sat_tipo_factor', 'sat_tasa_iva',
-        ])->keyBy('id')->map(function ($p) {
-            $configurado = filled($p->sat_clave_prod_serv)
-                && filled($p->sat_objeto_imp)
-                && ($p->sat_tipo_factor === 'Exento' || $p->sat_tasa_iva !== null);
+        ])->keyBy('id')->map(function ($p) use ($objetoImpDefault, $ivaPctDefault) {
+            // "02 – Sí objeto" con 0%/sin tasa NO cuenta como configuración
+            // propia real — es justo el residuo que dejaba el formulario de
+            // Productos antes de este fix (todo producto nuevo se guardaba
+            // con ese combo por default, sin que nadie lo hubiera elegido a
+            // propósito). 01/03 sí son deliberados aunque no lleven tasa.
+            $tieneImpuestoPropio = match (true) {
+                blank($p->sat_objeto_imp)        => false,
+                $p->sat_objeto_imp !== '02'       => true,
+                $p->sat_tipo_factor === 'Exento'  => true,
+                default => $p->sat_tasa_iva !== null && (float) $p->sat_tasa_iva > 0,
+            };
+
+            if ($tieneImpuestoPropio) {
+                $objetoImp = $p->sat_objeto_imp;
+                $ivaPct    = $p->sat_tipo_factor === 'Exento' ? 0 : (int) round(((float) $p->sat_tasa_iva) * 100);
+            } else {
+                $objetoImp = $objetoImpDefault;
+                $ivaPct    = $ivaPctDefault;
+            }
 
             return [
                 'nombre'          => $p->nombre,
@@ -260,11 +288,9 @@ class InvoiceController extends Controller implements HasMiddleware
                 'clave_prod_serv' => $p->sat_clave_prod_serv ?: '01010101',
                 'clave_unidad'    => $p->sat_clave_unidad ?: 'H87',
                 'unidad'          => $p->unidad ?? 'PZA',
-                'objeto_imp'      => $configurado ? $p->sat_objeto_imp : null,
-                'iva_pct'         => $configurado
-                    ? ($p->sat_tipo_factor === 'Exento' ? 0 : (int) round(((float) $p->sat_tasa_iva) * 100))
-                    : null,
-                'configurado'     => $configurado,
+                'objeto_imp'      => $objetoImp,
+                'iva_pct'         => $ivaPct,
+                'configurado'     => true,
             ];
         });
     }
