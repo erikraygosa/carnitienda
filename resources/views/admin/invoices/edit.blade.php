@@ -420,6 +420,25 @@
                 </script>
             @endif
 
+            @if($invoice->estatus === 'CANCELACION_PENDIENTE')
+                {{-- La cancelación se mandó al PAC pero el SAT puede tardar en
+                     confirmarla (o exigir que el receptor la acepte) — el
+                     sistema no la refresca solo, hay que consultarle al PAC
+                     si ya se confirmó. Antes no había ningún botón para esto
+                     en esta pantalla y la factura se quedaba "pendiente"
+                     aunque ya estuviera cancelada de verdad en el SAT. --}}
+                <x-wire-button href="{{ route('admin.invoices.pdf', $invoice) }}"
+                               gray outline xs target="_blank">
+                    Ver PDF
+                </x-wire-button>
+                <form action="{{ route('admin.invoices.refresh-cancellation', $invoice) }}" method="POST">
+                    @csrf
+                    <x-wire-button type="submit" amber xs>
+                        ↻ Verificar estatus en el SAT
+                    </x-wire-button>
+                </form>
+            @endif
+
             <span class="ml-auto px-2 py-1 text-xs rounded-full font-medium
                 {{ $invoice->estatus === 'TIMBRADA'  ? 'bg-emerald-100 text-emerald-700' :
                    ($invoice->estatus === 'CANCELADA' ? 'bg-rose-100 text-rose-700' :
