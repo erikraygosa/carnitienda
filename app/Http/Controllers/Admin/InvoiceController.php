@@ -758,10 +758,12 @@ public function pdfDownload(Invoice $invoice)
     protected function mapFromOrders(\Illuminate\Support\Collection $orders, int $clientId, bool $esNotas = false): array
     {
         $grupos = [];
+        $satMap = $this->productsMapForInvoices();
 
         foreach ($orders as $order) {
             foreach ($order->items as $it) {
                 $p   = $it->product;
+                $sat = $p ? ($satMap[$p->id] ?? null) : null;
                 // Agrupa por producto si existe; si es una partida libre sin
                 // producto (descripción a mano), agrupa por esa descripción
                 // — dos partidas libres con el mismo texto sí se combinan,
@@ -772,15 +774,19 @@ public function pdfDownload(Invoice $invoice)
                 $importe  = $cantidad * (float) $it->precio - (float) $it->descuento;
 
                 if (! isset($grupos[$key])) {
+                    // El "Producto / Concepto" del CFDI usa el nombre REAL
+                    // del catálogo, no la "descripción" (comentario interno
+                    // de captura) — mismo criterio que en itemDesdeProducto().
                     $grupos[$key] = [
                         'product_id'      => $it->product_id,
-                        'descripcion'     => $it->descripcion ?? ($p->nombre ?? ''),
-                        'clave_prod_serv' => $p->clave_prod_serv ?? null,
-                        'clave_unidad'    => $p->clave_unidad ?? null,
-                        'unidad'          => $p->unidad ?? null,
+                        'descripcion'     => $p->nombre ?? ($it->descripcion ?: ''),
+                        'clave_prod_serv' => $sat['clave_prod_serv'] ?? '01010101',
+                        'clave_unidad'    => $sat['clave_unidad']    ?? 'H87',
+                        'unidad'          => $sat['unidad']          ?? ($p->unidad ?? null),
                         'cantidad'        => 0.0,
                         'importe'         => 0.0,
-                        'iva_pct'         => (float) ($p?->tasa_iva ?? 0),
+                        'objeto_imp'      => $sat['objeto_imp'] ?? null,
+                        'iva_pct'         => $sat['iva_pct']    ?? null,
                     ];
                 }
 
@@ -800,7 +806,7 @@ public function pdfDownload(Invoice $invoice)
                 'cantidad'        => $g['cantidad'],
                 'valor_unitario'  => $valorUnitario,
                 'descuento'       => 0,
-                'objeto_imp'      => '02',
+                'objeto_imp'      => $g['objeto_imp'],
                 'iva_pct'         => $g['iva_pct'],
                 'ieps_pct'        => 0,
             ];
@@ -818,28 +824,53 @@ public function pdfDownload(Invoice $invoice)
     }
 
     // ===== Helpers para precargar desde pedido/nota =====
+
+    // El "Producto / Concepto" del CFDI es la descripción de lo que se
+    // vendió, en los términos que maneja el negocio — NO tiene que copiar
+    // el texto genérico del catálogo del SAT (la ClaveProdServ solo
+    // clasifica el tipo de producto, el "Descripcion" del comprobante es
+    // libre). Por eso aquí siempre gana el nombre REAL del producto tal
+    // como está en el catálogo del sistema; "descripcion" del pedido es
+    // solo un comentario interno para logística (mismo criterio que ya se
+    // aplicó en el ticket al cliente y en Panel de Surtido — ver
+    // ticket-body.blade.php / dispatch_panel/index.blade.php) y solo se
+    // usa como respaldo si el renglón no tiene producto de catálogo.
+    //
+    // El impuesto (objeto_imp/iva_pct) sale de la ficha SAT real del
+    // producto — antes se mandaba SIEMPRE objeto_imp=02 fijo e iva_pct del
+    // campo 'tasa_iva' (que por default es 0), sin importar si el producto
+    // tenía algo configurado. Si el producto no tiene nada configurado, se
+    // deja en blanco para que la vista obligue a elegirlo a mano (igual
+    // que al capturar una factura directa — ver productsMapForInvoices()).
+    private function itemDesdeProducto($it, float $cantidad, float $precio, float $descuento): array
+    {
+        $p = $it->product;
+        $sat = $p ? ($this->productsMapForInvoices()[$p->id] ?? null) : null;
+
+        return [
+            'product_id'      => $it->product_id,
+            'descripcion'     => $p->nombre ?? ($it->descripcion ?: ''),
+            'clave_prod_serv' => $sat['clave_prod_serv'] ?? '01010101',
+            'clave_unidad'    => $sat['clave_unidad']    ?? 'H87',
+            'unidad'          => $sat['unidad']          ?? ($p->unidad ?? null),
+            'cantidad'        => $cantidad,
+            'valor_unitario'  => $precio,
+            'descuento'       => $descuento,
+            'objeto_imp'      => $sat['objeto_imp'] ?? null,
+            'iva_pct'         => $sat['iva_pct']    ?? null,
+            'ieps_pct'        => 0,
+        ];
+    }
+
     protected function mapFromOrder(SalesOrder $order): array
     {
         return [
             'client_id'      => $order->client_id,
             'sales_order_id' => $order->id,
             'moneda'         => $order->moneda,
-            'items'     => $order->items->map(function ($it) {
-                $p = $it->product;
-                return [
-                    'product_id'      => $it->product_id,
-                    'descripcion'     => $it->descripcion ?? ($p->nombre ?? ''),
-                    'clave_prod_serv' => $p->clave_prod_serv ?? null,
-                    'clave_unidad'    => $p->clave_unidad ?? null,
-                    'unidad'          => $p->unidad ?? null,
-                    'cantidad'        => (float)$it->cantidad,
-                    'valor_unitario'  => (float)$it->precio,
-                    'descuento'       => (float)$it->descuento,
-                    'objeto_imp'      => '02',
-                    'iva_pct'         => (float)($p?->tasa_iva ?? 0),
-                    'ieps_pct'        => 0,
-                ];
-            })->values()->toArray(),
+            'items'          => $order->items
+                ->map(fn ($it) => $this->itemDesdeProducto($it, (float) $it->cantidad, (float) $it->precio, (float) $it->descuento))
+                ->values()->toArray(),
         ];
     }
 
@@ -849,22 +880,9 @@ public function pdfDownload(Invoice $invoice)
             'client_id' => $sale->client_id,
             'sale_id'   => $sale->id,
             'moneda'    => $sale->moneda,
-            'items'     => $sale->items->map(function ($it) {
-                $p = $it->product;
-                return [
-                    'product_id'      => $it->product_id,
-                    'descripcion'     => $it->descripcion ?? ($p->nombre ?? ''),
-                    'clave_prod_serv' => $p->clave_prod_serv ?? null,
-                    'clave_unidad'    => $p->clave_unidad ?? null,
-                    'unidad'          => $p->unidad ?? null,
-                    'cantidad'        => (float)$it->cantidad,
-                    'valor_unitario'  => (float)$it->precio,
-                    'descuento'       => (float)$it->descuento,
-                    'objeto_imp'      => '02',
-                    'iva_pct'         => (float)($p?->tasa_iva ?? 0),
-                    'ieps_pct'        => 0,
-                ];
-            })->values()->toArray(),
+            'items'     => $sale->items
+                ->map(fn ($it) => $this->itemDesdeProducto($it, (float) $it->cantidad, (float) $it->precio, (float) $it->descuento))
+                ->values()->toArray(),
         ];
     }
 

@@ -570,7 +570,13 @@
                 <td class="p-2 text-right font-mono text-sm">$${fmt(it.valor_unitario)}</td>
                 <td class="p-2 text-right font-mono text-sm">$${fmt(it.descuento)}</td>
                 <td class="p-2 text-center">
-                    <span class="text-xs">${it.iva_pct}%</span>
+                    <select class="w-full border rounded p-1 text-sm" id="sel-iva-${i}"
+                            onchange="items[${i}].iva_pct = this.value === '' ? '' : parseInt(this.value); recalc(${i}); refrescarAvisoImpuesto(${i})">
+                        <option value="" ${(it.iva_pct === '' || it.iva_pct == null) ? 'selected' : ''}>-- elegir --</option>
+                        <option value="0"  ${it.iva_pct == 0  ? 'selected' : ''}>0%</option>
+                        <option value="8"  ${it.iva_pct == 8  ? 'selected' : ''}>8%</option>
+                        <option value="16" ${it.iva_pct == 16 ? 'selected' : ''}>16%</option>
+                    </select>
                     <input type="hidden" name="items[${i}][iva_pct]"      id="hid-iva-pct-${i}"  value="${it.iva_pct}">
                     <input type="hidden" name="items[${i}][iva_importe]"  id="hid-iva-imp-${i}"  value="${it.iva_importe}">
                     <input type="hidden" name="items[${i}][ieps_pct]"     id="hid-ieps-pct-${i}" value="${it.ieps_pct}">
@@ -578,11 +584,16 @@
                     <input type="hidden" name="items[${i}][importe]"      id="hid-importe-${i}"  value="${it.importe}">
                 </td>
                 <td class="p-2 text-center">
-                    <select name="items[${i}][objeto_imp]" class="w-full border rounded p-1 text-sm">
+                    <select class="w-full border rounded p-1 text-sm" id="sel-objeto-${i}" name="items[${i}][objeto_imp]"
+                            onchange="items[${i}].objeto_imp = this.value; refrescarAvisoImpuesto(${i})">
+                        <option value="" ${!it.objeto_imp ? 'selected' : ''}>-- elegir --</option>
                         <option value="01" ${it.objeto_imp === '01' ? 'selected' : ''}>01</option>
                         <option value="02" ${it.objeto_imp === '02' ? 'selected' : ''}>02</option>
                         <option value="03" ${it.objeto_imp === '03' ? 'selected' : ''}>03</option>
                     </select>
+                    <div id="warn-imp-${i}" class="hidden text-[10px] text-red-600 mt-0.5 leading-tight">
+                        Sin impuesto configurado en el producto — elige a mano
+                    </div>
                 </td>
                 <td class="p-2 text-right font-medium" id="display-importe-${i}">$${fmt(it.importe)}</td>
                 <input type="hidden" name="items[${i}][cantidad]"       value="${it.cantidad}" data-field="cantidad">
