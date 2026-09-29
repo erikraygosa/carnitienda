@@ -329,26 +329,43 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
 $serie = $invoice->serie ?? 'A';
 
     $items = $invoice->items->map(function ($item) {
+        // Objeto de impuesto REAL de esta línea — antes nunca se le mandaba
+        // a Facturapi (solo se mandaba 'taxes' si iva_pct>0, nada más). Sin
+        // un 'taxability' explícito, Facturapi asume su propio default de
+        // cuenta cuando no le llega nada: por eso una línea capturada aquí
+        // como "01 – No objeto de impuesto" / 0% terminó timbrada allá como
+        // "02 – Sí objeto" con 16% de IVA aplicado por su cuenta (casos
+        // reales: factura #3 y "PAVO DOBLE PECHUGA" — verificado contra la
+        // respuesta real de su API, que sí trae 'taxability' y 'unit_key').
+        $objetoImp = $item->objeto_imp ?: '02';
         $impuestos = [];
 
-        if ((float)$item->iva_pct > 0) {
+        if ($objetoImp === '02') {
+            // "02 – Sí objeto" SIEMPRE lleva un impuesto declarado, aunque
+            // sea 0% (Tasa 0%) — omitirlo es justo lo que dejaba que
+            // Facturapi rellenara su propio 16% por default.
             $impuestos[] = [
-                'type'   => 'IVA',
-                'rate'   => round((float)$item->iva_pct / 100, 4),
+                'type' => 'IVA',
+                'rate' => round((float) $item->iva_pct / 100, 4),
             ];
-        }
 
-        if ((float)$item->ieps_pct > 0) {
-            $impuestos[] = [
-                'type'   => 'IEPS',
-                'rate'   => round((float)$item->ieps_pct / 100, 4),
-            ];
+            if ((float) $item->ieps_pct > 0) {
+                $impuestos[] = [
+                    'type' => 'IEPS',
+                    'rate' => round((float) $item->ieps_pct / 100, 4),
+                ];
+            }
         }
 
         $productData = [
             'description' => $item->descripcion,
             'product_key' => $item->clave_prod_serv ?? '01010101',
+            // Unidad SAT real de la línea — antes tampoco se mandaba nunca,
+            // así que Facturapi también la rellenaba con su default (H87 /
+            // Pieza), sin importar si el producto se vendía por KG.
+            'unit_key'    => $item->clave_unidad ?: 'H87',
             'price'       => (float)$item->valor_unitario,
+            'taxability'  => $objetoImp,
         ];
 
         if (! empty($impuestos)) {
