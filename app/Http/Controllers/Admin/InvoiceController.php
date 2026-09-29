@@ -613,6 +613,33 @@ public function store(Request $request)
 
     $invoice->loadMissing(['items', 'client', 'company.fiscalData']);
 
+    // Última barrera antes de mandarlo al PAC: si alguna línea se quedó sin
+    // impuesto bien definido (objeto_imp vacío, o "02 – sí objeto" con 0%
+    // de IVA), NO se manda a timbrar — Facturapi aplicaría su propio
+    // default y el CFDI quedaría con un desglose de IVA distinto al que
+    // capturamos aquí (el mismo problema real de la factura #3). La
+    // captura ya bloquea esto (ver create/edit.blade.php + validate() de
+    // store/update), pero una factura BORRADOR vieja pudo quedar así antes
+    // de ese fix, o pudo tocarse por otra vía — por eso se revisa de nuevo
+    // aquí, justo antes de enviar.
+    $lineasSinImpuesto = $invoice->items->filter(function ($item) {
+        if (blank($item->objeto_imp)) {
+            return true;
+        }
+        if ($item->objeto_imp === '02' && (float) $item->iva_pct <= 0) {
+            return true;
+        }
+        return false;
+    });
+
+    if ($lineasSinImpuesto->isNotEmpty()) {
+        return back()->with('swal', [
+            'icon'  => 'error',
+            'title' => 'Falta configurar impuesto',
+            'text'  => 'Esta línea no tiene impuesto bien definido: "' . $lineasSinImpuesto->first()->descripcion . '". Corrígela en Editar factura (o configura el producto en Productos → SAT) antes de timbrar.',
+        ]);
+    }
+
     $xml    = $pac->buildXml($invoice, $empresa);
     $result = $pac->stamp($invoice, $xml, $empresa);
 
