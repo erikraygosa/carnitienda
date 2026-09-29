@@ -11,6 +11,14 @@ class ErrorAlertService
 
     public function notify(\Throwable $e): void
     {
+        // Solo errores reales de la app vista por un usuario (peticiones
+        // HTTP) — un error que truena corriendo `artisan tinker`/comandos
+        // por SSH (ej. una prueba de diagnóstico) no debe mandar alerta,
+        // eso no lo ve ningún cliente ni usuario del sistema.
+        if (app()->runningInConsole()) {
+            return;
+        }
+
         $numero = SystemSetting::get('whatsapp.numero_errores');
         if (blank($numero) || !$this->whatsapp->isConfigured()) {
             return;
