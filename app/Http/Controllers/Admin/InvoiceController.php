@@ -213,6 +213,62 @@ class InvoiceController extends Controller implements HasMiddleware
         return redirect()->route('admin.invoices.create', ['consolidado' => 1]);
     }
 
+    // Bloquea la combinación contradictoria: objeto_imp=02 ("sí objeto de
+    // impuesto") con iva_pct=0. Antes esto se guardaba sin avisar y el PAC
+    // (Facturapi) terminaba aplicando SU propio 16% por default al no
+    // recibir impuesto explícito, timbrando con un desglose de IVA
+    // distinto al que muestra nuestro propio PDF (caso real: factura #3,
+    // 3 líneas con iva_pct=0 que se timbraron con 16% IVA de todas formas).
+    private function reglaIvaConsistente(Request $request): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) use ($request) {
+            // $attribute llega como "items.3.iva_pct"
+            if (! preg_match('/^items\.(\d+)\.iva_pct$/', $attribute, $m)) {
+                return;
+            }
+            $objetoImp = $request->input("items.{$m[1]}.objeto_imp");
+            if ($objetoImp === '02' && (float) $value <= 0) {
+                $fail('Este producto quedó marcado "02 – Sí objeto de impuesto" pero con 0% de IVA — es una combinación contradictoria (el PAC podría aplicar un impuesto distinto al timbrar). Elige el % de IVA real, o cambia a "01 – No objeto de impuesto" si de verdad no lleva.');
+            }
+        };
+    }
+
+    // El precio/IVA que ve el PAC al timbrar sale de lo que capture el
+    // usuario en cada línea de la factura, no del catálogo — pero antes
+    // esta consulta leía columnas 'clave_prod_serv'/'clave_unidad' que
+    // NUNCA se llenan (el formulario de Productos guarda en las columnas
+    // reales 'sat_clave_prod_serv'/'sat_clave_unidad'), así que el
+    // catálogo SAT del producto jamás llegaba a la factura y todo caía en
+    // los defaults genéricos ('01010101'/16%). Ahora sí se lee lo real, y
+    // se marca 'configurado' => false cuando al producto le falta algo —
+    // la vista usa esa bandera para NO asumir nada y obligar a capturarlo
+    // a mano en esa línea (ver create.blade.php / edit.blade.php).
+    private function productsMapForInvoices()
+    {
+        return Product::orderBy('nombre')->get([
+            'id', 'nombre', 'precio_base', 'unidad',
+            'sat_clave_prod_serv', 'sat_clave_unidad',
+            'sat_objeto_imp', 'sat_tipo_factor', 'sat_tasa_iva',
+        ])->keyBy('id')->map(function ($p) {
+            $configurado = filled($p->sat_clave_prod_serv)
+                && filled($p->sat_objeto_imp)
+                && ($p->sat_tipo_factor === 'Exento' || $p->sat_tasa_iva !== null);
+
+            return [
+                'nombre'          => $p->nombre,
+                'precio_base'     => (float) ($p->precio_base ?? 0),
+                'clave_prod_serv' => $p->sat_clave_prod_serv ?: '01010101',
+                'clave_unidad'    => $p->sat_clave_unidad ?: 'H87',
+                'unidad'          => $p->unidad ?? 'PZA',
+                'objeto_imp'      => $configurado ? $p->sat_objeto_imp : null,
+                'iva_pct'         => $configurado
+                    ? ($p->sat_tipo_factor === 'Exento' ? 0 : (int) round(((float) $p->sat_tasa_iva) * 100))
+                    : null,
+                'configurado'     => $configurado,
+            ];
+        });
+    }
+
     // Crear desde: pedido, venta o directa
     public function create(Request $req)
 {
@@ -225,10 +281,7 @@ class InvoiceController extends Controller implements HasMiddleware
         'tipo_persona',
     ]);
 
-    $products = Product::orderBy('nombre')->get([
-        'id', 'nombre', 'precio_base',
-        'clave_prod_serv', 'clave_unidad', 'unidad',
-    ]);
+    $products = Product::orderBy('nombre')->get(['id', 'nombre']);
 
     $empresa    = app(CompanyService::class)->activa();
     $fiscalData = $empresa?->fiscalData;
@@ -266,13 +319,7 @@ class InvoiceController extends Controller implements HasMiddleware
         'fiscal_cp'      => $c->fiscal_cp ?? $c->cp ?? '',
     ]);
 
-    $productsMap = $products->keyBy('id')->map(fn($p) => [
-        'nombre'          => $p->nombre,
-        'precio_base'     => (float) ($p->precio_base ?? 0),
-        'clave_prod_serv' => $p->clave_prod_serv ?? '01010101',
-        'clave_unidad'    => $p->clave_unidad ?? 'H87',
-        'unidad'          => $p->unidad ?? 'PZA',
-    ]);
+    $productsMap = $this->productsMapForInvoices();
 
     // Serie y folio desde configuración
     $series = \App\Models\InvoiceSeries::where('es_default', 1)
@@ -335,7 +382,7 @@ public function store(Request $request)
         'items.*.valor_unitario'  => ['required', 'numeric', 'gte:0'],
         'items.*.descuento'       => ['nullable', 'numeric', 'gte:0'],
         'items.*.objeto_imp'      => ['required', 'in:01,02,03'],
-        'items.*.iva_pct'         => ['nullable', 'numeric', 'gte:0'],
+        'items.*.iva_pct'         => ['nullable', 'numeric', 'gte:0', $this->reglaIvaConsistente($request)],
         'items.*.ieps_pct'        => ['nullable', 'numeric', 'gte:0'],
     ]);
 
@@ -506,10 +553,7 @@ public function store(Request $request)
         'tipo_persona',
     ]);
 
-    $products = Product::orderBy('nombre')->get([
-        'id', 'nombre', 'precio_base',
-        'clave_prod_serv', 'clave_unidad', 'unidad',
-    ]);
+    $products = Product::orderBy('nombre')->get(['id', 'nombre']);
 
     $empresa    = app(CompanyService::class)->activa();
     $fiscalData = $empresa?->fiscalData;
@@ -529,13 +573,7 @@ public function store(Request $request)
         'fiscal_cp'      => $c->fiscal_cp ?? $c->cp ?? '',
     ]);
 
-    $productsMap = $products->keyBy('id')->map(fn($p) => [
-        'nombre'          => $p->nombre,
-        'precio_base'     => (float) ($p->precio_base ?? 0),
-        'clave_prod_serv' => $p->clave_prod_serv ?? '01010101',
-        'clave_unidad'    => $p->clave_unidad ?? 'H87',
-        'unidad'          => $p->unidad ?? 'PZA',
-    ]);
+    $productsMap = $this->productsMapForInvoices();
 
     $timbresInfo = $this->timbresInfo();
 
@@ -849,7 +887,7 @@ public function pdfDownload(Invoice $invoice)
             'items.*.valor_unitario'  => ['required', 'numeric', 'gte:0'],
             'items.*.descuento'       => ['nullable', 'numeric', 'gte:0'],
             'items.*.objeto_imp'      => ['required', 'in:01,02,03'],
-            'items.*.iva_pct'         => ['nullable', 'numeric', 'gte:0'],
+            'items.*.iva_pct'         => ['nullable', 'numeric', 'gte:0', $this->reglaIvaConsistente($request)],
             'items.*.ieps_pct'        => ['nullable', 'numeric', 'gte:0'],
         ]);
 

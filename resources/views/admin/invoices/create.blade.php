@@ -368,7 +368,7 @@
             applyClient(PREFILL_CID);
         }
 
-        items.forEach(function(_, i) { recalc(i); });
+        items.forEach(function(_, i) { recalc(i); refrescarAvisoImpuesto(i); });
     });
 
     function onClientChange(clientId) { applyClient(clientId); }
@@ -435,6 +435,19 @@
         items[i].clave_unidad    = p.clave_unidad    || 'H87';
         items[i].unidad          = p.unidad          || 'PZA';
         items[i].valor_unitario  = p.precio_base     || 0;
+
+        // El impuesto de la línea sale del que tenga configurado el
+        // producto en su ficha (Productos → SAT). Si el producto NO tiene
+        // nada configurado, no se asume nada (antes se quedaba en 16% por
+        // default sin importar el producto) — se deja en blanco y se
+        // obliga a elegirlo a mano antes de poder guardar la factura.
+        if (p.configurado) {
+            items[i].objeto_imp = p.objeto_imp;
+            items[i].iva_pct    = p.iva_pct;
+        } else {
+            items[i].objeto_imp = '';
+            items[i].iva_pct    = '';
+        }
         updateRowFields(i); recalc(i);
     }
 
@@ -448,6 +461,26 @@
         row.querySelector('[data-field="clave_unidad"]').value    = items[i].clave_unidad    || '';
         row.querySelector('[data-field="unidad"]').value          = items[i].unidad          || '';
         row.querySelector('[data-field="valor_unitario"]').value  = items[i].valor_unitario  || 0;
+
+        var selIva = document.getElementById('sel-iva-' + i);
+        if (selIva) selIva.value = (items[i].iva_pct === '' || items[i].iva_pct == null) ? '' : items[i].iva_pct;
+        var selObj = document.getElementById('sel-objeto-' + i);
+        if (selObj) selObj.value = items[i].objeto_imp || '';
+        refrescarAvisoImpuesto(i);
+    }
+
+    // Marca visualmente la línea cuando falta elegir el impuesto (producto
+    // sin configurar) — bloquea el guardado hasta que se resuelva.
+    function itemImpuestoIncompleto(i) {
+        var it = items[i];
+        if (!it.objeto_imp) return true;
+        if (it.objeto_imp === '02' && (it.iva_pct === '' || it.iva_pct == null || parseFloat(it.iva_pct) <= 0)) return true;
+        return false;
+    }
+
+    function refrescarAvisoImpuesto(i) {
+        var warn = document.getElementById('warn-imp-' + i);
+        if (warn) warn.classList.toggle('hidden', !itemImpuestoIncompleto(i));
     }
 
     function addItem() {
@@ -597,8 +630,9 @@
                            oninput="items[${i}].descuento = parseFloat(this.value)||0; recalc(${i})">
                 </td>
                 <td class="p-2 text-center">
-                    <select class="w-full border rounded p-1 text-sm"
-                            onchange="items[${i}].iva_pct = parseInt(this.value); recalc(${i})">
+                    <select class="w-full border rounded p-1 text-sm" id="sel-iva-${i}"
+                            onchange="items[${i}].iva_pct = this.value === '' ? '' : parseInt(this.value); recalc(${i}); refrescarAvisoImpuesto(${i})">
+                        <option value="" ${(it.iva_pct === '' || it.iva_pct == null) ? 'selected' : ''}>-- elegir --</option>
                         <option value="0"  ${it.iva_pct == 0  ? 'selected' : ''}>0%</option>
                         <option value="8"  ${it.iva_pct == 8  ? 'selected' : ''}>8%</option>
                         <option value="16" ${it.iva_pct == 16 ? 'selected' : ''}>16%</option>
@@ -610,12 +644,16 @@
                     <input type="hidden" name="items[${i}][importe]"      id="hid-importe-${i}"  value="${it.importe}">
                 </td>
                 <td class="p-2 text-center">
-                    <select class="w-full border rounded p-1 text-sm" name="items[${i}][objeto_imp]"
-                            onchange="items[${i}].objeto_imp = this.value">
+                    <select class="w-full border rounded p-1 text-sm" id="sel-objeto-${i}" name="items[${i}][objeto_imp]"
+                            onchange="items[${i}].objeto_imp = this.value; refrescarAvisoImpuesto(${i})">
+                        <option value="" ${!it.objeto_imp ? 'selected' : ''}>-- elegir --</option>
                         <option value="01" ${it.objeto_imp === '01' ? 'selected' : ''}>01</option>
                         <option value="02" ${it.objeto_imp === '02' ? 'selected' : ''}>02</option>
                         <option value="03" ${it.objeto_imp === '03' ? 'selected' : ''}>03</option>
                     </select>
+                    <div id="warn-imp-${i}" class="hidden text-[10px] text-red-600 mt-0.5 leading-tight">
+                        Sin impuesto configurado en el producto — elige a mano
+                    </div>
                 </td>
                 <td class="p-2 text-right font-medium" id="display-importe-${i}">$${fmt(it.importe)}</td>
                 <td class="p-2 text-center">
@@ -670,7 +708,17 @@
         document.getElementById('hidden-total').value     = grand;
     }
 
-    function submitForm() { updateTotals(); document.getElementById('inv-form').submit(); }
+    function submitForm() {
+        for (var i = 0; i < items.length; i++) {
+            if (itemImpuestoIncompleto(i)) {
+                refrescarAvisoImpuesto(i);
+                Swal.fire('Falta el impuesto', 'La línea "' + (items[i].descripcion || (i+1)) + '" no tiene impuesto configurado en el producto — elige manualmente el Objeto de impuesto y el % de IVA de esa línea antes de guardar.', 'warning');
+                return;
+            }
+        }
+        updateTotals();
+        document.getElementById('inv-form').submit();
+    }
 
     function fmt(n) { return Number(n||0).toFixed(2); }
     function escHtml(str) {
