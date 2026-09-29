@@ -59,25 +59,18 @@
 
         {{-- Fila inferior --}}
         <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-2">
-                <select id="so-per-page"
-                        class="rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
-                    <option value="10">10</option>
-                    <option value="15" selected>15</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                </select>
-                <span class="text-xs text-gray-400">por página</span>
-            </div>
+            <span id="so-count" class="text-xs text-gray-500"></span>
             <button type="button" id="so-clear" class="text-xs text-indigo-600 hover:underline">
                 Limpiar filtros
             </button>
         </div>
 
-        {{-- Tabla --}}
-        <div class="overflow-x-auto rounded-lg border border-gray-200">
+        {{-- Tabla — sin paginación por página, se navega con scroll dentro
+             de la tabla (antes: 15 por página, un mes con muchos pedidos
+             quedaba repartido en decenas de páginas). --}}
+        <div class="overflow-x-auto overflow-y-auto max-h-[70vh] rounded-lg border border-gray-200">
             <table class="min-w-full text-sm divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+                <thead class="bg-gray-50 sticky top-0 z-10">
                     <tr>
                         <th onclick="SOT.sort('folio')"
                             class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100">
@@ -109,9 +102,6 @@
             </table>
         </div>
 
-        {{-- Paginación --}}
-        <div id="so-pagination" class="mt-4 flex items-center justify-between text-sm text-gray-500"></div>
-
     </x-wire-card>
 
     <script>
@@ -132,14 +122,11 @@
             fechaHasta: '{{ now()->endOfMonth()->format('Y-m-d') }}',
             sortBy:     'id',
             sortDir:    'desc',
-            perPage:    15,
-            page:       1,
-            lastPage:   1,
         };
 
         try {
             const guardado = JSON.parse(localStorage.getItem(FILTROS_KEY) || 'null');
-            if (guardado && typeof guardado === 'object') Object.assign(state, guardado, { page: 1 });
+            if (guardado && typeof guardado === 'object') Object.assign(state, guardado);
         } catch (e) { /* localStorage bloqueado o dato corrupto — se queda con los defaults */ }
 
         function guardarFiltros() {
@@ -147,7 +134,7 @@
                 localStorage.setItem(FILTROS_KEY, JSON.stringify({
                     search: state.search, status: state.status, facturada: state.facturada,
                     fechaDesde: state.fechaDesde, fechaHasta: state.fechaHasta,
-                    sortBy: state.sortBy, sortDir: state.sortDir, perPage: state.perPage,
+                    sortBy: state.sortBy, sortDir: state.sortDir,
                 }));
             } catch (e) { /* modo privado o storage lleno — no es crítico */ }
         }
@@ -160,7 +147,6 @@
         $('so-facturada').value = state.facturada;
         $('so-desde').value     = state.fechaDesde;
         $('so-hasta').value     = state.fechaHasta;
-        $('so-per-page').value  = String(state.perPage);
 
         function updateSortIndicators() {
             ['folio','fecha','status','total'].forEach(col => {
@@ -229,8 +215,6 @@
                 fecha_hasta: state.fechaHasta,
                 sort_by:     state.sortBy,
                 sort_dir:    state.sortDir,
-                per_page:    state.perPage,
-                page:        state.page,
             });
 
             try {
@@ -238,9 +222,8 @@
                     headers: { 'Accept': 'application/json' }
                 });
                 const data = await res.json();
-                state.lastPage = data.last_page;
                 renderTable(data.rows);
-                renderPagination(data.total, data.page, data.last_page);
+                $('so-count').textContent = data.total + ' pedido(s)';
                 updateSortIndicators();
             } catch(e) {
                 $('so-tbody').innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-red-400">Error cargando datos.</td></tr>`;
@@ -280,24 +263,6 @@
             });
         }
 
-        function renderPagination(total, page, lastPage) {
-            const wrap = $('so-pagination');
-            const from = total === 0 ? 0 : ((page - 1) * state.perPage) + 1;
-            const to   = Math.min(page * state.perPage, total);
-            wrap.innerHTML = `
-                <span>${from}–${to} de ${total} pedidos</span>
-                <div class="flex gap-1">
-                    <button type="button" onclick="SOT.goPage(${page - 1})"
-                            class="px-3 py-1 rounded border text-xs ${page <= 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50'}"
-                            ${page <= 1 ? 'disabled' : ''}>← Ant</button>
-                    <span class="px-3 py-1 text-xs">Pág ${page} / ${lastPage}</span>
-                    <button type="button" onclick="SOT.goPage(${page + 1})"
-                            class="px-3 py-1 rounded border text-xs ${page >= lastPage ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50'}"
-                            ${page >= lastPage ? 'disabled' : ''}>Sig →</button>
-                </div>
-            `;
-        }
-
         window.SOT = {
             sort(col) {
                 if (state.sortBy === col) {
@@ -306,13 +271,7 @@
                     state.sortBy  = col;
                     state.sortDir = 'asc';
                 }
-                state.page = 1;
                 guardarFiltros();
-                load();
-            },
-            goPage(p) {
-                if (p < 1 || p > state.lastPage) return;
-                state.page = p;
                 load();
             },
         };
@@ -322,7 +281,6 @@
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
                 state.search = this.value;
-                state.page   = 1;
                 guardarFiltros();
                 load();
             }, 350);
@@ -330,35 +288,31 @@
 
         $('so-status').addEventListener('change', function() {
             state.status = this.value;
-            state.page   = 1;
             guardarFiltros();
             load();
         });
 
         $('so-facturada').addEventListener('change', function() {
             state.facturada = this.value;
-            state.page      = 1;
             guardarFiltros();
             load();
         });
 
         $('so-desde').addEventListener('change', function() {
-            state.fechaDesde = this.value;
-            state.page       = 1;
+            // Vacío (alguien le dio clic a la "x" del input date) = volver
+            // al mes actual, no "sin filtro" — evita el caso real donde
+            // esto mostraba TODOS los pedidos de la historia (112 páginas).
+            const mesDesde = '{{ now()->startOfMonth()->format('Y-m-d') }}';
+            state.fechaDesde = this.value || mesDesde;
+            this.value = state.fechaDesde;
             guardarFiltros();
             load();
         });
 
         $('so-hasta').addEventListener('change', function() {
-            state.fechaHasta = this.value;
-            state.page       = 1;
-            guardarFiltros();
-            load();
-        });
-
-        $('so-per-page').addEventListener('change', function() {
-            state.perPage = parseInt(this.value);
-            state.page    = 1;
+            const mesHasta = '{{ now()->endOfMonth()->format('Y-m-d') }}';
+            state.fechaHasta = this.value || mesHasta;
+            this.value = state.fechaHasta;
             guardarFiltros();
             load();
         });
@@ -368,7 +322,6 @@
             const mesHasta = '{{ now()->endOfMonth()->format('Y-m-d') }}';
             state.search = ''; state.status = ''; state.facturada = '';
             state.fechaDesde = mesDesde; state.fechaHasta = mesHasta;
-            state.page = 1;
             $('so-search').value = '';
             $('so-status').value = '';
             $('so-facturada').value = '';

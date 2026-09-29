@@ -59,12 +59,16 @@ public function data(Request $request)
     $facturada  = $request->get('facturada', ''); // '' | 'facturada' | 'sin_facturar'
     $defaultDesde = now()->startOfMonth()->format('Y-m-d');
     $defaultHasta = now()->endOfMonth()->format('Y-m-d');
-    $fechaDesde = $request->get('fecha_desde', $defaultDesde);
-    $fechaHasta = $request->get('fecha_hasta', $defaultHasta);
+    // filled() en vez de get()-con-default: si el navegador manda
+    // fecha_desde/fecha_hasta vacíos (ej. alguien le dio clic a la "x" del
+    // input date nativo), antes eso se colaba como "" y el filtro se
+    // saltaba por completo, mostrando TODOS los pedidos de la historia sin
+    // querer (caso real: 112 páginas). Vacío = usar el mes actual, igual
+    // que "Limpiar filtros".
+    $fechaDesde = $request->filled('fecha_desde') ? $request->get('fecha_desde') : $defaultDesde;
+    $fechaHasta = $request->filled('fecha_hasta') ? $request->get('fecha_hasta') : $defaultHasta;
     $sortBy     = in_array($request->get('sort_by'), ['folio','fecha','status','total']) ? $request->get('sort_by') : 'id';
     $sortDir    = $request->get('sort_dir', 'desc') === 'asc' ? 'asc' : 'desc';
-    $perPage    = in_array((int)$request->get('per_page'), [10,15,25,50]) ? (int)$request->get('per_page') : 15;
-    $page       = max(1, (int)$request->get('page', 1));
 
     // La lista se rige por la fecha PROGRAMADA de entrega, no la de captura
     // — para pedidos viejos sin programado_para, se cae a la de captura.
@@ -87,8 +91,12 @@ public function data(Request $request)
         ->when($sortBy === 'fecha', fn($q) => $q->orderByRaw("$fechaOrden $sortDir"))
         ->when($sortBy !== 'fecha', fn($q) => $q->orderBy($sortBy, $sortDir));
 
-    $total   = $q->count();
-    $orders  = $q->skip(($page - 1) * $perPage)->take($perPage)->get();
+    // Sin paginación por página — se muestran todos los pedidos del rango
+    // filtrado (por default, el mes actual) y se navega con scroll, igual
+    // que el Panel de Surtido. Antes, con 15 por página, un mes con muchos
+    // pedidos quedaba repartido en decenas de páginas.
+    $orders = $q->get();
+    $total  = $orders->count();
 
     $statusClasses = [
         'BORRADOR'     => 'bg-gray-100 text-gray-700',
@@ -161,11 +169,8 @@ public function data(Request $request)
         });
 
     return response()->json([
-        'rows'      => $rows,
-        'total'     => $total,
-        'page'      => $page,
-        'per_page'  => $perPage,
-        'last_page' => (int) ceil($total / $perPage),
+        'rows'  => $rows,
+        'total' => $total,
     ]);
 }
 
