@@ -47,4 +47,21 @@ return Application::configure(basePath: dirname(__DIR__))
                     'text'  => 'Por seguridad tuvimos que cerrarla por inactividad. Intenta de nuevo.',
                 ]);
         });
+
+        // Avisar por WhatsApp (Evolution API) cuando truena un error real de
+        // servidor (500) — el número se configura en Superadmin →
+        // Configuración → WhatsApp. Solo dispara para errores que Laravel
+        // SÍ reporta (esto ya excluye 404, 403, validaciones, CSRF, etc. —
+        // ver $internalDontReport del propio framework), así que aquí
+        // llegan justo los que antes solo se veían tarde, revisando el log
+        // a mano. Con throttle para no inundar el teléfono si un mismo
+        // error se repite en ráfaga (ej. varios usuarios pegándole a la
+        // misma ruta rota al mismo tiempo).
+        $exceptions->reportable(function (\Throwable $e) {
+            try {
+                app(\App\Services\ErrorAlertService::class)->notify($e);
+            } catch (\Throwable $ignored) {
+                // El aviso nunca debe tumbar el manejo normal del error.
+            }
+        });
     })->create();

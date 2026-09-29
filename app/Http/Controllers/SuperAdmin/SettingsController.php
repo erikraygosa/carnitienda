@@ -57,6 +57,7 @@ class SettingsController extends Controller
             'whatsapp_base_url'          => ['nullable', 'string', 'max:255'],
             'whatsapp_instance'          => ['nullable', 'string', 'max:100'],
             'whatsapp_api_key'           => ['nullable', 'string', 'max:255'],
+            'whatsapp_numero_errores'    => ['nullable', 'string', 'max:20'],
             'precios_modo'               => ['nullable', 'string', 'in:global,almacen'],
             'etiquetas_modo_impresion'   => ['nullable', 'string', 'in:ticket,zpl'],
             'etiquetas_impresora_ip'     => ['nullable', 'string', 'max:100'],
@@ -78,6 +79,7 @@ class SettingsController extends Controller
             'correo_from_address'        => ['correo.from_address', 'correo'],
             'whatsapp_base_url'          => ['whatsapp.base_url', 'whatsapp'],
             'whatsapp_instance'          => ['whatsapp.instance', 'whatsapp'],
+            'whatsapp_numero_errores'    => ['whatsapp.numero_errores', 'whatsapp'],
             'openai_model'               => ['openai.model', 'asistente'],
             'openai_base_url'            => ['openai.base_url', 'asistente'],
         ];

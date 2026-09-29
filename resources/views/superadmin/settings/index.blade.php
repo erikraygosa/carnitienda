@@ -212,6 +212,19 @@
                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
             </div>
         </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-800">
+            <label class="block text-xs text-gray-500 mb-1">Número para avisos de errores del sistema</label>
+            <input type="text" name="whatsapp_numero_errores"
+                   value="{{ $whatsapp['whatsapp.numero_errores']?->valor ?? '' }}"
+                   placeholder="5217441234567"
+                   class="w-full md:w-72 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+            <p class="mt-1 text-xs text-gray-600">
+                Cuando el sistema truena con un error real (500), se manda un mensaje de WhatsApp a
+                este número con la excepción, el archivo/línea y la URL donde pasó — para enterarse
+                al momento sin tener que revisar el log a mano. Déjalo vacío para desactivar el aviso.
+            </p>
+        </div>
     </div>
 
     <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
