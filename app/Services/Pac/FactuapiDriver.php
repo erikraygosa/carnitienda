@@ -366,6 +366,19 @@ $serie = $invoice->serie ?? 'A';
             'unit_key'    => $item->clave_unidad ?: 'H87',
             'price'       => (float)$item->valor_unitario,
             'taxability'  => $objetoImp,
+            // CRÍTICO: en todo el sistema (Pedidos, POS y aquí mismo en
+            // store()/update() de facturas) el precio capturado se trata
+            // como BASE sin impuesto — el IVA se calcula aparte y se suma
+            // para llegar al total (ver SalesOrderController/SaleController:
+            // total = base - descuento + impuesto). Facturapi, cuando no se
+            // le dice lo contrario, asume que el precio YA incluye el
+            // impuesto (confirmado contra su respuesta real de la factura
+            // #3: 'tax_included' => 1) y lo extrae hacia atrás — eso
+            // cambiaría el TOTAL realmente timbrado ante el SAT para
+            // cualquier producto con IVA real (no solo el desglose), sin
+            // que nadie lo hubiera notado porque hasta ahora ningún
+            // producto ha tenido una tasa de IVA >0% configurada de verdad.
+            'tax_included' => false,
         ];
 
         if (! empty($impuestos)) {
