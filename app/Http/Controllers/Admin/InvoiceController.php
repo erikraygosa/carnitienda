@@ -213,25 +213,17 @@ class InvoiceController extends Controller implements HasMiddleware
         return redirect()->route('admin.invoices.create', ['consolidado' => 1]);
     }
 
-    // Bloquea la combinación contradictoria: objeto_imp=02 ("sí objeto de
-    // impuesto") con iva_pct=0. Antes esto se guardaba sin avisar y el PAC
-    // (Facturapi) terminaba aplicando SU propio 16% por default al no
-    // recibir impuesto explícito, timbrando con un desglose de IVA
-    // distinto al que muestra nuestro propio PDF (caso real: factura #3,
-    // 3 líneas con iva_pct=0 que se timbraron con 16% IVA de todas formas).
-    private function reglaIvaConsistente(Request $request): \Closure
-    {
-        return function (string $attribute, mixed $value, \Closure $fail) use ($request) {
-            // $attribute llega como "items.3.iva_pct"
-            if (! preg_match('/^items\.(\d+)\.iva_pct$/', $attribute, $m)) {
-                return;
-            }
-            $objetoImp = $request->input("items.{$m[1]}.objeto_imp");
-            if ($objetoImp === '02' && (float) $value <= 0) {
-                $fail('Este producto quedó marcado "02 – Sí objeto de impuesto" pero con 0% de IVA — es una combinación contradictoria (el PAC podría aplicar un impuesto distinto al timbrar). Elige el % de IVA real, o cambia a "01 – No objeto de impuesto" si de verdad no lleva.');
-            }
-        };
-    }
+    // NOTA: antes había aquí una regla que bloqueaba objeto_imp=02 ("sí
+    // objeto de impuesto") combinado con iva_pct=0, tratándolo como
+    // contradictorio — eso tenía sentido mientras Facturapi no recibía el
+    // impuesto explícito (omitirlo dejaba que Facturapi aplicara SU propio
+    // 16% por default, causa real de la factura #3). Ya corregido eso
+    // (FactuapiDriver ahora manda 'taxes' explícito, con tasa 0 incluida,
+    // más 'taxability' y 'tax_included' explícitos), "02 + 0% IVA" pasó a
+    // ser una combinación VÁLIDA y común: "Tasa 0%" es la clasificación
+    // fiscal real de alimentos básicos sin preparar (carne incluida) según
+    // el Art. 2-A de la Ley del IVA — distinta de "01 No objeto de
+    // impuesto". Por eso ya no se bloquea.
 
     // El precio/IVA que ve el PAC al timbrar sale de lo que capture el
     // usuario en cada línea de la factura, no del catálogo — pero antes
@@ -408,7 +400,7 @@ public function store(Request $request)
         'items.*.valor_unitario'  => ['required', 'numeric', 'gte:0'],
         'items.*.descuento'       => ['nullable', 'numeric', 'gte:0'],
         'items.*.objeto_imp'      => ['required', 'in:01,02,03'],
-        'items.*.iva_pct'         => ['nullable', 'numeric', 'gte:0', $this->reglaIvaConsistente($request)],
+        'items.*.iva_pct'         => ['nullable', 'numeric', 'gte:0'],
         'items.*.ieps_pct'        => ['nullable', 'numeric', 'gte:0'],
     ]);
 
@@ -640,23 +632,13 @@ public function store(Request $request)
     $invoice->loadMissing(['items', 'client', 'company.fiscalData']);
 
     // Última barrera antes de mandarlo al PAC: si alguna línea se quedó sin
-    // impuesto bien definido (objeto_imp vacío, o "02 – sí objeto" con 0%
-    // de IVA), NO se manda a timbrar — Facturapi aplicaría su propio
-    // default y el CFDI quedaría con un desglose de IVA distinto al que
-    // capturamos aquí (el mismo problema real de la factura #3). La
-    // captura ya bloquea esto (ver create/edit.blade.php + validate() de
-    // store/update), pero una factura BORRADOR vieja pudo quedar así antes
-    // de ese fix, o pudo tocarse por otra vía — por eso se revisa de nuevo
-    // aquí, justo antes de enviar.
-    $lineasSinImpuesto = $invoice->items->filter(function ($item) {
-        if (blank($item->objeto_imp)) {
-            return true;
-        }
-        if ($item->objeto_imp === '02' && (float) $item->iva_pct <= 0) {
-            return true;
-        }
-        return false;
-    });
+    // objeto de impuesto definido, NO se manda a timbrar — FactuapiDriver ya
+    // manda 'taxability'/'unit_key'/'tax_included' explícitos, pero sin
+    // objeto_imp no hay nada que mandar. "02 + 0% IVA" SÍ es válido (Tasa
+    // 0%, la clasificación real de alimentos básicos sin preparar — Art.
+    // 2-A Ley del IVA) y ya no se bloquea, porque ahora se manda explícito
+    // (con tasa 0 incluida) en vez de omitirse como antes.
+    $lineasSinImpuesto = $invoice->items->filter(fn ($item) => blank($item->objeto_imp));
 
     if ($lineasSinImpuesto->isNotEmpty()) {
         return back()->with('swal', [
@@ -958,7 +940,7 @@ public function pdfDownload(Invoice $invoice)
             'items.*.valor_unitario'  => ['required', 'numeric', 'gte:0'],
             'items.*.descuento'       => ['nullable', 'numeric', 'gte:0'],
             'items.*.objeto_imp'      => ['required', 'in:01,02,03'],
-            'items.*.iva_pct'         => ['nullable', 'numeric', 'gte:0', $this->reglaIvaConsistente($request)],
+            'items.*.iva_pct'         => ['nullable', 'numeric', 'gte:0'],
             'items.*.ieps_pct'        => ['nullable', 'numeric', 'gte:0'],
         ]);
 

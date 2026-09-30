@@ -612,11 +612,13 @@
     }
 
     // Marca visualmente la línea cuando falta elegir el impuesto (producto
-    // sin configurar) — bloquea el guardado hasta que se resuelva.
+    // sin configurar) — bloquea el guardado hasta que se resuelva. "02 con
+    // 0% de IVA" (Tasa 0%, alimentos básicos sin preparar) SÍ es válido con
+    // el % elegido explícitamente — solo falta algo si no se ha elegido.
     function itemImpuestoIncompleto(i) {
         var it = items[i];
         if (!it.objeto_imp) return true;
-        if (it.objeto_imp === '02' && (it.iva_pct === '' || it.iva_pct == null || parseFloat(it.iva_pct) <= 0)) return true;
+        if (it.objeto_imp === '02' && (it.iva_pct === '' || it.iva_pct == null)) return true;
         return false;
     }
 
