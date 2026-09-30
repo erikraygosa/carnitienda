@@ -369,7 +369,7 @@ body { font-size: 11px; color: #1a1a1a; background: #fff; padding: 28px 32px; }
             <tr>
                 <td class="gray">{{ $it->clave_prod_serv ?? '—' }}</td>
                 <td>{{ $it->descripcion }}</td>
-                <td class="gray">{{ $it->clave_unidad ?? '' }} {{ $it->unidad ?? '' }}</td>
+                <td class="gray">{{ $it->clave_unidad ?? '' }}</td>
                 <td class="r">{{ number_format((float)$it->cantidad, 3) }}</td>
                 <td class="r">{{ number_format((float)$it->valor_unitario, 4) }}</td>
                 <td class="r">{{ number_format((float)$it->descuento, 2) }}</td>
