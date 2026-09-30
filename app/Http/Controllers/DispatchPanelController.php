@@ -30,6 +30,14 @@ class DispatchPanelController extends Controller
 
         // Filtra por la misma fecha que se muestra en la tabla (programada
         // de entrega; si el pedido no tiene una, se usa la de captura).
+        //
+        // Sin paginar (se navega con scroll en la vista) — antes el
+        // ->paginate(50) limitaba a los 50 pedidos más recientes y el resto
+        // quedaba invisible SIN forma de llegar a ellos (se quitaron los
+        // botones "Anterior/Siguiente" al pasar esta pantalla a scroll
+        // continuo, pero la consulta seguía cortando en 50). Caso real:
+        // 261 pedidos PROCESADOS pendientes, SO-20260904-0427 entre los 211
+        // que quedaban fuera de la primera página y ya no había cómo verlos.
         $pedidos = SalesOrder::with(['client', 'items.product', 'route'])
             ->where('status', SalesOrder::S_PROCESADO)
             ->when($rutaId, fn($q) => $q->where('shipping_route_id', $rutaId))
@@ -39,8 +47,7 @@ class DispatchPanelController extends Controller
                 ->orWhere(fn($q3) => $q3->whereNull('programado_para')->whereDate('fecha', $fecha))
             ))
             ->orderByDesc('fecha')
-            ->paginate(50)
-            ->withQueryString();
+            ->get();
 
         // sales_order_item_id de líneas ya guardadas (qty_despachada != null y > 0),
         // para poder marcarlas de otro color en la lista sin abrir el panel.
