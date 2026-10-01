@@ -19,7 +19,7 @@
                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-500 mb-1">Buscar en sueltos</label>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Buscar en sin asignación</label>
                 <input type="text" id="pr-search" placeholder="Folio o cliente..."
                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
@@ -31,10 +31,10 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
-            {{-- Sueltos --}}
+            {{-- Sin asignación --}}
             <div class="rounded-lg border border-amber-200 overflow-hidden flex flex-col">
                 <div class="px-3 py-2 bg-amber-500 text-white text-sm font-bold uppercase tracking-wide flex items-center justify-between">
-                    <span><i class="fa-solid fa-box-open mr-1.5 opacity-75"></i>Sueltos</span>
+                    <span><i class="fa-solid fa-box-open mr-1.5 opacity-75"></i>Sin Asignación</span>
                     <span id="pr-sueltos-count" class="text-xs font-normal"></span>
                 </div>
                 <div id="pr-sueltos" data-dropzone="sueltos"
@@ -57,6 +57,7 @@
         const ASEGURAR_URL= '{{ route('admin.dispatches.panel-rutas.asegurar') }}';
         const CSRF         = '{{ csrf_token() }}';
         const FORMATO_IMPRESION = '{{ $formatoImpresion }}';
+        const ROUTES = @json($routes->map(fn($r) => ['id' => $r->id, 'nombre' => $r->nombre])->values());
 
         const hoy = new Date().toISOString().slice(0,10);
         let state = { fecha: hoy, search: '' };
@@ -102,9 +103,16 @@
         }
 
         function pedidoChip(p, origenTipo, origenKey) {
+            const envioBtn = origenTipo === 'sueltos'
+                ? `<button type="button" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] shadow hover:bg-indigo-700 flex items-center justify-center"
+                           title="Enviar a ruta" onclick="event.stopPropagation(); prEnviarARuta(${p.order_id})">
+                       <i class="fa-solid fa-paper-plane"></i>
+                   </button>`
+                : '';
             return `
-                <div class="pr-chip rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs shadow-sm cursor-grab active:cursor-grabbing"
+                <div class="pr-chip relative rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs shadow-sm cursor-grab active:cursor-grabbing"
                      draggable="true" data-order-id="${p.order_id}" data-origen-tipo="${origenTipo}" data-origen-key="${origenKey || ''}">
+                    ${envioBtn}
                     <div class="flex items-center justify-between gap-1">
                         <span class="font-mono font-medium text-indigo-700 truncate">${escHtml(p.folio)}</span>
                         <span class="font-semibold text-gray-700 whitespace-nowrap">${fmtMoney(p.total)}</span>
@@ -122,7 +130,7 @@
         function renderSueltos(sueltos) {
             $('pr-sueltos-count').textContent = sueltos.length ? `${sueltos.length}` : '';
             if (sueltos.length === 0) {
-                $('pr-sueltos').innerHTML = '<div class="text-center py-6 text-gray-400 text-xs">Sin pedidos sueltos.</div>';
+                $('pr-sueltos').innerHTML = '<div class="text-center py-6 text-gray-400 text-xs">Sin pedidos sin asignación.</div>';
                 return;
             }
             $('pr-sueltos').innerHTML = sueltos.map(p => pedidoChip({
@@ -276,6 +284,63 @@
         window.prEntregarPedido = function (dispatchId, itemId) {
             if (!dispatchId || !itemId) return;
             postForm(`{{ url('admin/dispatches') }}/${dispatchId}/pedido/${itemId}/entregar`);
+        };
+
+        window.prEnviarARuta = async function (orderId) {
+            const routeOptions = ROUTES.map(r => `<option value="${r.id}">${escHtml(r.nombre)}</option>`).join('');
+
+            const { value: form } = await Swal.fire({
+                title: 'Enviar a ruta',
+                html: `
+                    <div class="text-left space-y-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Ruta</label>
+                            <select id="swal-ruta" class="swal2-select" style="width:100%; margin:0;">
+                                <option value="">Selecciona una ruta...</option>
+                                ${routeOptions}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Ronda</label>
+                            <select id="swal-ronda" class="swal2-select" style="width:100%; margin:0;">
+                                <option value="1">1ra</option>
+                                <option value="2">2da</option>
+                            </select>
+                        </div>
+                    </div>
+                `,
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: 'Enviar',
+                cancelButtonText: 'Cancelar',
+                preConfirm: () => {
+                    const routeId = document.getElementById('swal-ruta').value;
+                    const ronda   = document.getElementById('swal-ronda').value;
+                    if (!routeId) {
+                        Swal.showValidationMessage('Selecciona una ruta.');
+                        return false;
+                    }
+                    return { routeId, ronda };
+                },
+            });
+
+            if (!form) return;
+
+            try {
+                const res = await fetch(MOVER_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                    body: JSON.stringify({ order_id: orderId, shipping_route_id: form.routeId, ronda: form.ronda, fecha: state.fecha }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    Swal.fire('No se pudo mover', data.message || 'Intenta de nuevo.', 'error');
+                }
+            } catch (err) {
+                Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+            } finally {
+                load();
+            }
         };
 
         window.prAgregarCxc = async function (routeId, ronda) {
