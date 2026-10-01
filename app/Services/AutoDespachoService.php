@@ -50,31 +50,7 @@ class AutoDespachoService
         }
 
         DB::transaction(function () use ($order, $fecha) {
-            $dispatch = Dispatch::where('shipping_route_id', $order->shipping_route_id)
-                ->where('ronda', $order->ronda)
-                ->whereDate('fecha', $fecha)
-                ->where('status', 'PLANEADO')
-                ->lockForUpdate()
-                ->first();
-
-            if (! $dispatch) {
-                $route  = $order->route; // ShippingRoute
-                $driver = Driver::firstOrCreate(
-                    ['nombre' => $route?->nombre ?? 'Sin nombre'],
-                    ['activo' => true]
-                );
-
-                $dispatch = Dispatch::create([
-                    'warehouse_id'      => $this->almacenDefault()?->id,
-                    'shipping_route_id' => $order->shipping_route_id,
-                    'ronda'             => $order->ronda,
-                    'driver_id'         => $driver->id,
-                    'fecha'             => $fecha,
-                    'status'            => 'PLANEADO',
-                ]);
-
-                $this->log->log($dispatch, 'CREADO', null, 'PLANEADO', null, 'Auto-creado al procesar pedido ' . $order->folio);
-            }
+            $dispatch = $this->encontrarOCrearDespacho($order->shipping_route_id, $order->ronda, $fecha, "Auto-creado al procesar pedido {$order->folio}");
 
             $itemExistente    = DispatchItem::where('sales_order_id', $order->id)->first();
             $dispatchOrigenId = $itemExistente?->dispatch_id;
@@ -90,6 +66,45 @@ class AutoDespachoService
 
             $this->log->log($dispatch, 'PEDIDOS_AGREGADOS', null, null, null, "Pedido {$order->folio} auto-asignado");
         });
+    }
+
+    /**
+     * Encuentra el despacho PLANEADO de esta ruta+ronda+día, o lo crea si no
+     * existe — misma regla en los dos lugares que la necesitan: la
+     * auto-asignación de arriba, y el panel de rutas (drag & drop) al soltar
+     * un pedido en una celda que todavía no tiene despacho.
+     */
+    public function encontrarOCrearDespacho(int $routeId, int $ronda, $fecha, ?string $notaCreacion = null): Dispatch
+    {
+        $dispatch = Dispatch::where('shipping_route_id', $routeId)
+            ->where('ronda', $ronda)
+            ->whereDate('fecha', $fecha)
+            ->where('status', 'PLANEADO')
+            ->lockForUpdate()
+            ->first();
+
+        if ($dispatch) {
+            return $dispatch;
+        }
+
+        $route  = \App\Models\ShippingRoute::find($routeId);
+        $driver = Driver::firstOrCreate(
+            ['nombre' => $route?->nombre ?? 'Sin nombre'],
+            ['activo' => true]
+        );
+
+        $dispatch = Dispatch::create([
+            'warehouse_id'      => $this->almacenDefault()?->id,
+            'shipping_route_id' => $routeId,
+            'ronda'             => $ronda,
+            'driver_id'         => $driver->id,
+            'fecha'             => $fecha,
+            'status'            => 'PLANEADO',
+        ]);
+
+        $this->log->log($dispatch, 'CREADO', null, 'PLANEADO', null, $notaCreacion ?? 'Auto-creado');
+
+        return $dispatch;
     }
 
     private function almacenDefault(): ?Warehouse

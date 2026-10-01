@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\GestionNotasController;
 use App\Http\Controllers\Admin\SaleController;
 use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\DispatchController;
+use App\Http\Controllers\Admin\DispatchRoutePanelController;
 use App\Http\Controllers\Admin\DriverCashRegisterController;
 use App\Http\Controllers\Admin\AccountsReceivableController;
 use App\Http\Controllers\Admin\ArPaymentsController;
@@ -221,6 +222,13 @@ Route::prefix('driver-cash')->name('driver-cash.')->group(function () {
     Route::post('/{register}/abono', [DriverCashRegisterController::class,'abono'])->name('abono');
     Route::post('/{register}/close', [DriverCashRegisterController::class,'close'])->name('close');
 });
+
+// Panel de rutas de despacho (fase 2, drag & drop) — antes del resource de
+// dispatches para que "panel-rutas" no choque con {dispatch} de show/edit.
+Route::get ('dispatches/panel-rutas',      [DispatchRoutePanelController::class,'index'])->name('dispatches.panel-rutas');
+Route::get ('dispatches/panel-rutas/data', [DispatchRoutePanelController::class,'data'])->name('dispatches.panel-rutas.data');
+Route::post('dispatches/panel-rutas/mover',[DispatchRoutePanelController::class,'mover'])->name('dispatches.panel-rutas.mover');
+Route::post('dispatches/panel-rutas/asegurar-despacho',[DispatchRoutePanelController::class,'asegurarDespacho'])->name('dispatches.panel-rutas.asegurar');
 
 Route::get('dispatches/buscar-pedido', [DispatchController::class,'buscarPedidoAsignacion'])->name('dispatches.buscar-pedido');
 Route::resource('dispatches', DispatchController::class)->except(['show']);
