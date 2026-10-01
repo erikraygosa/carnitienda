@@ -81,7 +81,10 @@
             f.submit();
         }
 
+        let loadSeq = 0;
+
         async function load() {
+            const mySeq = ++loadSeq;
             $('pr-sueltos').innerHTML = '<div class="text-center py-6 text-gray-400 text-xs">Cargando...</div>';
             $('pr-rutas').innerHTML = '<div class="col-span-full text-center py-8 text-gray-400">Cargando...</div>';
 
@@ -89,9 +92,11 @@
                 const params = new URLSearchParams({ fecha: state.fecha, search: state.search });
                 const res  = await fetch(`${DATA_URL}?${params}`, { headers: { 'Accept': 'application/json' } });
                 const data = await res.json();
+                if (mySeq !== loadSeq) return; // una carga más nueva ya está en curso/terminó, ignorar esta respuesta tardía
                 renderSueltos(data.sueltos || []);
                 renderRutas(data.rutas || []);
             } catch (e) {
+                if (mySeq !== loadSeq) return;
                 $('pr-rutas').innerHTML = '<div class="col-span-full text-center py-8 text-red-400">Error cargando datos.</div>';
             }
         }
@@ -227,7 +232,8 @@
                 zone.addEventListener('dragleave', () => zone.classList.remove('ring-2', 'ring-indigo-400'));
                 zone.addEventListener('drop', async e => {
                     e.preventDefault();
-                    zone.classList.remove('ring-2', 'ring-indigo-400');
+                    e.stopPropagation();
+                    document.querySelectorAll('[data-dropzone]').forEach(z => z.classList.remove('ring-2', 'ring-indigo-400'));
                     const orderId = e.dataTransfer.getData('text/plain');
                     if (!orderId) return;
 
@@ -249,8 +255,9 @@
                         }
                     } catch (err) {
                         Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+                    } finally {
+                        await load();
                     }
-                    load();
                 });
             });
         }

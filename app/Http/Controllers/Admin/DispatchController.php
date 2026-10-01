@@ -65,11 +65,19 @@ class DispatchController extends Controller implements HasMiddleware
                 'items',
                 'items as items_entregados'    => fn($q) => $q->where('status', 'ENTREGADO'),
                 'items as items_no_entregados' => fn($q) => $q->where('status', 'NO_ENTREGADO'),
+                'arAssignments', 'transferAssignments',
             ])
             ->whereDate('fecha', '>=', $fechaDesde)
             ->whereDate('fecha', '<=', $fechaHasta)
             ->orderBy('fecha', 'desc')
-            ->get();
+            ->get()
+            // Despachos totalmente vacíos (sin pedidos, sin CxC, sin traspasos) no
+            // aportan nada en la lista — suelen ser residuo de un "+CxC" del panel
+            // de rutas que no se terminó de usar, o de un drag & drop que vació la
+            // celda de origen. Siguen existiendo (se pueden reusar al soltar algo
+            // encima en el panel), solo no se listan aquí mientras sigan vacíos.
+            ->filter(fn ($d) => $d->items_count > 0 || $d->ar_assignments_count > 0 || $d->transfer_assignments_count > 0)
+            ->values();
 
         // Pedidos PROCESADOS que aún no se han asignado a ningún despacho
         $pedidosSinAsignar = SalesOrder::where('status', 'PROCESADO')

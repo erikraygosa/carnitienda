@@ -122,9 +122,16 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
             'status'          => $a->status,
         ])->values();
 
+        // Un despacho PLANEADO sin pedidos ni CxC (ej. creado por error con el
+        // botón "+ CxC" y nunca usado) se muestra como celda vacía — el status
+        // "PLANEADO" ahí no aporta nada y solo confunde. Sigue existiendo
+        // (dispatch_id se conserva para reusarlo si sueltan algo encima), solo
+        // no se le pinta el badge de estatus.
+        $vacio = $pedidos->isEmpty() && $cxc->isEmpty();
+
         return [
             'dispatch_id' => $dispatch->id,
-            'status'      => $dispatch->status,
+            'status'      => $vacio ? null : $dispatch->status,
             'editable'    => $dispatch->status === 'PLANEADO',
             'pedidos'     => $pedidos,
             'cxc'         => $cxc,
