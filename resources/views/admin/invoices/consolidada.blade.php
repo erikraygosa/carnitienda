@@ -11,12 +11,6 @@
            class="inline-flex px-3 py-1.5 text-sm rounded-md border">Regresar</a>
     </x-slot>
 
-    <div class="mb-4 rounded-md border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
-        Selecciona varios pedidos o notas de venta <strong>sin facturar</strong> para juntarlos en una sola factura. Las
-        partidas se combinan por producto (sumando cantidades). Si todos son del mismo cliente puedes facturar con
-        sus datos reales; si no, se factura a "Público en general".
-    </div>
-
     <x-wire-card>
         {{-- Pedidos / Notas --}}
         <div class="flex items-center gap-2 mb-4">
