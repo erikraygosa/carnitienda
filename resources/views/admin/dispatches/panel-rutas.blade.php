@@ -169,9 +169,12 @@
             }, 'ruta', key)).join('');
 
             const cxcHtml = (celda.cxc || []).map(c => `
-                <div class="text-[11px] bg-violet-50 text-violet-700 rounded px-1.5 py-1 flex items-center justify-between">
-                    <span class="truncate">${escHtml(c.cliente)}</span>
-                    <span class="font-semibold whitespace-nowrap ml-1">${fmtMoney(c.saldo_asignado)}</span>
+                <div class="text-[11px] bg-violet-50 text-violet-700 rounded px-1.5 py-1">
+                    <div class="flex items-center justify-between gap-1">
+                        <span class="truncate">${escHtml(c.cliente)}</span>
+                        <span class="font-semibold whitespace-nowrap ml-1">${fmtMoney(c.saldo_asignado)}</span>
+                    </div>
+                    ${c.folios ? `<div class="font-mono text-violet-500 truncate">${escHtml(c.folios)}</div>` : ''}
                 </div>
             `).join('');
 

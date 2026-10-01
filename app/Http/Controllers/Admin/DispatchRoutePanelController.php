@@ -136,6 +136,7 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
         $cxc = $dispatch->arAssignments->map(fn ($a) => [
             'id'              => $a->id,
             'cliente'         => $a->client?->nombre ?? '—',
+            'folios'          => $a->orders()->pluck('sales_orders.folio')->implode(', '),
             'saldo_asignado'  => (float) $a->saldo_asignado,
             'monto_cobrado'   => (float) $a->monto_cobrado,
             'status'          => $a->status,
