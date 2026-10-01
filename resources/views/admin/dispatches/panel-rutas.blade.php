@@ -104,18 +104,20 @@
 
         function pedidoChip(p, origenTipo, origenKey) {
             const envioBtn = origenTipo === 'sueltos'
-                ? `<button type="button" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] shadow hover:bg-indigo-700 flex items-center justify-center"
+                ? `<button type="button" class="shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] shadow hover:bg-indigo-700 flex items-center justify-center"
                            title="Enviar a ruta" onclick="event.stopPropagation(); prEnviarARuta(${p.order_id})">
                        <i class="fa-solid fa-paper-plane"></i>
                    </button>`
                 : '';
             return `
-                <div class="pr-chip relative rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs shadow-sm cursor-grab active:cursor-grabbing"
+                <div class="pr-chip rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs shadow-sm cursor-grab active:cursor-grabbing"
                      draggable="true" data-order-id="${p.order_id}" data-origen-tipo="${origenTipo}" data-origen-key="${origenKey || ''}">
-                    ${envioBtn}
                     <div class="flex items-center justify-between gap-1">
                         <span class="font-mono font-medium text-indigo-700 truncate">${escHtml(p.folio)}</span>
-                        <span class="font-semibold text-gray-700 whitespace-nowrap">${fmtMoney(p.total)}</span>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <span class="font-semibold text-gray-700 whitespace-nowrap">${fmtMoney(p.total)}</span>
+                            ${envioBtn}
+                        </div>
                     </div>
                     <div class="text-gray-500 truncate">${escHtml(p.cliente)}</div>
                     ${p.status === 'EN_RUTA' ? `
