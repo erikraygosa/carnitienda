@@ -568,6 +568,8 @@
 
         const PRODUCTS = @json($productsJson);
         const MOSTRAR_IVA = @json($mostrarIva);
+        const EXISTENCIAS = @json($existencias ?? []);
+        const AVISAR_STOCK_BAJO = @json((bool) ($avisarStockBajo ?? false));
 
         let state = {
             items: [],
@@ -934,6 +936,49 @@
                     if (CAN_EDIT_ITEMS) SOE.repriceAll();
                 })
                 .catch(() => {});
+        });
+
+        // ── Validación antes de guardar ─────────────────────────────────
+        // No se bloquea el guardado — solo se avisa y se pide confirmar,
+        // igual que en Pedidos → Crear (ver create.blade.php).
+        const soEditForm = document.getElementById('so-edit-form');
+        soEditForm.addEventListener('submit', function (e) {
+            const warehouseSel = document.querySelector('select[name="warehouse_id"]');
+            const stockAlmacen = EXISTENCIAS[String(warehouseSel ? warehouseSel.value : '')] || {};
+            const avisos = [];
+
+            state.items.forEach(function (it) {
+                if (!it.product_id) return;
+                const nombre = it._productoNombre || it.descripcion || ('#' + it.product_id);
+
+                if ((+it.precio || 0) <= 0) {
+                    avisos.push('• ' + escHtml(nombre) + ': precio en $0.00');
+                }
+
+                const pid = String(it.product_id);
+                if (AVISAR_STOCK_BAJO && Object.prototype.hasOwnProperty.call(stockAlmacen, pid)) {
+                    const existencia = +stockAlmacen[pid];
+                    if (existencia <= 1) {
+                        avisos.push('• ' + escHtml(nombre) + ': solo queda' + (existencia === 1 ? '' : 'n') + ' ' + existencia + ' en existencia');
+                    }
+                }
+            });
+
+            if (!avisos.length) return; // nada que avisar, se guarda normal
+
+            e.preventDefault();
+            Swal.fire({
+                title: 'Revisa antes de guardar',
+                html: 'Hay partidas con posibles problemas:<br><br>' + avisos.join('<br>'),
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Continuar de todos modos',
+                cancelButtonText: 'Corregir',
+                confirmButtonColor: '#4f46e5',
+                cancelButtonColor: '#6b7280',
+            }).then(function (r) {
+                if (r.isConfirmed) soEditForm.submit();
+            });
         });
     })();
     </script>

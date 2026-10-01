@@ -102,6 +102,7 @@ class SystemSetting extends Model
 
             // Pedidos
             ['clave' => 'pedidos.mostrar_iva', 'valor' => '1', 'tipo' => 'boolean', 'grupo' => 'pedidos', 'descripcion' => 'Muestra la columna de % IVA en la creación/edición de pedidos'],
+            ['clave' => 'pedidos.avisar_stock_bajo', 'valor' => '0', 'tipo' => 'boolean', 'grupo' => 'pedidos', 'descripcion' => 'Avisa (sin bloquear) al guardar un pedido si algún producto queda con 1 o menos en existencia'],
 
             // Reportes
             ['clave' => 'reportes.liquidaciones_pendientes_modo', 'valor' => 'procesar', 'tipo' => 'string', 'grupo' => 'reportes', 'descripcion' => "Qué pedidos cuenta el widget 'pendientes' de Reportes → Liquidaciones: 'procesar' (APROBADO/PREPARANDO, aún no pasan por Procesar) o 'surtir' (PROCESADO, ya en Salida de producto pero sin terminar de despachar)"],

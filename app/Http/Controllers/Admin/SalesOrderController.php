@@ -237,17 +237,32 @@ public function data(Request $request)
         'entrega_cp'       => $c->entrega_igual_fiscal ? ($c->fiscal_cp      ?? '') : ($c->entrega_cp      ?? ''),
     ]])->toArray();
 
-    $mostrarIva = \App\Models\SystemSetting::get('pedidos.mostrar_iva', true);
+    $mostrarIva       = \App\Models\SystemSetting::get('pedidos.mostrar_iva', true);
+    $avisarStockBajo  = \App\Models\SystemSetting::get('pedidos.avisar_stock_bajo', false);
+    $existencias      = $this->existenciasPorAlmacen();
 
-    // Existencia por almacén, para avisar en el formulario (no bloquear)
-    // cuando un producto se está pidiendo con muy poco stock disponible.
-    // Solo productos que manejan inventario — el resto no tiene existencia
-    // que validar.
+    return view('admin.sales_orders.create', compact(
+        'clients','priceLists','products','warehouses',
+        'drivers','routes','overrides','listItems',
+        'mainWarehouseId','clientDefaults','productsJson','mostrarIva','existencias','avisarStockBajo'
+    ));
+}
+
+/**
+ * Existencia por almacén, para avisar en el formulario (no bloquear) cuando
+ * un producto se está pidiendo con muy poco stock disponible — solo
+ * productos que manejan inventario, el resto no tiene existencia que
+ * validar. Compartido por create() y edit() (ver Superadmin → Configuración
+ * → Pedidos → "Avisar existencia baja al guardar un pedido").
+ */
+private function existenciasPorAlmacen(): array
+{
     $sumExpr = "COALESCE(SUM(CASE
         WHEN sm.tipo = 'IN'  THEN sm.cantidad
         WHEN sm.tipo = 'OUT' THEN -sm.cantidad
         ELSE 0 END), 0)";
-    $existencias = DB::table('products as p')
+
+    return DB::table('products as p')
         ->crossJoin('warehouses as w')
         ->leftJoin('stock_movements as sm', function ($join) {
             $join->on('sm.product_id', '=', 'p.id')
@@ -261,12 +276,6 @@ public function data(Request $request)
         ->groupBy('warehouse_id')
         ->map(fn($rows) => $rows->pluck('existencia', 'product_id')->map(fn($v) => (float) $v)->toArray())
         ->toArray();
-
-    return view('admin.sales_orders.create', compact(
-        'clients','priceLists','products','warehouses',
-        'drivers','routes','overrides','listItems',
-        'mainWarehouseId','clientDefaults','productsJson','mostrarIva','existencias'
-    ));
 }
 
     /**
@@ -746,12 +755,14 @@ public function data(Request $request)
             ->where('nota', '!=', '')
             ->pluck('nota', 'sales_order_item_id');
 
-        $mostrarIva = \App\Models\SystemSetting::get('pedidos.mostrar_iva', true);
+        $mostrarIva      = \App\Models\SystemSetting::get('pedidos.mostrar_iva', true);
+        $avisarStockBajo = \App\Models\SystemSetting::get('pedidos.avisar_stock_bajo', false);
+        $existencias     = $this->existenciasPorAlmacen();
 
         return view('admin.sales_orders.edit', compact(
             'order','clients','priceLists','products','warehouses','drivers','routes',
             'productsJson','overrides','listItems','itemsSurtidosIds','notasSurtidoPorItem','mostrarIva',
-            'puedeEditarCerrados'
+            'puedeEditarCerrados','existencias','avisarStockBajo'
         ));
     }
 

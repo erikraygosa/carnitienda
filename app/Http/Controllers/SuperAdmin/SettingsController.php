@@ -156,6 +156,14 @@ class SettingsController extends Controller
             'pedidos'
         );
 
+        // Checkbox: si no viene en el request es porque está desmarcado.
+        SystemSetting::set(
+            'pedidos.avisar_stock_bajo',
+            $request->boolean('pedidos_avisar_stock_bajo') ? '1' : '0',
+            'boolean',
+            'pedidos'
+        );
+
         SystemSetting::set(
             'reportes.liquidaciones_pendientes_modo',
             $request->input('reportes_liquidaciones_pendientes_modo') === 'surtir' ? 'surtir' : 'procesar',

@@ -296,6 +296,7 @@
         const CLIENT_DEFAULTS   = {!! $JS_CLIENT_DEFAULTS !!};
         const DEFAULT_CLIENT_ID = {!! $JS_SELCLIENT !!};
         const EXISTENCIAS       = {!! $JS_EXISTENCIAS !!}; // { [warehouse_id]: { [product_id]: existencia } }
+        const AVISAR_STOCK_BAJO = {{ ($avisarStockBajo ?? false) ? 'true' : 'false' }};
         const CLIENTS_EDIT_BASE    = '{{ url('admin/clients') }}';
         const CLIENT_PRICES_BASE   = '{{ url('admin/sales-orders/client-prices') }}';
         const PRODUCTS             = @json($productsJson);
@@ -767,7 +768,7 @@
                 }
 
                 const pid = String(it.product_id);
-                if (Object.prototype.hasOwnProperty.call(stockAlmacen, pid)) {
+                if (AVISAR_STOCK_BAJO && Object.prototype.hasOwnProperty.call(stockAlmacen, pid)) {
                     const existencia = +stockAlmacen[pid];
                     if (existencia <= 1) {
                         avisos.push('• ' + escHtml(nombre) + ': solo queda' + (existencia === 1 ? '' : 'n') + ' ' + existencia + ' en existencia');

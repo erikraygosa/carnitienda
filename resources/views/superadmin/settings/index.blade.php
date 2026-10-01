@@ -384,6 +384,7 @@
 
         @php
             $mostrarIvaPedidos = ($pedidos['pedidos.mostrar_iva']?->valor ?? '1') === '1';
+            $avisarStockBajo   = ($pedidos['pedidos.avisar_stock_bajo']?->valor ?? '0') === '1';
         @endphp
 
         <label class="flex items-start gap-3 cursor-pointer">
@@ -395,6 +396,20 @@
                 <span class="block text-xs text-gray-500 mt-0.5">
                     Activado por defecto. Si lo desactivas, la columna "% IVA" y el renglón de "Impuestos"
                     desaparecen de Pedidos → Crear/Editar (útil si el negocio no maneja IVA en sus productos).
+                </span>
+            </span>
+        </label>
+
+        <label class="flex items-start gap-3 cursor-pointer mt-4">
+            <input type="checkbox" name="pedidos_avisar_stock_bajo" value="1"
+                   {{ $avisarStockBajo ? 'checked' : '' }}
+                   class="mt-1 rounded bg-gray-800 border-gray-700 text-indigo-600 focus:ring-indigo-500">
+            <span>
+                <span class="block text-sm text-white">Avisar existencia baja al guardar un pedido</span>
+                <span class="block text-xs text-gray-500 mt-0.5">
+                    Desactivado por defecto. Si lo activas, al guardar un pedido (Crear o Editar) se avisa
+                    (sin bloquear) cuando algún producto quede con 1 o menos en existencia, incluyendo
+                    negativo. El usuario puede continuar de todos modos.
                 </span>
             </span>
         </label>
