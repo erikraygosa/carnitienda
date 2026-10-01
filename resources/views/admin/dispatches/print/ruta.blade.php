@@ -139,8 +139,6 @@
                 @php
                     $o = $item->salesOrder;
                     if(!$o) continue;
-                    $totalPedidos += $o->total;
-                    if(in_array($o->payment_method, ['EFECTIVO','CONTRAENTREGA'])) $totalEfectivo += $o->total;
                     // Mismo criterio que en dispatches/edit — pedido PROCESADO
                     // que no ha pasado (completo) por Salida de Producto. Se
                     // marca en rojo para que se vea de volada en la hoja
@@ -148,6 +146,13 @@
                     $totalItemsPedido   = $o->items->count();
                     $itemsSurtidosCount = $item->lines->whereNotNull('qty_despachada')->pluck('sales_order_item_id')->unique()->count();
                     $faltaSurtir        = $o->status === 'PROCESADO' && ($totalItemsPedido === 0 || $itemsSurtidosCount < $totalItemsPedido);
+                    // Mientras falte surtir no se le puede pedir al chofer que
+                    // cobre/entregue ese importe — en esta hoja impresa se
+                    // muestra y se suma como $0.00 (no afecta el total real
+                    // del pedido guardado en el sistema, solo lo impreso).
+                    $totalImpreso = $faltaSurtir ? 0 : $o->total;
+                    $totalPedidos += $totalImpreso;
+                    if(in_array($o->payment_method, ['EFECTIVO','CONTRAENTREGA'])) $totalEfectivo += $totalImpreso;
                 @endphp
                 <tr style="{{ $faltaSurtir ? 'color:#dc2626;' : '' }}">
                     <td style="font-weight:bold;{{ $faltaSurtir ? 'color:#dc2626;' : 'color:#555;' }}">{{ $i + 1 }}</td>
@@ -162,7 +167,7 @@
                         <div class="cliente" style="{{ $faltaSurtir ? 'color:#dc2626;' : '' }}">{{ $o->client?->nombre ?? '—' }}</div>
 
                     </td>
-                    <td class="text-right"><strong>${{ number_format($o->total, 2) }}</strong></td>
+                    <td class="text-right"><strong>${{ number_format($totalImpreso, 2) }}</strong></td>
                     <td class="text-center no-ticket" style="font-size:18px;">☐</td>
                 </tr>
             @endforeach
