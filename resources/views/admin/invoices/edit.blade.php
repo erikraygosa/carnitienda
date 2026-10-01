@@ -283,6 +283,49 @@
                 </div>
             </div>
 
+            @if($selTipo === 'P')
+                {{-- ====== DATOS DEL PAGO (Complemento tipo P no tiene partidas, --}}
+                {{-- su información real vive en complementDocs) ====== --}}
+                <div class="border-t pt-5">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Datos del pago</h4>
+                    <div class="text-sm text-gray-600 mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <div><span class="text-gray-500">Fecha de pago:</span> {{ optional($invoice->arPayment?->fecha)->format('d/m/Y') ?? '—' }}</div>
+                        <div><span class="text-gray-500">Forma de pago:</span> {{ $invoice->arPayment?->paymentType?->descripcion ?? '—' }}</div>
+                        <div><span class="text-gray-500">Monto pagado:</span> ${{ number_format($invoice->complementDocs->sum('imp_pagado'), 2) }}</div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="border-b bg-gray-50">
+                                <tr>
+                                    <th class="p-2 text-left">Factura relacionada</th>
+                                    <th class="p-2 text-left">UUID</th>
+                                    <th class="p-2 text-right">Parcialidad</th>
+                                    <th class="p-2 text-right">Saldo anterior</th>
+                                    <th class="p-2 text-right">Importe pagado</th>
+                                    <th class="p-2 text-right">Saldo insoluto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($invoice->complementDocs as $doc)
+                                    <tr class="border-b">
+                                        <td class="p-2">{{ $doc->relatedInvoice?->serie }}{{ $doc->relatedInvoice?->folio }}</td>
+                                        <td class="p-2 text-gray-500">{{ $doc->relatedInvoice?->uuid }}</td>
+                                        <td class="p-2 text-right">{{ $doc->num_parcialidad }}</td>
+                                        <td class="p-2 text-right">${{ number_format($doc->imp_saldo_anterior, 2) }}</td>
+                                        <td class="p-2 text-right font-semibold">${{ number_format($doc->imp_pagado, 2) }}</td>
+                                        <td class="p-2 text-right">${{ number_format($doc->imp_saldo_insoluto, 2) }}</td>
+                                    </tr>
+                                @empty
+                                    <tr><td class="p-2 text-gray-500" colspan="6">Sin documentos relacionados.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-3">
+                        Un Complemento de Pago no lleva partidas con importe — el CFDI se timbra en $0.00 por diseño del SAT; el monto real pagado se refleja arriba y en el PDF.
+                    </p>
+                </div>
+            @else
             {{-- ====== PARTIDAS ====== --}}
             <div class="border-t pt-5">
                 <h4 class="text-sm font-semibold text-gray-700 mb-3">Partidas</h4>
@@ -336,6 +379,7 @@
                     </div>
                 </div>
             </div>
+            @endif
 
         </form>
     </x-wire-card>

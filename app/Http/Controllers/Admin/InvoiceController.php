@@ -563,7 +563,7 @@ public function store(Request $request)
 
     public function edit(Invoice $invoice)
 {
-    $invoice->load('client', 'items.product', 'salesOrder', 'sale');
+    $invoice->load('client', 'items.product', 'salesOrder', 'sale', 'arPayment.paymentType', 'complementDocs.relatedInvoice');
 
     $clients = Client::orderBy('nombre')->get([
         'id', 'nombre', 'rfc', 'razon_social',
