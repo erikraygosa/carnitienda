@@ -438,6 +438,64 @@
     </div>
 
     <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-white font-semibold mb-1">Despachos</h3>
+
+        @php
+            $modoRutas = $despacho['despacho.modo_rutas']?->valor ?? 'manual';
+        @endphp
+
+        <div class="space-y-3">
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="radio" name="despacho_modo_rutas" value="manual"
+                       {{ $modoRutas === 'manual' ? 'checked' : '' }}
+                       class="mt-1 bg-gray-800 border-gray-700 text-indigo-600 focus:ring-indigo-500">
+                <span>
+                    <span class="block text-sm text-white">Manual <span class="text-gray-500">(default)</span></span>
+                    <span class="block text-xs text-gray-500 mt-0.5">
+                        Los despachos se crean y se les agregan pedidos a mano, como hasta ahora.
+                    </span>
+                </span>
+            </label>
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="radio" name="despacho_modo_rutas" value="automatico"
+                       {{ $modoRutas === 'automatico' ? 'checked' : '' }}
+                       class="mt-1 bg-gray-800 border-gray-700 text-indigo-600 focus:ring-indigo-500">
+                <span>
+                    <span class="block text-sm text-white">Rutas automáticas</span>
+                    <span class="block text-xs text-gray-500 mt-0.5">
+                        Al procesar un pedido que ya tiene ruta/ronda/fecha configurada, se crea o reutiliza
+                        solo el despacho de esa ruta+ronda+día y se le agrega. Un pedido sin esos datos
+                        queda "suelto" para asignarse a mano.
+                    </span>
+                </span>
+            </label>
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-800 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Almacén para auto-crear despachos</label>
+                <select name="despacho_almacen_auto_id"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                    <option value="">Usar el almacén principal del sistema</option>
+                    @php $almacenAutoId = $despacho['despacho.almacen_auto_id']?->valor ?? ''; @endphp
+                    @foreach($warehouses as $w)
+                        <option value="{{ $w->id }}" {{ (string)$almacenAutoId === (string)$w->id ? 'selected' : '' }}>{{ $w->nombre }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Formato de impresión del panel de rutas</label>
+                @php $formatoImpresion = $despacho['despacho.formato_impresion']?->valor ?? 'despachos'; @endphp
+                <select name="despacho_formato_impresion"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                    <option value="despachos" {{ $formatoImpresion === 'despachos' ? 'selected' : '' }}>Como Despachos (actual)</option>
+                    <option value="liquidaciones" {{ $formatoImpresion === 'liquidaciones' ? 'selected' : '' }}>Como Reporte de liquidaciones</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
         <h3 class="text-white font-semibold mb-1">Logística</h3>
         <p class="text-xs text-gray-500 mb-4">Controla acciones que pueden saltarse el flujo normal de despacho.</p>
 

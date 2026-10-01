@@ -125,6 +125,11 @@ class SystemSetting extends Model
             // Almacén que usa el chat de asistencia al crear un pedido en borrador,
             // si no se define, cae al almacén marcado is_primary o al primero activo.
             ['clave' => 'pedidos.asistente_almacen_id', 'valor' => null, 'tipo' => 'integer', 'grupo' => 'asistente', 'descripcion' => 'Almacén por defecto para pedidos creados desde el chat de asistencia'],
+
+            // Panel de rutas de despacho (ver AutoDespachoService)
+            ['clave' => 'despacho.modo_rutas',        'valor' => 'manual', 'tipo' => 'string',  'grupo' => 'despacho', 'descripcion' => "'manual' (default, como hasta ahora) o 'automatico' (al procesar un pedido con ruta/ronda/fecha, se auto-asigna a su despacho)"],
+            ['clave' => 'despacho.formato_impresion', 'valor' => 'despachos', 'tipo' => 'string', 'grupo' => 'despacho', 'descripcion' => "Formato de impresión del panel de rutas: 'despachos' (actual) o 'liquidaciones'"],
+            ['clave' => 'despacho.almacen_auto_id',   'valor' => null, 'tipo' => 'integer', 'grupo' => 'despacho', 'descripcion' => 'Almacén usado al auto-crear despachos en modo automático; si está vacío usa el is_primary'],
         ];
 
         foreach ($defaults as $setting) {

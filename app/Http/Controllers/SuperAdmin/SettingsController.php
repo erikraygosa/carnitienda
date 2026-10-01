@@ -26,9 +26,10 @@ class SettingsController extends Controller
         $reportes    = SystemSetting::where('grupo', 'reportes')->get()->keyBy('clave');
         $etiquetas   = SystemSetting::where('grupo', 'etiquetas')->get()->keyBy('clave');
         $asistente   = SystemSetting::where('grupo', 'asistente')->get()->keyBy('clave');
+        $despacho    = SystemSetting::where('grupo', 'despacho')->get()->keyBy('clave');
         $warehouses  = Warehouse::orderBy('nombre')->get(['id', 'nombre']);
 
-        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica', 'whatsapp', 'precios', 'pedidos', 'reportes', 'etiquetas', 'asistente', 'warehouses'));
+        return view('superadmin.settings.index', compact('general', 'facturacion', 'correo', 'auth', 'logistica', 'whatsapp', 'precios', 'pedidos', 'reportes', 'etiquetas', 'asistente', 'despacho', 'warehouses'));
     }
 
     public function update(Request $request)
@@ -67,6 +68,9 @@ class SettingsController extends Controller
             'openai_api_key'             => ['nullable', 'string', 'max:255'],
             'openai_model'               => ['nullable', 'string', 'max:100'],
             'openai_base_url'            => ['nullable', 'string', 'max:255'],
+            'despacho_modo_rutas'        => ['nullable', 'string', 'in:manual,automatico'],
+            'despacho_formato_impresion' => ['nullable', 'string', 'in:despachos,liquidaciones'],
+            'despacho_almacen_auto_id'   => ['nullable', 'exists:warehouses,id'],
             'pedidos_asistente_almacen_id' => ['nullable', 'exists:warehouses,id'],
         ]);
 
@@ -157,6 +161,29 @@ class SettingsController extends Controller
             $request->input('reportes_liquidaciones_pendientes_modo') === 'surtir' ? 'surtir' : 'procesar',
             'string',
             'reportes'
+        );
+
+        SystemSetting::set(
+            'despacho.modo_rutas',
+            $request->input('despacho_modo_rutas') === 'automatico' ? 'automatico' : 'manual',
+            'string',
+            'despacho'
+        );
+
+        SystemSetting::set(
+            'despacho.formato_impresion',
+            $request->input('despacho_formato_impresion') === 'liquidaciones' ? 'liquidaciones' : 'despachos',
+            'string',
+            'despacho'
+        );
+
+        // Almacén usado al auto-crear despachos en modo automático — si lo
+        // dejan en blanco, AutoDespachoService cae al almacén is_primary.
+        SystemSetting::set(
+            'despacho.almacen_auto_id',
+            $request->input('despacho_almacen_auto_id') ?: null,
+            'integer',
+            'despacho'
         );
 
         // Checkbox: si no viene en el request es porque está desmarcado.

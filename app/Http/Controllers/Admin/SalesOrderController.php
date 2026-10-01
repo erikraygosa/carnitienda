@@ -33,7 +33,11 @@ class SalesOrderController extends Controller implements HasMiddleware
 
     use AuthorizesRequests;
 
-    public function __construct(private DocumentLogService $log, private InventoryService $inv) {}
+    public function __construct(
+        private DocumentLogService $log,
+        private InventoryService $inv,
+        private \App\Services\AutoDespachoService $autoDespacho,
+    ) {}
 
     public static function middleware(): array
     {
@@ -1179,6 +1183,7 @@ private function aprobarPedido(SalesOrder $order): array
     }
 
     $order->update(['status' => 'PROCESADO', 'despachado_at' => now()]);
+    $this->autoDespacho->asignarSiAplica($order);
 
     return ['ok' => true, 'message' => 'Pedido aprobado y listo para salida de almacén.'];
 }
@@ -1205,6 +1210,7 @@ private function aprobarPedido(SalesOrder $order): array
         // ⚠️ Ya NO descuenta inventario aquí
         // El descuento real ocurre en Panel de Salida de Producto
         $order->update(['status' => 'PROCESADO', 'despachado_at' => now()]);
+        $this->autoDespacho->asignarSiAplica($order);
         return back()->with('swal', ['icon'=>'success','title'=>'Procesado','text'=>'Pedido PROCESADO. Pendiente de salida de almacén.']);
     }
 
