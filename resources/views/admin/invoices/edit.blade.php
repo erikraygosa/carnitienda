@@ -386,6 +386,10 @@
         <div class="flex items-center flex-wrap gap-2">
 
             @if($invoice->estatus === 'BORRADOR')
+                <x-wire-button href="{{ route('admin.invoices.pdf', $invoice) }}"
+                               gray outline xs target="_blank">
+                    Vista previa
+                </x-wire-button>
                 <form action="{{ route('admin.invoices.stamp', $invoice) }}" method="POST">
                     @csrf
                     <x-wire-button type="submit" green xs>
