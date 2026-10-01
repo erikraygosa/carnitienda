@@ -749,14 +749,17 @@
         });
 
         // ── Validación antes de guardar ─────────────────────────────────
-        // No se bloquea el guardado — solo se avisa y se pide confirmar,
-        // para que un Enter accidental (o guardar de prisa) no deje pasar
-        // un precio en $0 o un producto casi sin existencia sin que nadie
-        // se dé cuenta. Se engancha al evento "submit" del formulario, así
-        // que aplica tanto al botón Guardar como a Enter en cualquier campo.
+        // Un precio en $0.00 NO se puede pasar por alto — no se vende un
+        // producto gratis por error, así que eso BLOQUEA el guardado (sin
+        // opción de "continuar de todos modos"), hay que corregirlo. La
+        // existencia baja (configurable, ver Superadmin → Pedidos) sigue
+        // siendo solo un aviso que se puede ignorar. Se engancha al evento
+        // "submit" del formulario, así que aplica tanto al botón Guardar
+        // como a Enter en cualquier campo.
         soForm.addEventListener('submit', function (e) {
             const warehouseSel = document.querySelector('select[name="warehouse_id"]');
             const stockAlmacen = EXISTENCIAS[String(warehouseSel ? warehouseSel.value : '')] || {};
+            const bloqueantes = [];
             const avisos = [];
 
             state.items.forEach(function (it) {
@@ -764,7 +767,7 @@
                 const nombre = it._productoNombre || it.descripcion || ('#' + it.product_id);
 
                 if ((+it.precio || 0) <= 0) {
-                    avisos.push('• ' + escHtml(nombre) + ': precio en $0.00');
+                    bloqueantes.push('• ' + escHtml(nombre) + ': precio en $0.00');
                 }
 
                 const pid = String(it.product_id);
@@ -775,6 +778,18 @@
                     }
                 }
             });
+
+            if (bloqueantes.length) {
+                e.preventDefault();
+                Swal.fire({
+                    title: 'No se puede guardar',
+                    html: 'Corrige el precio antes de continuar:<br><br>' + bloqueantes.join('<br>'),
+                    icon: 'error',
+                    confirmButtonText: 'Entendido',
+                    confirmButtonColor: '#4f46e5',
+                });
+                return;
+            }
 
             if (!avisos.length) return; // nada que avisar, se guarda normal
 

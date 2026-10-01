@@ -939,12 +939,15 @@
         });
 
         // ── Validación antes de guardar ─────────────────────────────────
-        // No se bloquea el guardado — solo se avisa y se pide confirmar,
-        // igual que en Pedidos → Crear (ver create.blade.php).
+        // Un precio en $0.00 NO se puede pasar por alto — eso BLOQUEA el
+        // guardado (sin opción de "continuar de todos modos"), igual que en
+        // Pedidos → Crear (ver create.blade.php). La existencia baja sigue
+        // siendo solo un aviso que se puede ignorar.
         const soEditForm = document.getElementById('so-edit-form');
         soEditForm.addEventListener('submit', function (e) {
             const warehouseSel = document.querySelector('select[name="warehouse_id"]');
             const stockAlmacen = EXISTENCIAS[String(warehouseSel ? warehouseSel.value : '')] || {};
+            const bloqueantes = [];
             const avisos = [];
 
             state.items.forEach(function (it) {
@@ -952,7 +955,7 @@
                 const nombre = it._productoNombre || it.descripcion || ('#' + it.product_id);
 
                 if ((+it.precio || 0) <= 0) {
-                    avisos.push('• ' + escHtml(nombre) + ': precio en $0.00');
+                    bloqueantes.push('• ' + escHtml(nombre) + ': precio en $0.00');
                 }
 
                 const pid = String(it.product_id);
@@ -963,6 +966,18 @@
                     }
                 }
             });
+
+            if (bloqueantes.length) {
+                e.preventDefault();
+                Swal.fire({
+                    title: 'No se puede guardar',
+                    html: 'Corrige el precio antes de continuar:<br><br>' + bloqueantes.join('<br>'),
+                    icon: 'error',
+                    confirmButtonText: 'Entendido',
+                    confirmButtonColor: '#4f46e5',
+                });
+                return;
+            }
 
             if (!avisos.length) return; // nada que avisar, se guarda normal
 
