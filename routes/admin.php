@@ -227,6 +227,7 @@ Route::prefix('driver-cash')->name('driver-cash.')->group(function () {
 // dispatches para que "panel-rutas" no choque con {dispatch} de show/edit.
 Route::get ('dispatches/panel-rutas',      [DispatchRoutePanelController::class,'index'])->name('dispatches.panel-rutas');
 Route::get ('dispatches/panel-rutas/data', [DispatchRoutePanelController::class,'data'])->name('dispatches.panel-rutas.data');
+Route::get ('dispatches/panel-rutas/poll-count', [DispatchRoutePanelController::class,'pollCount'])->name('dispatches.panel-rutas.poll-count');
 Route::post('dispatches/panel-rutas/mover',[DispatchRoutePanelController::class,'mover'])->name('dispatches.panel-rutas.mover');
 Route::post('dispatches/panel-rutas/asegurar-despacho',[DispatchRoutePanelController::class,'asegurarDespacho'])->name('dispatches.panel-rutas.asegurar');
 

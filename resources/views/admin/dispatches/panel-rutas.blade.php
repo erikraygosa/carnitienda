@@ -12,6 +12,14 @@
     </x-slot>
 
     <x-wire-card>
+        <div id="pr-aviso-nuevos" class="hidden mb-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <span>🔔 Hay pedidos nuevos.</span>
+            <button type="button" onclick="location.reload()"
+                    class="px-3 py-1 text-xs rounded-md bg-amber-600 text-white hover:bg-amber-700 whitespace-nowrap">
+                Recargar
+            </button>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
             <div>
                 <label class="block text-xs font-medium text-gray-500 mb-1">Día</label>
@@ -55,6 +63,7 @@
         const DATA_URL    = '{{ route('admin.dispatches.panel-rutas.data') }}';
         const MOVER_URL   = '{{ route('admin.dispatches.panel-rutas.mover') }}';
         const ASEGURAR_URL= '{{ route('admin.dispatches.panel-rutas.asegurar') }}';
+        const POLL_URL    = '{{ route('admin.dispatches.panel-rutas.poll-count') }}';
         const CSRF         = '{{ csrf_token() }}';
         const FORMATO_IMPRESION = '{{ $formatoImpresion }}';
         const ROUTES = @json($routes->map(fn($r) => ['id' => $r->id, 'nombre' => $r->nombre])->values());
@@ -362,7 +371,33 @@
             }
         };
 
-        $('pr-fecha').addEventListener('change', function() { state.fecha = this.value; load(); });
+        // ── Polling: detectar pedidos nuevos para el día seleccionado ───
+        // Mismo criterio que Panel de Surtido: no recarga sola (si alguien
+        // está a media acción arrastrando algo no se le interrumpe), solo
+        // avisa con un botón "Recargar".
+        let pollKnownCount = null;
+        function pollNuevos() {
+            fetch(`${POLL_URL}?fecha=${state.fecha}`, { headers: { 'Accept': 'application/json' } })
+                .then(r => r.json())
+                .then(data => {
+                    if (pollKnownCount === null) {
+                        pollKnownCount = data.count;
+                    } else if (data.count > pollKnownCount) {
+                        $('pr-aviso-nuevos').classList.remove('hidden');
+                    }
+                })
+                .catch(() => {});
+        }
+        setInterval(pollNuevos, 30000);
+        pollNuevos();
+
+        $('pr-fecha').addEventListener('change', function() {
+            state.fecha = this.value;
+            pollKnownCount = null;
+            $('pr-aviso-nuevos').classList.add('hidden');
+            pollNuevos();
+            load();
+        });
         $('pr-search').addEventListener('input', function() {
             state.search = this.value;
             clearTimeout(window._prSearchDebounce);

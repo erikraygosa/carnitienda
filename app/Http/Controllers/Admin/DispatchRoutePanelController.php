@@ -32,7 +32,7 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('can:ver despachos', only: ['index', 'data']),
+            new Middleware('can:ver despachos', only: ['index', 'data', 'pollCount']),
             new Middleware('can:editar despachos', only: ['mover', 'asegurarDespacho']),
         ];
     }
@@ -44,6 +44,25 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
         $formatoImpresion = SystemSetting::get('despacho.formato_impresion', 'despachos');
 
         return view('admin.dispatches.panel-rutas', compact('routes', 'modoAutomatico', 'formatoImpresion'));
+    }
+
+    /**
+     * Polling (igual que Panel de Surtido): cuenta cuántos pedidos
+     * PROCESADO/DESPACHADO/NO_ENTREGADO hay para el día seleccionado —
+     * asignados o no — para avisar "hay pedidos nuevos" sin recargar sola la
+     * página (eso ya se decidió que molesta si alguien está a media acción).
+     */
+    public function pollCount(Request $request)
+    {
+        $fecha = $request->get('fecha', now()->toDateString());
+
+        $count = SalesOrder::whereIn('status', ['PROCESADO', 'DESPACHADO', 'NO_ENTREGADO'])
+            ->where(fn ($q) => $q
+                ->whereDate('programado_para', $fecha)
+                ->orWhere(fn ($q2) => $q2->whereNull('programado_para')->whereDate('fecha', $fecha)))
+            ->count();
+
+        return response()->json(['count' => $count]);
     }
 
     public function data(Request $request)
