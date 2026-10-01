@@ -95,6 +95,18 @@ class SettingsController extends Controller
             }
         }
 
+        // Checkbox: si no viene en el request es porque está desmarcado.
+        // Controla si la factura consolidada (varios pedidos en una) suma
+        // las partidas repetidas del mismo producto en una sola línea
+        // (comportamiento por default) o las deja todas por separado, tal
+        // como vienen en cada pedido — ver InvoiceController::mapFromOrders().
+        SystemSetting::set(
+            'facturacion.consolidar_sumar_partidas',
+            $request->boolean('facturacion_consolidar_sumar_partidas') ? '1' : '0',
+            'boolean',
+            'facturacion'
+        );
+
         // El campo de API Key es tipo password: si llega vacío, se conserva la que ya estaba guardada.
         if (filled($data['whatsapp_api_key'] ?? null)) {
             SystemSetting::set('whatsapp.api_key', $data['whatsapp_api_key'], 'string', 'whatsapp');

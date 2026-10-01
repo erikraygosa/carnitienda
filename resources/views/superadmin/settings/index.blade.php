@@ -132,6 +132,26 @@
                 </div>
             </div>
         </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-800">
+            <h4 class="text-sm text-gray-300 font-medium mb-1">Factura consolidada (varios pedidos en una)</h4>
+            <p class="text-xs text-gray-500 mb-3">
+                Al facturar varios pedidos juntos (Facturas → Consolidar), decide si las partidas del
+                mismo producto repetidas en distintos pedidos se suman en una sola línea, o si se
+                dejan todas por separado tal como vienen en cada pedido.
+            </p>
+            @php $sumarPartidas = ($facturacion['facturacion.consolidar_sumar_partidas']?->valor ?? '0') === '1'; @endphp
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="facturacion_consolidar_sumar_partidas" value="1"
+                       {{ $sumarPartidas ? 'checked' : '' }}
+                       class="rounded border-gray-700 bg-gray-800 text-indigo-500 focus:ring-indigo-500">
+                <span class="text-sm text-white">Sumar partidas repetidas en una sola línea</span>
+            </label>
+            <p class="mt-1 text-xs text-gray-600">
+                Si se desmarca, cada partida aparece por separado (una línea por cada vez que el
+                producto aparece en algún pedido consolidado), sin sumarlas.
+            </p>
+        </div>
     </div>
 
     <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">

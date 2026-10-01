@@ -765,6 +765,28 @@ public function pdfDownload(Invoice $invoice)
      */
     protected function mapFromOrders(\Illuminate\Support\Collection $orders, int $clientId, bool $esNotas = false): array
     {
+        // Configurable en Superadmin → Configuración → Facturación: si las
+        // partidas repetidas del mismo producto (en distintos pedidos) se
+        // suman en una sola línea (default, comportamiento de siempre) o se
+        // dejan todas por separado tal como vienen en cada pedido.
+        $sumarPartidas = (bool) \App\Models\SystemSetting::get('facturacion.consolidar_sumar_partidas', false);
+
+        if (! $sumarPartidas) {
+            $items = $orders->flatMap(fn ($order) => $order->items
+                ->map(fn ($it) => $this->itemDesdeProducto($it, (float) $it->cantidad, (float) $it->precio, (float) $it->descuento))
+            )->values()->toArray();
+
+            $prefill = [
+                'client_id'      => $clientId,
+                'moneda'         => $orders->first()->moneda ?? 'MXN',
+                'items'          => $items,
+                'consolidado_de' => $orders->pluck('folio')->values()->toArray(),
+            ];
+            $prefill[$esNotas ? 'sale_ids' : 'sales_order_ids'] = $orders->pluck('id')->values()->toArray();
+
+            return $prefill;
+        }
+
         $grupos = [];
         $satMap = $this->productsMapForInvoices();
 
