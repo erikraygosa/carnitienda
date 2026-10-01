@@ -321,9 +321,6 @@
                             </tbody>
                         </table>
                     </div>
-                    <p class="text-xs text-gray-500 mt-3">
-                        Un Complemento de Pago no lleva partidas con importe — el CFDI se timbra en $0.00 por diseño del SAT; el monto real pagado se refleja arriba y en el PDF.
-                    </p>
                 </div>
             @else
             {{-- ====== PARTIDAS ====== --}}

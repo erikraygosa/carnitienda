@@ -94,6 +94,9 @@ class ReportesController extends Controller implements HasMiddleware
         $ronda        = $request->get('ronda', ''); // '' (ambas) | 1 | 2
         // pendientes | todas | no_entregado (mantiene compat con solo_sin_liquidar=1/0)
         $filtroRaw    = $request->get('filtro_estatus', $request->get('solo_sin_liquidar', '0') === '1' ? 'pendientes' : 'todas');
+        // Filtro independiente por el badge de "Liquidación" (PENDIENTE | LIQUIDADO | '' = todas).
+        // No incluye PARCIAL a propósito: el selector solo pide esos dos extremos.
+        $liqStatus    = $request->get('liq_status', '');
 
         // Filtros comunes, en un query base sobre dispatch_items + dispatches + sales_orders
         // (sin los leftJoin de nombre, que solo hacen falta para desplegar, no para filtrar).
@@ -115,7 +118,10 @@ class ReportesController extends Controller implements HasMiddleware
                 // todavía falta cobrarle el resto al chofer/cliente.
                 ->whereIn('sales_orders.driver_settlement_status', ['PENDIENTE', 'PARCIAL'])
                 ->whereNotIn('sales_orders.status', ['NO_ENTREGADO', 'CANCELADO']))
-            ->when($filtroRaw === 'no_entregado', fn($q) => $q->where('sales_orders.status', 'NO_ENTREGADO'));
+            ->when($filtroRaw === 'no_entregado', fn($q) => $q->where('sales_orders.status', 'NO_ENTREGADO'))
+            ->when($liqStatus, fn($q) => $q
+                ->where('sales_orders.driver_settlement_status', $liqStatus)
+                ->whereNotIn('sales_orders.status', ['NO_ENTREGADO', 'CANCELADO']));
 
         // Un pedido puede quedar asignado a más de un despacho dentro del mismo filtro
         // (p.ej. un reintento tras "No entregado"); nos quedamos solo con la asignación
@@ -162,6 +168,7 @@ class ReportesController extends Controller implements HasMiddleware
         $routeId   = $request->get('route_id', '');
         $driverId  = $request->get('driver_id', '');
         $filtroRaw = $request->get('filtro_estatus', 'todas');
+        $liqStatus = $request->get('liq_status', '');
 
         return Sale::query()
             ->where('sales.tipo_venta', 'CREDITO')
@@ -172,6 +179,9 @@ class ReportesController extends Controller implements HasMiddleware
                 ->whereIn('sales.driver_settlement_status', ['PENDIENTE', 'PARCIAL'])
                 ->whereNotIn('sales.status', ['NO_ENTREGADO', 'CANCELADO']))
             ->when($filtroRaw === 'no_entregado', fn($q) => $q->where('sales.status', 'NO_ENTREGADO'))
+            ->when($liqStatus, fn($q) => $q
+                ->where('sales.driver_settlement_status', $liqStatus)
+                ->whereNotIn('sales.status', ['NO_ENTREGADO', 'CANCELADO']))
             ->select(
                 'sales.id as sale_id',
                 'sales.folio',

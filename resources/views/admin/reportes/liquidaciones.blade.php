@@ -13,7 +13,7 @@
     <x-wire-card>
 
         {{-- Filtros --}}
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-6 gap-3 mb-4">
             <div>
                 <label class="block text-xs font-medium text-gray-500 mb-1">Fecha</label>
                 <input type="date" id="lq-fecha"
@@ -36,6 +36,15 @@
                     <option value="pendientes">Solo pendientes</option>
                     <option value="todas" selected>Todas</option>
                     <option value="no_entregado">No entregados</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Liquidación</label>
+                <select id="lq-liquidacion"
+                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <option value="">Todas</option>
+                    <option value="PENDIENTE">Pendiente</option>
+                    <option value="LIQUIDADO">Liquidado</option>
                 </select>
             </div>
             <div>
@@ -131,6 +140,7 @@
             routeId:       '',
             filtroEstatus: 'todas',
             ronda:         '',
+            liqStatus:     '',
         };
 
         // folio -> {order_id, cliente, total} de las notas PENDIENTES seleccionadas
@@ -156,9 +166,10 @@
                 route_id:       state.routeId,
                 filtro_estatus: state.filtroEstatus,
                 ronda:          state.ronda,
+                liq_status:     state.liqStatus,
             });
 
-            const exportParams = new URLSearchParams({ fecha: state.fecha, route_id: state.routeId, filtro_estatus: state.filtroEstatus, ronda: state.ronda });
+            const exportParams = new URLSearchParams({ fecha: state.fecha, route_id: state.routeId, filtro_estatus: state.filtroEstatus, ronda: state.ronda, liq_status: state.liqStatus });
             $('lq-export-btn').href = `${EXPORT_URL}?${exportParams}`;
 
             try {
@@ -524,17 +535,19 @@
             });
         });
 
-        $('lq-fecha').addEventListener('change',   function() { state.fecha         = this.value; load(); });
-        $('lq-ruta').addEventListener('change',    function() { state.routeId       = this.value; load(); });
-        $('lq-estatus').addEventListener('change', function() { state.filtroEstatus = this.value; load(); });
-        $('lq-ronda').addEventListener('change',   function() { state.ronda         = this.value; load(); });
+        $('lq-fecha').addEventListener('change',       function() { state.fecha         = this.value; load(); });
+        $('lq-ruta').addEventListener('change',        function() { state.routeId       = this.value; load(); });
+        $('lq-estatus').addEventListener('change',     function() { state.filtroEstatus = this.value; load(); });
+        $('lq-ronda').addEventListener('change',       function() { state.ronda         = this.value; load(); });
+        $('lq-liquidacion').addEventListener('change', function() { state.liqStatus     = this.value; load(); });
 
         $('lq-clear').addEventListener('click', function() {
-            state.fecha = hoy; state.routeId = ''; state.filtroEstatus = 'todas'; state.ronda = '';
-            $('lq-fecha').value   = hoy;
-            $('lq-ruta').value    = '';
-            $('lq-estatus').value = 'todas';
-            $('lq-ronda').value   = '';
+            state.fecha = hoy; state.routeId = ''; state.filtroEstatus = 'todas'; state.ronda = ''; state.liqStatus = '';
+            $('lq-fecha').value       = hoy;
+            $('lq-ruta').value        = '';
+            $('lq-estatus').value     = 'todas';
+            $('lq-ronda').value       = '';
+            $('lq-liquidacion').value = '';
             load();
         });
 
