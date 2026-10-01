@@ -121,7 +121,7 @@
                             </a>
                         </td>
                         <td class="px-4 py-3 text-gray-600">
-                            {{ $dispatch->fecha ? \Carbon\Carbon::parse($dispatch->fecha)->format('d/m/Y H:i') : '—' }}
+                            {{ $dispatch->fecha ? \Carbon\Carbon::parse($dispatch->fecha)->format('d/m/Y') : '—' }}
                         </td>
                         <td class="px-4 py-3 text-gray-700">{{ $dispatch->driver?->nombre ?? '—' }}</td>
                         <td class="px-4 py-3 text-gray-700">
