@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Models\Dispatch;
 use App\Models\DispatchItem;
+use App\Models\DispatchTransferAssignment;
 use App\Models\Driver;
 use App\Models\SalesOrder;
+use App\Models\StockTransfer;
 use App\Models\SystemSetting;
 use App\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
@@ -65,6 +67,42 @@ class AutoDespachoService
             );
 
             $this->log->log($dispatch, 'PEDIDOS_AGREGADOS', null, null, null, "Pedido {$order->folio} auto-asignado");
+        });
+    }
+
+    /**
+     * Igual que asignarSiAplica() pero para traspasos — si el traspaso ya
+     * trae ruta + ronda al crearse (nuevo campo en el formulario de
+     * Traspasos), lo mete directo en su despacho. Si no trae esos datos,
+     * queda PENDIENTE sin tocar — se asigna a mano desde el panel de rutas,
+     * igual que un pedido sin ruta configurada.
+     */
+    public function asignarTraspasoSiAplica(StockTransfer $transfer): void
+    {
+        if (! $this->modoAutomatico()) {
+            return;
+        }
+
+        if (! $transfer->shipping_route_id || ! $transfer->ronda || ! $transfer->fecha) {
+            return;
+        }
+
+        DB::transaction(function () use ($transfer) {
+            $dispatch = $this->encontrarOCrearDespacho(
+                $transfer->shipping_route_id,
+                $transfer->ronda,
+                $transfer->fecha,
+                "Auto-creado al crear traspaso {$transfer->folio}"
+            );
+
+            DispatchTransferAssignment::create([
+                'dispatch_id'       => $dispatch->id,
+                'stock_transfer_id' => $transfer->id,
+                'status'            => 'PENDIENTE',
+            ]);
+            $transfer->update(['status' => 'ASIGNADO', 'dispatch_id' => $dispatch->id]);
+
+            $this->log->log($dispatch, 'TRASPASOS_AGREGADOS', null, null, null, "Traspaso {$transfer->folio} auto-asignado");
         });
     }
 

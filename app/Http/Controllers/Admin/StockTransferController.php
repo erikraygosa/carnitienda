@@ -8,8 +8,10 @@ use App\Models\StockTransfer;
 use App\Models\StockTransferItem;
 use App\Models\Warehouse;
 use App\Models\Product;
+use App\Models\ShippingRoute;
 use App\Services\InventoryService;
 use App\Services\DocumentLogService;
+use App\Services\AutoDespachoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -17,7 +19,7 @@ use Illuminate\Routing\Controllers\Middleware;
 
 class StockTransferController extends Controller implements HasMiddleware
 {
-    public function __construct(private DocumentLogService $log) {}
+    public function __construct(private DocumentLogService $log, private AutoDespachoService $autoDespacho) {}
 
     public static function middleware(): array
     {
@@ -60,6 +62,7 @@ class StockTransferController extends Controller implements HasMiddleware
     {
         $warehouses = Warehouse::orderBy('nombre')->get(['id', 'nombre']);
         $products   = Product::orderBy('nombre')->get(['id', 'nombre', 'unidad']);
+        $routes     = ShippingRoute::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
 
         $prefill = [];
         if ($request->filled('product_id')) {
@@ -77,7 +80,7 @@ class StockTransferController extends Controller implements HasMiddleware
             }
         }
 
-        return view('admin.stock.transfers.create', compact('warehouses', 'products', 'prefill'));
+        return view('admin.stock.transfers.create', compact('warehouses', 'products', 'routes', 'prefill'));
     }
 
     public function store(Request $request)
@@ -85,6 +88,8 @@ class StockTransferController extends Controller implements HasMiddleware
         $data = $request->validate([
             'from_warehouse_id' => ['required', 'exists:warehouses,id'],
             'to_warehouse_id'   => ['required', 'exists:warehouses,id', 'different:from_warehouse_id'],
+            'shipping_route_id' => ['nullable', 'exists:shipping_routes,id'],
+            'ronda'             => ['nullable', 'integer', 'in:1,2'],
             'fecha'             => ['required', 'date'],
             'notas'             => ['nullable', 'string', 'max:500'],
             'items'                => ['required', 'array', 'min:1'],
@@ -99,6 +104,8 @@ class StockTransferController extends Controller implements HasMiddleware
                 'folio'             => StockTransfer::generateFolio(),
                 'from_warehouse_id' => $data['from_warehouse_id'],
                 'to_warehouse_id'   => $data['to_warehouse_id'],
+                'shipping_route_id' => $data['shipping_route_id'] ?? null,
+                'ronda'             => ($data['shipping_route_id'] ?? null) ? ($data['ronda'] ?? 1) : null,
                 'fecha'             => $data['fecha'],
                 'status'            => 'PENDIENTE',
                 'notas'             => $data['notas'] ?? null,
@@ -119,6 +126,8 @@ class StockTransferController extends Controller implements HasMiddleware
         });
 
         $this->log->log($transfer, 'CREADO', null, 'PENDIENTE');
+        $this->autoDespacho->asignarTraspasoSiAplica($transfer);
+
         return redirect()
             ->route('admin.stock.transfers.show', $transfer)
             ->with('swal', ['icon' => 'success', 'title' => 'Traspaso creado', 'text' => "Folio: {$transfer->folio}"]);
@@ -134,9 +143,10 @@ class StockTransferController extends Controller implements HasMiddleware
         $transfer->load('items');
         $warehouses = Warehouse::orderBy('nombre')->get(['id', 'nombre']);
         $products   = Product::orderBy('nombre')->get(['id', 'nombre', 'unidad']);
+        $routes     = ShippingRoute::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
         $prefill    = [];
 
-        return view('admin.stock.transfers.create', compact('transfer', 'warehouses', 'products', 'prefill'));
+        return view('admin.stock.transfers.create', compact('transfer', 'warehouses', 'products', 'routes', 'prefill'));
     }
 
     public function update(Request $request, StockTransfer $transfer)
@@ -148,6 +158,8 @@ class StockTransferController extends Controller implements HasMiddleware
         $data = $request->validate([
             'from_warehouse_id' => ['required', 'exists:warehouses,id'],
             'to_warehouse_id'   => ['required', 'exists:warehouses,id', 'different:from_warehouse_id'],
+            'shipping_route_id' => ['nullable', 'exists:shipping_routes,id'],
+            'ronda'             => ['nullable', 'integer', 'in:1,2'],
             'fecha'             => ['required', 'date'],
             'notas'             => ['nullable', 'string', 'max:500'],
             'items'                => ['required', 'array', 'min:1'],
@@ -166,6 +178,8 @@ class StockTransferController extends Controller implements HasMiddleware
             $transfer->fill([
                 'from_warehouse_id' => $data['from_warehouse_id'],
                 'to_warehouse_id'   => $data['to_warehouse_id'],
+                'shipping_route_id' => $data['shipping_route_id'] ?? null,
+                'ronda'             => ($data['shipping_route_id'] ?? null) ? ($data['ronda'] ?? 1) : null,
                 'fecha'             => $data['fecha'],
                 'notas'             => $data['notas'] ?? null,
             ]);
@@ -189,6 +203,8 @@ class StockTransferController extends Controller implements HasMiddleware
         });
 
         $this->log->log($transfer, 'EDITADO', null, null, null, 'Traspaso editado (corrección de datos/partidas).', $cambios ?: null);
+        $this->autoDespacho->asignarTraspasoSiAplica($transfer->fresh());
+
         return redirect()->route('admin.stock.transfers.show', $transfer)
             ->with('swal', ['icon' => 'success', 'title' => 'Actualizado', 'text' => 'Traspaso actualizado correctamente.']);
     }

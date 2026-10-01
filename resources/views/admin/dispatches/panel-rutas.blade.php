@@ -13,7 +13,7 @@
 
     <x-wire-card>
         <div id="pr-aviso-nuevos" class="hidden mb-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            <span>🔔 Hay pedidos nuevos.</span>
+            <span>🔔 Hay pedidos o traspasos nuevos.</span>
             <button type="button" onclick="location.reload()"
                     class="px-3 py-1 text-xs rounded-md bg-amber-600 text-white hover:bg-amber-700 whitespace-nowrap">
                 Recargar
@@ -111,25 +111,29 @@
             }
         }
 
-        function pedidoChip(p, origenTipo, origenKey) {
+        function itemChip(p, origenTipo, origenKey) {
+            const esTraspaso = p.tipo === 'traspaso';
+            const id = esTraspaso ? p.transfer_id : p.order_id;
             const envioBtn = origenTipo === 'sueltos'
-                ? `<button type="button" class="shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] shadow hover:bg-indigo-700 flex items-center justify-center"
-                           title="Enviar a ruta" onclick="event.stopPropagation(); prEnviarARuta(${p.order_id})">
+                ? `<button type="button" class="shrink-0 w-5 h-5 rounded-full ${esTraspaso ? 'bg-teal-600 hover:bg-teal-700' : 'bg-indigo-600 hover:bg-indigo-700'} text-white text-[10px] shadow flex items-center justify-center"
+                           title="Enviar a ruta" onclick="event.stopPropagation(); prEnviarARuta(${id}, '${p.tipo}')">
                        <i class="fa-solid fa-paper-plane"></i>
                    </button>`
                 : '';
             return `
-                <div class="pr-chip rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs shadow-sm cursor-grab active:cursor-grabbing"
-                     draggable="true" data-order-id="${p.order_id}" data-origen-tipo="${origenTipo}" data-origen-key="${origenKey || ''}">
+                <div class="pr-chip rounded-md border ${esTraspaso ? 'border-teal-200' : 'border-gray-200'} bg-white px-2 py-1.5 text-xs shadow-sm cursor-grab active:cursor-grabbing"
+                     draggable="true" data-id="${id}" data-tipo="${p.tipo}" data-origen-tipo="${origenTipo}" data-origen-key="${origenKey || ''}">
                     <div class="flex items-center justify-between gap-1">
-                        <span class="font-mono font-medium text-indigo-700 truncate">${escHtml(p.folio)}</span>
+                        <span class="font-mono font-medium ${esTraspaso ? 'text-teal-700' : 'text-indigo-700'} truncate">
+                            ${esTraspaso ? '<i class="fa-solid fa-right-left mr-0.5"></i>' : ''}${escHtml(p.folio)}
+                        </span>
                         <div class="flex items-center gap-1.5 shrink-0">
-                            <span class="font-semibold text-gray-700 whitespace-nowrap">${fmtMoney(p.total)}</span>
+                            ${p.total !== null ? `<span class="font-semibold text-gray-700 whitespace-nowrap">${fmtMoney(p.total)}</span>` : ''}
                             ${envioBtn}
                         </div>
                     </div>
                     <div class="text-gray-500 truncate">${escHtml(p.cliente)}</div>
-                    ${p.status === 'EN_RUTA' ? `
+                    ${!esTraspaso && p.status === 'EN_RUTA' ? `
                         <button type="button" class="mt-1 w-full text-[11px] bg-emerald-50 text-emerald-700 rounded px-1 py-0.5 hover:bg-emerald-100"
                                 onclick="prEntregarPedido(${p.dispatch_id}, ${p.item_id})">
                             <i class="fa-solid fa-check"></i> Entregar
@@ -141,12 +145,10 @@
         function renderSueltos(sueltos) {
             $('pr-sueltos-count').textContent = sueltos.length ? `${sueltos.length}` : '';
             if (sueltos.length === 0) {
-                $('pr-sueltos').innerHTML = '<div class="text-center py-6 text-gray-400 text-xs">Sin pedidos sin asignación.</div>';
+                $('pr-sueltos').innerHTML = '<div class="text-center py-6 text-gray-400 text-xs">Sin pedidos ni traspasos sin asignación.</div>';
                 return;
             }
-            $('pr-sueltos').innerHTML = sueltos.map(p => pedidoChip({
-                order_id: p.order_id, folio: p.folio, cliente: p.cliente, total: p.total, status: p.status,
-            }, 'sueltos', '')).join('');
+            $('pr-sueltos').innerHTML = sueltos.map(p => itemChip(p, 'sueltos', '')).join('');
             bindDraggables();
         }
 
@@ -163,9 +165,11 @@
 
         function renderCelda(routeId, routeNombre, ronda, celda) {
             const key = `${routeId}:${ronda}`;
-            const pedidosHtml = (celda.pedidos || []).map(p => pedidoChip({
-                order_id: p.order_id, folio: p.folio, cliente: p.cliente, total: p.total, status: p.status,
-                dispatch_id: celda.dispatch_id, item_id: p.item_id,
+            const pedidosHtml = (celda.pedidos || []).map(p => itemChip({
+                ...p, dispatch_id: celda.dispatch_id,
+            }, 'ruta', key)).join('');
+            const traspasosHtml = (celda.traspasos || []).map(t => itemChip({
+                ...t, dispatch_id: celda.dispatch_id,
             }, 'ruta', key)).join('');
 
             const cxcHtml = (celda.cxc || []).map(c => `
@@ -197,8 +201,9 @@
                     </div>
                     <div class="p-2 space-y-1.5 min-h-[90px] flex-1" data-chips="1">
                         ${pedidosHtml}
+                        ${traspasosHtml}
                         ${cxcHtml}
-                        ${!pedidosHtml && !cxcHtml ? '<div class="text-center py-4 text-gray-300 text-[11px]">—</div>' : ''}
+                        ${!pedidosHtml && !traspasosHtml && !cxcHtml ? '<div class="text-center py-4 text-gray-300 text-[11px]">—</div>' : ''}
                     </div>
                     <div class="px-2.5 py-1.5 bg-gray-50 border-t flex items-center justify-between text-[11px]">
                         <span class="font-semibold text-gray-700">${fmtMoney(celda.total)}</span>
@@ -238,7 +243,7 @@
         function bindDraggables() {
             document.querySelectorAll('.pr-chip').forEach(chip => {
                 chip.addEventListener('dragstart', e => {
-                    e.dataTransfer.setData('text/plain', chip.dataset.orderId);
+                    e.dataTransfer.setData('text/plain', JSON.stringify({ id: chip.dataset.id, tipo: chip.dataset.tipo }));
                     chip.classList.add('opacity-40');
                 });
                 chip.addEventListener('dragend', () => chip.classList.remove('opacity-40'));
@@ -256,10 +261,13 @@
                     e.preventDefault();
                     e.stopPropagation();
                     document.querySelectorAll('[data-dropzone]').forEach(z => z.classList.remove('ring-2', 'ring-indigo-400'));
-                    const orderId = e.dataTransfer.getData('text/plain');
-                    if (!orderId) return;
+                    const raw = e.dataTransfer.getData('text/plain');
+                    if (!raw) return;
+                    let dragged;
+                    try { dragged = JSON.parse(raw); } catch (e2) { return; }
+                    if (!dragged || !dragged.id) return;
 
-                    const payload = { order_id: orderId, fecha: state.fecha };
+                    const payload = { order_id: dragged.id, tipo: dragged.tipo, fecha: state.fecha };
                     if (zone.dataset.dropzone === 'ruta') {
                         payload.shipping_route_id = zone.dataset.routeId;
                         payload.ronda = zone.dataset.ronda;
@@ -300,7 +308,7 @@
             postForm(`{{ url('admin/dispatches') }}/${dispatchId}/pedido/${itemId}/entregar`);
         };
 
-        window.prEnviarARuta = async function (orderId) {
+        window.prEnviarARuta = async function (id, tipo) {
             const routeOptions = ROUTES.map(r => `<option value="${r.id}">${escHtml(r.nombre)}</option>`).join('');
 
             const { value: form } = await Swal.fire({
@@ -344,7 +352,7 @@
                 const res = await fetch(MOVER_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
-                    body: JSON.stringify({ order_id: orderId, shipping_route_id: form.routeId, ronda: form.ronda, fecha: state.fecha }),
+                    body: JSON.stringify({ order_id: id, tipo: tipo, shipping_route_id: form.routeId, ronda: form.ronda, fecha: state.fecha }),
                 });
                 const data = await res.json();
                 if (!res.ok || !data.ok) {

@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Dispatch;
 use App\Models\DispatchItem;
+use App\Models\DispatchTransferAssignment;
 use App\Models\SalesOrder;
 use App\Models\ShippingRoute;
+use App\Models\StockTransfer;
 use App\Models\SystemSetting;
 use App\Services\AutoDespachoService;
 use App\Services\DocumentLogService;
@@ -62,6 +64,10 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
                 ->orWhere(fn ($q2) => $q2->whereNull('programado_para')->whereDate('fecha', $fecha)))
             ->count();
 
+        $count += StockTransfer::whereIn('status', ['PENDIENTE', 'ASIGNADO'])
+            ->whereDate('fecha', $fecha)
+            ->count();
+
         return response()->json(['count' => $count]);
     }
 
@@ -72,7 +78,7 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
 
         $routes = ShippingRoute::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
 
-        $dispatches = Dispatch::with(['items.salesOrder.client', 'arAssignments.client'])
+        $dispatches = Dispatch::with(['items.salesOrder.client', 'arAssignments.client', 'transferAssignments.stockTransfer.fromWarehouse', 'transferAssignments.stockTransfer.toWarehouse'])
             ->whereDate('fecha', $fecha)
             ->whereIn('status', ['PLANEADO', 'CARGADO', 'EN_RUTA', 'CERRADO', 'ENTREGADO'])
             ->get()
@@ -107,6 +113,7 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
             ->orderBy('folio')
             ->get(['id', 'folio', 'client_id', 'total', 'payment_method', 'status'])
             ->map(fn ($o) => [
+                'tipo'     => 'pedido',
                 'order_id' => $o->id,
                 'folio'    => $o->folio,
                 'cliente'  => $o->client?->nombre ?? '—',
@@ -115,22 +122,53 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
                 'status'   => $o->status,
             ])->values();
 
+        // Traspasos sin despacho asignado, del mismo día — mismo criterio que
+        // pedidos "sueltos": se pueden arrastrar o enviar a ruta igual.
+        $traspasosSueltos = StockTransfer::where('status', 'PENDIENTE')
+            ->whereNull('dispatch_id')
+            ->whereDate('fecha', $fecha)
+            ->when($search, fn ($q) => $q->where('folio', 'like', "%{$search}%"))
+            ->with(['fromWarehouse:id,nombre', 'toWarehouse:id,nombre'])
+            ->orderBy('folio')
+            ->get(['id', 'folio', 'from_warehouse_id', 'to_warehouse_id', 'status'])
+            ->map(fn ($t) => [
+                'tipo'         => 'traspaso',
+                'transfer_id'  => $t->id,
+                'folio'        => $t->folio,
+                'cliente'      => ($t->fromWarehouse?->nombre ?? '—') . ' → ' . ($t->toWarehouse?->nombre ?? '—'),
+                'total'        => null,
+                'status'       => $t->status,
+            ])->values();
+
+        $sueltos = $sueltos->concat($traspasosSueltos)->values();
+
         return response()->json(['rutas' => $rutas, 'sueltos' => $sueltos, 'fecha' => $fecha]);
     }
 
     private function celdaData(?Dispatch $dispatch): array
     {
         if (! $dispatch) {
-            return ['dispatch_id' => null, 'status' => null, 'pedidos' => [], 'cxc' => [], 'total' => 0];
+            return ['dispatch_id' => null, 'status' => null, 'pedidos' => [], 'traspasos' => [], 'cxc' => [], 'total' => 0];
         }
 
         $pedidos = $dispatch->items->map(fn ($it) => [
+            'tipo'     => 'pedido',
             'item_id'  => $it->id,
             'order_id' => $it->sales_order_id,
             'folio'    => $it->salesOrder?->folio,
             'cliente'  => $it->salesOrder?->client?->nombre ?? '—',
             'total'    => (float) ($it->salesOrder?->total ?? 0),
             'status'   => $it->salesOrder?->status,
+        ])->values();
+
+        $traspasos = $dispatch->transferAssignments->map(fn ($a) => [
+            'tipo'           => 'traspaso',
+            'assignment_id'  => $a->id,
+            'transfer_id'    => $a->stock_transfer_id,
+            'folio'          => $a->stockTransfer?->folio,
+            'cliente'        => ($a->stockTransfer?->fromWarehouse?->nombre ?? '—') . ' → ' . ($a->stockTransfer?->toWarehouse?->nombre ?? '—'),
+            'total'          => null,
+            'status'         => $a->stockTransfer?->status,
         ])->values();
 
         $cxc = $dispatch->arAssignments->map(fn ($a) => [
@@ -147,13 +185,14 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
         // "PLANEADO" ahí no aporta nada y solo confunde. Sigue existiendo
         // (dispatch_id se conserva para reusarlo si sueltan algo encima), solo
         // no se le pinta el badge de estatus.
-        $vacio = $pedidos->isEmpty() && $cxc->isEmpty();
+        $vacio = $pedidos->isEmpty() && $traspasos->isEmpty() && $cxc->isEmpty();
 
         return [
             'dispatch_id' => $dispatch->id,
             'status'      => $vacio ? null : $dispatch->status,
             'editable'    => $dispatch->status === 'PLANEADO',
             'pedidos'     => $pedidos,
+            'traspasos'   => $traspasos,
             'cxc'         => $cxc,
             'total'       => $pedidos->sum('total'),
         ];
@@ -184,13 +223,18 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
     }
 
     /**
-     * Mueve un pedido al soltarlo en una celda ruta+ronda (o a "sueltos" si
-     * route_id viene vacío). Crea el despacho destino si hace falta, y
-     * actualiza la ruta/ronda guardada en el propio pedido para que quede
-     * consistente la próxima vez que se reprocese.
+     * Mueve un pedido o un traspaso al soltarlo en una celda ruta+ronda (o a
+     * "Sin Asignación" si route_id viene vacío). Crea el despacho destino si
+     * hace falta.
      */
     public function mover(Request $request)
     {
+        $tipo = $request->get('tipo', 'pedido');
+
+        if ($tipo === 'traspaso') {
+            return $this->moverTraspaso($request);
+        }
+
         $data = $request->validate([
             'order_id'          => ['required', 'integer', 'exists:sales_orders,id'],
             'shipping_route_id' => ['nullable', 'integer', 'exists:shipping_routes,id'],
@@ -251,6 +295,89 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
             ]);
 
             $this->log->log($dispatch, 'PEDIDOS_AGREGADOS', null, null, null, "Pedido {$order->folio} movido aquí desde el panel de rutas");
+
+            if ($dispatchOrigenId && $dispatchOrigenId !== $dispatch->id) {
+                $origen = Dispatch::find($dispatchOrigenId);
+                if ($origen && ! $origen->items()->exists() && ! $origen->arAssignments()->exists() && ! $origen->transferAssignments()->exists()) {
+                    $origen->delete();
+                }
+            }
+
+            return response()->json(['ok' => true]);
+        });
+    }
+
+    /**
+     * Mismo criterio que mover() pero para un traspaso — usa
+     * DispatchTransferAssignment en vez de DispatchItem, y el status propio
+     * de StockTransfer (PENDIENTE ↔ ASIGNADO) en vez del de SalesOrder.
+     */
+    private function moverTraspaso(Request $request)
+    {
+        $data = $request->validate([
+            'order_id'          => ['required', 'integer', 'exists:stock_transfers,id'], // mismo nombre de campo que pedidos, para reusar el JS del panel
+            'shipping_route_id' => ['nullable', 'integer', 'exists:shipping_routes,id'],
+            'ronda'             => ['nullable', 'integer', 'in:1,2'],
+            'fecha'             => ['required', 'date'],
+        ]);
+
+        if (!empty($data['shipping_route_id']) && empty($data['ronda'])) {
+            return response()->json(['ok' => false, 'message' => 'Falta la ronda.'], 422);
+        }
+
+        $transfer = StockTransfer::findOrFail($data['order_id']);
+        if (! in_array($transfer->status, ['PENDIENTE', 'ASIGNADO'])) {
+            return response()->json(['ok' => false, 'message' => 'Este traspaso ya no se puede mover de ruta (status ' . $transfer->status . ').'], 422);
+        }
+
+        return DB::transaction(function () use ($transfer, $data) {
+            $asignacionExistente = DispatchTransferAssignment::where('stock_transfer_id', $transfer->id)->first();
+
+            if ($asignacionExistente && $asignacionExistente->dispatch && $asignacionExistente->dispatch->status !== 'PLANEADO') {
+                return response()->json(['ok' => false, 'message' => 'El despacho actual de este traspaso ya salió a ruta, no se puede reasignar.'], 422);
+            }
+
+            // Soltar en "Sin Asignación": quitar del despacho, regresa a PENDIENTE.
+            if (empty($data['shipping_route_id'])) {
+                if ($asignacionExistente) {
+                    $dispatchOrigen = $asignacionExistente->dispatch;
+                    $asignacionExistente->delete();
+                    $transfer->update(['status' => 'PENDIENTE', 'dispatch_id' => null]);
+                    if ($dispatchOrigen) {
+                        $this->log->log($dispatchOrigen, 'TRASPASO_QUITADO', null, null, null, "Traspaso {$transfer->folio} regresado a sin asignación desde el panel de rutas");
+                    }
+                }
+                return response()->json(['ok' => true]);
+            }
+
+            $dispatch = $this->autoDespacho->encontrarOCrearDespacho(
+                (int) $data['shipping_route_id'],
+                (int) $data['ronda'],
+                $data['fecha'],
+                "Creado desde el panel de rutas para {$transfer->folio}"
+            );
+
+            if ($asignacionExistente?->dispatch_id === $dispatch->id) {
+                return response()->json(['ok' => true]); // ya estaba ahí
+            }
+
+            $dispatchOrigenId = $asignacionExistente?->dispatch_id;
+            $asignacionExistente?->delete();
+
+            DispatchTransferAssignment::create([
+                'dispatch_id'       => $dispatch->id,
+                'stock_transfer_id' => $transfer->id,
+                'status'            => 'PENDIENTE',
+            ]);
+
+            $transfer->update([
+                'dispatch_id'       => $dispatch->id,
+                'status'            => 'ASIGNADO',
+                'shipping_route_id' => $data['shipping_route_id'],
+                'ronda'             => $data['ronda'],
+            ]);
+
+            $this->log->log($dispatch, 'TRASPASOS_AGREGADOS', null, null, null, "Traspaso {$transfer->folio} movido aquí desde el panel de rutas");
 
             if ($dispatchOrigenId && $dispatchOrigenId !== $dispatch->id) {
                 $origen = Dispatch::find($dispatchOrigenId);

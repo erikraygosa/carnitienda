@@ -10,6 +10,7 @@ class StockTransfer extends Model
 {
     protected $fillable = [
         'folio', 'from_warehouse_id', 'to_warehouse_id',
+        'shipping_route_id', 'ronda',
         'fecha', 'status', 'dispatch_id', 'notas',
         'created_by', 'completado_at',
     ];
@@ -23,6 +24,7 @@ class StockTransfer extends Model
 
     public function fromWarehouse()  { return $this->belongsTo(Warehouse::class, 'from_warehouse_id'); }
     public function toWarehouse()    { return $this->belongsTo(Warehouse::class, 'to_warehouse_id'); }
+    public function route()          { return $this->belongsTo(ShippingRoute::class, 'shipping_route_id'); }
     public function items()          { return $this->hasMany(StockTransferItem::class); }
     public function creator()        { return $this->belongsTo(User::class, 'created_by'); }
     public function dispatch()       { return $this->belongsTo(Dispatch::class); }

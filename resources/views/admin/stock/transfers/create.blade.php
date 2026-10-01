@@ -110,6 +110,34 @@
                            class="w-full rounded-md border-gray-300 shadow-sm text-sm">
                 </div>
 
+                @php
+                    $selRuta  = (string) old('shipping_route_id', (string)(isset($transfer) ? $transfer->shipping_route_id : ''));
+                    $selRonda = (string) old('ronda', (string)(isset($transfer) ? ($transfer->ronda ?? 1) : 1));
+                @endphp
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Ruta</label>
+                    <select name="shipping_route_id" id="shipping_route_id"
+                            class="w-full rounded-md border-gray-300 text-sm">
+                        <option value="">-- sin asignar --</option>
+                        @foreach($routes as $r)
+                            <option value="{{ $r->id }}" {{ $selRuta===(string)$r->id ? 'selected' : '' }}>
+                                {{ $r->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-gray-400">
+                        Si no la asignas aquí, queda "Sin Asignación" en el Panel de rutas de Despachos.
+                    </p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Ronda</label>
+                    <select name="ronda" id="ronda" class="w-full rounded-md border-gray-300 text-sm">
+                        <option value="1" {{ $selRonda==='1' ? 'selected' : '' }}>1ra</option>
+                        <option value="2" {{ $selRonda==='2' ? 'selected' : '' }}>2da</option>
+                    </select>
+                </div>
+
                 <div class="md:col-span-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Notas</label>
                     <textarea name="notas" rows="2"
