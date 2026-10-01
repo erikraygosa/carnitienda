@@ -258,6 +258,14 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
         $relatedDocuments = $docs->map(function (InvoiceComplementDoc $doc) {
             $ri = $doc->relatedInvoice;
 
+            // Objeto de impuesto real de la factura original: si ALGÚN concepto
+            // es objeto de impuesto (02), el documento relacionado también lo es,
+            // aunque la tasa promedio sea 0% (Tasa 0%, Art. 2-A LIVA). Antes esto
+            // se decidía con "tasa > 0", lo que mandaba el documento como "01 No
+            // objeto" cuando en realidad era "02 Tasa 0%" (confirmado en el XML
+            // timbrado del complemento CP1: ObjetoImpDR salió "01" en vez de "02").
+            $objetoImp = $ri->items->pluck('objeto_imp')->filter()->contains('02') ? '02' : '01';
+
             // Tasa IVA promedio de los conceptos de la factura original
             $tasaIva  = (float) ($ri->items->avg('iva_pct')  ?? 16);
             $tasaIeps = (float) ($ri->items->avg('ieps_pct') ?? 0);
@@ -269,21 +277,21 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
                 : (float) $doc->imp_pagado;
 
             $taxes = [];
-            if ($tasaIva > 0) {
+            if ($objetoImp === '02') {
                 $taxes[] = [
                     'base'   => $base,
                     'type'   => 'IVA',
                     'rate'   => $tasaIvaDecimal,
                     'factor' => 'Tasa',
                 ];
-            }
-            if ($tasaIeps > 0) {
-                $taxes[] = [
-                    'base'   => $base,
-                    'type'   => 'IEPS',
-                    'rate'   => $tasaIepsDecimal,
-                    'factor' => 'Tasa',
-                ];
+                if ($tasaIeps > 0) {
+                    $taxes[] = [
+                        'base'   => $base,
+                        'type'   => 'IEPS',
+                        'rate'   => $tasaIepsDecimal,
+                        'factor' => 'Tasa',
+                    ];
+                }
             }
 
             return [
@@ -291,6 +299,7 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
                 'amount'       => (float) $doc->imp_pagado,
                 'installment'  => $doc->num_parcialidad,
                 'last_balance' => (float) $doc->imp_saldo_anterior,
+                'taxability'   => $objetoImp,
                 'taxes'        => $taxes,
             ];
         })->values()->toArray();
