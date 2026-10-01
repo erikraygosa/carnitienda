@@ -124,7 +124,14 @@
                             {{ $dispatch->fecha ? \Carbon\Carbon::parse($dispatch->fecha)->format('d/m/Y H:i') : '—' }}
                         </td>
                         <td class="px-4 py-3 text-gray-700">{{ $dispatch->driver?->nombre ?? '—' }}</td>
-                        <td class="px-4 py-3 text-gray-700">{{ $dispatch->route?->nombre ?? '—' }}</td>
+                        <td class="px-4 py-3 text-gray-700">
+                            {{ $dispatch->route?->nombre ?? '—' }}
+                            @if($dispatch->route)
+                                <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium {{ (int)$dispatch->ronda === 2 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500' }}">
+                                    {{ (int)$dispatch->ronda === 2 ? '2da' : '1ra' }}
+                                </span>
+                            @endif
+                        </td>
                         <td class="px-4 py-3 text-gray-700">{{ $dispatch->warehouse?->nombre ?? '—' }}</td>
                         <td class="px-4 py-3">
                             <span class="font-mono text-sm">{{ $total }}</span>

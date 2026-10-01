@@ -77,6 +77,15 @@ class DispatchController extends Controller implements HasMiddleware
             // celda de origen. Siguen existiendo (se pueden reusar al soltar algo
             // encima en el panel), solo no se listan aquí mientras sigan vacíos.
             ->filter(fn ($d) => $d->items_count > 0 || $d->ar_assignments_count > 0 || $d->transfer_assignments_count > 0)
+            // Agrupado visualmente por ruta (y dentro de la misma ruta, 1ra
+            // ronda antes que 2da) en vez de solo por fecha — así las dos
+            // rondas de una misma ruta quedan juntas en vez de salpicadas
+            // entre despachos de otras rutas.
+            ->sortBy(fn ($d) => [
+                mb_strtolower($d->route?->nombre ?? 'zzzzz'),
+                $d->fecha ? -$d->fecha->timestamp : 0,
+                (int) ($d->ronda ?? 1),
+            ])
             ->values();
 
         // Pedidos PROCESADOS que aún no se han asignado a ningún despacho
