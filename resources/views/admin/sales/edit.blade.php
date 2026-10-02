@@ -300,7 +300,7 @@
                 <x-wire-button href="{{ route('admin.sales.ticket',$sale) }}" gray outline xs target="_blank">🧾 Imprimir ticket</x-wire-button>
                 <x-wire-button href="{{ route('admin.sales.send.form',$sale) }}" violet xs>Enviar</x-wire-button>
                 @if(in_array($sale->status, ['PROCESADA','EN_RUTA','ENTREGADA','COMPLETADA']))
-                    <x-wire-button href="{{ route('admin.invoices.create') }}?sale_id={{ $sale->id }}" indigo xs>
+                    <x-wire-button href="{{ route('admin.invoices.create') }}?sale_id={{ $sale->id }}" emerald xs>
                         Facturar
                     </x-wire-button>
                 @endif

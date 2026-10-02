@@ -87,7 +87,7 @@
                     Público en general
                 </label>
                 <button type="button" id="fc-generar"
-                        class="inline-flex items-center px-4 py-2 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                        class="inline-flex items-center px-4 py-2 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
                         disabled>
                     Generar factura consolidada
                 </button>
@@ -163,7 +163,7 @@
                     <td class="p-2 font-mono text-xs text-indigo-700">${r.folio}${r.surtido === false ? ' <span class="ml-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-semibold">FALTA SURTIR</span>' : ''}</td>
                     <td class="p-2 text-gray-700">${r.cliente}</td>
                     <td class="p-2 text-xs text-gray-400">${r.fecha ?? '—'}</td>
-                    <td class="p-2 text-right font-mono">${fmtMoney(r.total)}</td>
+                    <td class="p-2 text-right font-mono">${r.pagado ? `<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-semibold" title="Pagada">${fmtMoney(r.total)}</span>` : fmtMoney(r.total)}</td>
                 </tr>`;
             }).join('');
         }

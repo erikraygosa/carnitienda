@@ -182,7 +182,7 @@
                 // factura que tuvo se canceló, sí se puede volver a facturar.
                 const facturaViva = o.factura_label && o.factura_label !== 'Factura cancelada';
                 if (!facturaViva) {
-                    html += btn(o.invoice_url, 'Facturar', 'border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100');
+                    html += btn(o.invoice_url, 'Facturar', 'border-emerald-600 text-white bg-emerald-600 hover:bg-emerald-700');
                 }
             }
 

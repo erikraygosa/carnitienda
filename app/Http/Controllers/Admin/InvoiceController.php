@@ -125,7 +125,7 @@ class InvoiceController extends Controller implements HasMiddleware
                 ->when($hasta, fn($q) => $q->whereDate('fecha', '<=', $hasta))
                 ->orderByDesc('fecha')
                 ->limit(500)
-                ->get(['id', 'folio', 'client_id', 'fecha', 'total']);
+                ->get(['id', 'folio', 'client_id', 'fecha', 'total', 'saldo_pendiente', 'cobrado_at', 'driver_settlement_status']);
         } else {
             $items = SalesOrder::with(['client:id,nombre', 'items:id,sales_order_id', 'dispatchItem.lines'])
                 ->whereNotIn('status', ['BORRADOR', 'CANCELADO'])
@@ -144,7 +144,7 @@ class InvoiceController extends Controller implements HasMiddleware
                 ->when($hasta, fn($q) => $q->whereDate('fecha', '<=', $hasta))
                 ->orderByDesc('fecha')
                 ->limit(500)
-                ->get(['id', 'folio', 'client_id', 'fecha', 'total', 'payment_method', 'status']);
+                ->get(['id', 'folio', 'client_id', 'fecha', 'total', 'payment_method', 'status', 'saldo_pendiente', 'cobrado_at', 'driver_settlement_status']);
         }
 
         $rows = $items->map(fn($o) => [
@@ -156,6 +156,10 @@ class InvoiceController extends Controller implements HasMiddleware
             'total'     => (float) $o->total,
             // Solo los pedidos ya surtidos se pueden facturar (las notas de
             // venta son de mostrador, no pasan por surtido).
+            // Pagada: cobrada en CxC, liquidada por el chofer o sin saldo.
+            'pagado'    => $o->cobrado_at !== null
+                || $o->driver_settlement_status === 'LIQUIDADO'
+                || ($o->saldo_pendiente !== null && (float) $o->saldo_pendiente <= 0),
             'surtido'   => $tipo === 'notas' ? true : $o->estaSurtido(),
         ])->values();
 
