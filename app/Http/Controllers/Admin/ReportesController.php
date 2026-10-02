@@ -293,7 +293,9 @@ class ReportesController extends Controller implements HasMiddleware
                 'total_saldo_asignado' => $grupo->sum('saldo_asignado'),
                 'total_cobrado'      => $grupo->sum('monto_cobrado'),
             ];
-        })->values();
+        })
+        ->sortBy(fn ($g) => mb_strtolower($g['ruta'] ?? ''), SORT_STRING | SORT_FLAG_CASE)
+        ->values();
     }
 
     private function orderStatusLabels(): array
@@ -768,7 +770,12 @@ class ReportesController extends Controller implements HasMiddleware
                 'subtotal_fmt' => number_format((float)$rows->sum('total'), 2),
                 'count'        => $rows->count(),
             ];
-        })->values();
+        })
+        // Orden alfabético explícito — antes dependía solo del ORDER BY de
+        // la consulta + que groupBy() preservara ese orden, lo cual no
+        // siempre se refleja igual en el JSON final.
+        ->sortBy(fn ($g) => mb_strtolower($g['ruta'] ?? ''), SORT_STRING | SORT_FLAG_CASE)
+        ->values();
 
         return response()->json([
             'rutas'               => $grouped,
@@ -803,7 +810,8 @@ class ReportesController extends Controller implements HasMiddleware
         $totalGeneral = 0.0;
         $orderLabels = $this->orderStatusLabels();
 
-        $grouped   = $items->groupBy('ruta_nombre');
+        $grouped   = $items->groupBy('ruta_nombre')
+            ->sortBy(fn ($rows, $ruta) => mb_strtolower($ruta ?? ''), SORT_STRING | SORT_FLAG_CASE);
         $cxcPorRuta = $this->cxcAsignadas($request)->keyBy('ruta');
 
         foreach ($grouped as $rutaNombre => $notas) {
