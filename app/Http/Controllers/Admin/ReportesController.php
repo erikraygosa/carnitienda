@@ -151,6 +151,7 @@ class ReportesController extends Controller implements HasMiddleware
             ->leftJoin('shipping_routes', 'shipping_routes.id', '=', 'dispatches.shipping_route_id')
             ->leftJoin('drivers',         'drivers.id',         '=', 'dispatches.driver_id')
             ->orderBy('shipping_routes.nombre')
+            ->orderBy('clients.nombre')
             ->orderBy('dispatches.id');
     }
 
@@ -287,7 +288,9 @@ class ReportesController extends Controller implements HasMiddleware
         return $rows->groupBy('ruta')->map(function ($grupo, $ruta) {
             return [
                 'ruta'               => $ruta,
-                'clientes'           => $grupo->values(),
+                'clientes'           => $grupo
+                    ->sortBy(fn ($c) => mb_strtolower($c['cliente'] ?? ''), SORT_STRING | SORT_FLAG_CASE)
+                    ->values(),
                 'count'              => $grupo->count(),
                 'total_saldo'        => $grupo->sum('saldo_pendiente'),
                 'total_saldo_asignado' => $grupo->sum('saldo_asignado'),
@@ -741,7 +744,9 @@ class ReportesController extends Controller implements HasMiddleware
         $grouped = $items->groupBy('ruta_nombre')->map(function ($rows, $ruta) use ($orderLabels, $orderClasses) {
             return [
                 'ruta'    => $ruta ?? 'Sin ruta',
-                'notas'   => $rows->map(function ($s) use ($orderLabels, $orderClasses) {
+                'notas'   => $rows
+                    ->sortBy(fn ($s) => mb_strtolower($s->cliente_nombre ?? ''), SORT_STRING | SORT_FLAG_CASE)
+                    ->map(function ($s) use ($orderLabels, $orderClasses) {
                     $liq = $this->liquidacionEstatus($s->order_status, $s->driver_settlement_status);
                     $saldo = ($s->saldo_pendiente !== null && (float) $s->saldo_pendiente > 0)
                         ? (float) $s->saldo_pendiente
