@@ -22,7 +22,7 @@
             Enviar
         </a>
         <a href="{{ route('admin.invoices.create') }}?sales_order={{ $order->id }}"
-           class="inline-flex px-2 py-1 text-xs rounded border border-emerald-600 text-white bg-emerald-600 hover:bg-emerald-700">
+           class="inline-flex px-2 py-1 text-xs rounded border {{ $order->esta_pagado ? 'border-emerald-600 text-white bg-emerald-600 hover:bg-emerald-700' : 'border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100' }}">
             Facturar
         </a>
     @endif

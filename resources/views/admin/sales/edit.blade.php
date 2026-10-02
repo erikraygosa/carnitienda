@@ -300,9 +300,12 @@
                 <x-wire-button href="{{ route('admin.sales.ticket',$sale) }}" gray outline xs target="_blank">🧾 Imprimir ticket</x-wire-button>
                 <x-wire-button href="{{ route('admin.sales.send.form',$sale) }}" violet xs>Enviar</x-wire-button>
                 @if(in_array($sale->status, ['PROCESADA','EN_RUTA','ENTREGADA','COMPLETADA']))
-                    <x-wire-button href="{{ route('admin.invoices.create') }}?sale_id={{ $sale->id }}" emerald xs>
-                        Facturar
-                    </x-wire-button>
+                    @php $facturarUrl = route('admin.invoices.create').'?sale_id='.$sale->id; @endphp
+                    @if($sale->esta_pagado)
+                        <x-wire-button href="{{ $facturarUrl }}" emerald xs>Facturar</x-wire-button>
+                    @else
+                        <x-wire-button href="{{ $facturarUrl }}" indigo xs>Facturar</x-wire-button>
+                    @endif
                 @endif
 
                 @if($sale->status === 'BORRADOR')

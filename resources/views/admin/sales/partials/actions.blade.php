@@ -14,9 +14,12 @@
 
     {{-- Facturar — mismo criterio que Pedidos (solo notas con progreso real) --}}
     @if(in_array($sale->status, ['PROCESADA','EN_RUTA','ENTREGADA','COMPLETADA']))
-        <x-wire-button href="{{ route('admin.invoices.create') }}?sale_id={{ $sale->id }}" emerald xs>
-            Facturar
-        </x-wire-button>
+        @php $facturarUrl = route('admin.invoices.create').'?sale_id='.$sale->id; @endphp
+        @if($sale->esta_pagado)
+            <x-wire-button href="{{ $facturarUrl }}" emerald xs>Facturar</x-wire-button>
+        @else
+            <x-wire-button href="{{ $facturarUrl }}" indigo xs>Facturar</x-wire-button>
+        @endif
     @endif
 
     {{-- Acciones por estado --}}

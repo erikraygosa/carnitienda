@@ -87,7 +87,7 @@
                     Público en general
                 </label>
                 <button type="button" id="fc-generar"
-                        class="inline-flex items-center px-4 py-2 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                        class="inline-flex items-center px-4 py-2 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
                         disabled>
                     Generar factura consolidada
                 </button>

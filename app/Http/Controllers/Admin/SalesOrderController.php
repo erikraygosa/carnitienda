@@ -155,6 +155,7 @@ public function data(Request $request)
     'pdf_dl_url'    => route('admin.sales-orders.pdf.download', $o),
     'send_url'      => route('admin.sales-orders.send.form',   $o),
     'invoice_url' => route('admin.invoices.create').'?order_id='.$o->id,
+    'pagado'      => $o->esta_pagado,
     // Trazabilidad: si ya se generó una factura desde este pedido, mostrar
     // su estatus real (borrador/timbrada/cancelada) y un link directo a
     // ella — antes no había ninguna forma de saber desde aquí si un

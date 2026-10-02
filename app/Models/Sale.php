@@ -123,6 +123,14 @@ class Sale extends Model
         return ($this->driver_settlement_status ?? 'PENDIENTE') === 'LIQUIDADO';
     }
 
+    /** Pagada: cobrada en CxC, liquidada por el chofer o sin saldo pendiente. */
+    public function getEstaPagadoAttribute(): bool
+    {
+        return $this->cobrado_at !== null
+            || ($this->driver_settlement_status ?? 'PENDIENTE') === 'LIQUIDADO'
+            || ($this->saldo_pendiente !== null && (float) $this->saldo_pendiente <= 0);
+    }
+
     // === Scopes útiles ===
     public function scopeEnRuta($q)
     {
