@@ -115,7 +115,7 @@
             const esTraspaso = p.tipo === 'traspaso';
             const id = esTraspaso ? p.transfer_id : p.order_id;
             const envioBtn = origenTipo === 'sueltos'
-                ? `<button type="button" class="shrink-0 w-5 h-5 rounded-full ${esTraspaso ? 'bg-teal-600 hover:bg-teal-700' : 'bg-indigo-600 hover:bg-indigo-700'} text-white text-[10px] shadow flex items-center justify-center"
+                ? `<button type="button" class="shrink-0 w-6 h-6 rounded-full ${esTraspaso ? 'bg-teal-600 hover:bg-teal-700' : 'bg-indigo-600 hover:bg-indigo-700'} text-white text-xs shadow flex items-center justify-center"
                            title="Enviar a ruta" onclick="event.stopPropagation(); prEnviarARuta(${id}, '${p.tipo}')">
                        <i class="fa-solid fa-paper-plane"></i>
                    </button>`
