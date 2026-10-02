@@ -235,7 +235,7 @@
         var amountEl = document.getElementById('amount');
 
         // ── Calcular suma usando data-saldo (notas + facturas libres) ─────
-        function calcularSuma() {
+        function calcularSuma(forzar) {
             var total = 0;
             document.querySelectorAll('.nota-chk:checked, .factura-chk:checked').forEach(function(chk) {
                 total += parseFloat(chk.dataset.saldo) || 0;
@@ -246,15 +246,19 @@
                     minimumFractionDigits: 2, maximumFractionDigits: 2
                 });
             }
-            if (amountEl && (amountEl.value === '' || parseFloat(amountEl.value) === 0) && total > 0) {
-                amountEl.value = total.toFixed(2);
+            if (amountEl && (forzar || ((amountEl.value === '' || parseFloat(amountEl.value) === 0) && total > 0))) {
+                amountEl.value = total > 0 ? total.toFixed(2) : '';
             }
         }
 
+        // Al marcar/desmarcar una nota el Monto se recalcula siempre (se puede
+        // editar después para un abono parcial).
+        function onChkChange() { calcularSuma(true); }
+
         function bindChks() {
             document.querySelectorAll('.nota-chk, .factura-chk').forEach(function(chk) {
-                chk.removeEventListener('change', calcularSuma);
-                chk.addEventListener('change', calcularSuma);
+                chk.removeEventListener('change', onChkChange);
+                chk.addEventListener('change', onChkChange);
             });
         }
 
