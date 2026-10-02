@@ -240,6 +240,44 @@
             bindDropzones($('pr-rutas'));
         }
 
+        // ── Auto-scroll al arrastrar ───────────────────────────────────────
+        // El drag & drop nativo del navegador no hace scroll solo al acercar
+        // el mouse a los bordes de la pantalla, así que si la ruta destino
+        // está más abajo (fuera de la vista) no hay forma de soltarlo ahí.
+        // Se hace manual: mientras se arrastra, si el cursor está cerca del
+        // borde superior/inferior de la ventana, se desplaza la página.
+        const AUTOSCROLL_ZONA = 90;
+        const AUTOSCROLL_VEL  = 18;
+        let autoScrollDir = 0;
+        let autoScrollRAF = null;
+
+        function autoScrollTick() {
+            if (autoScrollDir !== 0) {
+                window.scrollBy(0, autoScrollDir * AUTOSCROLL_VEL);
+                autoScrollRAF = requestAnimationFrame(autoScrollTick);
+            } else {
+                autoScrollRAF = null;
+            }
+        }
+
+        document.addEventListener('dragover', e => {
+            const y = e.clientY;
+            const h = window.innerHeight;
+            if (y < AUTOSCROLL_ZONA) {
+                autoScrollDir = -1;
+            } else if (y > h - AUTOSCROLL_ZONA) {
+                autoScrollDir = 1;
+            } else {
+                autoScrollDir = 0;
+            }
+            if (autoScrollDir !== 0 && !autoScrollRAF) {
+                autoScrollRAF = requestAnimationFrame(autoScrollTick);
+            }
+        });
+
+        document.addEventListener('dragend', () => { autoScrollDir = 0; });
+        document.addEventListener('drop', () => { autoScrollDir = 0; });
+
         function bindDraggables() {
             document.querySelectorAll('.pr-chip').forEach(chip => {
                 chip.addEventListener('dragstart', e => {
