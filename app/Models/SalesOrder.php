@@ -95,6 +95,28 @@ class SalesOrder extends Model
      */
     public function invoices(): BelongsToMany   { return $this->belongsToMany(Invoice::class, 'invoice_sales_orders'); }
     public function dispatchItem(): HasOne      { return $this->hasOne(DispatchItem::class, 'sales_order_id'); }
+
+    /**
+     * ¿Ya se surtió? Mismo criterio que "falta surtir" en Despachos: los
+     * pedidos que ya salieron de almacén (DESPACHADO en adelante) cuentan
+     * como surtidos; antes de eso, solo si todas sus partidas ya tienen
+     * cantidad despachada capturada en Salida de Producto.
+     */
+    public function estaSurtido(): bool
+    {
+        if (in_array($this->status, [self::S_DESPACHADO, self::S_EN_RUTA, self::S_ENTREGADO, self::S_NO_ENTREGADO], true)) {
+            return true;
+        }
+
+        $totalItems = $this->items->count();
+        if ($totalItems === 0 || ! $this->dispatchItem) {
+            return false;
+        }
+
+        $surtidos = $this->dispatchItem->lines->whereNotNull('qty_despachada')->pluck('sales_order_item_id')->unique()->count();
+
+        return $surtidos >= $totalItems;
+    }
     public function assistantConversation(): BelongsTo { return $this->belongsTo(AssistantConversation::class); }
 
     // === Etiquetas de estado ===

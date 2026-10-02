@@ -127,7 +127,7 @@ class InvoiceController extends Controller implements HasMiddleware
                 ->limit(500)
                 ->get(['id', 'folio', 'client_id', 'fecha', 'total']);
         } else {
-            $items = SalesOrder::with('client:id,nombre')
+            $items = SalesOrder::with(['client:id,nombre', 'items:id,sales_order_id', 'dispatchItem.lines'])
                 ->whereNotIn('status', ['BORRADOR', 'CANCELADO'])
                 // "Sin facturar" con el mismo criterio que el filtro de Pedidos:
                 // que no tenga ninguna factura viva (timbrada/borrador/
@@ -144,7 +144,7 @@ class InvoiceController extends Controller implements HasMiddleware
                 ->when($hasta, fn($q) => $q->whereDate('fecha', '<=', $hasta))
                 ->orderByDesc('fecha')
                 ->limit(500)
-                ->get(['id', 'folio', 'client_id', 'fecha', 'total', 'payment_method']);
+                ->get(['id', 'folio', 'client_id', 'fecha', 'total', 'payment_method', 'status']);
         }
 
         $rows = $items->map(fn($o) => [
@@ -154,6 +154,9 @@ class InvoiceController extends Controller implements HasMiddleware
             'cliente'   => $o->client?->nombre ?? '—',
             'fecha'     => optional($o->fecha)->format('d/m/Y'),
             'total'     => (float) $o->total,
+            // Solo los pedidos ya surtidos se pueden facturar (las notas de
+            // venta son de mostrador, no pasan por surtido).
+            'surtido'   => $tipo === 'notas' ? true : $o->estaSurtido(),
         ])->values();
 
         return response()->json(['rows' => $rows]);
@@ -178,6 +181,17 @@ class InvoiceController extends Controller implements HasMiddleware
         } else {
             $request->validate(['order_ids.*' => ['exists:sales_orders,id']]);
             $orders = SalesOrder::with('items.product', 'client')->whereIn('id', $data['order_ids'])->get();
+        }
+
+        if (! $esNotas) {
+            $orders->load('dispatchItem.lines');
+            $sinSurtir = $orders->filter(fn($o) => ! $o->estaSurtido());
+            if ($sinSurtir->isNotEmpty()) {
+                return back()->with('swal', [
+                    'icon' => 'error', 'title' => 'Falta surtir',
+                    'text' => 'Solo se pueden facturar pedidos ya surtidos. Falta surtir: ' . $sinSurtir->pluck('folio')->implode(', '),
+                ]);
+            }
         }
 
         $yaFacturados = $orders->filter(fn($o) => $o->invoices()->where('estatus', '!=', 'CANCELADA')->exists());
