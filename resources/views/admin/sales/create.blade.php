@@ -526,12 +526,21 @@
                 state.clientId = clientId;
                 state.priceList = 'client';
 
+                // Con cliente seleccionado la venta va a Crédito; sin cliente
+                // (público general) vuelve a Contado.
+                if (clientId) {
+                    set('tipo_venta', 'CREDITO');
+                    SNF.onTipoVentaChange('CREDITO');
+                } else {
+                    set('tipo_venta', 'CONTADO');
+                    set('credit_days', 0);
+                    SNF.onTipoVentaChange('CONTADO');
+                }
+
                 const d = CLIENT_DEFAULTS[clientId];
                 if (d) {
                     if (d.credito_dias > 0) {
-                        set('tipo_venta', 'CREDITO');
                         set('credit_days', d.credito_dias);
-                        SNF.onTipoVentaChange('CREDITO');
                     }
                     if (d.credito_limite > 0) {
                         const info = $('credito-info');
