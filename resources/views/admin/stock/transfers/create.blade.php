@@ -70,7 +70,7 @@
             @if(isset($transfer)) @method('PUT') @endif
 
             {{-- Encabezado --}}
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -125,9 +125,6 @@
                             </option>
                         @endforeach
                     </select>
-                    <p class="mt-1 text-xs text-gray-400">
-                        Si no la asignas aquí, queda "Sin Asignación" en el Panel de rutas de Despachos.
-                    </p>
                 </div>
 
                 <div>
@@ -138,7 +135,7 @@
                     </select>
                 </div>
 
-                <div class="md:col-span-4">
+                <div class="col-span-2 md:col-span-5">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Notas</label>
                     <textarea name="notas" rows="2"
                               class="w-full rounded-md border-gray-300 shadow-sm text-sm">{{ old('notas', isset($transfer) ? $transfer->notas : '') }}</textarea>
