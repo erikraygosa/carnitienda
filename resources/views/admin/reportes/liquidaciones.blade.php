@@ -202,7 +202,22 @@
         window.abrirCobroCxc = function (event, url) {
             event.preventDefault();
             const win = window.open(url, 'cobro-cxc', 'width=1100,height=800');
-            if (!win) { window.location.href = url; return; }
+            if (!win) {
+                // Navegador con bloqueador de ventanas emergentes: se abre en
+                // pestaña nueva (nunca en esta) y el reporte se recarga solo al
+                // volver a esta pestaña.
+                const a = document.createElement('a');
+                a.href = url; a.target = '_blank'; a.rel = 'noopener';
+                document.body.appendChild(a); a.click(); a.remove();
+                const alVolver = function () {
+                    if (document.visibilityState === 'visible') {
+                        document.removeEventListener('visibilitychange', alVolver);
+                        load();
+                    }
+                };
+                document.addEventListener('visibilitychange', alVolver);
+                return;
+            }
             const timer = setInterval(function () {
                 if (win.closed) {
                     clearInterval(timer);
