@@ -42,7 +42,7 @@
 
                 {{-- Info cuenta --}}
                 <div class="px-4 py-3 border-b border-gray-100">
-                    <p class="text-xs text-gray-400">{{ __('Manage Account') }}</p>
+                    <p class="text-xs text-gray-400">Administrar cuenta</p>
                     <p class="text-sm font-medium text-gray-700 truncate mt-0.5">{{ Auth::user()->email }}</p>
                 </div>
 
@@ -52,7 +52,7 @@
                     <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                     </svg>
-                    {{ __('Profile') }}
+                    Perfil
                 </a>
 
                 @if(Laravel\Jetstream\Jetstream::hasApiFeatures())
@@ -61,7 +61,7 @@
                     <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
                     </svg>
-                    {{ __('API Tokens') }}
+                    Tokens de API
                 </a>
                 @endif
 
@@ -87,7 +87,7 @@
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
                         </svg>
-                        {{ __('Log Out') }}
+                        Cerrar sesión
                     </button>
                 </form>
 
