@@ -106,7 +106,9 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
         // — mismo criterio que ya usa DispatchPanelController para
         // "pendientes del día".
         $sueltos = SalesOrder::whereIn('status', ['PROCESADO', 'DESPACHADO', 'NO_ENTREGADO'])
-            ->whereDoesntHave('dispatchItem')
+            // Sin despacho: sin DispatchItem, o con uno "huérfano" (dispatch_id
+            // null: se quitó de su despacho conservando lo ya surtido).
+            ->whereDoesntHave('dispatchItem', fn ($q) => $q->whereNotNull('dispatch_id'))
             ->where(fn ($q) => $atrasados
                 ? $q->whereDate('programado_para', '<=', $fecha)
                     ->orWhere(fn ($q2) => $q2->whereNull('programado_para')->whereDate('fecha', '<=', $fecha))
