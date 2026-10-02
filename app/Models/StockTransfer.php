@@ -32,10 +32,11 @@ class StockTransfer extends Model
         return $this->hasOne(DispatchTransferAssignment::class);
     }
 
-    public static function generateFolio(): string
+    public static function generateFolio($fecha = null): string
     {
         $last = static::max('id') ?? 0;
-        return 'TRF-' . now()->format('Ymd') . '-' . str_pad($last + 1, 4, '0', STR_PAD_LEFT);
+        $fecha = $fecha ? \Carbon\Carbon::parse($fecha) : now();
+        return 'TRF-' . $fecha->format('Ymd') . '-' . str_pad($last + 1, 4, '0', STR_PAD_LEFT);
     }
 
     public function getStatusLabelAttribute(): string

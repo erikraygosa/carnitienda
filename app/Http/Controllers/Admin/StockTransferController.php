@@ -101,7 +101,9 @@ class StockTransferController extends Controller implements HasMiddleware
 
         $transfer = DB::transaction(function () use ($data) {
             $transfer = StockTransfer::create([
-                'folio'             => StockTransfer::generateFolio(),
+                // El folio usa la fecha programada del traspaso, no la fecha
+                // de captura — mismo criterio que en pedidos (SalesOrder).
+                'folio'             => StockTransfer::generateFolio($data['fecha']),
                 'from_warehouse_id' => $data['from_warehouse_id'],
                 'to_warehouse_id'   => $data['to_warehouse_id'],
                 'shipping_route_id' => $data['shipping_route_id'] ?? null,
