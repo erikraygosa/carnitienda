@@ -75,6 +75,10 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
     {
         $fecha  = $request->get('fecha', now()->toDateString());
         $search = trim((string) $request->get('search', ''));
+        // "Ver pedidos anteriores": además de los del día, trae los de días
+        // anteriores que siguen sin despacho (se envían al despacho del día
+        // que se está viendo).
+        $atrasados = $request->boolean('atrasados');
 
         $routes = ShippingRoute::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
 
@@ -103,16 +107,19 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
         // "pendientes del día".
         $sueltos = SalesOrder::whereIn('status', ['PROCESADO', 'DESPACHADO', 'NO_ENTREGADO'])
             ->whereDoesntHave('dispatchItem')
-            ->where(fn ($q) => $q
-                ->whereDate('programado_para', $fecha)
-                ->orWhere(fn ($q2) => $q2->whereNull('programado_para')->whereDate('fecha', $fecha)))
+            ->where(fn ($q) => $atrasados
+                ? $q->whereDate('programado_para', '<=', $fecha)
+                    ->orWhere(fn ($q2) => $q2->whereNull('programado_para')->whereDate('fecha', '<=', $fecha))
+                : $q->whereDate('programado_para', $fecha)
+                    ->orWhere(fn ($q2) => $q2->whereNull('programado_para')->whereDate('fecha', $fecha)))
             ->when($search, fn ($q) => $q->where(fn ($q2) => $q2
                 ->where('folio', 'like', "%{$search}%")
                 ->orWhereHas('client', fn ($c) => $c->where('nombre', 'like', "%{$search}%"))))
             ->with('client:id,nombre')
             ->orderBy('folio')
-            ->get(['id', 'folio', 'client_id', 'total', 'payment_method', 'status'])
+            ->get(['id', 'folio', 'client_id', 'total', 'payment_method', 'status', 'programado_para', 'fecha'])
             ->map(fn ($o) => [
+                'fecha_original' => $this->fechaAtrasada($o->programado_para ?: $o->fecha, $fecha),
                 'tipo'     => 'pedido',
                 'order_id' => $o->id,
                 'folio'    => $o->folio,
@@ -126,12 +133,13 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
         // pedidos "sueltos": se pueden arrastrar o enviar a ruta igual.
         $traspasosSueltos = StockTransfer::where('status', 'PENDIENTE')
             ->whereNull('dispatch_id')
-            ->whereDate('fecha', $fecha)
+            ->whereDate('fecha', $atrasados ? '<=' : '=', $fecha)
             ->when($search, fn ($q) => $q->where('folio', 'like', "%{$search}%"))
             ->with(['fromWarehouse:id,nombre', 'toWarehouse:id,nombre'])
             ->orderBy('folio')
-            ->get(['id', 'folio', 'from_warehouse_id', 'to_warehouse_id', 'status'])
+            ->get(['id', 'folio', 'from_warehouse_id', 'to_warehouse_id', 'status', 'fecha'])
             ->map(fn ($t) => [
+                'fecha_original' => $this->fechaAtrasada($t->fecha, $fecha),
                 'tipo'         => 'traspaso',
                 'transfer_id'  => $t->id,
                 'folio'        => $t->folio,
@@ -143,6 +151,14 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
         $sueltos = $sueltos->concat($traspasosSueltos)->values();
 
         return response()->json(['rutas' => $rutas, 'sueltos' => $sueltos, 'fecha' => $fecha]);
+    }
+
+    /** dd/mm del documento si es de un día anterior al que se está viendo; null si es del mismo día. */
+    private function fechaAtrasada($fechaDoc, string $fechaVista): ?string
+    {
+        if (! $fechaDoc) return null;
+        $d = \Carbon\Carbon::parse($fechaDoc);
+        return $d->toDateString() < $fechaVista ? $d->format('d/m') : null;
     }
 
     private function celdaData(?Dispatch $dispatch): array

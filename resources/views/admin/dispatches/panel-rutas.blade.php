@@ -31,7 +31,11 @@
                 <input type="text" id="pr-search" placeholder="Folio o cliente..."
                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
-            <div class="flex items-end">
+            <div class="flex items-end gap-4">
+                <label class="inline-flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+                    <input type="checkbox" id="pr-atrasados" class="rounded border-gray-300 text-indigo-600">
+                    Ver pedidos anteriores
+                </label>
                 <button type="button" id="pr-refresh" class="text-xs text-indigo-600 hover:underline">
                     Actualizar
                 </button>
@@ -69,7 +73,7 @@
         const ROUTES = @json($routes->map(fn($r) => ['id' => $r->id, 'nombre' => $r->nombre])->values());
 
         const hoy = new Date().toISOString().slice(0,10);
-        let state = { fecha: hoy, search: '' };
+        let state = { fecha: hoy, search: '', atrasados: false };
 
         const $ = id => document.getElementById(id);
         const fmtMoney = v => '$' + parseFloat(v || 0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -99,7 +103,7 @@
             $('pr-rutas').innerHTML = '<div class="col-span-full text-center py-8 text-gray-400">Cargando...</div>';
 
             try {
-                const params = new URLSearchParams({ fecha: state.fecha, search: state.search });
+                const params = new URLSearchParams({ fecha: state.fecha, search: state.search, atrasados: state.atrasados ? 1 : 0 });
                 const res  = await fetch(`${DATA_URL}?${params}`, { headers: { 'Accept': 'application/json' } });
                 const data = await res.json();
                 if (mySeq !== loadSeq) return; // una carga más nueva ya está en curso/terminó, ignorar esta respuesta tardía
@@ -126,7 +130,7 @@
                     <div class="flex items-center justify-between gap-1">
                         <span class="font-mono font-medium ${esTraspaso ? 'text-teal-700' : 'text-indigo-700'} truncate">
                             ${esTraspaso ? '<i class="fa-solid fa-right-left mr-0.5"></i>' : ''}${escHtml(p.folio)}
-                        </span>
+                        </span>${p.fecha_original ? `<span class="shrink-0 px-1 rounded bg-amber-100 text-amber-700 text-[10px] font-semibold" title="Pedido de un día anterior">${escHtml(p.fecha_original)}</span>` : ''}
                         <div class="flex items-center gap-1.5 shrink-0">
                             ${p.total !== null ? `<span class="font-semibold text-gray-700 whitespace-nowrap">${fmtMoney(p.total)}</span>` : ''}
                             ${envioBtn}
@@ -453,6 +457,10 @@
             window._prSearchDebounce = setTimeout(load, 300);
         });
         $('pr-refresh').addEventListener('click', load);
+        $('pr-atrasados').addEventListener('change', function() {
+            state.atrasados = this.checked;
+            load();
+        });
 
         bindDropzones($('pr-sueltos'));
 
