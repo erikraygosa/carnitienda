@@ -155,12 +155,12 @@
                 <tr class="border-b ${r.surtido === false ? 'bg-red-50/50 text-gray-400' : 'hover:bg-gray-50'}">
                     <td class="p-2">
                         <input type="checkbox" class="fc-check rounded border-gray-300"
-                               ${r.surtido === false ? 'disabled title="Falta surtir: no se puede facturar"' : ''}
+                               ${r.surtido === false ? 'disabled title="Ningún producto surtido: no se puede facturar"' : ''}
                                ${marcada && r.surtido !== false ? 'checked' : ''}
                                data-id="${r.id}" data-total="${r.total}" data-client-id="${r.client_id ?? ''}"
                                onchange="window.__fcToggle(this)">
                     </td>
-                    <td class="p-2 font-mono text-xs text-indigo-700">${r.folio}${r.surtido === false ? ' <span class="ml-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-semibold">FALTA SURTIR</span>' : ''}</td>
+                    <td class="p-2 font-mono text-xs text-indigo-700">${r.folio}${r.surtido === false ? ' <span class="ml-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-semibold">FALTA SURTIR</span>' : (r.parcial ? ' <span class="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-semibold" title="Solo se facturarán los productos surtidos">SURTIDO PARCIAL</span>' : '')}</td>
                     <td class="p-2 text-gray-700">${r.cliente}</td>
                     <td class="p-2 text-xs text-gray-400">${r.fecha ?? '—'}</td>
                     <td class="p-2 text-right font-mono">${r.pagado ? `<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-semibold" title="Pagada">${fmtMoney(r.total)}</span>` : fmtMoney(r.total)}</td>

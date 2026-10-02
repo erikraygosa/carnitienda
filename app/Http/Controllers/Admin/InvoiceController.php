@@ -160,7 +160,8 @@ class InvoiceController extends Controller implements HasMiddleware
             'pagado'    => $o->cobrado_at !== null
                 || $o->driver_settlement_status === 'LIQUIDADO'
                 || ($o->saldo_pendiente !== null && (float) $o->saldo_pendiente <= 0),
-            'surtido'   => $tipo === 'notas' ? true : $o->estaSurtido(),
+            'surtido'   => $tipo === 'notas' ? true : $o->tieneSurtido(),
+            'parcial'   => $tipo === 'notas' ? false : $o->surtidoParcial(),
         ])->values();
 
         return response()->json(['rows' => $rows]);
@@ -189,11 +190,11 @@ class InvoiceController extends Controller implements HasMiddleware
 
         if (! $esNotas) {
             $orders->load('dispatchItem.lines');
-            $sinSurtir = $orders->filter(fn($o) => ! $o->estaSurtido());
+            $sinSurtir = $orders->filter(fn($o) => ! $o->tieneSurtido());
             if ($sinSurtir->isNotEmpty()) {
                 return back()->with('swal', [
                     'icon' => 'error', 'title' => 'Falta surtir',
-                    'text' => 'Solo se pueden facturar pedidos ya surtidos. Falta surtir: ' . $sinSurtir->pluck('folio')->implode(', '),
+                    'text' => 'Estos pedidos no tienen ningún producto surtido, no se pueden facturar: ' . $sinSurtir->pluck('folio')->implode(', '),
                 ]);
             }
         }
@@ -789,8 +790,11 @@ public function pdfDownload(Invoice $invoice)
         // dejan todas por separado tal como vienen en cada pedido.
         $sumarPartidas = (bool) \App\Models\SystemSetting::get('facturacion.consolidar_sumar_partidas', false);
 
+        // En pedidos solo se facturan las partidas que ya se surtieron.
+        $partidas = fn ($order) => $esNotas ? $order->items : $order->itemsSurtidos();
+
         if (! $sumarPartidas) {
-            $items = $orders->flatMap(fn ($order) => $order->items
+            $items = $orders->flatMap(fn ($order) => $partidas($order)
                 ->map(fn ($it) => $this->itemDesdeProducto($it, (float) $it->cantidad, (float) $it->precio, (float) $it->descuento))
             )->values()->toArray();
 
@@ -809,7 +813,7 @@ public function pdfDownload(Invoice $invoice)
         $satMap = $this->productsMapForInvoices();
 
         foreach ($orders as $order) {
-            foreach ($order->items as $it) {
+            foreach ($partidas($order) as $it) {
                 $p   = $it->product;
                 $sat = $p ? ($satMap[$p->id] ?? null) : null;
                 // Agrupa por producto si existe; si es una partida libre sin

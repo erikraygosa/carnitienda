@@ -97,27 +97,37 @@ class SalesOrder extends Model
     public function dispatchItem(): HasOne      { return $this->hasOne(DispatchItem::class, 'sales_order_id'); }
 
     /**
-     * ¿Ya se surtió? Mismo criterio que "falta surtir" en Despachos: los
-     * pedidos que ya salieron de almacén (DESPACHADO en adelante) cuentan
-     * como surtidos; antes de eso, solo si todas sus partidas ya tienen
-     * cantidad despachada capturada en Salida de Producto.
+     * Partidas que ya se surtieron (tienen cantidad despachada capturada en
+     * Salida de Producto). Solo estas se facturan: lo que no se surtió no se
+     * factura. Pedidos ya DESPACHADO en adelante sin renglones de surtido
+     * (anteriores a ese módulo) se consideran surtidos completos.
      */
-    public function estaSurtido(): bool
+    public function itemsSurtidos(): \Illuminate\Support\Collection
     {
-        if (in_array($this->status, [self::S_DESPACHADO, self::S_EN_RUTA, self::S_ENTREGADO, self::S_NO_ENTREGADO], true)) {
-            return true;
+        $lineas = $this->dispatchItem?->lines;
+
+        if ($lineas === null || $lineas->isEmpty()) {
+            return in_array($this->status, [self::S_DESPACHADO, self::S_EN_RUTA, self::S_ENTREGADO, self::S_NO_ENTREGADO], true)
+                ? $this->items->values()
+                : collect();
         }
 
-        $totalItems = $this->items->count();
-        if ($totalItems === 0 || ! $this->dispatchItem) {
-            return false;
-        }
+        $idsSurtidos = $lineas->filter(fn ($l) => $l->qty_despachada !== null && (float) $l->qty_despachada > 0)
+            ->pluck('sales_order_item_id')->unique();
 
-        $surtidos = $this->dispatchItem->lines->whereNotNull('qty_despachada')->pluck('sales_order_item_id')->unique()->count();
-
-        return $surtidos >= $totalItems;
+        return $this->items->whereIn('id', $idsSurtidos)->values();
     }
-    public function assistantConversation(): BelongsTo { return $this->belongsTo(AssistantConversation::class); }
+
+    public function tieneSurtido(): bool
+    {
+        return $this->itemsSurtidos()->isNotEmpty();
+    }
+
+    public function surtidoParcial(): bool
+    {
+        $n = $this->itemsSurtidos()->count();
+        return $n > 0 && $n < $this->items->count();
+    }
 
     // === Etiquetas de estado ===
     public function getStatusLabelAttribute(): string
