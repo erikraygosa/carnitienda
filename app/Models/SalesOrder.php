@@ -112,10 +112,25 @@ class SalesOrder extends Model
                 : collect();
         }
 
-        $idsSurtidos = $lineas->filter(fn ($l) => $l->qty_despachada !== null && (float) $l->qty_despachada > 0)
-            ->pluck('sales_order_item_id')->unique();
+        // Cantidad REALMENTE surtida por partida (suma de sus renglones de
+        // surtido). Es lo que se entregó y lo que se factura — no lo pedido.
+        // Las copias llevan cantidad/descuento ajustados solo en memoria
+        // (nunca se guardan).
+        $qtyPorItem = $lineas->filter(fn ($l) => $l->qty_despachada !== null && (float) $l->qty_despachada > 0)
+            ->groupBy('sales_order_item_id')
+            ->map(fn ($g) => (float) $g->sum('qty_despachada'));
 
-        return $this->items->whereIn('id', $idsSurtidos)->values();
+        return $this->items->filter(fn ($it) => $qtyPorItem->has($it->id))
+            ->map(function ($it) use ($qtyPorItem) {
+                $real  = $qtyPorItem[$it->id];
+                $orig  = (float) $it->cantidad;
+                $copia = clone $it;
+                if ($orig > 0 && abs($real - $orig) > 0.0005) {
+                    $copia->setAttribute('descuento', round((float) $it->descuento * ($real / $orig), 2));
+                }
+                $copia->setAttribute('cantidad', $real);
+                return $copia;
+            })->values();
     }
 
     public function tieneSurtido(): bool
