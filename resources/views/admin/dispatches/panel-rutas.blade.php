@@ -42,7 +42,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
+        <div class="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
             {{-- Sin asignación --}}
             <div class="rounded-lg border border-amber-200 overflow-hidden flex flex-col">
                 <div class="px-3 py-2 bg-amber-500 text-white text-sm font-bold uppercase tracking-wide flex items-center justify-between">
@@ -128,15 +128,15 @@
                 <div class="pr-chip rounded-md border ${esTraspaso ? 'border-teal-200' : 'border-gray-200'} bg-white px-2 py-1.5 text-xs shadow-sm cursor-grab active:cursor-grabbing"
                      draggable="true" data-id="${id}" data-tipo="${p.tipo}" data-origen-tipo="${origenTipo}" data-origen-key="${origenKey || ''}">
                     <div class="flex items-center justify-between gap-1">
-                        <span class="font-mono font-medium ${esTraspaso ? 'text-teal-700' : 'text-indigo-700'} truncate">
+                        <span class="font-mono font-medium ${esTraspaso ? 'text-teal-700' : 'text-indigo-700'} whitespace-nowrap">
                             ${esTraspaso ? '<i class="fa-solid fa-right-left mr-0.5"></i>' : ''}${escHtml(p.folio)}
-                        </span>${p.fecha_original ? `<span class="shrink-0 px-1 rounded bg-amber-100 text-amber-700 text-[10px] font-semibold" title="Pedido de un día anterior">${escHtml(p.fecha_original)}</span>` : ''}
+                        </span>
                         <div class="flex items-center gap-1.5 shrink-0">
                             ${p.total !== null ? `<span class="font-semibold text-gray-700 whitespace-nowrap">${fmtMoney(p.total)}</span>` : ''}
                             ${envioBtn}
                         </div>
                     </div>
-                    <div class="text-gray-500 truncate">${escHtml(p.cliente)}</div>
+                    <div class="flex items-center justify-between gap-1"><span class="text-gray-500 truncate">${escHtml(p.cliente)}</span>${p.fecha_original ? `<span class="shrink-0 px-1 rounded bg-amber-100 text-amber-700 text-[10px] font-semibold" title="Pedido de un día anterior">${escHtml(p.fecha_original)}</span>` : ''}</div>
                     ${!esTraspaso && p.status === 'EN_RUTA' ? `
                         <button type="button" class="mt-1 w-full text-[11px] bg-emerald-50 text-emerald-700 rounded px-1 py-0.5 hover:bg-emerald-100"
                                 onclick="prEntregarPedido(${p.dispatch_id}, ${p.item_id})">
