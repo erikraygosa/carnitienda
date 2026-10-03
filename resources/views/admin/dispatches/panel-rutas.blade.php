@@ -27,8 +27,8 @@
                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-500 mb-1">Buscar en sin asignación</label>
-                <input type="text" id="pr-search" placeholder="Folio o cliente..."
+                <label class="block text-xs font-medium text-gray-500 mb-1">Buscar</label>
+                <input type="text" id="pr-search" placeholder="Folio o cliente (en sin asignación y en rutas)..."
                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
             <div class="flex items-end gap-4">
@@ -167,7 +167,26 @@
             return `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium ${map[status] || 'bg-gray-100 text-gray-600'}">${status}</span>`;
         }
 
-        function renderCelda(routeId, routeNombre, ronda, celda) {
+        // Búsqueda dentro de las rutas (sin asignación se filtra en el servidor):
+        // por folio o cliente, sin importar mayúsculas ni acentos.
+        const norm = t => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        function coincide(...textos) {
+            const q = norm(state.search.trim());
+            return !q || textos.some(t => norm(t).includes(q));
+        }
+        function filtrarCelda(celda) {
+            if (!state.search.trim()) return celda;
+            return {
+                ...celda,
+                pedidos:   (celda.pedidos   || []).filter(p => coincide(p.folio, p.cliente)),
+                traspasos: (celda.traspasos || []).filter(t => coincide(t.folio, t.cliente)),
+                cxc:       (celda.cxc       || []).filter(c => coincide(c.cliente, c.folios)),
+            };
+        }
+        const celdaTieneCoincidencias = c => (c.pedidos || []).length + (c.traspasos || []).length + (c.cxc || []).length > 0;
+
+        function renderCelda(routeId, routeNombre, ronda, celdaCompleta) {
+            const celda = filtrarCelda(celdaCompleta);
             const key = `${routeId}:${ronda}`;
             const pedidosHtml = (celda.pedidos || []).map(p => itemChip({
                 ...p, dispatch_id: celda.dispatch_id,
@@ -226,6 +245,14 @@
             if (rutas.length === 0) {
                 $('pr-rutas').innerHTML = '<div class="col-span-full text-center py-8 text-gray-400">No hay rutas activas.</div>';
                 return;
+            }
+
+            if (state.search.trim()) {
+                rutas = rutas.filter(r => celdaTieneCoincidencias(filtrarCelda(r.rondas[1])) || celdaTieneCoincidencias(filtrarCelda(r.rondas[2])));
+                if (rutas.length === 0) {
+                    $('pr-rutas').innerHTML = '<div class="col-span-full text-center py-8 text-gray-400">Sin coincidencias en las rutas.</div>';
+                    return;
+                }
             }
 
             $('pr-rutas').innerHTML = rutas.map(r => `
