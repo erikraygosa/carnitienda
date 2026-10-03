@@ -27,7 +27,7 @@ class ReportesController extends Controller implements HasMiddleware
         return [
             new Middleware('can:ver reporte notas de venta',     only: ['notasDeVenta', 'notasDeVentaData', 'notasDeVentaExport']),
             new Middleware('can:ver reporte ventas por producto', only: ['ventasPorProducto', 'ventasPorProductoData', 'ventasPorProductoExport']),
-            new Middleware('can:ver reporte liquidaciones',       only: ['liquidaciones', 'liquidacionesData', 'liquidacionesExport', 'liquidacionesConcentrado', 'liquidacionesSalesData']),
+            new Middleware('can:ver reporte liquidaciones',       only: ['liquidaciones', 'liquidacionesData', 'liquidacionesExport', 'liquidacionesPdf', 'liquidacionesConcentrado', 'liquidacionesSalesData']),
         ];
     }
 
@@ -987,5 +987,101 @@ class ReportesController extends Controller implements HasMiddleware
 
         $fechaFile = str_replace('/', '-', $fecha);
         return $this->xlsxResponse($spreadsheet, "liquidaciones_{$fechaFile}.xlsx");
+    }
+
+    /**
+     * Mismo contenido que el Excel (notas por ruta, CxC asignadas al chofer,
+     * total general y pedidos pendientes), en PDF para imprimir.
+     */
+    public function liquidacionesPdf(Request $request)
+    {
+        $items = $this->buildLiquidacionesQuery($request)->get();
+
+        try {
+            $fechaDoc = \Carbon\Carbon::parse($request->get('fecha', now()->toDateString()));
+        } catch (\Throwable $e) {
+            $fechaDoc = now();
+        }
+
+        $grupos = $items->groupBy('ruta_nombre')
+            ->sortBy(fn ($rows, $ruta) => mb_strtolower($ruta ?? ''), SORT_STRING | SORT_FLAG_CASE);
+        $cxcPorRuta = $this->cxcAsignadas($request)->keyBy('ruta');
+        $orderLabels = $this->orderStatusLabels();
+
+        $totalGeneral = 0.0;
+        $rutas = [];
+        foreach ($grupos as $rutaNombre => $notas) {
+            $ruta = $rutaNombre ?? 'Sin ruta';
+            $subtotal = 0.0;
+            $filas = [];
+            foreach ($notas as $s) {
+                $monto = (float) $s->total;
+                $liq   = $this->liquidacionEstatus($s->order_status, $s->driver_settlement_status)['label'];
+                // Igual que el Excel: el subtotal solo suma lo ya liquidado/abonado.
+                if (in_array($liq, ['LIQUIDADO', 'PARCIAL'], true)) {
+                    $subtotal += $monto;
+                }
+                $filas[] = [
+                    'folio'   => $s->folio,
+                    'cliente' => $s->cliente_nombre ?? '',
+                    'fecha'   => $s->fecha ? \Carbon\Carbon::parse($s->fecha)->format('d/m/Y') : '',
+                    'monto'   => $monto,
+                    'pedido'  => $orderLabels[$s->order_status] ?? $s->order_status,
+                    'liq'     => $liq,
+                ];
+            }
+            $totalGeneral += $subtotal;
+
+            $cxcFilas = [];
+            $cxc = $cxcPorRuta->get($ruta);
+            if ($cxc && count($cxc['clientes']) > 0) {
+                foreach ($cxc['clientes'] as $c) {
+                    $notasCxc = $c['notas'] ?? collect();
+                    if ($notasCxc->isEmpty()) {
+                        $cxcFilas[] = ['folio' => '—', 'cliente' => $c['cliente'], 'fecha' => '', 'saldo' => $c['saldo_pendiente'], 'cobrado' => $c['monto_cobrado'], 'status' => $c['status']];
+                        continue;
+                    }
+                    foreach ($notasCxc as $n) {
+                        $cxcFilas[] = [
+                            'folio'   => $n['folio'],
+                            'cliente' => $c['cliente'],
+                            'fecha'   => $n['fecha'] ? \Carbon\Carbon::parse($n['fecha'])->format('d/m/Y') : '',
+                            'saldo'   => $n['monto'],
+                            'cobrado' => $c['monto_cobrado'],
+                            'status'  => $c['status'],
+                        ];
+                    }
+                }
+            }
+
+            $rutas[] = [
+                'nombre'        => $ruta,
+                'filas'         => $filas,
+                'subtotal'      => $subtotal,
+                'cxc'           => $cxcFilas,
+                'cxc_saldo'     => $cxc['total_saldo'] ?? 0,
+                'cxc_cobrado'   => $cxc['total_cobrado'] ?? 0,
+            ];
+        }
+
+        $filtros = [
+            'ruta'   => $request->filled('route_id') ? (ShippingRoute::find($request->get('route_id'))?->nombre ?? '—') : 'Todas',
+            'ronda'  => $request->filled('ronda') ? ($request->get('ronda') == 1 ? '1ra' : '2da') : 'Ambas',
+            'estatus' => $request->get('filtro_estatus', 'todas'),
+            'liq'    => $request->get('liq_status') ?: 'Todas',
+        ];
+
+        $empresa = app(\App\Services\CompanyService::class)->activa();
+        $pendientes = $this->pendientesPorProcesar();
+        $pendientesLabel = $this->pendientesLabel();
+
+        $html = view('admin.reportes.liquidaciones-pdf', compact(
+            'rutas', 'totalGeneral', 'fechaDoc', 'filtros', 'empresa', 'pendientes', 'pendientesLabel'
+        ))->render();
+
+        $pdf = app('dompdf.wrapper');
+        $pdf->loadHTML($html)->setPaper('letter', 'portrait');
+
+        return $pdf->download('liquidaciones_' . $fechaDoc->format('d-m-Y') . '.pdf');
     }
 }

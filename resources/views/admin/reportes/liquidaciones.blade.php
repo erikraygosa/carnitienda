@@ -8,6 +8,11 @@
             <i class="fa-solid fa-file-excel"></i>
             Descargar Excel
         </a>
+        <a id="lq-pdf-btn" href="#"
+           class="ml-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-rose-600 text-white hover:bg-rose-700">
+            <i class="fa-solid fa-file-pdf"></i>
+            Descargar PDF
+        </a>
     </x-slot>
 
     <x-wire-card>
@@ -130,6 +135,7 @@
     (function(){
         const CONCENTRADO_URL     = '{{ route('admin.reportes.liquidaciones.concentrado') }}';
         const EXPORT_URL          = '{{ route('admin.reportes.liquidaciones.export') }}';
+        const PDF_URL             = '{{ route('admin.reportes.liquidaciones.pdf') }}';
         const LIQUIDAR_MASIVO_URL = '{{ route('admin.ar-payments.liquidar-masivo') }}';
         const CSRF                = '{{ csrf_token() }}';
 
@@ -171,6 +177,7 @@
 
             const exportParams = new URLSearchParams({ fecha: state.fecha, route_id: state.routeId, filtro_estatus: state.filtroEstatus, ronda: state.ronda, liq_status: state.liqStatus });
             $('lq-export-btn').href = `${EXPORT_URL}?${exportParams}`;
+            $('lq-pdf-btn').href    = `${PDF_URL}?${exportParams}`;
 
             try {
                 const res  = await fetch(`${CONCENTRADO_URL}?${params}`, { headers: { 'Accept': 'application/json' } });
