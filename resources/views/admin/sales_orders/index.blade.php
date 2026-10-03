@@ -158,56 +158,127 @@
             });
         }
 
+        // ── Catálogos y URLs: una sola vez (las filas solo traen el id) ──
+        const CSRF = '{{ csrf_token() }}';
+        const URL_T = {
+            edit:      '{{ route('admin.sales-orders.edit', '__ID__') }}',
+            pdf:       '{{ route('admin.sales-orders.pdf', '__ID__') }}',
+            pdfDl:     '{{ route('admin.sales-orders.pdf.download', '__ID__') }}',
+            send:      '{{ route('admin.sales-orders.send.form', '__ID__') }}',
+            invoice:   '{{ route('admin.invoices.create') }}?order_id=__ID__',
+            approve:   '{{ route('admin.sales-orders.approve', '__ID__') }}',
+            process:   '{{ route('admin.sales-orders.process', '__ID__') }}',
+            cancel:    '{{ route('admin.sales-orders.cancel', '__ID__') }}',
+            enruta:    '{{ route('admin.sales-orders.en-ruta', '__ID__') }}',
+            deliver:   '{{ route('admin.sales-orders.deliver', '__ID__') }}',
+            nodeliver: '{{ route('admin.sales-orders.not-delivered', '__ID__') }}',
+            duplicate: '{{ route('admin.sales-orders.duplicate', '__ID__') }}',
+            factura:   '{{ route('admin.invoices.edit', '__ID__') }}',
+        };
+        const urlDe = (k, id) => URL_T[k].replace('__ID__', id);
+
+        const STATUS = {
+            BORRADOR:     ['Borrador',     'bg-gray-100 text-gray-700'],
+            APROBADO:     ['Aprobado',     'bg-blue-100 text-blue-700'],
+            PREPARANDO:   ['Preparando',   'bg-sky-100 text-sky-700'],
+            PROCESADO:    ['Procesado',    'bg-amber-100 text-amber-700'],
+            DESPACHADO:   ['Despachado',   'bg-indigo-100 text-indigo-700'],
+            EN_RUTA:      ['En ruta',      'bg-violet-100 text-violet-700'],
+            ENTREGADO:    ['Entregado',    'bg-emerald-100 text-emerald-700'],
+            NO_ENTREGADO: ['No entregado', 'bg-orange-100 text-orange-700'],
+            CANCELADO:    ['Cancelado',    'bg-rose-100 text-rose-700'],
+        };
+        const FACTURA = {
+            BORRADOR:              ['Factura en borrador',  'bg-gray-100 text-gray-600'],
+            TIMBRADA:              ['Facturada',            'bg-emerald-100 text-emerald-700'],
+            CANCELACION_PENDIENTE: ['Cancelación pendiente','bg-amber-100 text-amber-700'],
+            CANCELADA:             ['Factura cancelada',    'bg-rose-100 text-rose-700'],
+        };
+
+        const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+        // Botones de acción POST: sin un <form> por botón (eran ~2 por fila,
+        // con su token oculto); un solo formulario compartido los envía.
+        const postBtn = (url, label, color) =>
+            `<button type="button" data-post="${url}" class="inline-flex px-2 py-1 text-xs rounded border ${color}">${label}</button>`;
+        const linkBtn = (url, label, color) =>
+            `<a href="${url}" class="inline-flex px-2 py-1 text-xs rounded border ${color}">${label}</a>`;
+
         function renderActions(o) {
-            const btn  = (url, label, color) =>
-                `<a href="${url}" class="inline-flex px-2 py-1 text-xs rounded border ${color}">${label}</a>`;
-            const form = (url, label, color, method = 'POST') =>
-                `<form action="${url}" method="POST" class="inline">
-                    <input type="hidden" name="_token" value="${o.csrf}">
-                    ${method === 'DELETE' ? '<input type="hidden" name="_method" value="DELETE">' : ''}
-                    <button type="submit" class="inline-flex px-2 py-1 text-xs rounded border ${color}">${label}</button>
-                 </form>`;
+            let html = linkBtn(urlDe('edit', o.id), 'Editar', 'border-indigo-300 text-indigo-700 hover:bg-indigo-50');
+            html += postBtn(urlDe('duplicate', o.id), 'Duplicar', 'border-gray-300 text-gray-600 hover:bg-gray-50');
 
-            let html = btn(o.edit_url, 'Editar', 'border-indigo-300 text-indigo-700 hover:bg-indigo-50');
-            html += form(o.duplicate_url, 'Duplicar', 'border-gray-300 text-gray-600 hover:bg-gray-50');
-
-            const withPdf = ['PROCESADO','EN_RUTA','ENTREGADO','DESPACHADO'];
-            if (withPdf.includes(o.status)) {
-                html += btn(o.pdf_url,     'PDF',     'border-gray-300 text-gray-600 hover:bg-gray-50');
-                html += btn(o.pdf_dl_url,  '↓ PDF',   'border-gray-300 text-gray-600 hover:bg-gray-50');
-                html += btn(o.send_url,    'Enviar',   'border-violet-300 text-violet-700 hover:bg-violet-50');
+            if (['PROCESADO','EN_RUTA','ENTREGADO','DESPACHADO'].includes(o.status)) {
+                html += linkBtn(urlDe('pdf', o.id),   'PDF',   'border-gray-300 text-gray-600 hover:bg-gray-50');
+                html += linkBtn(urlDe('pdfDl', o.id), '↓ PDF', 'border-gray-300 text-gray-600 hover:bg-gray-50');
+                html += linkBtn(urlDe('send', o.id),  'Enviar', 'border-violet-300 text-violet-700 hover:bg-violet-50');
                 // Ya tiene una factura viva (borrador/timbrada/cancelación
                 // pendiente) — "Facturar" de nuevo crearía una duplicada, ya
                 // que /admin/invoices/create no valida eso. Si la única
                 // factura que tuvo se canceló, sí se puede volver a facturar.
-                const facturaViva = o.factura_label && o.factura_label !== 'Factura cancelada';
+                const facturaViva = o.fe && o.fe !== 'CANCELADA';
                 if (!facturaViva) {
-                    html += btn(o.invoice_url, 'Facturar', o.pagado ? 'border-emerald-600 text-white bg-emerald-600 hover:bg-emerald-700' : 'border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100');
+                    html += linkBtn(urlDe('invoice', o.id), 'Facturar', o.pagado ? 'border-emerald-600 text-white bg-emerald-600 hover:bg-emerald-700' : 'border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100');
                 }
             }
 
             if (o.status === 'BORRADOR') {
-                html += form(o.approve_url, 'Aprobar',  'border-emerald-300 text-emerald-700 hover:bg-emerald-50');
-                html += form(o.cancel_url,  'Cancelar', 'border-red-300 text-red-600 hover:bg-red-50');
+                html += postBtn(urlDe('approve', o.id), 'Aprobar',  'border-emerald-300 text-emerald-700 hover:bg-emerald-50');
+                html += postBtn(urlDe('cancel', o.id),  'Cancelar', 'border-red-300 text-red-600 hover:bg-red-50');
             } else if (o.status === 'APROBADO') {
-                html += form(o.process_url, 'Procesar', 'border-amber-300 text-amber-700 hover:bg-amber-50');
-                html += form(o.cancel_url,  'Cancelar', 'border-red-300 text-red-600 hover:bg-red-50');
+                html += postBtn(urlDe('process', o.id), 'Procesar', 'border-amber-300 text-amber-700 hover:bg-amber-50');
+                html += postBtn(urlDe('cancel', o.id),  'Cancelar', 'border-red-300 text-red-600 hover:bg-red-50');
             } else if (o.status === 'PREPARANDO') {
-                html += form(o.process_url, 'Procesar', 'border-amber-300 text-amber-700 hover:bg-amber-50');
+                html += postBtn(urlDe('process', o.id), 'Procesar', 'border-amber-300 text-amber-700 hover:bg-amber-50');
             } else if (o.status === 'PROCESADO') {
-                html += form(o.enruta_url, 'Despachar', 'border-violet-300 text-violet-700 hover:bg-violet-50');
+                html += postBtn(urlDe('enruta', o.id), 'Despachar', 'border-violet-300 text-violet-700 hover:bg-violet-50');
             } else if (['EN_RUTA','DESPACHADO'].includes(o.status)) {
-                html += form(o.deliver_url,    'Entregar',      'border-emerald-300 text-emerald-700 hover:bg-emerald-50');
-                html += form(o.nodeliver_url,  'No entregado',  'border-orange-300 text-orange-600 hover:bg-orange-50');
+                html += postBtn(urlDe('deliver', o.id),   'Entregar',     'border-emerald-300 text-emerald-700 hover:bg-emerald-50');
+                html += postBtn(urlDe('nodeliver', o.id), 'No entregado', 'border-orange-300 text-orange-600 hover:bg-orange-50');
             }
 
             return `<div class="flex items-center gap-1 flex-wrap">${html}</div>`;
         }
 
-        async function load() {
-            $('so-tbody').innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>`;
+        document.addEventListener('click', function (e) {
+            const b = e.target.closest('button[data-post]');
+            if (!b) return;
+            const f = document.createElement('form');
+            f.method = 'POST'; f.action = b.dataset.post; f.style.display = 'none';
+            f.innerHTML = `<input type="hidden" name="_token" value="${CSRF}">`;
+            document.body.appendChild(f);
+            f.submit();
+        });
 
-            const params = new URLSearchParams({
+        function rowHtml(o) {
+            const [stLabel, stClass] = STATUS[o.status] || [o.status, 'bg-gray-100 text-gray-700'];
+            const fac = o.fe ? (FACTURA[o.fe] || [o.fe, 'bg-gray-100 text-gray-600']) : null;
+            return `
+                <td class="px-4 py-3 font-mono text-indigo-700 font-medium">${esc(o.folio)}</td>
+                <td class="px-4 py-3 text-gray-700">${esc(o.cliente)}</td>
+                <td class="px-4 py-3 text-gray-500 text-xs">${esc(o.almacen)}</td>
+                <td class="px-4 py-3 text-gray-600 text-xs">${esc(o.fecha ?? '—')}</td>
+                <td class="px-4 py-3">
+                    <span class="px-2 py-1 text-xs rounded-full ${stClass}">${stLabel}</span>
+                    ${fac ? `<a href="${urlDe('factura', o.fid)}" title="Ver factura"
+                           class="ml-1 inline-flex px-2 py-1 text-xs rounded-full ${fac[1]} hover:opacity-75">🧾 ${fac[0]}</a>` : ''}
+                </td>
+                <td class="px-4 py-3 font-mono text-gray-700">$${esc(o.total)}</td>
+                <td class="px-4 py-3">${renderActions(o)}</td>`;
+        }
+
+        // ── Carga por etapas ─────────────────────────────────────────────
+        // 1) Un bloque corto (PRIMERO) para pintar la primera pantalla casi
+        //    al instante. 2) La lista completa en paralelo; lo que falta se
+        //    pinta en lotes para no congelar el navegador, y mientras tanto
+        //    ya se puede leer y usar lo primero.
+        const PRIMEROS = 40;
+        const LOTE     = 120;
+        let loadSeq = 0;
+        let pintados = 0;       // filas ya pintadas de esta carga
+
+        function params(extra = {}) {
+            return new URLSearchParams({
                 search:      state.search,
                 status:      state.status,
                 facturada:   state.facturada,
@@ -215,52 +286,66 @@
                 fecha_hasta: state.fechaHasta,
                 sort_by:     state.sortBy,
                 sort_dir:    state.sortDir,
+                ...extra,
             });
-
-            try {
-                const res  = await fetch(`${DATA_URL}?${params}`, {
-                    headers: { 'Accept': 'application/json' }
-                });
-                const data = await res.json();
-                renderTable(data.rows);
-                $('so-count').textContent = data.total + ' pedido(s)';
-                updateSortIndicators();
-            } catch(e) {
-                $('so-tbody').innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-red-400">Error cargando datos.</td></tr>`;
-            }
         }
 
-        function renderTable(rows) {
+        const getJson = url => fetch(url, { headers: { 'Accept': 'application/json' } }).then(r => r.json());
+
+        function pintarFilas(rows, desde, hasta) {
             const tbody = $('so-tbody');
-            if (!rows.length) {
-                tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No se encontraron pedidos.</td></tr>`;
-                return;
-            }
-            tbody.innerHTML = '';
-            rows.forEach(o => {
+            const frag = document.createDocumentFragment();
+            for (let i = desde; i < hasta && i < rows.length; i++) {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50 transition-colors';
-                tr.innerHTML = `
-                    <td class="px-4 py-3 font-mono text-indigo-700 font-medium">${o.folio}</td>
-                    <td class="px-4 py-3 text-gray-700">${o.cliente}</td>
-                    <td class="px-4 py-3 text-gray-500 text-xs">${o.almacen}</td>
-                    <td class="px-4 py-3 text-gray-600 text-xs">${o.fecha ?? '—'}</td>
-                    <td class="px-4 py-3">
-                        <span class="px-2 py-1 text-xs rounded-full ${o.status_class}">
-                            ${o.status_label}
-                        </span>
-                        ${o.factura_label ? `
-                            <a href="${o.factura_view_url}" title="Ver factura"
-                               class="ml-1 inline-flex px-2 py-1 text-xs rounded-full ${o.factura_class} hover:opacity-75">
-                                🧾 ${o.factura_label}
-                            </a>
-                        ` : ''}
-                    </td>
-                    <td class="px-4 py-3 font-mono text-gray-700">$${o.total}</td>
-                    <td class="px-4 py-3">${renderActions(o)}</td>
-                `;
-                tbody.appendChild(tr);
-            });
+                tr.innerHTML = rowHtml(rows[i]);
+                frag.appendChild(tr);
+            }
+            tbody.appendChild(frag);
+        }
+
+        function pintarRestante(rows, seq) {
+            if (seq !== loadSeq || pintados >= rows.length) return;
+            const hasta = Math.min(pintados + LOTE, rows.length);
+            pintarFilas(rows, pintados, hasta);
+            pintados = hasta;
+            if (pintados < rows.length) requestAnimationFrame(() => pintarRestante(rows, seq));
+        }
+
+        async function load() {
+            const seq = ++loadSeq;
+            pintados = 0;
+            $('so-tbody').innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>`;
+
+            const rapida   = getJson(`${DATA_URL}?${params({ limit: PRIMEROS })}`);
+            const completa = getJson(`${DATA_URL}?${params()}`);
+
+            try {
+                // Etapa 1: primeras filas
+                const r1 = await rapida;
+                if (seq !== loadSeq) return;
+                $('so-count').textContent = r1.total + ' pedido(s)';
+                updateSortIndicators();
+                if (!r1.rows.length) {
+                    $('so-tbody').innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No se encontraron pedidos.</td></tr>`;
+                    completa.catch(() => {});
+                    return;
+                }
+                $('so-tbody').innerHTML = '';
+                pintarFilas(r1.rows, 0, r1.rows.length);
+                pintados = r1.rows.length;
+
+                // Etapa 2: resto
+                const r2 = await completa;
+                if (seq !== loadSeq) return;
+                $('so-count').textContent = r2.total + ' pedido(s)';
+                pintarRestante(r2.rows, seq);
+            } catch (e) {
+                if (seq !== loadSeq) return;
+                if (pintados === 0) {
+                    $('so-tbody').innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-red-400">Error cargando datos.</td></tr>`;
+                }
+            }
         }
 
         window.SOT = {

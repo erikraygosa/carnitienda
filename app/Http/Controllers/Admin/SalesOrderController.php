@@ -78,7 +78,14 @@ public function data(Request $request)
     // — para pedidos viejos sin programado_para, se cae a la de captura.
     $fechaOrden = "COALESCE(programado_para, DATE(fecha))";
 
-    $q = SalesOrder::with(['client','warehouse','invoices'])
+    // Solo las columnas que la lista necesita y relaciones "flacas": con
+    // miles de pedidos al mes, traer select * + relaciones completas era
+    // buena parte del tiempo de carga.
+    $q = SalesOrder::select([
+            'id','folio','client_id','warehouse_id','programado_para','fecha','status','total',
+            'saldo_pendiente','cobrado_at','driver_settlement_status',
+        ])
+        ->with(['client:id,nombre','warehouse:id,nombre','invoices:id,estatus'])
         ->when($search, fn($q) =>
             $q->where(fn($q) =>
                 $q->where('folio','like',"%$search%")
@@ -97,81 +104,42 @@ public function data(Request $request)
 
     // Sin paginación por página — se muestran todos los pedidos del rango
     // filtrado (por default, el mes actual) y se navega con scroll, igual
-    // que el Panel de Surtido. Antes, con 15 por página, un mes con muchos
-    // pedidos quedaba repartido en decenas de páginas.
-    $orders = $q->get();
-    $total  = $orders->count();
+    // que el Panel de Surtido. El front pide primero un bloque corto
+    // (?limit=) para pintar la primera pantalla al instante y luego el
+    // resto completo.
+    $limit = (int) $request->get('limit', 0);
+    $total = $limit > 0 ? (clone $q)->reorder()->count() : null;
+    $orders = $limit > 0 ? $q->limit($limit)->get() : $q->get();
+    $total  = $total ?? $orders->count();
 
-    $statusClasses = [
-        'BORRADOR'     => 'bg-gray-100 text-gray-700',
-        'APROBADO'     => 'bg-blue-100 text-blue-700',
-        'PREPARANDO'   => 'bg-sky-100 text-sky-700',
-        'PROCESADO'    => 'bg-amber-100 text-amber-700',
-        'EN_RUTA'      => 'bg-violet-100 text-violet-700',
-        'ENTREGADO'    => 'bg-emerald-100 text-emerald-700',
-        'NO_ENTREGADO' => 'bg-orange-100 text-orange-700',
-        'CANCELADO'    => 'bg-rose-100 text-rose-700',
-    ];
+    // Si un pedido llegó a tener más de una factura (p.ej. se canceló y se
+    // volvió a facturar), se prioriza la más relevante para el badge: una
+    // viva (timbrada/borrador/cancelación pendiente) antes que una cancelada.
+    $prioridadFactura = ['TIMBRADA' => 0, 'CANCELACION_PENDIENTE' => 1, 'BORRADOR' => 2, 'CANCELADA' => 3];
+    $facturaRelevante = fn($o) => $o->invoices
+        ->sortBy(fn($inv) => (($prioridadFactura[$inv->estatus] ?? 9) * 1000000) - $inv->id)
+        ->first();
 
-        $facturaEstatusLabels = [
-            'BORRADOR'              => 'Factura en borrador',
-            'TIMBRADA'              => 'Facturada',
-            'CANCELACION_PENDIENTE' => 'Cancelación pendiente',
-            'CANCELADA'             => 'Factura cancelada',
-        ];
-        $facturaEstatusClasses = [
-            'BORRADOR'              => 'bg-gray-100 text-gray-600',
-            'TIMBRADA'              => 'bg-emerald-100 text-emerald-700',
-            'CANCELACION_PENDIENTE' => 'bg-amber-100 text-amber-700',
-            'CANCELADA'             => 'bg-rose-100 text-rose-700',
-        ];
-
-        // Si un pedido llegó a tener más de una factura (p.ej. se canceló y
-        // se volvió a facturar), se prioriza la más relevante para mostrar
-        // en el badge: una viva (timbrada/borrador/cancelación pendiente)
-        // antes que una vieja cancelada.
-        $prioridadFactura = ['TIMBRADA' => 0, 'CANCELACION_PENDIENTE' => 1, 'BORRADOR' => 2, 'CANCELADA' => 3];
-        $facturaRelevante = fn($o) => $o->invoices
-            ->sortBy(fn($inv) => (($prioridadFactura[$inv->estatus] ?? 9) * 1000000) - $inv->id)
-            ->first();
-
-        $rows = $orders->map(function ($o) use ($statusClasses, $facturaEstatusLabels, $facturaEstatusClasses, $facturaRelevante) {
-            $factura = $facturaRelevante($o);
-            return [
-    'id'            => $o->id,
-    'folio'         => $o->folio,
-    'cliente'       => $o->client?->nombre ?? '—',
-    'almacen'       => $o->warehouse?->nombre ?? '—',
-    'fecha'         => $o->programado_para
+    // Fila mínima: etiquetas, colores y URLs viven una sola vez en el front
+    // (antes cada fila mandaba ~15 URLs y un token CSRF propios: más de
+    // 1.3 KB por pedido y 11 route() por fila en el servidor).
+    $rows = $orders->map(function ($o) use ($facturaRelevante) {
+        $factura = $facturaRelevante($o);
+        return [
+            'id'      => $o->id,
+            'folio'   => $o->folio,
+            'cliente' => $o->client?->nombre ?? '—',
+            'almacen' => $o->warehouse?->nombre ?? '—',
+            'fecha'   => $o->programado_para
                             ? $o->programado_para->format('d/m/Y')
                             : optional($o->fecha)->format('d/m/Y H:i'),
-    'status'        => $o->status,
-    'status_label'  => $o->status_label ?? $o->status,
-    'status_class'  => $statusClasses[$o->status] ?? 'bg-gray-100 text-gray-700',
-    'total'         => number_format((float)$o->total, 2),
-    'csrf'          => csrf_token(),
-    'edit_url'      => route('admin.sales-orders.edit',        $o),
-    'pdf_url'       => route('admin.sales-orders.pdf',         $o),
-    'pdf_dl_url'    => route('admin.sales-orders.pdf.download', $o),
-    'send_url'      => route('admin.sales-orders.send.form',   $o),
-    'invoice_url' => route('admin.invoices.create').'?order_id='.$o->id,
-    'pagado'      => $o->esta_pagado,
-    // Trazabilidad: si ya se generó una factura desde este pedido, mostrar
-    // su estatus real (borrador/timbrada/cancelada) y un link directo a
-    // ella — antes no había ninguna forma de saber desde aquí si un
-    // pedido ya se había facturado sin abrirlo uno por uno.
-    'factura_label'   => $factura ? ($facturaEstatusLabels[$factura->estatus] ?? $factura->estatus) : null,
-    'factura_class'   => $factura ? ($facturaEstatusClasses[$factura->estatus] ?? 'bg-gray-100 text-gray-600') : null,
-    'factura_view_url'=> $factura ? route('admin.invoices.edit', $factura) : null,
-    'approve_url'   => route('admin.sales-orders.approve',     $o),
-    'process_url'   => route('admin.sales-orders.process',     $o),
-    'cancel_url'    => route('admin.sales-orders.cancel',      $o),
-    'enruta_url'    => route('admin.sales-orders.en-ruta',     $o),
-    'deliver_url'   => route('admin.sales-orders.deliver',     $o),
-    'nodeliver_url'   => route('admin.sales-orders.not-delivered',$o),
-    'duplicate_url'   => route('admin.sales-orders.duplicate',   $o),
-            ];
-        });
+            'status'  => $o->status,
+            'total'   => number_format((float) $o->total, 2),
+            'pagado'  => $o->esta_pagado,
+            'fe'      => $factura?->estatus,
+            'fid'     => $factura?->id,
+        ];
+    })->values();
 
     return response()->json([
         'rows'  => $rows,
