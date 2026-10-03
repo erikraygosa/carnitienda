@@ -115,9 +115,23 @@
                            class="w-full rounded-md border-gray-300 bg-gray-50 shadow-sm text-sm" readonly>
                 </div>
 
-                {{-- Método de pago --}}
+                {{-- Forma de pago (efectivo, transferencia, etc.): se guarda en la nota y el edit la recupera --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Método de pago</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Forma de pago</label>
+                    <select name="payment_type_id"
+                            class="w-full rounded-md border-gray-300 shadow-sm text-sm">
+                        <option value="">-- seleccionar --</option>
+                        @foreach($payTypes as $pt)
+                            <option value="{{ $pt->id }}" {{ (string) old('payment_type_id') === (string) $pt->id ? 'selected' : '' }}>
+                                {{ $pt->label ?? $pt->descripcion ?? $pt->clave }} ({{ $pt->clave }})
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                {{-- Tipo de venta (Contado / Crédito) — mismo nombre que en la edición --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de venta</label>
                     <select name="tipo_venta" id="tipo_venta"
                             class="w-full rounded-md border-gray-300 shadow-sm text-sm"
                             onchange="SNF.onTipoVentaChange(this.value)">
