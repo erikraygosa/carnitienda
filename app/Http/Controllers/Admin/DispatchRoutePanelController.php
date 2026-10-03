@@ -26,6 +26,8 @@ use Illuminate\Support\Facades\DB;
  */
 class DispatchRoutePanelController extends Controller implements HasMiddleware
 {
+    private const DIAS_ATRASADOS = 15;
+
     public function __construct(
         private AutoDespachoService $autoDespacho,
         private DocumentLogService $log,
@@ -79,6 +81,9 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
         // anteriores que siguen sin despacho (se envían al despacho del día
         // que se está viendo).
         $atrasados = $request->boolean('atrasados');
+        // Hasta 15 días atrás — más viejo que eso es ruido (pedidos que nunca
+        // se asignaron a un despacho).
+        $desdeAtras = \Carbon\Carbon::parse($fecha)->subDays(self::DIAS_ATRASADOS)->toDateString();
 
         $routes = ShippingRoute::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
 
@@ -110,8 +115,8 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
             // null: se quitó de su despacho conservando lo ya surtido).
             ->whereDoesntHave('dispatchItem', fn ($q) => $q->whereNotNull('dispatch_id'))
             ->where(fn ($q) => $atrasados
-                ? $q->whereDate('programado_para', '<=', $fecha)
-                    ->orWhere(fn ($q2) => $q2->whereNull('programado_para')->whereDate('fecha', '<=', $fecha))
+                ? $q->whereBetween(DB::raw('DATE(programado_para)'), [$desdeAtras, $fecha])
+                    ->orWhere(fn ($q2) => $q2->whereNull('programado_para')->whereBetween(DB::raw('DATE(fecha)'), [$desdeAtras, $fecha]))
                 : $q->whereDate('programado_para', $fecha)
                     ->orWhere(fn ($q2) => $q2->whereNull('programado_para')->whereDate('fecha', $fecha)))
             ->when($search, fn ($q) => $q->where(fn ($q2) => $q2
@@ -135,7 +140,9 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
         // pedidos "sueltos": se pueden arrastrar o enviar a ruta igual.
         $traspasosSueltos = StockTransfer::where('status', 'PENDIENTE')
             ->whereNull('dispatch_id')
-            ->whereDate('fecha', $atrasados ? '<=' : '=', $fecha)
+            ->when($atrasados,
+                fn ($q) => $q->whereBetween(DB::raw('DATE(fecha)'), [$desdeAtras, $fecha]),
+                fn ($q) => $q->whereDate('fecha', $fecha))
             ->when($search, fn ($q) => $q->where('folio', 'like', "%{$search}%"))
             ->with(['fromWarehouse:id,nombre', 'toWarehouse:id,nombre'])
             ->orderBy('folio')
