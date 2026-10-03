@@ -169,7 +169,7 @@
                                 $saldo  = $nota->saldo_pendiente ?? $nota->total;
                                 $cargos = (float) $nota->total;
                                 $abonos = $cargos - $saldo;
-                                $vencida = $saldo > 0 && \Carbon\Carbon::parse($nota->fecha_vencimiento)->isPast();
+                                $vencida = $saldo > 0 && \Carbon\Carbon::parse($nota->fecha_vencimiento)->lt(today());
                             @endphp
                             <tr class="hover:bg-gray-50 {{ $vencida ? 'bg-red-50' : '' }}">
                                 <td class="px-3 py-2 text-gray-600">Nota de venta</td>
@@ -179,7 +179,7 @@
                                 </td>
                                 <td class="px-3 py-2 text-center text-gray-500">{{ $i + 1 }}</td>
                                 <td class="px-3 py-2 text-center text-gray-600">
-                                    {{ \Carbon\Carbon::parse($nota->fecha)->format('d/m/Y') }}
+                                    {{ \Carbon\Carbon::parse($nota->fecha_aplicacion)->format('d/m/Y') }}
                                 </td>
                                 <td class="px-3 py-2 text-center {{ $vencida ? 'text-red-600 font-semibold' : 'text-gray-600' }}">
                                     {{ \Carbon\Carbon::parse($nota->fecha_vencimiento)->format('d/m/Y') }}

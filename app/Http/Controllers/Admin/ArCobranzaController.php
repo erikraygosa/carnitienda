@@ -45,7 +45,11 @@ class ArCobranzaController extends Controller implements HasMiddleware
                 'clients.id as client_id',
                 'clients.nombre as client_nombre',
                 'clients.credito_dias',
-                DB::raw('DATE_ADD(sales_orders.fecha, INTERVAL COALESCE(clients.credito_dias, 30) DAY) AS fecha_vencimiento'),
+                // La cuenta nace cuando se ENTREGA el producto (no cuando se
+                // capturó el pedido): fecha de entrega; si aún no se entrega,
+                // la programada; y como último recurso la de captura.
+                DB::raw('COALESCE(DATE(sales_orders.entregado_at), sales_orders.programado_para, DATE(sales_orders.fecha)) AS fecha_aplicacion'),
+                DB::raw('DATE_ADD(COALESCE(DATE(sales_orders.entregado_at), sales_orders.programado_para, DATE(sales_orders.fecha)), INTERVAL COALESCE(clients.credito_dias, 30) DAY) AS fecha_vencimiento'),
                 DB::raw('(sales_orders.total - COALESCE(sales_orders.saldo_pendiente, sales_orders.total)) AS abonos'),
             ])
             ->join('clients', 'clients.id', '=', 'sales_orders.client_id')
@@ -79,7 +83,8 @@ class ArCobranzaController extends Controller implements HasMiddleware
                 $q->havingRaw('fecha_vencimiento >= CURDATE()')
             )
             ->orderBy('clients.nombre')
-            ->orderBy('sales_orders.fecha');
+            ->orderBy('fecha_aplicacion')
+            ->orderBy('sales_orders.id');
     }
 
     public function index(Request $request)
@@ -163,7 +168,7 @@ class ArCobranzaController extends Controller implements HasMiddleware
                 $sheet->setCellValue('B' . $row, 'Nota de venta');
                 $sheet->setCellValue('C' . $row, $nota->folio);
                 $sheet->setCellValue('D' . $row, $numRow);
-                $sheet->setCellValue('E' . $row, \Carbon\Carbon::parse($nota->fecha)->format('d/m/Y'));
+                $sheet->setCellValue('E' . $row, \Carbon\Carbon::parse($nota->fecha_aplicacion)->format('d/m/Y'));
                 $sheet->setCellValue('F' . $row, \Carbon\Carbon::parse($nota->fecha_vencimiento)->format('d/m/Y'));
                 $sheet->setCellValue('G' . $row, $cargos);
                 $sheet->setCellValue('H' . $row, $abonos);
