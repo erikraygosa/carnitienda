@@ -1072,11 +1072,8 @@ class ReportesController extends Controller implements HasMiddleware
         ];
 
         $empresa = app(\App\Services\CompanyService::class)->activa();
-        $pendientes = $this->pendientesPorProcesar();
-        $pendientesLabel = $this->pendientesLabel();
-
         $html = view('admin.reportes.liquidaciones-pdf', compact(
-            'rutas', 'totalGeneral', 'fechaDoc', 'filtros', 'empresa', 'pendientes', 'pendientesLabel'
+            'rutas', 'totalGeneral', 'fechaDoc', 'filtros', 'empresa'
         ))->render();
 
         $pdf = app('dompdf.wrapper');

@@ -23,7 +23,6 @@ table.filtros .label { font-weight: bold; color: #374151; white-space: nowrap; }
 
 .ruta-titulo { background: #4f46e5; color: #fff; font-weight: bold; font-size: 10px; padding: 5px 8px; margin-top: 12px; text-transform: uppercase; }
 .cxc-titulo  { background: #7c3aed; color: #fff; font-weight: bold; font-size: 9px; padding: 4px 8px; margin-top: 8px; text-transform: uppercase; }
-.pend-titulo { background: #d97706; color: #fff; font-weight: bold; font-size: 10px; padding: 5px 8px; margin-top: 16px; text-transform: uppercase; }
 
 table.datos { width: 100%; border-collapse: collapse; table-layout: fixed; }
 table.datos thead th { background: #1f2937; color: #fff; font-size: 7.5px; text-transform: uppercase; padding: 5px 6px; text-align: left; }
@@ -164,27 +163,6 @@ table.total-general td { background: #1e3a8a; color: #fff; font-weight: bold; fo
         <td style="text-align:right;">TOTAL GENERAL:</td>
         <td style="text-align:right;" width="120">{{ $fmt($totalGeneral) }}</td>
     </tr>
-</table>
-
-<div class="pend-titulo">Pedidos {{ $pendientesLabel }}</div>
-<table class="datos">
-    <thead>
-        <tr><th width="15%">Nota</th><th width="30%">Cliente</th><th width="20%">Ruta</th><th width="12%">Estatus</th><th width="11%">Programado</th><th width="12%" class="r">Monto</th></tr>
-    </thead>
-    <tbody>
-        @forelse($pendientes as $i => $p)
-        <tr class="{{ $i % 2 ? 'zebra' : '' }}">
-            <td>{{ $p['folio'] }}</td>
-            <td>{{ $p['cliente'] }}</td>
-            <td>{{ $p['ruta'] }}</td>
-            <td>{{ $p['estatus'] }}</td>
-            <td>{{ $p['fecha'] }}</td>
-            <td class="r">{{ $p['total'] }}</td>
-        </tr>
-        @empty
-        <tr class="vacio"><td colspan="6">No hay pedidos {{ $pendientesLabel }}.</td></tr>
-        @endforelse
-    </tbody>
 </table>
 
 <div class="pie">
