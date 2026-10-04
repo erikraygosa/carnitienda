@@ -105,7 +105,67 @@
         </svg>
         PDF
     </a>
+    <button type="button" id="btn-enviar-correo"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        Enviar por correo
+    </button>
 </div>
+
+<script>
+(function () {
+    const btn = document.getElementById('btn-enviar-correo');
+    if (!btn) return;
+    const URL_ENVIAR = @json(route('admin.ar.cobranza.enviar') . '?' . http_build_query(request()->except('_token')));
+    const EMAIL_SUGERIDO = @json($emailSugerido ?? '');
+    const CSRF = @json(csrf_token());
+
+    btn.addEventListener('click', async function () {
+        const { value: form } = await Swal.fire({
+            title: 'Enviar estado de cuenta',
+            html: `
+                <div style="text-align:left">
+                    <label style="font-size:12px;color:#6b7280">Correo de destino</label>
+                    <input id="sw-email" type="email" class="swal2-input" style="margin:4px 0 12px;width:100%" placeholder="cliente@correo.com" value="${EMAIL_SUGERIDO}">
+                    <label style="font-size:12px;color:#6b7280">Mensaje (opcional)</label>
+                    <textarea id="sw-msg" class="swal2-textarea" style="margin:4px 0 0;width:100%" rows="3" maxlength="500" placeholder="Adjunto tu estado de cuenta..."></textarea>
+                    <p style="font-size:11px;color:#9ca3af;margin-top:10px">Se envía el PDF con los filtros actuales.</p>
+                </div>`,
+            showCancelButton: true,
+            confirmButtonText: 'Enviar',
+            cancelButtonText: 'Cancelar',
+            focusConfirm: false,
+            preConfirm: () => {
+                const email = document.getElementById('sw-email').value.trim();
+                if (!/^\S+@\S+\.\S+$/.test(email)) { Swal.showValidationMessage('Escribe un correo válido.'); return false; }
+                return { email, mensaje: document.getElementById('sw-msg').value.trim() };
+            },
+        });
+        if (!form) return;
+
+        Swal.fire({ title: 'Enviando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        try {
+            const res = await fetch(URL_ENVIAR, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                body: JSON.stringify(form),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.ok) {
+                Swal.fire('Enviado', data.message, 'success');
+            } else {
+                const msg = data.message || (data.errors ? Object.values(data.errors).flat().join(' ') : 'No se pudo enviar.');
+                Swal.fire('No se pudo enviar', msg, 'error');
+            }
+        } catch (e) {
+            Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+        }
+    });
+})();
+</script>
 @endif
 
 {{-- Tabla de resultados --}}

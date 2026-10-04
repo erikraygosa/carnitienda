@@ -101,7 +101,12 @@ class ArCobranzaController extends Controller implements HasMiddleware
 
         $clientes = Client::where('activo', 1)->orderBy('nombre')->get(['id', 'nombre']);
 
-        return view('admin.ar.cobranza-general', compact('porCliente', 'totales', 'clientes'));
+        // Correo de destino sugerido: el del cliente cuando el reporte es de uno solo.
+        $emailSugerido = $porCliente->count() === 1
+            ? (Client::find($porCliente->keys()->first())?->email ?? '')
+            : '';
+
+        return view('admin.ar.cobranza-general', compact('porCliente', 'totales', 'clientes', 'emailSugerido'));
     }
 
     public function exportExcel(Request $request)
@@ -223,7 +228,8 @@ class ArCobranzaController extends Controller implements HasMiddleware
         ]);
     }
 
-    public function exportPdf(Request $request)
+    /** Arma el PDF de Cobranza con los filtros del request (lo usan la descarga y el envío por correo). */
+    private function buildPdf(Request $request): array
     {
         $rows = $this->buildQuery($request)->get();
         $porCliente = $rows->groupBy('client_id');
@@ -242,6 +248,63 @@ class ArCobranzaController extends Controller implements HasMiddleware
         $pdf = app('dompdf.wrapper');
         $pdf->loadHTML($html)->setPaper('letter', 'landscape');
 
+        return [$pdf, $porCliente, $totales, $empresa, $filtros];
+    }
+
+    public function exportPdf(Request $request)
+    {
+        [$pdf] = $this->buildPdf($request);
+
         return $pdf->download('cobranza-general-' . now()->format('Ymd') . '.pdf');
+    }
+
+    /** Envía por correo el estado de cuenta (el mismo PDF de Cobranza General) con los filtros actuales. */
+    public function enviarCorreo(Request $request)
+    {
+        $data = $request->validate([
+            'email'   => ['required', 'email', 'max:150'],
+            'mensaje' => ['nullable', 'string', 'max:500'],
+        ], ['email.required' => 'Escribe el correo de destino.', 'email.email' => 'El correo de destino no es válido.']);
+
+        if (in_array(config('mail.default'), ['log', 'array'], true)) {
+            return response()->json(['ok' => false, 'message' => 'El envío de correo no está configurado. Actívalo en Superadmin → Configuración → Correo electrónico.'], 422);
+        }
+
+        [$pdf, $porCliente, $totales, $empresa, $filtros] = $this->buildPdf($request);
+        if ($porCliente->isEmpty()) {
+            return response()->json(['ok' => false, 'message' => 'No hay cuentas con estos filtros para enviar.'], 422);
+        }
+
+        $hoy = today();
+        $resumen = $porCliente->map(function ($notas) use ($hoy) {
+            $saldo   = $notas->sum(fn($r) => $r->saldo_pendiente ?? $r->total);
+            $vencido = $notas->filter(fn($r) => ($r->saldo_pendiente ?? $r->total) > 0
+                    && \Carbon\Carbon::parse($r->fecha_vencimiento)->lt($hoy))
+                ->sum(fn($r) => $r->saldo_pendiente ?? $r->total);
+            return [
+                'cliente' => $notas->first()->client_nombre,
+                'notas'   => $notas->count(),
+                'saldo'   => (float) $saldo,
+                'vencido' => (float) $vencido,
+            ];
+        })->sortBy(fn($r) => mb_strtolower($r['cliente']))->values()->all();
+
+        $fname = 'estado-de-cuenta-' . now()->format('Ymd') . '.pdf';
+
+        try {
+            \Illuminate\Support\Facades\Mail::to($data['email'])->send(new \App\Mail\CobranzaMailable(
+                pdfRaw:   $pdf->output(),
+                pdfName:  $fname,
+                resumen:  $resumen,
+                totales:  $totales,
+                filtros:  $filtros,
+                mensaje:  $data['mensaje'] ?? '',
+                empresa:  $empresa,
+            ));
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'message' => 'No se pudo enviar: ' . mb_substr($e->getMessage(), 0, 300)], 500);
+        }
+
+        return response()->json(['ok' => true, 'message' => 'Estado de cuenta enviado a ' . $data['email'] . '.']);
     }
 }
