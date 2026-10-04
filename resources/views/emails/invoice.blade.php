@@ -84,11 +84,40 @@
 @php
     $emp = $empresa ?? null;
     $ef  = $emp?->fiscalData ?? null;
+    $cliente = $invoice->client ?? null;
+
+    // Emisor: nombre comercial (lo que ve el cliente), razón social y RFC.
+    $nombreComercial = $emp?->nombre_comercial ?: ($ef?->razon_social ?: ($emp?->razon_social ?: config('app.name')));
+    $razonSocial     = $ef?->razon_social ?: $emp?->razon_social;
+    $rfcEmisor       = $emp?->rfc ?: $ef?->rfc;
+
     $badgeClass = match($invoice->estatus ?? 'BORRADOR') {
         'TIMBRADA'  => 'badge-stamped',
         'CANCELADA' => 'badge-canceled',
         default     => 'badge-draft',
     };
+
+    $sat = \App\Support\SatCatalogs::class;
+    $regimenes = \App\Models\CompanyFiscalData::REGIMENES_FISCALES;
+    $regEmisor   = $invoice->regimen_fiscal_emisor ?: $ef?->regimen_fiscal;
+    $regReceptor = $invoice->regimen_fiscal_receptor ?: $cliente?->regimen_fiscal;
+    $nombreReceptor = $invoice->receptor_razon_social ?: ($cliente?->razon_social ?: ($cliente?->nombre ?: '—'));
+    $rfcReceptor    = $invoice->receptor_rfc ?: ($cliente?->rfc ?: 'XAXX010101000');
+
+    // Logo del sistema (o de la empresa si tiene), como imagen adjunta (CID)
+    // para que Gmail/Outlook sí lo muestren.
+    $logoCid = null;
+    $rutasLogo = [];
+    if (!empty($emp?->logo_path)) {
+        $rutasLogo[] = storage_path('app/public/' . ltrim($emp->logo_path, '/'));
+    }
+    $rutasLogo[] = public_path(\App\Models\SystemSetting::get('app.logo_path', 'logo.jpg') ?: 'logo.jpg');
+    foreach ($rutasLogo as $r) {
+        if (is_file($r) && isset($message)) {
+            $logoCid = $message->embed($r);
+            break;
+        }
+    }
 @endphp
 
 <div class="wrapper">
@@ -97,11 +126,19 @@
     <div class="header">
         <table cellpadding="0" cellspacing="0">
             <tr>
-                <td>
-                    <div class="header-logo">{{ $emp?->razon_social ?? config('app.name') }}</div>
-                    @if($emp?->rfc)
-                    <div class="header-rfc">RFC: {{ $emp->rfc }}</div>
-                    @endif
+                @if($logoCid)
+                <td width="78" style="vertical-align:middle;padding-right:14px">
+                    <div style="background:#fff;border-radius:8px;padding:4px;width:64px;height:64px;text-align:center">
+                        <img src="{{ $logoCid }}" alt="{{ $nombreComercial }}" width="56" height="56" style="display:block;margin:0 auto;border:0;width:56px;height:56px;object-fit:contain">
+                    </div>
+                </td>
+                @endif
+                <td style="vertical-align:middle">
+                    <div class="header-logo">{{ $nombreComercial }}</div>
+                    <div class="header-rfc">
+                        @if($razonSocial && $razonSocial !== $nombreComercial){{ $razonSocial }}@endif
+                        @if($rfcEmisor) &nbsp;·&nbsp; RFC: {{ $rfcEmisor }}@endif
+                    </div>
                 </td>
                 <td class="header-doc">
                     <div class="doc-tipo">Factura CFDI</div>
@@ -127,7 +164,7 @@
 
         {{-- Saludo --}}
         <p class="greeting">
-            Estimado(a) <strong>{{ $invoice->client?->razon_social ?? $invoice->client?->nombre ?? 'cliente' }}</strong>,<br>
+            Estimado(a) <strong>{{ $nombreReceptor !== '—' ? $nombreReceptor : 'cliente' }}</strong>,<br>
             @if(!empty($mensaje))
                 {{ $mensaje }}
             @else
@@ -141,41 +178,56 @@
                 <td>
                     <div class="card">
                         <div class="card-title">Emisor</div>
-                        <div class="card-row">
-                            <span class="lbl">Razón social: </span>
-                            <span class="val">{{ $emp?->razon_social ?? '—' }}</span>
-                        </div>
-                        <div class="card-row">
-                            <span class="lbl">RFC: </span>
-                            <span class="val">{{ $emp?->rfc ?? '—' }}</span>
-                        </div>
-                        @if($ef?->regimen_fiscal)
-                        <div class="card-row">
-                            <span class="lbl">Régimen: </span>
-                            <span class="val">{{ $ef->regimen_fiscal }}</span>
-                        </div>
+                        <div class="card-row"><span class="lbl">Nombre comercial: </span><span class="val">{{ $nombreComercial }}</span></div>
+                        <div class="card-row"><span class="lbl">Razón social: </span><span class="val">{{ $razonSocial ?: '—' }}</span></div>
+                        <div class="card-row"><span class="lbl">RFC: </span><span class="val">{{ $rfcEmisor ?: '—' }}</span></div>
+                        @if($regEmisor)
+                        <div class="card-row"><span class="lbl">Régimen: </span><span class="val">{{ $sat::etiqueta($regimenes, $regEmisor) }}</span></div>
+                        @endif
+                        @if($invoice->lugar_expedicion)
+                        <div class="card-row"><span class="lbl">Lugar de expedición: </span><span class="val">{{ $invoice->lugar_expedicion }}</span></div>
                         @endif
                     </div>
                 </td>
                 <td>
                     <div class="card">
                         <div class="card-title">Receptor</div>
-                        <div class="card-row">
-                            <span class="lbl">Nombre: </span>
-                            <span class="val">{{ $invoice->client?->razon_social ?? $invoice->client?->nombre ?? '—' }}</span>
-                        </div>
-                        <div class="card-row">
-                            <span class="lbl">RFC: </span>
-                            <span class="val">{{ $invoice->client?->rfc ?? 'XAXX010101000' }}</span>
-                        </div>
-                        <div class="card-row">
-                            <span class="lbl">Uso CFDI: </span>
-                            <span class="val">{{ $invoice->uso_cfdi ?? '—' }}</span>
-                        </div>
-                        <div class="card-row">
-                            <span class="lbl">Forma pago: </span>
-                            <span class="val">{{ $invoice->forma_pago ?? '—' }}</span>
-                        </div>
+                        <div class="card-row"><span class="lbl">Nombre: </span><span class="val">{{ $nombreReceptor }}</span></div>
+                        <div class="card-row"><span class="lbl">RFC: </span><span class="val">{{ $rfcReceptor }}</span></div>
+                        @if($regReceptor)
+                        <div class="card-row"><span class="lbl">Régimen: </span><span class="val">{{ $sat::etiqueta($regimenes, $regReceptor) }}</span></div>
+                        @endif
+                        @if($invoice->receptor_cp)
+                        <div class="card-row"><span class="lbl">C.P.: </span><span class="val">{{ $invoice->receptor_cp }}</span></div>
+                        @endif
+                        <div class="card-row"><span class="lbl">Uso CFDI: </span><span class="val">{{ $sat::etiqueta($sat::USO_CFDI, $invoice->uso_cfdi) }}</span></div>
+                    </div>
+                </td>
+            </tr>
+        </table>
+
+        {{-- Datos del comprobante --}}
+        <table class="cards" cellpadding="0" cellspacing="0">
+            <tr>
+                <td colspan="2">
+                    <div class="card">
+                        <div class="card-title">Datos del comprobante</div>
+                        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
+                            <tr>
+                                <td style="width:50%;padding:0 8px 0 0"><div class="card-row"><span class="lbl">Tipo: </span><span class="val">{{ $sat::etiqueta($sat::TIPO_COMPROBANTE, $invoice->tipo_comprobante) }}</span></div></td>
+                                <td style="width:50%;padding:0"><div class="card-row"><span class="lbl">Moneda: </span><span class="val">{{ $invoice->moneda ?? 'MXN' }}</span></div></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0 8px 0 0"><div class="card-row"><span class="lbl">Forma de pago: </span><span class="val">{{ $sat::etiqueta($sat::FORMA_PAGO, $invoice->forma_pago) }}</span></div></td>
+                                <td style="padding:0"><div class="card-row"><span class="lbl">Método de pago: </span><span class="val">{{ $sat::etiqueta($sat::METODO_PAGO, $invoice->metodo_pago) }}</span></div></td>
+                            </tr>
+                            @if($invoice->condiciones_pago)
+                            <tr><td colspan="2" style="padding:0"><div class="card-row"><span class="lbl">Condiciones de pago: </span><span class="val">{{ $invoice->condiciones_pago }}</span></div></td></tr>
+                            @endif
+                            @if($invoice->numero_certificado_sat)
+                            <tr><td colspan="2" style="padding:0"><div class="card-row"><span class="lbl">No. certificado SAT: </span><span class="val">{{ $invoice->numero_certificado_sat }}</span></div></td></tr>
+                            @endif
+                        </table>
                     </div>
                 </td>
             </tr>
@@ -187,17 +239,23 @@
             <thead>
                 <tr>
                     <th>Descripción</th>
+                    <th>Unidad</th>
                     <th class="r">Cant.</th>
                     <th class="r">P. Unit.</th>
+                    <th class="r">Desc.</th>
+                    <th class="r">IVA</th>
                     <th class="r">Importe</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($invoice->items as $it)
                 <tr>
-                    <td>{{ $it->descripcion }}</td>
-                    <td class="r">{{ number_format((float)$it->cantidad, 2) }}</td>
+                    <td>{{ $it->descripcion }}@if($it->clave_prod_serv)<br><span style="color:#9ca3af;font-size:8px">Clave SAT: {{ $it->clave_prod_serv }}</span>@endif</td>
+                    <td>{{ $it->unidad ?: ($it->clave_unidad ?? '') }}</td>
+                    <td class="r">{{ number_format((float)$it->cantidad, 3) }}</td>
                     <td class="r">${{ number_format((float)$it->valor_unitario, 2) }}</td>
+                    <td class="r">{{ (float)$it->descuento > 0 ? '$'.number_format((float)$it->descuento, 2) : '—' }}</td>
+                    <td class="r">{{ (float)($it->iva_importe ?? 0) > 0 ? '$'.number_format((float)$it->iva_importe, 2) : '—' }}</td>
                     <td class="r">${{ number_format((float)$it->importe, 2) }}</td>
                 </tr>
                 @endforeach
@@ -205,16 +263,17 @@
         </table>
 
         {{-- Totales --}}
+        @php $descTotal = (float) ($invoice->descuento ?? 0) ?: (float) $invoice->items->sum('descuento'); @endphp
         <div class="totals-wrap">
             <table class="totals" cellpadding="0" cellspacing="0">
                 <tr>
                     <td class="lbl">Subtotal</td>
                     <td class="val">${{ number_format((float)$invoice->subtotal, 2) }}</td>
                 </tr>
-                @if((float)($invoice->descuento ?? 0) > 0)
+                @if($descTotal > 0)
                 <tr>
                     <td class="lbl">Descuento</td>
-                    <td class="val">- ${{ number_format((float)$invoice->descuento, 2) }}</td>
+                    <td class="val">- ${{ number_format($descTotal, 2) }}</td>
                 </tr>
                 @endif
                 @if((float)($invoice->impuestos ?? 0) > 0)

@@ -32,6 +32,11 @@ class InvoiceMailable extends Mailable
     {
         return new Content(
             view: 'emails.invoice',
+            with: [
+                // Emisor: la empresa que emitió esta factura; si no, la activa.
+                'empresa' => $this->invoice->company
+                    ?? app(\App\Services\CompanyService::class)->activa(),
+            ],
         );
     }
 
