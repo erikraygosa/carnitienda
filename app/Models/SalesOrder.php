@@ -144,6 +144,20 @@ class SalesOrder extends Model
         return $n > 0 && $n < $this->items->count();
     }
 
+    /**
+     * Fecha en que "nace" la cuenta por cobrar: cuando se ENTREGA el producto
+     * (no cuando se capturó el pedido). Si aún no se entrega, la programada;
+     * la de captura solo como último recurso. Toda la sección de Cobranza/CxC
+     * debe usar esta fecha (en SQL: SalesOrder::SQL_FECHA_CXC).
+     */
+    public const SQL_FECHA_CXC = 'COALESCE(DATE(sales_orders.entregado_at), sales_orders.programado_para, DATE(sales_orders.fecha))';
+
+    public function getFechaCxcAttribute(): ?\Carbon\Carbon
+    {
+        $f = $this->entregado_at ?? $this->programado_para ?? $this->fecha;
+        return $f ? \Carbon\Carbon::parse($f)->startOfDay() : null;
+    }
+
     // === Etiquetas de estado ===
     public function getStatusLabelAttribute(): string
     {

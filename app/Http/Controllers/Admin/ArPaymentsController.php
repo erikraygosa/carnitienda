@@ -60,8 +60,8 @@ class ArPaymentsController extends Controller implements HasMiddleware
                 $q->whereNull('saldo_pendiente')
                   ->orWhere('saldo_pendiente', '>', 0);
             })
-            ->orderBy('fecha')
-            ->get(['id','folio','fecha','entregado_at','total','saldo_pendiente']);
+            ->orderByRaw(SalesOrder::SQL_FECHA_CXC . ', id')
+            ->get(['id','folio','fecha','programado_para','entregado_at','total','saldo_pendiente']);
     }
 
     /**
@@ -118,7 +118,7 @@ class ArPaymentsController extends Controller implements HasMiddleware
                 'folio'           => $o->folio,
                 // Fecha de entrega (cuando se "abrió" la cuenta con el
                 // cliente), no la de captura del pedido.
-                'fecha'           => \Carbon\Carbon::parse($o->entregado_at ?? $o->fecha)->format('d/m/Y'),
+                'fecha'           => $o->fecha_cxc?->format('d/m/Y'),
                 'total'           => (float) $o->total,
                 'saldo_pendiente' => ($o->saldo_pendiente !== null && (float)$o->saldo_pendiente > 0)
                     ? (float) $o->saldo_pendiente
@@ -211,8 +211,9 @@ class ArPaymentsController extends Controller implements HasMiddleware
 
             $restante = (float) $data['amount'];
 
+            // FIFO: primero la nota que se entregó antes (la cuenta nace al entregar).
             $ordenes = SalesOrder::whereIn('id', $data['order_ids'] ?? [])
-                ->orderBy('fecha')
+                ->orderByRaw(SalesOrder::SQL_FECHA_CXC . ', id')
                 ->get();
 
             foreach ($ordenes as $orden) {
@@ -436,7 +437,7 @@ class ArPaymentsController extends Controller implements HasMiddleware
                 ->whereRaw('saldo_pendiente < total')
                 ->where('saldo_pendiente', '>', 0)
             )
-            ->orderByDesc('fecha')
+            ->orderByRaw(SalesOrder::SQL_FECHA_CXC . ' DESC, id DESC')
             ->paginate(25)
             ->withQueryString();
 

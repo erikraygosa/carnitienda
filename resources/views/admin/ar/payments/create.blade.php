@@ -68,7 +68,7 @@
                                    {{ in_array($orden->id, old('order_ids', [])) ? 'checked' : '' }}>
                             <div class="flex-1">
                                 <div class="text-sm font-medium text-gray-800">{{ $orden->folio }}</div>
-                                <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($orden->entregado_at ?? $orden->fecha)->format('d/m/Y') }}</div>
+                                <div class="text-xs text-gray-500">{{ $orden->fecha_cxc?->format('d/m/Y') }}</div>
                             </div>
                             <div class="text-right">
                                 @if($tieneParcial)

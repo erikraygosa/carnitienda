@@ -97,7 +97,7 @@
 
                         {{-- Fecha --}}
                         <td class="px-4 py-3 text-gray-500">
-                            {{ $orden->fecha ? $orden->fecha->format('d/m/Y') : '—' }}
+                            {{ $orden->fecha_cxc ? $orden->fecha_cxc->format('d/m/Y') : '—' }}
                         </td>
 
                         {{-- Total --}}

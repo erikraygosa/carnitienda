@@ -48,8 +48,8 @@ class ArCobranzaController extends Controller implements HasMiddleware
                 // La cuenta nace cuando se ENTREGA el producto (no cuando se
                 // capturó el pedido): fecha de entrega; si aún no se entrega,
                 // la programada; y como último recurso la de captura.
-                DB::raw('COALESCE(DATE(sales_orders.entregado_at), sales_orders.programado_para, DATE(sales_orders.fecha)) AS fecha_aplicacion'),
-                DB::raw('DATE_ADD(COALESCE(DATE(sales_orders.entregado_at), sales_orders.programado_para, DATE(sales_orders.fecha)), INTERVAL COALESCE(clients.credito_dias, 30) DAY) AS fecha_vencimiento'),
+                DB::raw(SalesOrder::SQL_FECHA_CXC . ' AS fecha_aplicacion'),
+                DB::raw('DATE_ADD(' . SalesOrder::SQL_FECHA_CXC . ', INTERVAL COALESCE(clients.credito_dias, 30) DAY) AS fecha_vencimiento'),
                 DB::raw('(sales_orders.total - COALESCE(sales_orders.saldo_pendiente, sales_orders.total)) AS abonos'),
             ])
             ->join('clients', 'clients.id', '=', 'sales_orders.client_id')
