@@ -55,6 +55,12 @@ class SettingsController extends Controller
             'facturacion_iva_pct_default'    => ['nullable', 'string', 'in:0,8,16'],
             'correo_from_name'           => ['nullable', 'string', 'max:100'],
             'correo_from_address'        => ['nullable', 'email', 'max:150'],
+            'correo_proveedor'           => ['nullable', 'in:gmail,outlook,personalizado'],
+            'correo_host'                => ['nullable', 'string', 'max:150'],
+            'correo_port'                => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'correo_encryption'          => ['nullable', 'in:tls,ssl,none'],
+            'correo_username'            => ['nullable', 'string', 'max:190'],
+            'correo_password'            => ['nullable', 'string', 'max:255'],
             'auth_login_mode'            => ['nullable', 'string', 'in:email,username'],
             'auth_username_domain'       => ['nullable', 'string', 'max:100'],
             'whatsapp_base_url'          => ['nullable', 'string', 'max:255'],
@@ -85,6 +91,11 @@ class SettingsController extends Controller
             'facturacion_iva_pct_default'    => ['facturacion.iva_pct_default', 'facturacion'],
             'correo_from_name'           => ['correo.from_name', 'correo'],
             'correo_from_address'        => ['correo.from_address', 'correo'],
+            'correo_proveedor'           => ['correo.proveedor', 'correo'],
+            'correo_host'                => ['correo.host', 'correo'],
+            'correo_port'                => ['correo.port', 'correo'],
+            'correo_encryption'          => ['correo.encryption', 'correo'],
+            'correo_username'            => ['correo.username', 'correo'],
             'whatsapp_base_url'          => ['whatsapp.base_url', 'whatsapp'],
             'whatsapp_instance'          => ['whatsapp.instance', 'whatsapp'],
             'whatsapp_numero_errores'    => ['whatsapp.numero_errores', 'whatsapp'],
@@ -110,6 +121,12 @@ class SettingsController extends Controller
             'boolean',
             'facturacion'
         );
+
+        // Correo: interruptor + contraseña SMTP (cifrada; si llega vacía se conserva la guardada).
+        SystemSetting::set('correo.activo', $request->boolean('correo_activo') ? '1' : '0', 'boolean', 'correo');
+        if (filled($data['correo_password'] ?? null)) {
+            SystemSetting::set('correo.password', \Illuminate\Support\Facades\Crypt::encryptString($data['correo_password']), 'string', 'correo');
+        }
 
         // El campo de API Key es tipo password: si llega vacío, se conserva la que ya estaba guardada.
         if (filled($data['whatsapp_api_key'] ?? null)) {
@@ -245,6 +262,26 @@ class SettingsController extends Controller
         }
 
         return back()->with('success', 'Configuración guardada correctamente.');
+    }
+
+    public function testCorreo(Request $request)
+    {
+        $request->validate(['correo_destino' => ['required', 'email', 'max:150']]);
+
+        if (! \App\Services\MailSettings::aplicar()) {
+            return back()->with('error', 'El correo no está activo o está incompleto (servidor, usuario y contraseña). Guarda la configuración y activa "Usar esta configuración".');
+        }
+
+        try {
+            \Illuminate\Support\Facades\Mail::raw(
+                'Correo de prueba desde ' . config('app.name') . ". La configuración de correo funciona correctamente.\n\nEnviado: " . now()->format('d/m/Y H:i'),
+                fn ($m) => $m->to($request->correo_destino)->subject('Prueba de correo — ' . config('app.name'))
+            );
+        } catch (\Throwable $e) {
+            return back()->with('error', 'No se pudo enviar: ' . mb_substr($e->getMessage(), 0, 400));
+        }
+
+        return back()->with('success', '✓ Correo de prueba enviado a ' . $request->correo_destino . '. Revisa la bandeja (y spam).');
     }
 
     public function testWhatsapp(Request $request, WhatsappSender $whatsapp)

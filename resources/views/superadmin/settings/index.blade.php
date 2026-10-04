@@ -154,23 +154,109 @@
         </div>
     </div>
 
-    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
-        <h3 class="text-white font-semibold mb-4">Correo electrónico</h3>
+    @php
+        $mc = \App\Services\MailSettings::cargar();
+        $mcProv = \App\Services\MailSettings::PROVEEDORES;
+        $mcLista = \App\Services\MailSettings::completa($mc);
+        $mcProvJs = [];
+        foreach ($mcProv as $k => $pv) { $mcProvJs[$k] = ['host' => $pv['host'], 'port' => $pv['port'], 'encryption' => $pv['encryption'], 'ayuda' => $pv['ayuda']]; }
+        $inp = 'w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none';
+    @endphp
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5" id="correo-card">
+        <h3 class="text-white font-semibold mb-1">Correo electrónico</h3>
+        <p class="text-xs text-gray-500 mb-2">Cuenta desde la que el sistema envía cotizaciones, remisiones y facturas por correo. Elige Gmail, Outlook o tu propio servidor SMTP.</p>
+        <p class="text-xs mb-4">
+            @if($mc['activo'] && $mcLista)
+                <span class="text-emerald-400">✓ Activo — se envía con {{ $mc['host'] }} como {{ $mc['username'] }}.</span>
+            @elseif($mc['password_ilegible'])
+                <span class="text-amber-400">⚠ No se pudo leer la contraseña guardada (cambió la clave de la app). Vuelve a escribirla y guarda.</span>
+            @elseif($mc['activo'])
+                <span class="text-amber-400">⚠ Activado, pero falta: {{ implode(', ', array_filter([$mc['host'] === '' ? 'servidor' : null, $mc['username'] === '' ? 'usuario' : null, ! filled($mc['password']) ? 'contraseña' : null])) }}.</span>
+            @else
+                <span class="text-gray-400">Sin activar — los correos no se envían (quedan solo en el registro del sistema).</span>
+            @endif
+        </p>
+
+        <label class="flex items-center gap-2 mb-4 cursor-pointer">
+            <input type="checkbox" name="correo_activo" value="1" {{ $mc['activo'] ? 'checked' : '' }}
+                   class="rounded border-gray-600 bg-gray-800 text-indigo-600">
+            <span class="text-sm text-white">Usar esta configuración para enviar correos</span>
+        </label>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-                <label class="block text-xs text-gray-500 mb-1">Nombre del remitente</label>
-                <input type="text" name="correo_from_name"
-                       value="{{ $correo['correo.from_name']?->valor ?? '' }}"
-                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+            <div class="md:col-span-2">
+                <label class="block text-xs text-gray-500 mb-1">Proveedor</label>
+                <select name="correo_proveedor" id="correo_proveedor" class="{{ $inp }}">
+                    @foreach($mcProv as $k => $pv)
+                        <option value="{{ $k }}" {{ $mc['proveedor'] === $k ? 'selected' : '' }}>{{ $pv['label'] }}</option>
+                    @endforeach
+                </select>
+                <p id="correo_ayuda" class="mt-1.5 text-xs text-amber-300/90"></p>
             </div>
             <div>
-                <label class="block text-xs text-gray-500 mb-1">Email del remitente</label>
-                <input type="email" name="correo_from_address"
-                       value="{{ $correo['correo.from_address']?->valor ?? '' }}"
-                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                <label class="block text-xs text-gray-500 mb-1">Servidor SMTP</label>
+                <input type="text" name="correo_host" id="correo_host" value="{{ $mc['host'] }}" placeholder="smtp.gmail.com" class="{{ $inp }}">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Puerto</label>
+                    <input type="number" name="correo_port" id="correo_port" value="{{ $mc['port'] }}" min="1" max="65535" class="{{ $inp }}">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Seguridad</label>
+                    <select name="correo_encryption" id="correo_encryption" class="{{ $inp }}">
+                        <option value="tls"  {{ $mc['encryption'] === 'tls'  ? 'selected' : '' }}>TLS (587)</option>
+                        <option value="ssl"  {{ $mc['encryption'] === 'ssl'  ? 'selected' : '' }}>SSL (465)</option>
+                        <option value="none" {{ $mc['encryption'] === 'none' ? 'selected' : '' }}>Ninguna</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Usuario (normalmente el correo completo)</label>
+                <input type="text" name="correo_username" value="{{ $mc['username'] }}" autocomplete="off" placeholder="ventas@tuempresa.com" class="{{ $inp }}">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">
+                    Contraseña / contraseña de aplicación
+                    @if($mc['password_set'] && ! $mc['password_ilegible']) <span class="text-emerald-400">(guardada — déjala vacía para conservarla)</span> @endif
+                </label>
+                <input type="password" name="correo_password" autocomplete="new-password"
+                       placeholder="{{ $mc['password_set'] ? '••••••••••••' : '' }}" class="{{ $inp }}">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Nombre del remitente</label>
+                <input type="text" name="correo_from_name" value="{{ $correo['correo.from_name']?->valor ?? '' }}" class="{{ $inp }}">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Email del remitente <span class="text-gray-600">(vacío = el usuario)</span></label>
+                <input type="email" name="correo_from_address" value="{{ $correo['correo.from_address']?->valor ?? '' }}" class="{{ $inp }}">
             </div>
         </div>
     </div>
+
+    <script>
+    (function () {
+        const PROV = {!! json_encode($mcProvJs, JSON_UNESCAPED_UNICODE) !!};
+        const sel = document.getElementById('correo_proveedor');
+        const ayuda = document.getElementById('correo_ayuda');
+        function aplicar(rellenar) {
+            const p = PROV[sel.value]; if (!p) return;
+            ayuda.textContent = p.ayuda;
+            if (rellenar && sel.value !== 'personalizado') {
+                document.getElementById('correo_host').value = p.host;
+                document.getElementById('correo_port').value = p.port;
+                document.getElementById('correo_encryption').value = p.encryption;
+            }
+        }
+        sel.addEventListener('change', () => aplicar(true));
+        aplicar(false);
+        document.getElementById('correo_encryption').addEventListener('change', function () {
+            const port = document.getElementById('correo_port');
+            if (this.value === 'ssl' && port.value === '587') port.value = 465;
+            if (this.value === 'tls' && port.value === '465') port.value = 587;
+        });
+    })();
+    </script>
 
     <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
         <h3 class="text-white font-semibold mb-1">Autenticación</h3>
@@ -631,6 +717,23 @@
             <label class="block text-xs text-gray-500 mb-1">Teléfono (10 dígitos o con lada país)</label>
             <input type="text" name="telefono" placeholder="9991234567"
                    class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none w-52">
+        </div>
+        <button type="submit"
+                class="px-4 py-2 text-sm rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 font-medium">
+            Enviar prueba
+        </button>
+    </form>
+</div>
+
+<div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+    <h3 class="text-white font-semibold mb-1">Probar envío de correo</h3>
+    <p class="text-xs text-gray-500 mb-4">Guarda la configuración de arriba primero (y márcala como activa); luego manda un correo de prueba a una dirección real.</p>
+    <form action="{{ route('superadmin.settings.correo.test') }}" method="POST" class="flex items-end gap-3">
+        @csrf
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Enviar a</label>
+            <input type="email" name="correo_destino" placeholder="tu@correo.com" required
+                   class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none w-72">
         </div>
         <button type="submit"
                 class="px-4 py-2 text-sm rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 font-medium">

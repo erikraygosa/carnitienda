@@ -16,6 +16,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Correo configurado en Superadmin (SMTP Gmail/Outlook/propio).
+        \App\Services\MailSettings::aplicar();
+
         // Inyectar $empresaActiva en TODAS las vistas automáticamente
         View::composer('*', function ($view) {
             $service = app(CompanyService::class);
