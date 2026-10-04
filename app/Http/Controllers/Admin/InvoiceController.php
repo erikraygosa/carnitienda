@@ -1081,7 +1081,7 @@ public function pdfDownload(Invoice $invoice)
     $request->validate([
         'channels'    => ['required', 'array', 'min:1'],
         'channels.*'  => ['in:email,whatsapp'],
-        'email'       => ['nullable', 'email'],
+        'email'       => ['nullable', new \App\Rules\MultiEmail],
         'telefono'    => ['nullable', 'string'],
         'mensaje'     => ['nullable', 'string', 'max:500'],
     ]);
@@ -1099,7 +1099,7 @@ public function pdfDownload(Invoice $invoice)
     $errors = [];
 
     if (in_array('email', $request->channels, true)) {
-        $to = $request->input('email') ?: ($invoice->client?->email ?? null);
+        $to = \App\Support\EmailList::parse($request->input('email') ?: ($invoice->client?->email ?? ''));
         if (!$to) {
             $errors[] = 'El cliente no tiene correo y no proporcionaste uno.';
         } else {

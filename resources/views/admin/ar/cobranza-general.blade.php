@@ -128,8 +128,8 @@
             title: 'Enviar estado de cuenta',
             html: `
                 <div style="text-align:left">
-                    <label style="font-size:12px;color:#6b7280">Correo de destino</label>
-                    <input id="sw-email" type="email" class="swal2-input" style="margin:4px 0 12px;width:100%" placeholder="cliente@correo.com" value="${EMAIL_SUGERIDO}">
+                    <label style="font-size:12px;color:#6b7280">Correo(s) de destino — varios separados por coma</label>
+                    <input id="sw-email" type="text" class="swal2-input" style="margin:4px 0 12px;width:100%" placeholder="cobranza@correo.com, conta@correo.com" value="${EMAIL_SUGERIDO}">
                     <label style="font-size:12px;color:#6b7280">Mensaje (opcional)</label>
                     <textarea id="sw-msg" class="swal2-textarea" style="margin:4px 0 0;width:100%" rows="3" maxlength="500" placeholder="Adjunto tu estado de cuenta..."></textarea>
                     <p style="font-size:11px;color:#9ca3af;margin-top:10px">Se envía el PDF con los filtros actuales.</p>
@@ -140,7 +140,8 @@
             focusConfirm: false,
             preConfirm: () => {
                 const email = document.getElementById('sw-email').value.trim();
-                if (!/^\S+@\S+\.\S+$/.test(email)) { Swal.showValidationMessage('Escribe un correo válido.'); return false; }
+                const lista = email.split(/[\s,;]+/).filter(Boolean);
+                if (!lista.length || lista.some(e => !/^\S+@\S+\.\S+$/.test(e))) { Swal.showValidationMessage('Escribe uno o varios correos válidos, separados por coma.'); return false; }
                 return { email, mensaje: document.getElementById('sw-msg').value.trim() };
             },
         });

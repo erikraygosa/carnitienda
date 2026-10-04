@@ -45,7 +45,7 @@
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <x-wire-input label="Email" name="email" type="email" value="{{ old('email',$clientEmail) }}" />
+                <x-wire-input label="Email (uno o varios, separados por coma)" name="email" type="text" value="{{ old('email',$clientEmail) }}" />
                 <x-wire-input label="Teléfono WhatsApp" name="telefono" value="{{ old('telefono',$clientPhone) }}" />
             </div>
 

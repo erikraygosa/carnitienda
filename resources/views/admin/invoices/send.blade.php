@@ -49,12 +49,12 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">
                         Correo del cliente
                     </label>
-                    <input type="email" name="email"
+                    <input type="text" name="email" autocomplete="off"
                            value="{{ old('email', $clientEmail) }}"
-                           placeholder="cliente@correo.com"
+                           placeholder="correo1@dominio.com, correo2@dominio.com"
                            class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <p class="mt-1 text-xs text-gray-400">
-                        Si lo dejas vacío se usará el correo registrado del cliente.
+                        Puedes poner varios correos separados por coma. Si lo dejas vacío se usarán los correos registrados del cliente.
                     </p>
                 </div>
 

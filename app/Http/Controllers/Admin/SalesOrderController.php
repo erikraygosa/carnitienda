@@ -1473,7 +1473,7 @@ public function pdfDownload(SalesOrder $order)
         'channels'    => ['required','array','min:1'],
         'channels.*'  => ['in:email,whatsapp'],
         'formato'     => ['nullable','in:carta,ticket'],
-        'email'       => ['nullable','email'],
+        'email'       => ['nullable',new \App\Rules\MultiEmail],
         'telefono'    => ['nullable','string'],
         'mensaje'     => ['nullable','string','max:500'],
     ]);
@@ -1500,7 +1500,7 @@ public function pdfDownload(SalesOrder $order)
     $errors = [];
 
     if (in_array('email', $request->channels, true)) {
-        $to = $request->input('email') ?: ($order->client?->email ?? null);
+        $to = \App\Support\EmailList::parse($request->input('email') ?: ($order->client?->email ?? ''));
         if (!$to) {
             $errors[] = 'El cliente no tiene correo y no proporcionaste uno.';
         } else {

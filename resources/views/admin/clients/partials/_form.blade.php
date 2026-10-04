@@ -62,8 +62,8 @@
             placeholder="Ej. Carnes Don Pepe"
             :value="old('nombre', $isEdit ? $client->nombre : '')" />
 
-        <x-wire-input name="email" label="Email"
-            placeholder="correo@dominio.com"
+        <x-wire-input name="email" label="Email (uno o varios, separados por coma)"
+            placeholder="ventas@dominio.com, cobranza@dominio.com"
             :value="old('email', $isEdit ? $client->email : '')" />
 
         <x-wire-input name="telefono" label="Teléfono"

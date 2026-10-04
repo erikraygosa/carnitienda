@@ -172,7 +172,7 @@ class ClientController extends Controller implements HasMiddleware
     {
         return [
             'nombre'           => ['required','string','max:180'],
-            'email'            => ['nullable','email','max:150', Rule::unique('clients','email')->ignore($id)],
+            'email'            => ['nullable','string','max:500', new \App\Rules\MultiEmail, Rule::unique('clients','email')->ignore($id)],
             'telefono'         => ['nullable','string','max:50'],
             'direccion'        => ['nullable','string','max:255'],
             'activo'           => ['required','boolean'],
@@ -251,6 +251,11 @@ class ClientController extends Controller implements HasMiddleware
 
     $data['credito_limite'] = $isCredit ? (float)($data['credito_limite'] ?? 0) : 0.0;
     $data['credito_dias']   = $isCredit ? (int)($data['credito_dias']   ?? 0) : 0;
+
+    // Uno o varios correos del cliente (ventas, cobranza, contabilidad...): formato "a@x.com, b@x.com".
+    if (array_key_exists('email', $data)) {
+        $data['email'] = \App\Support\EmailList::normalize($data['email']);
+    }
 
     foreach (['rfc','razon_social','nombre_comercial','regimen_fiscal','uso_cfdi_default'] as $k) {
         if (isset($data[$k]) && is_string($data[$k])) $data[$k] = trim($data[$k]);

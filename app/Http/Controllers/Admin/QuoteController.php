@@ -321,7 +321,7 @@ $fname  = 'cotizacion-' . ($quote->folio ?? $quote->id) . '.pdf';
     $request->validate([
         'channels'   => ['required', 'array', 'min:1'],
         'channels.*' => ['in:email,whatsapp'],
-        'email'      => ['nullable', 'email'],
+        'email'      => ['nullable', new \App\Rules\MultiEmail],
         'telefono'   => ['nullable', 'string'],
         'mensaje'    => ['nullable', 'string', 'max:500'],
     ]);
@@ -337,7 +337,7 @@ $fname  = 'cotizacion-' . ($quote->folio ?? $quote->id) . '.pdf';
     $errors = [];
 
     if (in_array('email', $request->channels, true)) {
-        $to = $request->input('email') ?: ($quote->client?->email ?? null);
+        $to = \App\Support\EmailList::parse($request->input('email') ?: ($quote->client?->email ?? ''));
         if (!$to) {
             $errors[] = 'Sin correo del cliente.';
         } else {

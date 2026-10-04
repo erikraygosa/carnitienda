@@ -880,7 +880,7 @@ class SaleController extends Controller implements HasMiddleware
             'channels'   => ['required','array','min:1'],
             'channels.*' => ['in:email,whatsapp'],
             'formato'    => ['nullable','in:carta,ticket'],
-            'email'      => ['nullable','email'],
+            'email'      => ['nullable',new \App\Rules\MultiEmail],
             'telefono'   => ['nullable','string'],
             'mensaje'    => ['nullable','string','max:500'],
         ]);
@@ -905,7 +905,7 @@ class SaleController extends Controller implements HasMiddleware
         $errors = [];
 
         if (in_array('email', $request->channels, true)) {
-            $to = $request->input('email') ?: ($sale->client->email ?? null);
+            $to = \App\Support\EmailList::parse($request->input('email') ?: ($sale->client->email ?? ''));
             if (!$to) {
                 $errors[] = 'Sin email de cliente.';
             } else {

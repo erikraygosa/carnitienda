@@ -103,7 +103,7 @@ class ArCobranzaController extends Controller implements HasMiddleware
 
         // Correo de destino sugerido: el del cliente cuando el reporte es de uno solo.
         $emailSugerido = $porCliente->count() === 1
-            ? (Client::find($porCliente->keys()->first())?->email ?? '')
+            ? (string) (Client::find($porCliente->keys()->first())?->email ?? '')
             : '';
 
         return view('admin.ar.cobranza-general', compact('porCliente', 'totales', 'clientes', 'emailSugerido'));
@@ -262,9 +262,9 @@ class ArCobranzaController extends Controller implements HasMiddleware
     public function enviarCorreo(Request $request)
     {
         $data = $request->validate([
-            'email'   => ['required', 'email', 'max:150'],
+            'email'   => ['required', 'string', 'max:500', new \App\Rules\MultiEmail],
             'mensaje' => ['nullable', 'string', 'max:500'],
-        ], ['email.required' => 'Escribe el correo de destino.', 'email.email' => 'El correo de destino no es válido.']);
+        ], ['email.required' => 'Escribe el correo de destino.', 'email.max' => 'Demasiados correos.']);
 
         if (in_array(config('mail.default'), ['log', 'array'], true)) {
             return response()->json(['ok' => false, 'message' => 'El envío de correo no está configurado. Actívalo en Superadmin → Configuración → Correo electrónico.'], 422);
@@ -292,7 +292,7 @@ class ArCobranzaController extends Controller implements HasMiddleware
         $fname = 'estado-de-cuenta-' . now()->format('Ymd') . '.pdf';
 
         try {
-            \Illuminate\Support\Facades\Mail::to($data['email'])->send(new \App\Mail\CobranzaMailable(
+            \Illuminate\Support\Facades\Mail::to(\App\Support\EmailList::parse($data['email']))->send(new \App\Mail\CobranzaMailable(
                 pdfRaw:   $pdf->output(),
                 pdfName:  $fname,
                 resumen:  $resumen,
@@ -305,6 +305,6 @@ class ArCobranzaController extends Controller implements HasMiddleware
             return response()->json(['ok' => false, 'message' => 'No se pudo enviar: ' . mb_substr($e->getMessage(), 0, 300)], 500);
         }
 
-        return response()->json(['ok' => true, 'message' => 'Estado de cuenta enviado a ' . $data['email'] . '.']);
+        return response()->json(['ok' => true, 'message' => 'Estado de cuenta enviado a ' . implode(', ', \App\Support\EmailList::parse($data['email'])) . '.']);
     }
 }

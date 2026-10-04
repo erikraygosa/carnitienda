@@ -41,7 +41,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Correo electrónico</label>
-                    <input type="email" name="email" value="{{ old('email', $clientEmail) }}"
+                    <input type="text" name="email" autocomplete="off" placeholder="correo1@dominio.com, correo2@dominio.com" value="{{ old('email', $clientEmail) }}"
                            class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                 </div>
                 <div>
