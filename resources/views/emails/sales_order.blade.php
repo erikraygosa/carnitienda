@@ -83,6 +83,21 @@
 @php
     $client = $order->client ?? null;
     $emp    = $empresa ?? null;
+
+    // Logo del sistema (o el de la empresa si tiene), incrustado como imagen
+    // adjunta (CID) para que Gmail/Outlook sí lo muestren (no soportan data: URIs).
+    $logoCid = null;
+    $rutasLogo = [];
+    if (!empty($emp?->logo_path)) {
+        $rutasLogo[] = storage_path('app/public/' . ltrim($emp->logo_path, '/'));
+    }
+    $rutasLogo[] = public_path(\App\Models\SystemSetting::get('app.logo_path', 'logo.jpg') ?: 'logo.jpg');
+    foreach ($rutasLogo as $r) {
+        if (is_file($r) && isset($message)) {
+            $logoCid = $message->embed($r);
+            break;
+        }
+    }
     $ef     = $emp?->fiscalData ?? null;
     $driver = $order->driver ?? null;
     $route  = $order->route ?? null;
@@ -100,7 +115,14 @@
     <div class="header">
         <table cellpadding="0" cellspacing="0">
             <tr>
-                <td>
+                @if($logoCid)
+                <td width="78" style="vertical-align:middle;padding-right:14px">
+                    <div style="background:#fff;border-radius:8px;padding:4px;width:64px;height:64px;text-align:center">
+                        <img src="{{ $logoCid }}" alt="{{ config('app.name') }}" width="56" height="56" style="display:block;margin:0 auto;border:0;width:56px;height:56px;object-fit:contain">
+                    </div>
+                </td>
+                @endif
+                <td style="vertical-align:middle">
                     <div class="header-logo">{{ $emp?->razon_social ?? config('app.name') }}</div>
                     @if($emp?->rfc)
                     <div style="font-size:10px;color:#aaa;margin-top:2px">RFC: {{ $emp->rfc }}</div>
