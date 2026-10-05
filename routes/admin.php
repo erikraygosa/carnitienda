@@ -278,6 +278,7 @@ Route::prefix('ar')->name('ar.')->group(function () {
     Route::get('/cobranza/excel',  [ArCobranzaController::class,'exportExcel'])->name('cobranza.excel');
     Route::get('/cobranza/pdf',    [ArCobranzaController::class,'exportPdf'])->name('cobranza.pdf');
     Route::post('/cobranza/enviar', [ArCobranzaController::class,'enviarCorreo'])->name('cobranza.enviar');
+    Route::post('/cobranza/preview', [ArCobranzaController::class,'previsualizarCorreo'])->name('cobranza.preview');
     Route::get('/cliente/{client}',[AccountsReceivableController::class,'show'])->name('show');
     Route::post('/cliente/{client}/cargo',[AccountsReceivableController::class,'charge'])->name('charge');
 

@@ -275,19 +275,7 @@ class ArCobranzaController extends Controller implements HasMiddleware
             return response()->json(['ok' => false, 'message' => 'No hay cuentas con estos filtros para enviar.'], 422);
         }
 
-        $hoy = today();
-        $resumen = $porCliente->map(function ($notas) use ($hoy) {
-            $saldo   = $notas->sum(fn($r) => $r->saldo_pendiente ?? $r->total);
-            $vencido = $notas->filter(fn($r) => ($r->saldo_pendiente ?? $r->total) > 0
-                    && \Carbon\Carbon::parse($r->fecha_vencimiento)->lt($hoy))
-                ->sum(fn($r) => $r->saldo_pendiente ?? $r->total);
-            return [
-                'cliente' => $notas->first()->client_nombre,
-                'notas'   => $notas->count(),
-                'saldo'   => (float) $saldo,
-                'vencido' => (float) $vencido,
-            ];
-        })->sortBy(fn($r) => mb_strtolower($r['cliente']))->values()->all();
+        $resumen = $this->resumenCorreo($porCliente);
 
         $fname = 'estado-de-cuenta-' . now()->format('Ymd') . '.pdf';
 
@@ -306,5 +294,59 @@ class ArCobranzaController extends Controller implements HasMiddleware
         }
 
         return response()->json(['ok' => true, 'message' => 'Estado de cuenta enviado a ' . implode(', ', \App\Support\EmailList::parse($data['email'])) . '.']);
+    }
+
+    private function resumenCorreo($porCliente): array
+    {
+        $hoy = today();
+        return $porCliente->map(function ($notas) use ($hoy) {
+            $saldo   = $notas->sum(fn($r) => $r->saldo_pendiente ?? $r->total);
+            $vencido = $notas->filter(fn($r) => ($r->saldo_pendiente ?? $r->total) > 0
+                    && \Carbon\Carbon::parse($r->fecha_vencimiento)->lt($hoy))
+                ->sum(fn($r) => $r->saldo_pendiente ?? $r->total);
+            return [
+                'cliente' => $notas->first()->client_nombre,
+                'notas'   => $notas->count(),
+                'saldo'   => (float) $saldo,
+                'vencido' => (float) $vencido,
+            ];
+        })->sortBy(fn($r) => mb_strtolower($r['cliente']))->values()->all();
+    }
+
+    /** Vista previa del correo tal como lo recibirá el destinatario (sin enviar nada). */
+    public function previsualizarCorreo(Request $request)
+    {
+        $data = $request->validate(['mensaje' => ['nullable', 'string', 'max:500']]);
+
+        [, $porCliente, $totales, $empresa, $filtros] = $this->buildPdf($request);
+        if ($porCliente->isEmpty()) {
+            return response()->json(['ok' => false, 'message' => 'No hay cuentas con estos filtros para enviar.'], 422);
+        }
+
+        $resumen = $this->resumenCorreo($porCliente);
+        $mailable = new \App\Mail\CobranzaMailable(
+            pdfRaw: '', pdfName: 'estado-de-cuenta-' . now()->format('Ymd') . '.pdf',
+            resumen: $resumen, totales: $totales, filtros: $filtros,
+            mensaje: $data['mensaje'] ?? '', empresa: $empresa,
+        );
+
+        // Sustituto de Symfony Message: el logo va como data URI solo en la vista previa.
+        $message = new class {
+            public function embed($file) {
+                return 'data:' . (mime_content_type($file) ?: 'image/png') . ';base64,' . base64_encode(file_get_contents($file));
+            }
+        };
+
+        $html = view('emails.cobranza', [
+            'resumen' => $resumen, 'totales' => $totales, 'filtros' => $filtros,
+            'mensaje' => $data['mensaje'] ?? '', 'empresa' => $empresa, 'message' => $message,
+        ])->render();
+
+        return response()->json([
+            'ok'      => true,
+            'asunto'  => $mailable->envelope()->subject,
+            'adjunto' => $mailable->pdfName,
+            'html'    => $html,
+        ]);
     }
 }

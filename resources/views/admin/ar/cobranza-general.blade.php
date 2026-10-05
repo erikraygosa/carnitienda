@@ -122,6 +122,30 @@
     const URL_ENVIAR = @json(route('admin.ar.cobranza.enviar') . '?' . http_build_query(request()->except('_token')));
     const EMAIL_SUGERIDO = @json($emailSugerido ?? '');
     const CSRF = @json(csrf_token());
+    const URL_PREVIEW = @json(route('admin.ar.cobranza.preview') . '?' . http_build_query(request()->except('_token')));
+    const URL_PDF = @json(route('admin.ar.cobranza.pdf') . '?' . http_build_query(request()->except('_token')));
+    const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+    async function cargarPreview(mensaje) {
+        const info = document.getElementById('sw-prev-info');
+        const frame = document.getElementById('sw-prev-frame');
+        if (!frame) return;
+        try {
+            const res = await fetch(URL_PREVIEW, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                body: JSON.stringify({ mensaje }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!document.getElementById('sw-prev-frame')) return;
+            if (res.ok && data.ok) {
+                info.innerHTML = `<b>Asunto:</b> ${esc(data.asunto)}<br><b>Adjunto:</b> ${esc(data.adjunto)} · <a href="${URL_PDF}" target="_blank" style="color:#4f46e5">Ver PDF</a>`;
+                frame.srcdoc = data.html;
+            } else {
+                info.textContent = data.message || 'No se pudo generar la vista previa.';
+            }
+        } catch (e) { if (info) info.textContent = 'No se pudo generar la vista previa.'; }
+    }
 
     btn.addEventListener('click', async function () {
         const { value: form } = await Swal.fire({
@@ -132,8 +156,21 @@
                     <input id="sw-email" type="text" class="swal2-input" style="margin:4px 0 12px;width:100%" placeholder="cobranza@correo.com, conta@correo.com" value="${EMAIL_SUGERIDO}">
                     <label style="font-size:12px;color:#6b7280">Mensaje (opcional)</label>
                     <textarea id="sw-msg" class="swal2-textarea" style="margin:4px 0 0;width:100%" rows="3" maxlength="500" placeholder="Adjunto tu estado de cuenta..."></textarea>
-                    <p style="font-size:11px;color:#9ca3af;margin-top:10px">Se envía el PDF con los filtros actuales.</p>
+                    <div style="margin-top:14px;border-top:1px solid #e5e7eb;padding-top:10px">
+                        <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px">Vista previa del correo</div>
+                        <div id="sw-prev-info" style="font-size:12px;color:#6b7280;margin-bottom:6px">Cargando…</div>
+                        <iframe id="sw-prev-frame" style="width:100%;height:340px;border:1px solid #e5e7eb;border-radius:6px;background:#f4f4f5"></iframe>
+                    </div>
                 </div>`,
+            width: 760,
+            didOpen: () => {
+                cargarPreview('');
+                let t;
+                document.getElementById('sw-msg').addEventListener('input', e => {
+                    clearTimeout(t);
+                    t = setTimeout(() => cargarPreview(e.target.value.trim()), 500);
+                });
+            },
             showCancelButton: true,
             confirmButtonText: 'Enviar',
             cancelButtonText: 'Cancelar',
