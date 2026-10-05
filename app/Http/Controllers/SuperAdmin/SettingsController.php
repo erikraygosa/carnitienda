@@ -55,7 +55,7 @@ class SettingsController extends Controller
             'facturacion_iva_pct_default'    => ['nullable', 'string', 'in:0,8,16'],
             'correo_from_name'           => ['nullable', 'string', 'max:100'],
             'correo_from_address'        => ['nullable', 'email', 'max:150'],
-            'correo_proveedor'           => ['nullable', 'in:gmail,outlook,personalizado'],
+            'correo_proveedor'           => ['nullable', 'in:gmail,outlook,hotmail,personalizado'],
             'correo_host'                => ['nullable', 'string', 'max:150'],
             'correo_port'                => ['nullable', 'integer', 'min:1', 'max:65535'],
             'correo_encryption'          => ['nullable', 'in:tls,ssl,none'],

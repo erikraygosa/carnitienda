@@ -19,7 +19,11 @@ class MailSettings
         ],
         'outlook' => [
             'label' => 'Outlook / Microsoft 365', 'host' => 'smtp.office365.com', 'port' => 587, 'encryption' => 'tls',
-            'ayuda' => 'En Microsoft 365 el administrador debe tener habilitado "SMTP autenticado" para el buzón; con verificación en 2 pasos usa una contraseña de aplicación. Para cuentas personales @outlook.com / @hotmail.com usa el host smtp-mail.outlook.com.',
+            'ayuda' => 'En Microsoft 365 el administrador debe tener habilitado "SMTP autenticado" para el buzón; con verificación en 2 pasos usa una contraseña de aplicación. Este proveedor es para cuentas de empresa (smtp.office365.com); para @hotmail.com / @outlook.com elige "Hotmail / Outlook.com".',
+        ],
+        'hotmail' => [
+            'label' => 'Hotmail / Outlook.com (cuenta personal)', 'host' => 'smtp-mail.outlook.com', 'port' => 587, 'encryption' => 'tls',
+            'ayuda' => 'Para correos @hotmail.com, @outlook.com o @live.com. Requiere verificación en 2 pasos y una contraseña de aplicación (account.microsoft.com/security). El remitente debe ser la misma cuenta. Si Microsoft responde "535 Authentication unsuccessful", esa cuenta no permite usuario y contraseña por SMTP: usa Gmail o un correo de empresa.',
         ],
         'personalizado' => [
             'label' => 'Correo propio (servidor SMTP)', 'host' => '', 'port' => 587, 'encryption' => 'tls',
