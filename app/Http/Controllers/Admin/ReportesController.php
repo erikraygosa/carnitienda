@@ -142,8 +142,10 @@ class ReportesController extends Controller implements HasMiddleware
                 'dispatches.ronda',
                 'drivers.nombre as chofer_nombre',
                 'dispatches.fecha',
-                'sales_orders.total',
-                'sales_orders.saldo_pendiente',
+                // Un pedido PROCESADO todavía no se surte/entrega: aún no existe
+                // la cuenta, así que su monto cuenta como $0 en liquidaciones.
+                DB::raw("CASE WHEN sales_orders.status = 'PROCESADO' THEN 0 ELSE sales_orders.total END as total"),
+                DB::raw("CASE WHEN sales_orders.status = 'PROCESADO' THEN 0 ELSE sales_orders.saldo_pendiente END as saldo_pendiente"),
                 'sales_orders.driver_settlement_status',
                 'sales_orders.status as order_status'
             )
@@ -702,7 +704,7 @@ class ReportesController extends Controller implements HasMiddleware
         $q = $this->buildLiquidacionesQuery($request);
 
         $total      = (clone $q)->count();
-        $totalMonto = (clone $q)->sum('sales_orders.total');
+        $totalMonto = (clone $q)->sum(DB::raw("CASE WHEN sales_orders.status = 'PROCESADO' THEN 0 ELSE sales_orders.total END"));
         $items      = $q->skip(($page - 1) * $perPage)->take($perPage)->get();
 
         $orderLabels  = $this->orderStatusLabels();
