@@ -819,6 +819,7 @@ class ReportesController extends Controller implements HasMiddleware
         $grouped   = $items->groupBy('ruta_nombre')
             ->sortBy(fn ($rows, $ruta) => mb_strtolower($ruta ?? ''), SORT_STRING | SORT_FLAG_CASE);
         $cxcPorRuta = $this->cxcAsignadas($request)->keyBy('ruta');
+        $grouped    = $this->conRutasSoloCxc($grouped, $cxcPorRuta);
 
         foreach ($grouped as $rutaNombre => $notas) {
             // Route header
@@ -991,6 +992,23 @@ class ReportesController extends Controller implements HasMiddleware
     }
 
     /**
+     * Agrega al agrupado de notas las rutas que solo tienen CxC asignadas
+     * (despacho sin pedidos, p. ej. cuando el pedido se pasó a CxC manual):
+     * antes esas rutas no salían en el Excel/PDF y se perdía la cuenta.
+     */
+    private function conRutasSoloCxc($grupos, $cxcPorRuta)
+    {
+        $existentes = $grupos->keys()->map(fn ($k) => $k === '' || $k === null ? 'Sin ruta' : $k)->all();
+        foreach ($cxcPorRuta->keys() as $ruta) {
+            if (! in_array($ruta, $existentes, true)) {
+                $grupos->put($ruta, collect());
+            }
+        }
+
+        return $grupos->sortBy(fn ($rows, $ruta) => mb_strtolower($ruta ?? ''), SORT_STRING | SORT_FLAG_CASE);
+    }
+
+    /**
      * Mismo contenido que el Excel (notas por ruta, CxC asignadas al chofer,
      * total general y pedidos pendientes), en PDF para imprimir.
      */
@@ -1007,6 +1025,7 @@ class ReportesController extends Controller implements HasMiddleware
         $grupos = $items->groupBy('ruta_nombre')
             ->sortBy(fn ($rows, $ruta) => mb_strtolower($ruta ?? ''), SORT_STRING | SORT_FLAG_CASE);
         $cxcPorRuta = $this->cxcAsignadas($request)->keyBy('ruta');
+        $grupos = $this->conRutasSoloCxc($grupos, $cxcPorRuta);
         $orderLabels = $this->orderStatusLabels();
 
         $totalGeneral = 0.0;

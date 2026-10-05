@@ -101,6 +101,7 @@ table.total-general td { background: #1e3a8a; color: #fff; font-weight: bold; fo
 
 @forelse($rutas as $r)
     <div class="ruta-titulo">{{ $r['nombre'] }}</div>
+    @if(count($r['filas']))
     <table class="datos">
         <thead>
             <tr>
@@ -125,6 +126,7 @@ table.total-general td { background: #1e3a8a; color: #fff; font-weight: bold; fo
             </tr>
         </tbody>
     </table>
+    @endif
 
     @if(count($r['cxc']))
     <div class="cxc-titulo">CxC asignadas al chofer — {{ $r['nombre'] }}</div>
