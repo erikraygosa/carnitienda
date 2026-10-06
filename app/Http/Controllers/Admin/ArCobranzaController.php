@@ -54,7 +54,10 @@ class ArCobranzaController extends Controller implements HasMiddleware
             ])
             ->join('clients', 'clients.id', '=', 'sales_orders.client_id')
             ->where('sales_orders.payment_method', 'CREDITO')
-            ->whereIn('sales_orders.status', ['ENTREGADO', 'DESPACHADO', 'PROCESADO'])
+            // La cuenta por cobrar nace cuando se ENTREGA el producto: un pedido
+            // Procesado, Despachado o En ruta todavía no tiene cuenta, así que
+            // no entra a Cobranza (antes se colaban y sumaban millones sin entregar).
+            ->where('sales_orders.status', 'ENTREGADO')
             ->when($soloConSaldo, fn($q) =>
                 $q->where(function ($q) {
                     $q->whereNull('sales_orders.saldo_pendiente')
