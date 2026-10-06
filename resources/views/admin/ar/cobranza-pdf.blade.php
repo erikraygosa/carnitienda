@@ -5,7 +5,7 @@
 <style>
 @page { margin: 14mm 12mm 16mm 12mm; }
 * { box-sizing: border-box; }
-body { margin: 0; padding: 0; font-family: Helvetica, Arial, sans-serif; font-size: 8.5px; color: #000; }
+body { margin: 0; padding: 0; font-family: Helvetica; font-size: 8.5px; color: #000; }
 
 /* ── Título ── */
 table.cabecera { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
