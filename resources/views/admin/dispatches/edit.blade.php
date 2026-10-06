@@ -779,7 +779,7 @@
                     'NO_COBRADO' => 'bg-red-100 text-red-700',
                     default      => 'bg-gray-100 text-gray-600',
                 };
-                $notasCliente = $assignment->orders()->get(['sales_orders.id','folio','total','saldo_pendiente']);
+                $notasCliente = $assignment->notasCombinadas();
                 $puedeAccion = in_array($assignment->status, ['PENDIENTE','PARCIAL']);
                 $saldoRestante = round((float)$assignment->saldo_asignado - (float)$assignment->monto_cobrado, 2);
             @endphp
@@ -857,8 +857,9 @@
                             @foreach($notasCliente as $nota)
                             @php $saldoN = ($nota->saldo_pendiente !== null && (float)$nota->saldo_pendiente > 0) ? (float)$nota->saldo_pendiente : (float)$nota->total; @endphp
                             <label class="flex items-center gap-3 px-3 py-1.5 cursor-pointer hover:bg-gray-50">
-                                <input type="checkbox" name="notas[]" value="{{ $nota->id }}" class="chk-nota-cxc">
+                                <input type="checkbox" name="{{ $nota->tipo === 'venta' ? 'ventas[]' : 'notas[]' }}" value="{{ $nota->id }}" class="chk-nota-cxc">
                                 <span class="font-mono text-xs text-indigo-600">{{ $nota->folio }}</span>
+                                @if($nota->tipo === 'venta')<span class="px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 text-[10px] font-medium">Nota de venta</span>@endif
                                 <span class="ml-auto text-sm font-mono font-semibold text-amber-700">${{ number_format($saldoN, 2) }}</span>
                             </label>
                             @endforeach
@@ -888,12 +889,12 @@
                                 @endphp
                                 <label class="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-200 hover:bg-indigo-50 cursor-pointer">
                                     <input type="checkbox"
-                                           name="order_ids[]"
+                                           name="{{ $nota->tipo === 'venta' ? 'venta_ids[]' : 'order_ids[]' }}"
                                            value="{{ $nota->id }}"
                                            data-saldo="{{ $saldoN }}"
                                            data-assignment="{{ $assignment->id }}"
                                            class="nota-chk rounded border-gray-300 text-indigo-600">
-                                    <span class="flex-1 text-sm font-mono text-gray-700">{{ $nota->folio }}</span>
+                                    <span class="flex-1 text-sm font-mono text-gray-700">{{ $nota->folio }}@if($nota->tipo === 'venta') <span class="ml-1 px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 text-[10px] font-medium">Nota de venta</span>@endif</span>
                                     <div class="text-right">
                                         @if($parcialN)
                                             <div class="text-xs text-gray-400 line-through">${{ number_format($nota->total, 2) }}</div>
@@ -1027,7 +1028,19 @@
                                         ->join('dispatch_ar_assignments', 'dispatch_ar_assignments.id', '=', 'dispatch_ar_assignment_orders.dispatch_ar_assignment_id')
                                         ->where('dispatch_ar_assignments.dispatch_id', $dispatch->id);
                                 })
-                                ->get(['id','folio','fecha','programado_para','total','saldo_pendiente']);
+                                ->get(['id','folio','fecha','programado_para','total','saldo_pendiente'])
+                                ->each(fn ($n) => $n->tipo = 'pedido');
+                            $notasDisp = $notasDisp->concat(
+                                \App\Models\Sale::cxcPendiente()->where('client_id', $cd->client_id)
+                                    ->whereNotIn('id', function ($sub) use ($dispatch) {
+                                        $sub->select('dispatch_ar_assignment_sales.sale_id')
+                                            ->from('dispatch_ar_assignment_sales')
+                                            ->join('dispatch_ar_assignments', 'dispatch_ar_assignments.id', '=', 'dispatch_ar_assignment_sales.dispatch_ar_assignment_id')
+                                            ->where('dispatch_ar_assignments.dispatch_id', $dispatch->id);
+                                    })
+                                    ->get(['id','folio','fecha','total','saldo_pendiente'])
+                                    ->each(fn ($n) => $n->tipo = 'venta')
+                            );
                         @endphp
                         <div class="border rounded-lg overflow-hidden cxc-disp-row" data-search="{{ strtolower($cd->nombre) }}" data-route="{{ $cd->shipping_route_id ?? '' }}">
                             <div class="flex items-center gap-3 px-4 py-2 bg-gray-50">
@@ -1052,10 +1065,11 @@
                             @endphp
                             <label class="flex items-center gap-3 px-6 py-1.5 bg-white border-t cxc-disp-nota-row cursor-pointer hover:bg-gray-50"
                                    data-folio="{{ strtolower($nota->folio) }}" data-fecha="{{ $fechaN->format('Y-m-d') }}">
-                                <input type="checkbox" name="notas_ar[]" value="{{ $nota->id }}"
+                                <input type="checkbox" name="{{ $nota->tipo === 'venta' ? 'ventas_ar[]' : 'notas_ar[]' }}" value="{{ $nota->id }}"
                                        data-client="{{ $cd->client_id }}"
                                        class="nota-ar-disp-check rounded border-gray-300">
                                 <span class="font-mono text-xs text-indigo-600">{{ $nota->folio }}</span>
+                                @if($nota->tipo === 'venta')<span class="px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 text-[10px] font-medium">Nota de venta</span>@endif
                                 <span class="text-xs text-gray-400">{{ $fechaN->format('d/m/Y') }}</span>
                                 <span class="ml-auto text-sm font-mono font-semibold text-amber-700">${{ number_format($saldoN, 2) }}</span>
                             </label>

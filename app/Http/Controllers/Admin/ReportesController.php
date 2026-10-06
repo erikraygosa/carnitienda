@@ -255,7 +255,7 @@ class ReportesController extends Controller implements HasMiddleware
             // TODAS las notas de crédito pendientes del cliente, mezclando
             // en el reporte notas de otras rutas o aún sin asignar.
             $notas = \App\Models\DispatchArAssignment::find($a->id)
-                ?->orders()->get(['sales_orders.folio', 'sales_orders.fecha', 'sales_orders.programado_para', 'sales_orders.entregado_at', 'sales_orders.total', 'sales_orders.saldo_pendiente'])
+                ?->notasCombinadas()
                 ?? collect();
 
             $saldoAsignado  = (float) $a->saldo_asignado;
@@ -280,7 +280,7 @@ class ReportesController extends Controller implements HasMiddleware
                 'notas'             => $notas->map(fn ($n) => [
                     'folio' => $n->folio,
                     // Fecha de entrega (cuando nació la cuenta), no la de captura.
-                    'fecha' => $n->fecha_cxc?->toDateString(),
+                    'fecha' => ($n->fecha_cxc ?? $n->fecha)?->toDateString(),
                     'monto' => ($n->saldo_pendiente !== null && (float) $n->saldo_pendiente > 0)
                         ? (float) $n->saldo_pendiente
                         : (float) $n->total,

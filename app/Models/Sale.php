@@ -199,4 +199,13 @@ class Sale extends Model
         if ($posRegisterId) $data['pos_register_id'] = $posRegisterId;
         $this->update($data);
     }
+
+    /** Notas de venta a crédito con saldo por cobrar (candidatas a cobranza en ruta). */
+    public function scopeCxcPendiente($q)
+    {
+        return $q->where('tipo_venta', 'CREDITO')
+            ->whereIn('status', ['ENTREGADO', 'COMPLETADA'])
+            ->whereNull('cobrado_at')
+            ->where(fn ($w) => $w->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0));
+    }
 }

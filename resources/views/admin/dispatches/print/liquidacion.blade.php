@@ -212,9 +212,7 @@
                     // aún quedan pendientes después del cierre — si el cobro
                     // fue total no debería quedar ninguna; si fue parcial, aquí
                     // se ve exactamente qué folio(s) siguen debiendo.
-                    $notasPendientesCliente = $a->orders()
-                        ->where(fn($q) => $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0))
-                        ->get(['sales_orders.id', 'folio', 'fecha', 'total', 'saldo_pendiente']);
+                    $notasPendientesCliente = $a->notasCombinadas(true);
                 @endphp
                 <tr class="{{ $a->status === 'COBRADO' ? 'highlight' : 'alert' }}">
                     <td>{{ $a->client?->nombre ?? '—' }}</td>

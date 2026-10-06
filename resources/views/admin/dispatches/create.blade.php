@@ -327,7 +327,14 @@
                                 ->where(function($q) {
                                     $q->whereNull('saldo_pendiente')->orWhere('saldo_pendiente', '>', 0);
                                 })
-                                ->get(['id','folio','fecha','programado_para','total','saldo_pendiente']);
+                                ->get(['id','folio','fecha','programado_para','total','saldo_pendiente'])
+                                ->each(fn ($n) => $n->tipo = 'pedido');
+                            // Notas de venta (mostrador) a crédito del mismo cliente.
+                            $notasPendientesCliente = $notasPendientesCliente->concat(
+                                \App\Models\Sale::cxcPendiente()->where('client_id', $cs->client_id)
+                                    ->get(['id','folio','fecha','total','saldo_pendiente'])
+                                    ->each(fn ($n) => $n->tipo = 'venta')
+                            );
                         @endphp
                         <div class="border rounded-lg overflow-hidden cxc-row" data-search="{{ strtolower($cs->nombre) }}" data-route="{{ $cs->shipping_route_id ?? '' }}">
                             {{-- Fila cliente: solo selecciona/deselecciona TODAS sus notas, no se manda al servidor --}}
@@ -376,14 +383,15 @@
                                        data-folio="{{ strtolower($nota->folio) }}"
                                        data-fecha="{{ $fechaN->format('Y-m-d') }}">
                                     <input type="checkbox"
-                                           name="notas_ar[]"
+                                           name="{{ $nota->tipo === 'venta' ? 'ventas_ar[]' : 'notas_ar[]' }}"
                                            value="{{ $nota->id }}"
                                            data-client="{{ $cs->client_id }}"
                                            data-saldo="{{ $saldoN }}"
                                            class="nota-ar-check rounded border-gray-300"
-                                           {{ in_array($nota->id, old('notas_ar', [])) ? 'checked' : '' }}>
+                                           {{ in_array($nota->id, old($nota->tipo === 'venta' ? 'ventas_ar' : 'notas_ar', [])) ? 'checked' : '' }}>
                                     <div class="flex-1">
                                         <span class="font-mono text-xs text-indigo-600">{{ $nota->folio }}</span>
+                                        @if($nota->tipo === 'venta')<span class="ml-1 px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 text-[10px] font-medium">Nota de venta</span>@endif
                                         <span class="text-xs text-gray-400 ml-2">{{ $fechaN->format('d/m/Y') }}</span>
                                     </div>
                                     <div class="text-right">

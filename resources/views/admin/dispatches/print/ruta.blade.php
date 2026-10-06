@@ -201,7 +201,7 @@
                     // despacho ($a->orders()), no todas las pendientes del
                     // cliente — si tiene otra nota asignada a otro despacho o
                     // aún sin asignar, no debe salir aquí mezclada.
-                    $notasCliente = $a->orders()->get(['sales_orders.id', 'folio', 'fecha', 'total', 'saldo_pendiente']);
+                    $notasCliente = $a->notasCombinadas();
                 @endphp
                 <tr>
                     <td>{{ $a->client?->nombre ?? '—' }}</td>
