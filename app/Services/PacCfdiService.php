@@ -94,19 +94,24 @@ class PacCfdiService
 
         // 4. Si fue exitoso, actualizar contadores y factura
         if ($result['ok'] ?? false) {
-            // "fecha" se queda como fecha de elaboración (la capturada); la del
-            // CFDI ya timbrado (atributo Fecha del XML) va en "fecha_timbrado".
+            // "fecha" se queda como fecha de elaboración/emisión (la capturada);
+            // "fecha_timbrado" es la de certificación del SAT (TimbreFiscalDigital).
             $fechaTimbrada = null;
             try {
-                if (! empty($result['xml_timbrado']) && ($x = @simplexml_load_string($result['xml_timbrado'])) && isset($x['Fecha'])) {
-                    $fechaTimbrada = \Carbon\Carbon::parse((string) $x['Fecha'], config('app.timezone'));
+                if (! empty($result['xml_timbrado']) && ($x = @simplexml_load_string($result['xml_timbrado']))) {
+                    foreach ($x->xpath('//*[local-name()="TimbreFiscalDigital"]') ?: [] as $tfd) {
+                        $fechaTimbrada = \Carbon\Carbon::parse((string) $tfd['FechaTimbrado'], config('app.timezone'));
+                    }
+                    if (! $fechaTimbrada && isset($x['Fecha'])) {
+                        $fechaTimbrada = \Carbon\Carbon::parse((string) $x['Fecha'], config('app.timezone'));
+                    }
                 }
             } catch (\Throwable $e) {
                 $fechaTimbrada = null;
             }
 
             $invoice->update([
-                'fecha_timbrado'          => $fechaTimbrada ?? $invoice->fecha,
+                'fecha_timbrado'          => $fechaTimbrada ?? now(),
                 'uuid'                    => $result['uuid'],
                 'factuapi_id'             => $result['factuapi_id'] ?? null,
                 'xml_timbrado'            => $result['xml_timbrado'],
