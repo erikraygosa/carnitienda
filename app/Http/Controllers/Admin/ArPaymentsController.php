@@ -420,7 +420,8 @@ class ArPaymentsController extends Controller implements HasMiddleware
 
         $query = SalesOrder::with(['client'])
             ->where('payment_method', 'CREDITO')
-            ->whereIn('status', ['ENTREGADO', 'EN_RUTA', 'DESPACHADO'])
+            // Solo entregados: la cuenta nace al entregar (en ruta/despachado aún no hay cuenta).
+            ->where('status', 'ENTREGADO')
             ->when($search, fn($q) =>
                 $q->where('folio', 'like', "%$search%")
                 ->orWhereHas('client', fn($c) => $c->where('nombre', 'like', "%$search%"))
