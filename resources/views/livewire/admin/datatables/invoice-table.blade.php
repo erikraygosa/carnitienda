@@ -67,7 +67,8 @@
                     {!! $th('folio','Folio') !!}
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                    {!! $th('fecha','Fecha') !!}
+                    {!! $th('fecha','Fecha elaboración') !!}
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timbrado</th>
                     {!! $th('estatus','Estatus') !!}
                     {!! $th('total','Total') !!}
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
@@ -100,6 +101,7 @@
                     </td>
                     <td class="px-4 py-3 text-gray-700">{{ $invoice->client?->nombre ?? '—' }}</td>
                     <td class="px-4 py-3 text-gray-600 text-xs">{{ optional($invoice->fecha)->format('d/m/Y') }}</td>
+                    <td class="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{{ optional($invoice->fecha_timbrado)->format('d/m/Y H:i') ?? '—' }}</td>
                     <td class="px-4 py-3">
                         <span class="px-2 py-1 text-xs rounded-full {{ $statusClasses[$invoice->estatus] ?? 'bg-gray-100 text-gray-600' }}">
                             {{ $invoice->estatus }}
@@ -114,7 +116,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="px-4 py-8 text-center text-gray-400">
+                    <td colspan="9" class="px-4 py-8 text-center text-gray-400">
                         No se encontraron facturas con estos filtros.
                     </td>
                 </tr>

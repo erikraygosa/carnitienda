@@ -16,13 +16,14 @@ class Invoice extends Model
         'receptor_rfc','receptor_razon_social','receptor_cp',
         'forma_pago','metodo_pago','uso_cfdi','condiciones_pago','cuenta',
         'moneda','subtotal','impuestos','total',
-        'uuid','factuapi_id','estatus','version_cfdi','xml_timbrado',
+        'uuid','factuapi_id','estatus','version_cfdi','xml_timbrado','fecha_timbrado',
         'sello_cfdi','sello_sat','numero_certificado_sat','rfc_provider_cert',
         'created_by','owner_id',
     ];
 
     protected $casts = [
         'fecha'     => 'datetime',
+        'fecha_timbrado' => 'datetime',
         'subtotal'  => 'decimal:2',
         'impuestos' => 'decimal:2',
         'total'     => 'decimal:2',
