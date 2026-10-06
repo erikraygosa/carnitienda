@@ -393,7 +393,6 @@ private function existenciasPorAlmacen(): array
         }
 
         $data = $request->validate([
-            'fecha'           => ['required','date'],
             'client_id'       => ['nullable','exists:clients,id'],
             'warehouse_id'    => ['required','exists:warehouses,id'],
             'price_list_id'   => ['nullable','exists:price_lists,id'],
@@ -456,7 +455,7 @@ private function existenciasPorAlmacen(): array
                 'warehouse_id'   => $data['warehouse_id'],
                 'price_list_id'  => $data['price_list_id'] ?? null,
                 'folio'          => 'TEMP-' . uniqid(),
-                'fecha'          => $data['fecha'],
+                'fecha'          => now(),
                 'programado_para'=> $data['programado_para'] ?? null,
 
                 'delivery_type'   => $data['delivery_type'],
@@ -493,7 +492,7 @@ private function existenciasPorAlmacen(): array
             // El folio usa la fecha de "Programado para" (el día que va a
             // salir), no la fecha de captura — así el folio mismo dice qué
             // día sale el pedido en vez del día en que se armó.
-            $fechaFolio = $data['programado_para'] ?? $data['fecha'];
+            $fechaFolio = $data['programado_para'] ?? now();
             $order->updateQuietly([
                 'folio' => 'SO-' . \Carbon\Carbon::parse($fechaFolio)->format('Ymd') . '-' . Str::padLeft((string) $order->id, 4, '0'),
             ]);
@@ -754,7 +753,6 @@ private function existenciasPorAlmacen(): array
         }
 
         $data = $request->validate([
-            'fecha'           => ['required','date'],
             'client_id'       => ['nullable','exists:clients,id'],
             'warehouse_id'    => ['required','exists:warehouses,id'],
             'price_list_id'   => ['nullable','exists:price_lists,id'],
@@ -885,7 +883,6 @@ private function existenciasPorAlmacen(): array
                 'client_id'       => $data['client_id'] ?? null,
                 'warehouse_id'    => $data['warehouse_id'],
                 'price_list_id'   => $data['price_list_id'] ?? null,
-                'fecha'           => $data['fecha'],
                 'programado_para' => $data['programado_para'] ?? null,
 
                 'delivery_type'    => $data['delivery_type'],

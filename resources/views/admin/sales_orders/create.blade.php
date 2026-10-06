@@ -111,13 +111,6 @@
                     <input type="hidden" name="price_list_id" id="price_list_id" value="">
                 </div>
 
-                {{-- Fecha --}}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Fecha <span class="text-red-500">*</span></label>
-                    <input type="datetime-local" name="fecha" value="{{ $valueFecha }}" required
-                           class="w-full rounded-md border-gray-300 shadow-sm text-sm">
-                </div>
-
                 {{-- Programado para --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Programado para</label>

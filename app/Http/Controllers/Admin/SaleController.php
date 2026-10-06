@@ -252,7 +252,6 @@ class SaleController extends Controller implements HasMiddleware
         $this->derivarTipoVenta($request);
 
         $data = $request->validate([
-            'fecha'             => ['required','date'],
             'cash_register_id'  => ['required','exists:cash_registers,id'],
             'warehouse_id'      => ['required','exists:warehouses,id'],
             'client_id'         => ['nullable','exists:clients,id'],
@@ -307,7 +306,7 @@ class SaleController extends Controller implements HasMiddleware
 
             $sale = Sale::create([
                 'folio'               => $folio,
-                'fecha'               => $data['fecha'],
+                'fecha'               => now(),
                 'cash_register_id'    => $cashRegister->id,
                 'warehouse_id'        => $data['warehouse_id'],
                 'client_id'           => $data['client_id'] ?? null,
@@ -461,7 +460,6 @@ class SaleController extends Controller implements HasMiddleware
         $this->derivarTipoVenta($request);
 
         $data = $request->validate([
-            'fecha'            => ['required','date'],
             'cash_register_id' => ['required','exists:cash_registers,id'],
             'warehouse_id'     => ['required','exists:warehouses,id'],
             'client_id'        => ['nullable','exists:clients,id'],
@@ -527,7 +525,6 @@ class SaleController extends Controller implements HasMiddleware
             }
 
             $sale->update([
-                'fecha'            => $data['fecha'],
                 'comentarios'      => $data['comentarios'] ?? null,
                 'cash_register_id' => $data['cash_register_id'],
                 'warehouse_id'     => $data['warehouse_id'],

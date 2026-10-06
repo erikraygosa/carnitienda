@@ -194,14 +194,6 @@
                            value="{{ old('price_list_id', $order->price_list_id) }}">
                 </div>
 
-                {{-- Fecha --}}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Fecha <span class="text-red-500">*</span></label>
-                    <input type="datetime-local" name="fecha" value="{{ $valueFecha }}" required
-                           class="w-full rounded-md border-gray-300 shadow-sm text-sm"
-                           {{ $isLocked ? 'readonly' : '' }}>
-                </div>
-
                 {{-- Programado para --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Programado para</label>
