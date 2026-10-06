@@ -363,6 +363,8 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         renderAllRows();
+        // Partidas capturadas solo con texto: vincular al producto del catálogo si coincide.
+        items.forEach(function (_, i) { vincularPorDescripcion(i); });
 
         if (PREFILL_CID) {
             applyClient(PREFILL_CID);
@@ -449,6 +451,33 @@
             items[i].iva_pct    = '';
         }
         updateRowFields(i); recalc(i);
+    }
+
+
+    // Si la partida se capturó escribiendo la descripción (sin elegir el producto
+    // del catálogo) y el texto coincide con el nombre de un producto — ej.
+    // "ESPALDILLA" o "ESPALDILLA (30 KG)" —, se vincula solo para traer su clave
+    // SAT, unidad e impuesto. Respeta lo que ya se capturó (descripción, cantidad, precio).
+    function vincularPorDescripcion(i) {
+        if (LOCKED_ITEMS) return;
+        var it = items[i];
+        if (!it || it.product_id) return;
+        var txt = String(it.descripcion || '').toUpperCase().replace(/\s*\([^)]*\)\s*$/, '').trim();
+        if (!txt) return;
+        var hit = Object.entries(PRODUCTS_MAP).find(function (e) { return String(e[1].nombre || '').toUpperCase().trim() === txt; });
+        if (!hit) return;
+        var id = hit[0], p = hit[1];
+        it.product_id      = id;
+        it.clave_prod_serv = p.clave_prod_serv || '01010101';
+        it.clave_unidad    = p.clave_unidad    || 'H87';
+        it.unidad          = p.unidad          || it.unidad || 'PZA';
+        if (p.configurado) { it.objeto_imp = p.objeto_imp; it.iva_pct = p.iva_pct; }
+        updateRowFields(i);
+        recalc(i);
+        if (typeof $ !== 'undefined') {
+            var $sel = $('#item-row-' + i).find('.sel-product');
+            if ($sel.length) $sel.val(id).trigger('change.select2');
+        }
     }
 
     function updateRowFields(i) {
@@ -613,7 +642,8 @@
                     <input class="w-full border rounded p-1 text-xs text-gray-600"
                            data-field="descripcion" name="items[${i}][descripcion]"
                            value="${escHtml(it.descripcion)}" placeholder="Descripción"
-                           oninput="items[${i}].descripcion = this.value" required>
+                           oninput="items[${i}].descripcion = this.value"
+                           onchange="vincularPorDescripcion(${i})" required>
                 </td>
                 <td class="p-2">
                     <input class="w-full border rounded p-1 text-sm" data-field="clave_prod_serv"
@@ -723,6 +753,7 @@
     }
 
     function submitForm() {
+        items.forEach(function (_, i) { vincularPorDescripcion(i); });
         for (var i = 0; i < items.length; i++) {
             if (itemImpuestoIncompleto(i)) {
                 refrescarAvisoImpuesto(i);

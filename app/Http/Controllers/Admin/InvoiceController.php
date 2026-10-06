@@ -814,13 +814,13 @@ public function pdfDownload(Invoice $invoice)
 
         foreach ($orders as $order) {
             foreach ($partidas($order) as $it) {
-                $p   = $it->product;
+                $p   = $it->product ?? $this->productoPorDescripcion($it->descripcion);
                 $sat = $p ? ($satMap[$p->id] ?? null) : null;
                 // Agrupa por producto si existe; si es una partida libre sin
                 // producto (descripción a mano), agrupa por esa descripción
                 // — dos partidas libres con el mismo texto sí se combinan,
                 // pero nunca se mezclan con las de un producto real.
-                $key = $it->product_id ? 'p:' . $it->product_id : 'd:' . mb_strtolower(trim($it->descripcion ?? ''));
+                $key = $p ? 'p:' . $p->id : 'd:' . mb_strtolower(trim($it->descripcion ?? ''));
 
                 $cantidad = (float) $it->cantidad;
                 $importe  = $cantidad * (float) $it->precio - (float) $it->descuento;
@@ -830,7 +830,7 @@ public function pdfDownload(Invoice $invoice)
                     // del catálogo, no la "descripción" (comentario interno
                     // de captura) — mismo criterio que en itemDesdeProducto().
                     $grupos[$key] = [
-                        'product_id'      => $it->product_id,
+                        'product_id'      => $it->product_id ?: $p?->id,
                         'descripcion'     => $p->nombre ?? ($it->descripcion ?: ''),
                         'clave_prod_serv' => $sat['clave_prod_serv'] ?? '01010101',
                         'clave_unidad'    => $sat['clave_unidad']    ?? 'H87',
@@ -894,13 +894,32 @@ public function pdfDownload(Invoice $invoice)
     // tenía algo configurado. Si el producto no tiene nada configurado, se
     // deja en blanco para que la vista obligue a elegirlo a mano (igual
     // que al capturar una factura directa — ver productsMapForInvoices()).
+
+    /**
+     * Partidas capturadas sin producto del catálogo (solo texto, ej.
+     * "ESPALDILLA (30 KG)"): se intenta vincular por nombre exacto — con o sin
+     * el paréntesis final — para traer clave SAT, unidad e impuesto.
+     */
+    private function productoPorDescripcion(?string $descripcion): ?Product
+    {
+        $txt = mb_strtoupper(trim(preg_replace('/\s*\([^)]*\)\s*$/', '', (string) $descripcion)));
+        if ($txt === '') {
+            return null;
+        }
+
+        static $porNombre = null;
+        $porNombre ??= Product::get()->keyBy(fn ($p) => mb_strtoupper(trim($p->nombre)));
+
+        return $porNombre->get($txt);
+    }
+
     private function itemDesdeProducto($it, float $cantidad, float $precio, float $descuento): array
     {
-        $p = $it->product;
+        $p = $it->product ?? $this->productoPorDescripcion($it->descripcion);
         $sat = $p ? ($this->productsMapForInvoices()[$p->id] ?? null) : null;
 
         return [
-            'product_id'      => $it->product_id,
+            'product_id'      => $it->product_id ?: $p?->id,
             'descripcion'     => $p->nombre ?? ($it->descripcion ?: ''),
             'clave_prod_serv' => $sat['clave_prod_serv'] ?? '01010101',
             'clave_unidad'    => $sat['clave_unidad']    ?? 'H87',
