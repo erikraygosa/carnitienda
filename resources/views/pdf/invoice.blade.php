@@ -3,6 +3,21 @@
     $fiscal  = $emisor?->fiscalData ?? null;
     $cliente = $invoice->client ?? null;
 
+    // Datos del CFDI ya timbrado, leídos del XML: la fecha que debe mostrarse es la
+    // de expedición del comprobante (atributo Fecha) y la de timbrado la del
+    // TimbreFiscalDigital — no la que se tecleó en el sistema antes de timbrar.
+    $xmlFecha = null; $tfdFecha = null; $xmlSello = '';
+    if (filled($invoice->xml_timbrado) && ($xmlObj = @simplexml_load_string($invoice->xml_timbrado))) {
+        try {
+            if (isset($xmlObj['Fecha'])) { $xmlFecha = \Carbon\Carbon::parse((string) $xmlObj['Fecha']); }
+            $xmlSello = (string) ($xmlObj['Sello'] ?? '');
+            foreach ($xmlObj->xpath('//*[local-name()="TimbreFiscalDigital"]') ?: [] as $tfdNode) {
+                $tfdFecha = \Carbon\Carbon::parse((string) $tfdNode['FechaTimbrado']);
+            }
+        } catch (\Throwable $e) {}
+    }
+    $fechaDoc = $xmlFecha ?? $invoice->fecha;
+
     // Logo
     $logoPath   = public_path('logo.jpg');
     $logoExists = file_exists($logoPath);
@@ -22,7 +37,8 @@
                . "&re={$rfcEmisor}"
                . "&rr={$rfcReceptor}"
                . "&tt={$total}"
-               . "&fe=" . substr($invoice->xml_timbrado ?? '', -8, 8);
+               // "fe" = últimos 8 caracteres del sello digital del emisor (CFDI)
+               . "&fe=" . substr($invoice->sello_cfdi ?: $xmlSello, -8);
     }
 
     // Dirección fiscal del emisor
@@ -219,7 +235,7 @@ body { font-size: 11px; color: #1a1a1a; background: #fff; padding: 28px 32px; }
         <td style="width:35%;vertical-align:top;text-align:right">
             <div class="doc-tipo">{{ $tipoLabel }}</div>
             <div class="doc-folio">{{ $invoice->serie }}{{ $invoice->folio }}</div>
-            <div class="doc-fecha">{{ optional($invoice->fecha)->format('d/m/Y H:i') }}</div>
+            <div class="doc-fecha">{{ optional($fechaDoc)->format('d/m/Y H:i') }}</div>
             <div><span class="status-badge">{{ $invoice->estatus }}</span></div>
         </td>
     </tr>
@@ -441,7 +457,7 @@ body { font-size: 11px; color: #1a1a1a; background: #fff; padding: 28px 32px; }
 {{-- ══════════════ SELLOS ══════════════ --}}
 @if($invoice->uuid)
     @php
-        $fechaTimbrado = optional($invoice->fecha)->format('Y-m-d\TH:i:s');
+        $fechaTimbrado = optional($tfdFecha ?? $fechaDoc)->format('Y-m-d\TH:i:s');
         // Cadena original del complemento de certificación digital del SAT.
         // Fórmula fija del Anexo 20 del SAT: ||1.1|UUID|FechaTimbrado|SelloCFDI|NoCertificadoSAT||
         $cadenaComplemento = ($invoice->sello_cfdi && $invoice->numero_certificado_sat)
