@@ -92,16 +92,6 @@ tr.total td.num { border-top: 1px solid #000; padding-top: 4px; }
         <td class="lbl" width="26%">Moneda: Pesos</td>
     </tr>
     <tr>
-        <td class="lbl">Vendedores:</td>
-        <td>Todos</td>
-        <td></td><td></td>
-        <td class="lbl">Tipo cambio: 1.000000</td>
-    </tr>
-    <tr>
-        <td class="lbl">Fecha de aplicación:</td>
-        <td colspan="4"></td>
-    </tr>
-    <tr>
         <td class="lbl">Fecha de vencimiento:</td>
         <td colspan="4">
             @if($fvd || $fvh)
