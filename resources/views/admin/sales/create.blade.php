@@ -122,7 +122,7 @@
                             class="w-full rounded-md border-gray-300 shadow-sm text-sm">
                         <option value="">-- seleccionar --</option>
                         @foreach($payTypes as $pt)
-                            <option value="{{ $pt->id }}" {{ (string) old('payment_type_id') === (string) $pt->id ? 'selected' : '' }}>
+                            <option value="{{ $pt->id }}" {{ (string) old('payment_type_id', $payTypes->firstWhere('clave', 'EFECTIVO')?->id) === (string) $pt->id ? 'selected' : '' }}>
                                 {{ $pt->label ?? $pt->descripcion ?? $pt->clave }} ({{ $pt->clave }})
                             </option>
                         @endforeach
@@ -540,21 +540,12 @@
                 state.clientId = clientId;
                 state.priceList = 'client';
 
-                // Con cliente seleccionado la venta va a Crédito; sin cliente
-                // (público general) vuelve a Contado.
-                if (clientId) {
-                    set('tipo_venta', 'CREDITO');
-                    SNF.onTipoVentaChange('CREDITO');
-                } else {
-                    set('tipo_venta', 'CONTADO');
-                    set('credit_days', 0);
-                    SNF.onTipoVentaChange('CONTADO');
-                }
-
                 const d = CLIENT_DEFAULTS[clientId];
                 if (d) {
                     if (d.credito_dias > 0) {
+                        set('tipo_venta', 'CREDITO');
                         set('credit_days', d.credito_dias);
+                        SNF.onTipoVentaChange('CREDITO');
                     }
                     if (d.credito_limite > 0) {
                         const info = $('credito-info');
@@ -592,6 +583,30 @@
                 });
             },
         };
+
+        // Cliente registrado + forma de pago Efectivo: pedir confirmación al guardar.
+        (function () {
+            const form = $('sale-form');
+            if (!form) return;
+            let confirmado = false;
+            form.addEventListener('submit', function (e) {
+                if (confirmado) return;
+                const cliente = form.querySelector('[name=client_id]').value;
+                const sel = form.querySelector('[name=payment_type_id]');
+                const texto = sel && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
+                if (cliente && /efectivo/i.test(texto)) {
+                    e.preventDefault();
+                    Swal.fire({
+                        title: 'Forma de pago: Efectivo',
+                        text: 'La forma de pago es Efectivo. ¿Desea continuar?',
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, continuar',
+                        cancelButtonText: 'Cambiar',
+                    }).then(r => { if (r.isConfirmed) { confirmado = true; form.requestSubmit ? form.requestSubmit() : form.submit(); } });
+                }
+            });
+        })();
 
         // Init
         state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
