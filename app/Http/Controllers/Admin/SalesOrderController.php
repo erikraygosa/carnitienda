@@ -836,8 +836,7 @@ private function existenciasPorAlmacen(): array
         $totalAntes     = (float) $sales_order->total;
         $yaEstabaEntregado = $sales_order->status === 'ENTREGADO';
 
-        // Para reubicar el pedido en el despacho correcto si cambian fecha
-        // programada, ruta o ronda (ver más abajo).
+        // Para detectar si cambia la fecha programada (ver más abajo).
         $logisticaAntes = [
             optional($sales_order->programado_para)->toDateString(),
             $sales_order->shipping_route_id,
@@ -921,19 +920,15 @@ private function existenciasPorAlmacen(): array
             ]);
         });
 
-        // Si ya estaba asignado a un despacho (modo rutas automáticas) y se
-        // cambió la fecha programada, la ruta o la ronda, hay que pasarlo al
-        // despacho que corresponde: antes se quedaba en el despacho del día
-        // anterior y no aparecía en Liquidaciones ni en las rutas de hoy
-        // (caso real: SO-20261004-2235).
+        // Si se cambió la fecha programada de un pedido que ya estaba en un
+        // despacho que todavía no sale, se saca de ese despacho y queda "sin
+        // despacho" para que lo agreguen a mano al de la nueva fecha. Antes se
+        // quedaba en el despacho de la fecha vieja y no aparecía en
+        // Liquidaciones ni en las rutas del día (caso real: SO-20261004-2235).
         $sales_order->refresh();
-        $logisticaDespues = [
-            optional($sales_order->programado_para)->toDateString(),
-            $sales_order->shipping_route_id,
-            (int) $sales_order->ronda,
-        ];
-        if ($logisticaAntes !== $logisticaDespues && in_array($sales_order->status, ['PROCESADO', 'DESPACHADO'], true)) {
-            $this->autoDespacho->asignarSiAplica($sales_order);
+        $fechaDespues = optional($sales_order->programado_para)->toDateString();
+        if ($logisticaAntes[0] !== $fechaDespues) {
+            $this->sacarDeDespachoPorCambioDeFecha($sales_order);
         }
 
         // Corrección de un pedido ya ENTREGADO (permiso de Gestión de notas):
@@ -1571,4 +1566,37 @@ public function pdfDownload(SalesOrder $order)
         'text'  => 'Se envió la remisión correctamente.',
     ]);
 }
+
+    /**
+     * Quita al pedido de su despacho PLANEADO (cambió la fecha programada).
+     * Mismo criterio que "quitar pedido": si ya tiene productos surtidos solo
+     * se desasigna (queda libre); si no, se borra la asignación. El despacho
+     * que quede vacío se elimina.
+     */
+    private function sacarDeDespachoPorCambioDeFecha(SalesOrder $order): void
+    {
+        $item = \App\Models\DispatchItem::with('dispatch')->where('sales_order_id', $order->id)->first();
+        if (! $item || ! $item->dispatch || $item->dispatch->status !== 'PLANEADO') {
+            return; // sin despacho, o ya salió a ruta: no se toca
+        }
+
+        $dispatch = $item->dispatch;
+        $item->load('lines');
+
+        if ($item->lines->whereNotNull('qty_despachada')->isNotEmpty()) {
+            $item->update(['dispatch_id' => null]);
+        } else {
+            $item->lines()->delete();
+            $item->delete();
+        }
+
+        app(\App\Services\DocumentLogService::class)->log(
+            $dispatch, 'PEDIDO_QUITADO', null, null, null,
+            "Pedido {$order->folio} quitado del despacho porque se cambió su fecha programada (queda sin despacho)."
+        );
+
+        if (! $dispatch->items()->exists() && ! $dispatch->arAssignments()->exists() && ! $dispatch->transferAssignments()->exists()) {
+            $dispatch->delete();
+        }
+    }
 }
