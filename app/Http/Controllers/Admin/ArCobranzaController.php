@@ -254,8 +254,10 @@ class ArCobranzaController extends Controller implements HasMiddleware
     public function exportPdf(Request $request)
     {
         [$pdf] = $this->buildPdf($request);
+        $nombre = 'cobranza-general-' . now()->format('Ymd') . '.pdf';
 
-        return $pdf->download('cobranza-general-' . now()->format('Ymd') . '.pdf');
+        // ?ver=1 → previsualizar en el navegador (para revisar o imprimir sin descargar).
+        return $request->boolean('ver') ? $pdf->stream($nombre) : $pdf->download($nombre);
     }
 
     /** Envía por correo el estado de cuenta (el mismo PDF de Cobranza General) con los filtros actuales. */

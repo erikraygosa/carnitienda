@@ -5,36 +5,36 @@
 <style>
 @page { margin: 14mm 12mm 16mm 12mm; }
 * { box-sizing: border-box; }
-body { margin: 0; padding: 0; font-family: Helvetica; font-size: 8.5px; color: #000; }
+body { margin: 0; padding: 0; font-family: Helvetica; font-size: 10.5px; color: #000; }
 
 /* ── Título ── */
 table.cabecera { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
 table.cabecera td { padding: 0; vertical-align: middle; }
-.logo { width: 52px; height: auto; }
-.empresa  { font-size: 15px; text-align: center; }
-.reporte  { font-size: 17px; font-weight: bold; text-align: center; margin: 12px 0 4px; }
+.logo { width: 58px; height: auto; }
+.empresa  { font-size: 18px; text-align: center; }
+.reporte  { font-size: 20px; font-weight: bold; text-align: center; margin: 12px 0 4px; }
 
 /* ── Filtros ── */
 table.filtros { width: 100%; border-collapse: collapse; border-top: 1px solid #000; border-bottom: 1px solid #000; margin-bottom: 4px; }
-table.filtros td { padding: 2px 4px; font-size: 9px; vertical-align: top; }
+table.filtros td { padding: 2px 4px; font-size: 10.5px; vertical-align: top; }
 table.filtros .lbl { font-weight: bold; white-space: nowrap; }
 
 /* ── Detalle ── */
 table.datos { width: 100%; border-collapse: collapse; table-layout: fixed; }
-table.datos thead th { font-size: 8px; font-weight: bold; padding: 3px 3px 2px; text-align: left; border-bottom: 1px solid #000; }
+table.datos thead th { font-size: 10px; font-weight: bold; padding: 3px 3px 2px; text-align: left; border-bottom: 1px solid #000; }
 table.datos th.r, table.datos td.r { text-align: right; }
 table.datos th.c, table.datos td.c { text-align: center; }
-table.datos td { padding: 1.5px 3px; font-size: 8.5px; vertical-align: top; }
-tr.cliente td { padding-top: 8px; padding-bottom: 4px; font-size: 9px; }
+table.datos td { padding: 2px 3px; font-size: 10.5px; vertical-align: top; }
+tr.cliente td { padding-top: 9px; padding-bottom: 4px; font-size: 11.5px; }
 tr.cliente .clave { padding-left: 14px; }
 tr.sub td { border-top: 1px solid #000; padding-top: 3px; font-weight: normal; }
 tr.sub td.vacio { border-top: 0; }
 tr.total td { padding-top: 10px; font-weight: bold; }
 tr.total td.num { border-top: 1px solid #000; padding-top: 4px; }
 
-.pie { position: fixed; bottom: -11mm; left: 0; right: 0; font-size: 8px; border-top: 1px solid #000; padding-top: 3px; }
+.pie { position: fixed; bottom: -11mm; left: 0; right: 0; font-size: 9.5px; border-top: 1px solid #000; padding-top: 3px; }
 .pie table { width: 100%; border-collapse: collapse; }
-.pie td { font-size: 8px; padding: 0; }
+.pie td { font-size: 9.5px; padding: 0; }
 .pagenum:before { content: counter(page); }
 </style>
 </head>
@@ -109,14 +109,14 @@ tr.total td.num { border-top: 1px solid #000; padding-top: 4px; }
 <table class="datos">
     <thead>
         <tr>
-            <th width="14%" style="padding-left:14px">Concepto</th>
-            <th width="14%">Documento</th>
-            <th width="6%" class="c">Núm.</th>
+            <th width="13%" style="padding-left:14px">Concepto</th>
+            <th width="19%">Documento</th>
+            <th width="5%" class="c">Núm.</th>
             <th width="13%" class="c">Fecha aplic.</th>
             <th width="13%" class="c">Fecha venc.</th>
-            <th width="14%" class="r">Cargos</th>
-            <th width="12%" class="r">Abonos</th>
-            <th width="14%" class="r">Saldos</th>
+            <th width="13%" class="r">Cargos</th>
+            <th width="11%" class="r">Abonos</th>
+            <th width="13%" class="r">Saldos</th>
         </tr>
     </thead>
     <tbody>
