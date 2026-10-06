@@ -34,7 +34,21 @@ return Application::configure(basePath: dirname(__DIR__))
         // 419 Page Expired (token CSRF vencido/no coincide): en vez de la
         // pantalla de error, regresamos al login (o a la página anterior)
         // con un aviso claro para que la persona vuelva a intentar.
-        $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, \Illuminate\Http\Request $request) {
+        // Ojo: Laravel convierte TokenMismatchException en HttpException(419)
+        // ANTES de llamar a estos callbacks, por eso se atrapa por código 419
+        // (con el tipo TokenMismatchException nunca se ejecutaba y se veía
+        // la pantalla "Página expirada").
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e, \Illuminate\Http\Request $request) {
+            // Peticiones AJAX/JSON conservan su 419 en JSON (el JS decide qué mostrar).
+            if ($e->getStatusCode() !== 419 || $request->expectsJson()) {
+                return null;
+            }
+
+            // Cerrar sesión con la página vencida: ya no hay nada que proteger.
+            if ($request->is('logout')) {
+                return redirect()->route('login');
+            }
+
             if ($request->is('login')) {
                 return redirect()->route('login')
                     ->with('status', 'Tu sesión expiró por inactividad. Intenta iniciar sesión de nuevo.');

@@ -19,6 +19,12 @@ class SecurityHeaders
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
         $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 
+        // Que el navegador no guarde (ni muestre desde caché al dar "atrás") el
+        // formulario de login: su token CSRF vencido causaba el 419 al reusarlo.
+        if ($request->isMethod('GET') && $request->is('login')) {
+            $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        }
+
         return $response;
     }
 }
