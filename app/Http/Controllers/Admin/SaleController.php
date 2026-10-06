@@ -249,12 +249,14 @@ class SaleController extends Controller implements HasMiddleware
             $request->merge(['price_list_id' => null]);
         }
 
+        $this->derivarTipoVenta($request);
+
         $data = $request->validate([
             'fecha'             => ['required','date'],
             'cash_register_id'  => ['required','exists:cash_registers,id'],
             'warehouse_id'      => ['required','exists:warehouses,id'],
             'client_id'         => ['nullable','exists:clients,id'],
-            'payment_type_id'   => ['nullable','exists:payment_types,id'],
+            'payment_type_id'   => ['required','exists:payment_types,id'],
             'price_list_id'     => ['nullable','exists:price_lists,id'],
             'moneda'            => ['required','string','max:10'],
             'tipo_venta'        => ['required','in:CONTADO,CREDITO'],
@@ -456,12 +458,14 @@ class SaleController extends Controller implements HasMiddleware
             $request->merge(['price_list_id' => null]);
         }
 
+        $this->derivarTipoVenta($request);
+
         $data = $request->validate([
             'fecha'            => ['required','date'],
             'cash_register_id' => ['required','exists:cash_registers,id'],
             'warehouse_id'     => ['required','exists:warehouses,id'],
             'client_id'        => ['nullable','exists:clients,id'],
-            'payment_type_id'  => ['nullable','exists:payment_types,id'],
+            'payment_type_id'  => ['required','exists:payment_types,id'],
             'price_list_id'    => ['nullable','exists:price_lists,id'],
             'moneda'           => ['required','string','max:10'],
             'tipo_venta'       => ['required','in:CONTADO,CREDITO'],
@@ -939,5 +943,19 @@ class SaleController extends Controller implements HasMiddleware
         }
 
         return back()->with('swal',['icon'=>'success','title'=>'Enviado','text'=>'Nota enviada correctamente.']);
+    }
+
+    /**
+     * El tipo de venta ya no lo elige el usuario: es CREDITO solo cuando la
+     * forma de pago es "Crédito" (días pactados); efectivo, tarjeta o
+     * transferencia se cobran al momento, así que son CONTADO.
+     */
+    private function derivarTipoVenta(Request $request): void
+    {
+        $clave = $request->filled('payment_type_id')
+            ? PaymentType::whereKey($request->input('payment_type_id'))->value('clave')
+            : null;
+
+        $request->merge(['tipo_venta' => $clave === 'CREDITO' ? 'CREDITO' : 'CONTADO']);
     }
 }

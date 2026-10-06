@@ -118,27 +118,20 @@
                 {{-- Forma de pago (efectivo, transferencia, etc.): se guarda en la nota y el edit la recupera --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Forma de pago</label>
-                    <select name="payment_type_id"
+                    <select name="payment_type_id" id="payment_type_id" required
+                            onchange="SNF.onPagoChange(this)"
                             class="w-full rounded-md border-gray-300 shadow-sm text-sm">
-                        <option value="">-- seleccionar --</option>
                         @foreach($payTypes as $pt)
-                            <option value="{{ $pt->id }}" {{ (string) old('payment_type_id', $payTypes->firstWhere('clave', 'EFECTIVO')?->id) === (string) $pt->id ? 'selected' : '' }}>
+                            <option value="{{ $pt->id }}" data-clave="{{ $pt->clave }}" {{ (string) old('payment_type_id', $payTypes->firstWhere('clave', 'EFECTIVO')?->id) === (string) $pt->id ? 'selected' : '' }}>
                                 {{ $pt->label ?? $pt->descripcion ?? $pt->clave }} ({{ $pt->clave }})
                             </option>
                         @endforeach
                     </select>
                 </div>
 
-                {{-- Tipo de venta (Contado / Crédito) — mismo nombre que en la edición --}}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de venta</label>
-                    <select name="tipo_venta" id="tipo_venta"
-                            class="w-full rounded-md border-gray-300 shadow-sm text-sm"
-                            onchange="SNF.onTipoVentaChange(this.value)">
-                        <option value="CONTADO">Contado</option>
-                        <option value="CREDITO">Crédito</option>
-                    </select>
-                </div>
+                {{-- El tipo de venta se deduce de la forma de pago: solo "Crédito" (días pactados)
+                     es a crédito; efectivo, tarjeta o transferencia se cobran al momento. --}}
+                <input type="hidden" name="tipo_venta" id="tipo_venta" value="CONTADO">
 
                 {{-- Días de crédito --}}
                 <div id="credito-wrap" style="display:none">
@@ -543,9 +536,7 @@
                 const d = CLIENT_DEFAULTS[clientId];
                 if (d) {
                     if (d.credito_dias > 0) {
-                        set('tipo_venta', 'CREDITO');
                         set('credit_days', d.credito_dias);
-                        SNF.onTipoVentaChange('CREDITO');
                     }
                     if (d.credito_limite > 0) {
                         const info = $('credito-info');
@@ -570,6 +561,19 @@
 
             onTipoVentaChange(val) {
                 $('credito-wrap').style.display = val === 'CREDITO' ? '' : 'none';
+            },
+
+            // Forma de pago "Crédito" = venta a crédito (días pactados); cualquier otra, de contado.
+            onPagoChange(sel) {
+                const esCredito = sel.selectedOptions[0]?.dataset.clave === 'CREDITO';
+                set('tipo_venta', esCredito ? 'CREDITO' : 'CONTADO');
+                SNF.onTipoVentaChange(esCredito ? 'CREDITO' : 'CONTADO');
+                if (esCredito) {
+                    const d = CLIENT_DEFAULTS[state.clientId];
+                    if (d && d.credito_dias > 0 && !Number($('credit_days').value)) set('credit_days', d.credito_dias);
+                } else {
+                    set('credit_days', 0);
+                }
             },
 
             repriceAll() {
@@ -609,6 +613,7 @@
         })();
 
         // Init
+        SNF.onPagoChange($('payment_type_id'));
         state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
         if (!state.items.length) {
             state.items = [{product_id:'',descripcion:'',cantidad:1,presentacion:"KILOS",precio:0,descuento:0,iva_pct:0,impuesto:0,total:0}];

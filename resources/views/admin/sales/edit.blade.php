@@ -187,29 +187,21 @@
                 {{-- Forma de pago --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Forma de pago</label>
-                    <select name="payment_type_id"
+                    <select name="payment_type_id" id="payment_type_id"
+                            onchange="SEF.onPagoChange(this)"
                             class="w-full rounded-md border-gray-300 shadow-sm text-sm"
                             {{ $isLocked ? 'disabled' : '' }}>
                         <option value="">-- seleccionar --</option>
                         @foreach($payTypes as $pt)
-                            <option value="{{ $pt->id }}" {{ $selPayType===(string)$pt->id ? 'selected' : '' }}>
+                            <option value="{{ $pt->id }}" data-clave="{{ $pt->clave }}" {{ $selPayType===(string)$pt->id ? 'selected' : '' }}>
                                 {{ $pt->label ?? $pt->descripcion ?? $pt->clave }} ({{ $pt->clave }})
                             </option>
                         @endforeach
                     </select>
                 </div>
 
-                {{-- Tipo de venta --}}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de venta</label>
-                    <select name="tipo_venta" id="tipo_venta"
-                            class="w-full rounded-md border-gray-300 shadow-sm text-sm"
-                            onchange="SEF.onTipoVentaChange(this.value)"
-                            {{ $isLocked ? 'disabled' : '' }}>
-                        <option value="CONTADO" {{ $tipoVenta==='CONTADO' ? 'selected' : '' }}>Contado</option>
-                        <option value="CREDITO" {{ $tipoVenta==='CREDITO' ? 'selected' : '' }}>Crédito</option>
-                    </select>
-                </div>
+                {{-- El tipo de venta se deduce de la forma de pago (solo "Crédito" es a crédito). --}}
+                <input type="hidden" name="tipo_venta" id="tipo_venta" value="{{ $tipoVenta }}" {{ $isLocked ? 'disabled' : '' }}>
 
                 {{-- Días de crédito --}}
                 <div id="credito-wrap" style="{{ $tipoVenta==='CREDITO' ? '' : 'display:none' }}">
@@ -677,6 +669,13 @@
             },
             onTipoVentaChange(val) {
                 $('credito-wrap').style.display = val === 'CREDITO' ? '' : 'none';
+            },
+            // Forma de pago "Crédito" = venta a crédito; cualquier otra, de contado.
+            onPagoChange(sel) {
+                const esCredito = sel.selectedOptions[0]?.dataset.clave === 'CREDITO';
+                $('tipo_venta').value = esCredito ? 'CREDITO' : 'CONTADO';
+                SEF.onTipoVentaChange($('tipo_venta').value);
+                if (!esCredito) $('credit_days').value = 0;
             },
             onPriceListChange(val) {
                 state.priceList = val;
