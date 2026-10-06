@@ -105,7 +105,7 @@
                             {{ $invoice->estatus }}
                         </span>
                     </td>
-                    <td class="px-4 py-3 font-mono text-gray-700">
+                    <td class="px-4 py-3 font-mono text-gray-700 whitespace-nowrap" style="white-space:nowrap">
                         {{ $invoice->moneda ?? 'MXN' }} {{ number_format((float) $invoice->total, 2) }}
                     </td>
                     <td class="px-4 py-3">

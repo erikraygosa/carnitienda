@@ -1,10 +1,10 @@
 @once
 <style>
-    .inv-acc { display:flex; flex-wrap:wrap; align-items:center; gap:6px; min-width:260px; }
+    .inv-acc { display:flex; flex-wrap:nowrap; align-items:center; gap:5px; }
     .inv-acc form { display:inline-flex; margin:0; }
     .inv-btn {
         display:inline-flex; align-items:center; justify-content:center; gap:4px;
-        height:28px; padding:0 10px; border-radius:6px; border:1px solid transparent;
+        height:28px; padding:0 9px; border-radius:6px; border:1px solid transparent;
         font-size:12px; font-weight:500; line-height:1; white-space:nowrap; cursor:pointer;
         text-decoration:none; transition:background-color .12s, border-color .12s;
     }
