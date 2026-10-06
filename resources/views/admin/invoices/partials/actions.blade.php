@@ -6,6 +6,11 @@
 
     <x-wire-button href="{{ route('admin.invoices.download', $invoice) }}" gray xs>Descargar PDF</x-wire-button>
 
+    @if(in_array($invoice->estatus, ['TIMBRADA','CANCELACION_PENDIENTE','CANCELADA']) && filled($invoice->xml_timbrado))
+        <x-wire-button href="{{ route('admin.invoices.xml', $invoice) }}" gray outline xs target="_blank">Ver XML</x-wire-button>
+        <x-wire-button href="{{ route('admin.invoices.xml.download', $invoice) }}" gray xs>Descargar XML</x-wire-button>
+    @endif
+
     @if($invoice->estatus === 'BORRADOR')
         <form action="{{ route('admin.invoices.stamp', $invoice) }}" method="POST" class="inline">
             @csrf

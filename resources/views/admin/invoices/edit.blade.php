@@ -385,6 +385,12 @@
     <x-wire-card class="mt-4">
         <div class="flex items-center flex-wrap gap-2">
 
+            {{-- XML timbrado (CFDI): ver y descargar — también en canceladas --}}
+            @if(in_array($invoice->estatus, ['TIMBRADA','CANCELACION_PENDIENTE','CANCELADA']) && filled($invoice->xml_timbrado))
+                <x-wire-button href="{{ route('admin.invoices.xml', $invoice) }}" gray outline xs target="_blank">Ver XML</x-wire-button>
+                <x-wire-button href="{{ route('admin.invoices.xml.download', $invoice) }}" gray xs>Descargar XML</x-wire-button>
+            @endif
+
             @if($invoice->estatus === 'BORRADOR')
                 <x-wire-button href="{{ route('admin.invoices.pdf', $invoice) }}"
                                gray outline xs target="_blank">

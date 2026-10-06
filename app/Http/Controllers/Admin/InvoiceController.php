@@ -74,7 +74,7 @@ class InvoiceController extends Controller implements HasMiddleware
             new Middleware('can:facturar varios pedidos', only: ['consolidadaIndex', 'consolidadaData', 'prepararConsolidada']),
             new Middleware('can:timbrar facturas', only: ['stamp']),
             new Middleware('can:cancelar facturas', only: ['cancel', 'refreshCancellation']),
-            new Middleware('can:ver facturas', only: ['download']),
+            new Middleware('can:ver facturas', only: ['download', 'xml', 'xmlDownload']),
         ];
     }
 
@@ -953,6 +953,44 @@ public function pdfDownload(Invoice $invoice)
         return $this->pdfDownload($invoice);
     }
 
+    /** Nombre del archivo XML: el UUID (lo que piden contabilidad y el SAT). */
+    private function xmlNombre(Invoice $invoice): string
+    {
+        return ($invoice->uuid ?: ('factura-' . ($invoice->serie ?? '') . ($invoice->folio ?? $invoice->id))) . '.xml';
+    }
+
+    /** XML timbrado, o aborta con un mensaje claro si la factura no lo tiene. */
+    private function xmlTimbrado(Invoice $invoice): string
+    {
+        $xml = trim((string) $invoice->xml_timbrado);
+
+        abort_if(
+            $xml === '' || ! in_array($invoice->estatus, ['TIMBRADA', 'CANCELACION_PENDIENTE', 'CANCELADA'], true),
+            404,
+            'Esta factura no tiene XML timbrado.'
+        );
+
+        return $xml;
+    }
+
+    // Ver el XML en el navegador (otra pestaña).
+    public function xml(Invoice $invoice)
+    {
+        return response($this->xmlTimbrado($invoice), 200, [
+            'Content-Type'        => 'application/xml; charset=UTF-8',
+            'Content-Disposition' => 'inline; filename="' . $this->xmlNombre($invoice) . '"',
+        ]);
+    }
+
+    // Descargar el XML.
+    public function xmlDownload(Invoice $invoice)
+    {
+        return response($this->xmlTimbrado($invoice), 200, [
+            'Content-Type'        => 'application/xml; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $this->xmlNombre($invoice) . '"',
+        ]);
+    }
+
     public function update(Request $request, Invoice $invoice)
     {
         if (!$invoice->isDraft()) {
@@ -1084,6 +1122,7 @@ public function pdfDownload(Invoice $invoice)
         'email'       => ['nullable', new \App\Rules\MultiEmail],
         'telefono'    => ['nullable', 'string'],
         'mensaje'     => ['nullable', 'string', 'max:500'],
+        'adjuntar_xml' => ['nullable', 'boolean'],
     ]);
 
     $empresa = app(\App\Services\CompanyService::class)->activa();
@@ -1095,6 +1134,13 @@ public function pdfDownload(Invoice $invoice)
     ]);
     $raw   = $pdf->output();
     $fname = 'factura-' . ($invoice->serie ?? '') . ($invoice->folio ?? $invoice->id) . '.pdf';
+
+    // XML timbrado (si la factura lo tiene y no se desmarcó la casilla).
+    $xmlRaw   = null;
+    $xmlNombre = $this->xmlNombre($invoice);
+    if ($request->boolean('adjuntar_xml') && trim((string) $invoice->xml_timbrado) !== '') {
+        $xmlRaw = trim((string) $invoice->xml_timbrado);
+    }
 
     $errors = [];
 
@@ -1110,6 +1156,8 @@ public function pdfDownload(Invoice $invoice)
                         pdfRaw:  $raw,
                         pdfName: $fname,
                         mensaje: $request->input('mensaje') ?? '',
+                        xmlRaw:  $xmlRaw,
+                        xmlName: $xmlNombre,
                     ));
             } catch (\Throwable $e) {
                 $errors[] = 'Error enviando email: ' . $e->getMessage();
@@ -1128,6 +1176,11 @@ public function pdfDownload(Invoice $invoice)
                 $resp = $whatsapp->sendPdf($phone, $msg, $fname, $raw);
                 if (!($resp['ok'] ?? false)) {
                     $errors[] = 'WhatsApp API respondió ' . ($resp['status'] ?? '500') . ': ' . json_encode($resp['body'] ?? []);
+                } elseif ($xmlRaw !== null) {
+                    $respXml = $whatsapp->sendFile($phone, 'XML de tu factura', $xmlNombre, $xmlRaw, 'application/xml');
+                    if (!($respXml['ok'] ?? false)) {
+                        $errors[] = 'El PDF se envió por WhatsApp, pero el XML no: ' . json_encode($respXml['body'] ?? []);
+                    }
                 }
             } catch (\Throwable $e) {
                 $errors[] = 'Error enviando WhatsApp: ' . $e->getMessage();

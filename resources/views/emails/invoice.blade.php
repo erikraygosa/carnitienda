@@ -299,7 +299,7 @@
         @endif
 
         <p style="font-size:11px;color:#6b7280;text-align:center;margin-top:20px">
-            El PDF de tu factura está adjunto a este correo.<br>
+            {{ !empty($conXml) ? 'El PDF y el XML de tu factura están adjuntos a este correo.' : 'El PDF de tu factura está adjunto a este correo.' }}<br>
             Si tienes alguna duda contáctanos.
         </p>
 

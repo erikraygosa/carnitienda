@@ -199,6 +199,8 @@ Route::post('invoices/{invoice}/cancel',  [InvoiceController::class, 'cancel'])-
 Route::post('invoices/{invoice}/refresh-cancellation', [InvoiceController::class, 'refreshCancellation'])->name('invoices.refresh-cancellation');
 Route::get ('invoices/{invoice}/pdf',     [InvoiceController::class, 'pdf'])->name('invoices.pdf');
 Route::get ('invoices/{invoice}/download',[InvoiceController::class, 'download'])->name('invoices.download');
+Route::get ('invoices/{invoice}/xml',     [InvoiceController::class, 'xml'])->name('invoices.xml');
+Route::get ('invoices/{invoice}/xml/download', [InvoiceController::class, 'xmlDownload'])->name('invoices.xml.download');
 
 // Envío
 Route::get ('invoices/{invoice}/send',    [InvoiceController::class, 'sendForm'])->name('invoices.send.form');

@@ -35,6 +35,12 @@ class WhatsappSender
 
     public function sendPdf(string $telefono, string $mensaje, string $filename, string $pdfRaw): array
     {
+        return $this->sendFile($telefono, $mensaje, $filename, $pdfRaw, 'application/pdf');
+    }
+
+    /** Envía cualquier archivo como documento (PDF, XML, etc.). */
+    public function sendFile(string $telefono, string $mensaje, string $filename, string $raw, string $mimetype): array
+    {
         if (!$this->isConfigured()) {
             return ['ok' => false, 'status' => 0, 'body' => 'WhatsApp no está configurado. Configúralo en Superadmin → Configuración → WhatsApp.'];
         }
@@ -47,9 +53,9 @@ class WhatsappSender
         $payload = [
             'number'    => $phone,
             'mediatype' => 'document',
-            'mimetype'  => 'application/pdf',
+            'mimetype'  => $mimetype,
             'caption'   => $mensaje,
-            'media'     => base64_encode($pdfRaw),
+            'media'     => base64_encode($raw),
             'fileName'  => $filename,
         ];
 

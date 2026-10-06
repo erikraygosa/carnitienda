@@ -19,6 +19,8 @@ class InvoiceMailable extends Mailable
         public string  $pdfRaw,
         public string  $pdfName,
         public string  $mensaje = '',
+        public ?string $xmlRaw = null,
+        public string  $xmlName = 'factura.xml',
     ) {}
 
     public function envelope(): Envelope
@@ -36,15 +38,23 @@ class InvoiceMailable extends Mailable
                 // Emisor: la empresa que emitió esta factura; si no, la activa.
                 'empresa' => $this->invoice->company
                     ?? app(\App\Services\CompanyService::class)->activa(),
+                'conXml'  => $this->xmlRaw !== null,
             ],
         );
     }
 
     public function attachments(): array
     {
-        return [
+        $adjuntos = [
             Attachment::fromData(fn () => $this->pdfRaw, $this->pdfName)
                 ->withMime('application/pdf'),
         ];
+
+        if ($this->xmlRaw !== null) {
+            $adjuntos[] = Attachment::fromData(fn () => $this->xmlRaw, $this->xmlName)
+                ->withMime('application/xml');
+        }
+
+        return $adjuntos;
     }
 }

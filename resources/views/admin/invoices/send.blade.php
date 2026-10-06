@@ -82,6 +82,16 @@
 
             </div>
 
+            @if(filled($invoice->xml_timbrado))
+            <label class="inline-flex items-center gap-2 cursor-pointer">
+                <input type="hidden" name="adjuntar_xml" value="0">
+                <input type="checkbox" name="adjuntar_xml" value="1"
+                       class="rounded border-gray-300 text-indigo-600"
+                       {{ old('adjuntar_xml', '1') ? 'checked' : '' }}>
+                <span class="text-sm text-gray-700">Adjuntar también el XML (CFDI timbrado)</span>
+            </label>
+            @endif
+
             <div class="flex justify-end pt-2">
                 <button type="submit"
                         class="inline-flex items-center gap-2 px-5 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">
