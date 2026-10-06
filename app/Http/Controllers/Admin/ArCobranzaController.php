@@ -246,7 +246,7 @@ class ArCobranzaController extends Controller implements HasMiddleware
         $html = view('admin.ar.cobranza-pdf', compact('porCliente', 'totales', 'empresa', 'filtros'))->render();
 
         $pdf = app('dompdf.wrapper');
-        $pdf->loadHTML($html)->setPaper('letter', 'landscape');
+        $pdf->loadHTML($html)->setPaper('letter', 'portrait');
 
         return [$pdf, $porCliente, $totales, $empresa, $filtros];
     }

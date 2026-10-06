@@ -3,79 +3,58 @@
 <head>
 <meta charset="UTF-8">
 <style>
-@page { margin: 16mm 14mm 18mm 14mm; }
+@page { margin: 14mm 12mm 16mm 12mm; }
 * { box-sizing: border-box; }
-body { margin: 0; padding: 0; font-family: DejaVu Sans, Arial, sans-serif; font-size: 9px; color: #1f2937; }
+body { margin: 0; padding: 0; font-family: Helvetica, Arial, sans-serif; font-size: 8.5px; color: #000; }
 
-/* ── Encabezado ── */
-table.encabezado { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-table.encabezado td { vertical-align: middle; padding: 0; }
-.logo { width: 62px; height: auto; }
-.emp-nombre { font-size: 16px; font-weight: bold; color: #111827; }
-.emp-rfc    { font-size: 9px; color: #6b7280; margin-top: 2px; }
-.titulo-box { text-align: right; }
-.titulo     { font-size: 15px; font-weight: bold; color: #1e3a8a; }
-.generado   { font-size: 8px; color: #6b7280; margin-top: 3px; }
-.banda { height: 3px; background: #1e3a8a; margin-bottom: 10px; }
+/* ── Título ── */
+table.cabecera { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+table.cabecera td { padding: 0; vertical-align: middle; }
+.logo { width: 52px; height: auto; }
+.empresa  { font-size: 15px; text-align: center; }
+.reporte  { font-size: 17px; font-weight: bold; text-align: center; margin: 12px 0 4px; }
 
 /* ── Filtros ── */
-table.filtros { width: 100%; border-collapse: collapse; background: #f3f4f6; border: 1px solid #e5e7eb; margin-bottom: 12px; }
-table.filtros td { padding: 3px 8px; font-size: 8.5px; }
-table.filtros .label { font-weight: bold; color: #374151; white-space: nowrap; }
+table.filtros { width: 100%; border-collapse: collapse; border-top: 1px solid #000; border-bottom: 1px solid #000; margin-bottom: 4px; }
+table.filtros td { padding: 2px 4px; font-size: 9px; vertical-align: top; }
+table.filtros .lbl { font-weight: bold; white-space: nowrap; }
 
-/* ── Tabla de datos ── */
-table.datos { width: 100%; border-collapse: collapse; }
-table.datos thead th {
-    background: #1f2937; color: #fff; font-size: 8px; text-transform: uppercase; letter-spacing: .3px;
-    padding: 6px 7px; text-align: left;
-}
-table.datos th.r { text-align: right; }
-table.datos th.c { text-align: center; }
-table.datos td   { padding: 4px 7px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; font-size: 9px; }
-table.datos td.r { text-align: right; }
-table.datos td.c { text-align: center; }
-tr.zebra td { background: #f9fafb; }
-td.saldo { font-weight: bold; }
+/* ── Detalle ── */
+table.datos { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.datos thead th { font-size: 8px; font-weight: bold; padding: 3px 3px 2px; text-align: left; border-bottom: 1px solid #000; }
+table.datos th.r, table.datos td.r { text-align: right; }
+table.datos th.c, table.datos td.c { text-align: center; }
+table.datos td { padding: 1.5px 3px; font-size: 8.5px; vertical-align: top; }
+tr.cliente td { padding-top: 8px; padding-bottom: 4px; font-size: 9px; }
+tr.cliente .clave { padding-left: 14px; }
+tr.sub td { border-top: 1px solid #000; padding-top: 3px; font-weight: normal; }
+tr.sub td.vacio { border-top: 0; }
+tr.total td { padding-top: 10px; font-weight: bold; }
+tr.total td.num { border-top: 1px solid #000; padding-top: 4px; }
 
-tr.cliente-header td {
-    background: #dbeafe; font-weight: bold; color: #1e3a8a;
-    padding: 6px 7px; border-top: 8px solid #fff; border-left: 4px solid #1e3a8a; font-size: 10px;
-}
-tr.subtotal td {
-    background: #eef2ff; font-weight: bold; color: #1e3a8a;
-    border-top: 1px solid #9ca3af; border-bottom: 2px solid #1e3a8a; font-size: 9px; padding: 5px 7px;
-}
-tr.total-general td {
-    background: #1e3a8a; color: #fff; font-weight: bold; font-size: 10.5px;
-    padding: 8px 7px; border: 0;
-}
-.vencida { color: #b91c1c; font-weight: bold; }
-.tag-venc { background: #fee2e2; color: #b91c1c; font-size: 6.5px; font-weight: bold; padding: 1px 3px; border-radius: 2px; margin-left: 3px; }
-tr.spacer td { height: 2px; border: 0; background: transparent; padding: 0; }
-
-.pie { position: fixed; bottom: -11mm; left: 0; right: 0; font-size: 7px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 3px; }
-.pie-izq { float: left; }
-.pie-der { float: right; }
+.pie { position: fixed; bottom: -11mm; left: 0; right: 0; font-size: 8px; border-top: 1px solid #000; padding-top: 3px; }
+.pie table { width: 100%; border-collapse: collapse; }
+.pie td { font-size: 8px; padding: 0; }
 .pagenum:before { content: counter(page); }
 </style>
 </head>
 <body>
 
 @php
-    $ef        = $empresa?->fiscalData ?? null;
-    $nombre    = $ef?->razon_social ?? $empresa?->nombre_comercial ?? config('app.name');
-    $rfc       = $ef?->rfc ?? '';
-    $moneda    = 'Pesos';
-    $tipoCambio = '1.000000';
+    $ef      = $empresa?->fiscalData ?? null;
+    $nombre  = mb_strtoupper($ef?->razon_social ?? $empresa?->nombre_comercial ?? config('app.name'));
 
     $desde  = trim($filtros['cliente_desde'] ?? '');
     $hasta  = trim($filtros['cliente_hasta'] ?? '');
     $fvd    = trim($filtros['fecha_venc_desde'] ?? '');
     $fvh    = trim($filtros['fecha_venc_hasta'] ?? '');
     $status = $filtros['status'] ?? 'todos';
+    $f      = fn ($d) => \Carbon\Carbon::parse($d)->locale('es')->format('d/m/Y');
+    $meses  = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    $mes    = function ($d) use ($meses) { $c = \Carbon\Carbon::parse($d); return $c->format('d') . '/' . $meses[$c->month - 1] . '/' . $c->format('Y'); };
+    $n2     = fn ($v) => number_format((float) $v, 2);
 
-    // Logo: el de la empresa activa si tiene; si no, el del sistema
-    // (Superadmin → Configuración). Se incrusta en base64 para dompdf.
+    // Logo: el de la empresa activa si tiene; si no, el del sistema.
     $logoSrc = null;
     $rutas = [];
     if (!empty($empresa?->logo_path)) {
@@ -90,61 +69,64 @@ tr.spacer td { height: 2px; border: 0; background: transparent; padding: 0; }
             break;
         }
     }
+
+    $usuario = auth()->user()?->name ?? 'SISTEMA';
 @endphp
 
-<table class="encabezado">
+<table class="cabecera">
     <tr>
-        @if($logoSrc)
-        <td width="74"><img class="logo" src="{{ $logoSrc }}" alt=""></td>
-        @endif
-        <td>
-            <div class="emp-nombre">{{ $nombre }}</div>
-            @if($rfc)<div class="emp-rfc">RFC: {{ $rfc }}</div>@endif
-        </td>
-        <td class="titulo-box" width="230">
-            <div class="titulo">Cobranza General</div>
-            <div class="generado">Generado: {{ now()->format('d/m/Y H:i') }}</div>
-        </td>
+        <td width="60">@if($logoSrc)<img class="logo" src="{{ $logoSrc }}" alt="">@endif</td>
+        <td class="empresa">{{ $nombre }}</td>
+        <td width="60"></td>
     </tr>
 </table>
-<div class="banda"></div>
+
+<div class="reporte">Cobranza general</div>
 
 <table class="filtros">
     <tr>
-        <td class="label">Desde cliente:</td>
-        <td>{{ $desde ?: 'Todos' }}</td>
-        <td class="label">Hasta cliente:</td>
-        <td>{{ $hasta ?: 'Todos' }}</td>
-        <td class="label">Moneda:</td>
-        <td>{{ $moneda }}</td>
-        <td class="label">Tipo cambio:</td>
-        <td>{{ $tipoCambio }}</td>
+        <td class="lbl" width="14%">Desde cliente:</td>
+        <td width="24%">{{ $desde ?: 'Todos' }}</td>
+        <td class="lbl" width="14%">Hasta cliente:</td>
+        <td width="22%">{{ $hasta ?: 'Todos' }}</td>
+        <td class="lbl" width="26%">Moneda: Pesos</td>
     </tr>
     <tr>
-        <td class="label">Fecha vencimiento:</td>
-        <td colspan="3">
+        <td class="lbl">Vendedores:</td>
+        <td>Todos</td>
+        <td></td><td></td>
+        <td class="lbl">Tipo cambio: 1.000000</td>
+    </tr>
+    <tr>
+        <td class="lbl">Fecha de aplicación:</td>
+        <td colspan="4"></td>
+    </tr>
+    <tr>
+        <td class="lbl">Fecha de vencimiento:</td>
+        <td colspan="4">
             @if($fvd || $fvh)
-                {{ $fvd ? 'desde '.\Carbon\Carbon::parse($fvd)->format('d/m/Y') : '' }} {{ $fvh ? 'hasta '.\Carbon\Carbon::parse($fvh)->format('d/m/Y') : '' }}
+                {{ $fvd ? 'desde ' . $f($fvd) : '' }} {{ $fvh ? 'hasta ' . $f($fvh) : '' }}
             @else
-                —
+                Todas
             @endif
         </td>
-        <td class="label">Estado:</td>
-        <td colspan="3">{{ ucfirst($status) }}</td>
+    </tr>
+    <tr>
+        <td class="lbl" colspan="5">{{ $status === 'todos' ? 'Todos los conceptos' : 'Estado: ' . ucfirst($status) }}</td>
     </tr>
 </table>
 
 <table class="datos">
     <thead>
         <tr>
-            <th>Concepto</th>
-            <th>Documento</th>
-            <th class="c">Núm.</th>
-            <th class="c">Fecha aplic.</th>
-            <th class="c">Fecha venc.</th>
-            <th class="r">Cargos</th>
-            <th class="r">Abonos</th>
-            <th class="r">Saldo</th>
+            <th width="14%" style="padding-left:14px">Concepto</th>
+            <th width="14%">Documento</th>
+            <th width="6%" class="c">Núm.</th>
+            <th width="13%" class="c">Fecha aplic.</th>
+            <th width="13%" class="c">Fecha venc.</th>
+            <th width="14%" class="r">Cargos</th>
+            <th width="12%" class="r">Abonos</th>
+            <th width="14%" class="r">Saldos</th>
         </tr>
     </thead>
     <tbody>
@@ -155,50 +137,51 @@ tr.spacer td { height: 2px; border: 0; background: transparent; padding: 0; }
                 $subtotalSaldo  = $notas->sum(fn($r) => $r->saldo_pendiente ?? $r->total);
                 $subtotalAbonos = $subtotalCargos - $subtotalSaldo;
             @endphp
-            <tr class="cliente-header">
-                <td colspan="8">{{ $primer->client_nombre }}</td>
+            <tr class="cliente">
+                <td colspan="8"><span class="clave">{{ $clientId }}</span> &nbsp; {{ mb_strtoupper($primer->client_nombre) }}</td>
             </tr>
-            @foreach($notas as $i => $nota)
+            @foreach($notas as $nota)
                 @php
                     $saldo  = $nota->saldo_pendiente ?? $nota->total;
                     $cargos = (float) $nota->total;
                     $abonos = $cargos - $saldo;
-                    $vencida = $saldo > 0 && \Carbon\Carbon::parse($nota->fecha_vencimiento)->lt(today());
                 @endphp
-                <tr class="fila {{ $i % 2 ? 'zebra' : '' }}">
-                    <td>Nota de venta</td>
+                <tr>
+                    <td style="padding-left:14px">Nota de venta</td>
                     <td>{{ $nota->folio }}</td>
-                    <td class="c">{{ $i + 1 }}</td>
-                    <td class="c">{{ \Carbon\Carbon::parse($nota->fecha_aplicacion)->format('d/m/Y') }}</td>
-                    <td class="c {{ $vencida ? 'vencida' : '' }}">
-                        {{ \Carbon\Carbon::parse($nota->fecha_vencimiento)->format('d/m/Y') }}@if($vencida) <span class="tag-venc">VENCIDA</span>@endif
-                    </td>
-                    <td class="r">{{ number_format($cargos, 2) }}</td>
-                    <td class="r">{{ number_format($abonos, 2) }}</td>
-                    <td class="r saldo">{{ number_format($saldo, 2) }}</td>
+                    <td class="c">1</td>
+                    <td class="c">{{ $mes($nota->fecha_aplicacion) }}</td>
+                    <td class="c">{{ $mes($nota->fecha_vencimiento) }}</td>
+                    <td class="r">{{ $n2($cargos) }}</td>
+                    <td class="r">{{ $n2($abonos) }}</td>
+                    <td class="r">{{ $n2($saldo) }}</td>
                 </tr>
             @endforeach
-            <tr class="subtotal">
-                <td colspan="5" class="r">Totales {{ $primer->client_nombre }}:</td>
-                <td class="r">{{ number_format($subtotalCargos, 2) }}</td>
-                <td class="r">{{ number_format($subtotalAbonos, 2) }}</td>
-                <td class="r">{{ number_format($subtotalSaldo, 2) }}</td>
+            <tr class="sub">
+                <td colspan="5" class="vacio"></td>
+                <td class="r">{{ $n2($subtotalCargos) }}</td>
+                <td class="r">{{ $n2($subtotalAbonos) }}</td>
+                <td class="r">{{ $n2($subtotalSaldo) }}</td>
             </tr>
-            <tr class="spacer"><td colspan="8"></td></tr>
         @endforeach
 
-        <tr class="total-general">
+        <tr class="total">
             <td colspan="5" class="r">Totales :</td>
-            <td class="r">{{ number_format($totales['cargos'], 2) }}</td>
-            <td class="r">{{ number_format($totales['abonos'], 2) }}</td>
-            <td class="r">{{ number_format($totales['saldo'], 2) }}</td>
+            <td class="r num">{{ $n2($totales['cargos']) }}</td>
+            <td class="r num">{{ $n2($totales['abonos']) }}</td>
+            <td class="r num">{{ $n2($totales['saldo']) }}</td>
         </tr>
     </tbody>
 </table>
 
 <div class="pie">
-    <span class="pie-izq">Cobranza General</span>
-    <span class="pie-der">Página <span class="pagenum"></span></span>
+    <table>
+        <tr>
+            <td width="40%"><b>Usuario:</b> {{ mb_strtoupper($usuario) }}</td>
+            <td width="40%"><b>Fecha y hora:</b> &nbsp; {{ now()->format('d/m/Y H:i') }}</td>
+            <td width="20%" style="text-align:right"><b>Pág.</b> &nbsp; <span class="pagenum"></span></td>
+        </tr>
+    </table>
 </div>
 </body>
 </html>
