@@ -61,12 +61,26 @@ class AutoDespachoService
                 return; // ya estaba en el despacho correcto
             }
 
+            // Si su despacho actual ya salió a ruta, no se reubica solo.
+            if ($itemExistente?->dispatch && $itemExistente->dispatch->status !== 'PLANEADO') {
+                return;
+            }
+
             DispatchItem::updateOrCreate(
                 ['sales_order_id' => $order->id],
                 ['dispatch_id' => $dispatch->id, 'referencia' => $order->folio, 'status' => 'ASIGNADO']
             );
 
             $this->log->log($dispatch, 'PEDIDOS_AGREGADOS', null, null, null, "Pedido {$order->folio} auto-asignado");
+
+            // El despacho de origen que se quedó vacío (sin pedidos, CxC ni traspasos) se borra.
+            if ($dispatchOrigenId) {
+                $origen = Dispatch::find($dispatchOrigenId);
+                if ($origen && $origen->status === 'PLANEADO' && ! $origen->items()->exists()
+                    && ! $origen->arAssignments()->exists() && ! $origen->transferAssignments()->exists()) {
+                    $origen->delete();
+                }
+            }
         });
     }
 

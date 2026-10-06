@@ -836,6 +836,14 @@ private function existenciasPorAlmacen(): array
         $totalAntes     = (float) $sales_order->total;
         $yaEstabaEntregado = $sales_order->status === 'ENTREGADO';
 
+        // Para reubicar el pedido en el despacho correcto si cambian fecha
+        // programada, ruta o ronda (ver más abajo).
+        $logisticaAntes = [
+            optional($sales_order->programado_para)->toDateString(),
+            $sales_order->shipping_route_id,
+            (int) $sales_order->ronda,
+        ];
+
         DB::transaction(function () use ($sales_order, $data, $itemsSurtidosIds) {
             $subtotal=0; $descuento=0; $impuestos=0; $total=0;
 
@@ -912,6 +920,21 @@ private function existenciasPorAlmacen(): array
                 'contraentrega_total' => $data['payment_method'] === 'CONTRAENTREGA' ? $total : 0,
             ]);
         });
+
+        // Si ya estaba asignado a un despacho (modo rutas automáticas) y se
+        // cambió la fecha programada, la ruta o la ronda, hay que pasarlo al
+        // despacho que corresponde: antes se quedaba en el despacho del día
+        // anterior y no aparecía en Liquidaciones ni en las rutas de hoy
+        // (caso real: SO-20261004-2235).
+        $sales_order->refresh();
+        $logisticaDespues = [
+            optional($sales_order->programado_para)->toDateString(),
+            $sales_order->shipping_route_id,
+            (int) $sales_order->ronda,
+        ];
+        if ($logisticaAntes !== $logisticaDespues && in_array($sales_order->status, ['PROCESADO', 'DESPACHADO'], true)) {
+            $this->autoDespacho->asignarSiAplica($sales_order);
+        }
 
         // Corrección de un pedido ya ENTREGADO (permiso de Gestión de notas):
         // el stock y (si aplica) la CxC ya se habían movido al entregarse.
