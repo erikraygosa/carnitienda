@@ -400,7 +400,7 @@ public function store(Request $request)
         'sale_ids.*'              => ['integer', 'exists:sales,id'],
         'serie'                   => ['nullable', 'string', 'max:10'],
         'folio'                   => ['nullable', 'string', 'max:20'],
-        'fecha'                   => ['required', 'date'],
+        'fecha'                   => ['required', 'date', $this->reglaFechaCfdi()],
         'tipo_comprobante'        => ['required', 'in:I,E,P,N'],
         'moneda'                  => ['required', 'string', 'max:5'],
         'uso_cfdi'                => ['required', 'string', 'max:5'],
@@ -628,6 +628,12 @@ public function store(Request $request)
 {
     if (! $invoice->isDraft()) {
         return back()->with('swal', ['icon'=>'error','title'=>'No permitido','text'=>'Solo BORRADOR se puede timbrar.']);
+    }
+
+    // Fecha del CFDI: no futura ni anterior a 72 horas (regla del SAT). Los
+    // complementos de pago toman la fecha del pago, no esta.
+    if ($invoice->tipo_comprobante !== 'P' && ($errorFecha = self::errorFechaCfdi($invoice->fecha))) {
+        return back()->with('swal', ['icon'=>'error','title'=>'Fecha no válida para timbrar','text'=>$errorFecha]);
     }
 
     $empresa = $invoice->company ?? $company->activa();
@@ -1022,7 +1028,7 @@ public function pdfDownload(Invoice $invoice)
             'sale_id'                 => ['nullable', 'exists:sales,id'],
             'serie'                   => ['nullable', 'string', 'max:10'],
             'folio'                   => ['nullable', 'string', 'max:20'],
-            'fecha'                   => ['required', 'date'],
+            'fecha'                   => ['required', 'date', $this->reglaFechaCfdi()],
             'tipo_comprobante'        => ['required', 'in:I,E,P,N'],
             'moneda'                  => ['required', 'string', 'max:5'],
             'uso_cfdi'                => ['required', 'string', 'max:5'],
@@ -1217,4 +1223,42 @@ public function pdfDownload(Invoice $invoice)
 
     return back()->with('swal', ['icon'=>'success','title'=>'Enviada','text'=>'Factura enviada correctamente.']);
 }
+
+    /** Horas hacia atrás que el SAT permite entre la fecha del CFDI y su timbrado. */
+    public const HORAS_MAX_RETROCESO = 72;
+
+    /**
+     * Mensaje de error si la fecha del CFDI no es válida para timbrar: no puede
+     * ser futura ni anterior a 72 horas (3 días) — regla del SAT. Null si es válida.
+     */
+    public static function errorFechaCfdi($fecha): ?string
+    {
+        try {
+            $f = \Carbon\Carbon::parse($fecha);
+        } catch (\Throwable $e) {
+            return 'La fecha de la factura no es válida.';
+        }
+
+        $ahora = now();
+        if ($f->gt($ahora->copy()->addMinutes(5))) {
+            return 'La fecha de la factura no puede ser futura.';
+        }
+
+        $limite = $ahora->copy()->subHours(self::HORAS_MAX_RETROCESO);
+        if ($f->lt($limite)) {
+            return 'La fecha de la factura (' . $f->format('d/m/Y H:i') . ') es anterior a 3 días. El SAT solo permite fechas desde '
+                . $limite->format('d/m/Y H:i') . '. Corrige la fecha en Editar factura; si es más antigua, no se puede facturar con esa fecha.';
+        }
+
+        return null;
+    }
+
+    private function reglaFechaCfdi(): \Closure
+    {
+        return function (string $attribute, $value, \Closure $fail) {
+            if ($msg = self::errorFechaCfdi($value)) {
+                $fail($msg);
+            }
+        };
+    }
 }

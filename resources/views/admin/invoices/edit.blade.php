@@ -188,7 +188,9 @@
                 </div>
 
                 {{-- Fecha --}}
-                <x-wire-input label="Fecha" name="fecha" type="datetime-local"
+                <x-wire-input label="Fecha (máx. 3 días atrás)" name="fecha" type="datetime-local"
+                              min="{{ now()->subHours(\App\Http\Controllers\Admin\InvoiceController::HORAS_MAX_RETROCESO)->format('Y-m-d\TH:i') }}"
+                              max="{{ now()->format('Y-m-d\TH:i') }}"
                               value="{{ $fechaVal }}" :disabled="$isLocked" required/>
 
                 {{-- Moneda --}}

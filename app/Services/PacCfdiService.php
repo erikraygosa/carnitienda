@@ -94,7 +94,19 @@ class PacCfdiService
 
         // 4. Si fue exitoso, actualizar contadores y factura
         if ($result['ok'] ?? false) {
+            // La fecha que queda en el sistema es la del CFDI ya timbrado
+            // (atributo Fecha del XML), para que PDF, pantalla y SAT coincidan.
+            $fechaTimbrada = null;
+            try {
+                if (! empty($result['xml_timbrado']) && ($x = @simplexml_load_string($result['xml_timbrado'])) && isset($x['Fecha'])) {
+                    $fechaTimbrada = \Carbon\Carbon::parse((string) $x['Fecha'], config('app.timezone'));
+                }
+            } catch (\Throwable $e) {
+                $fechaTimbrada = null;
+            }
+
             $invoice->update([
+                'fecha'                   => $fechaTimbrada ?? $invoice->fecha,
                 'uuid'                    => $result['uuid'],
                 'factuapi_id'             => $result['factuapi_id'] ?? null,
                 'xml_timbrado'            => $result['xml_timbrado'],

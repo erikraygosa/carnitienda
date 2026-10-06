@@ -422,6 +422,15 @@ $serie = $invoice->serie ?? 'A';
         'use'            => $invoice->uso_cfdi ?? 'G03',
     ];
 
+        // Fecha de expedición: si la factura quedó con fecha anterior a hace
+        // una hora se manda tal cual (el SAT permite hasta 72 horas atrás);
+        // antes NO se mandaba y el PAC timbraba siempre con la fecha de hoy
+        // aunque el sistema mostrara otra. Si es de hoy/ahora, se deja que el
+        // PAC use su reloj (evita fechas "futuras" por diferencia de segundos).
+        if ($invoice->fecha && $invoice->fecha->lt(now()->subHour())) {
+            $payload['date'] = $invoice->fecha->toIso8601String();
+        }
+
         if ($invoice->serie) {
     $payload['series'] = $invoice->serie;
 }

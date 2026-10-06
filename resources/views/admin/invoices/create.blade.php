@@ -202,8 +202,10 @@
 
                 {{-- Fecha --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Fecha <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Fecha <span class="text-red-500">*</span> <span class="text-xs text-gray-400 font-normal">(máx. 3 días atrás)</span></label>
                     <input type="datetime-local" name="fecha" value="{{ $valueFecha }}" required
+                           min="{{ now()->subHours(\App\Http\Controllers\Admin\InvoiceController::HORAS_MAX_RETROCESO)->format('Y-m-d\TH:i') }}"
+                           max="{{ now()->format('Y-m-d\TH:i') }}"
                            class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
                 </div>
 
