@@ -40,6 +40,13 @@
         display: flex; justify-content: space-between;
     }
     .detalle-item { page-break-inside: avoid; margin-bottom: 14px; }
+    .ruta-bloque { margin-bottom: 18px; }
+    .ruta-header {
+        background: #1e3a5f; color: #fff; padding: 6px 8px; font-weight: bold; font-size: 10.5pt;
+        display: flex; justify-content: space-between;
+    }
+    .ruta-bloque tr.pedido-fila td { border-top: 1px solid #9ca3af; }
+    .ruta-bloque td.folio { font-family: monospace; font-size: 8.5pt; white-space: nowrap; }
 
     table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
     thead tr { background: #e5e7eb; }
@@ -74,12 +81,19 @@
         }
     }
     $porProducto = $porProducto->sortKeys();
+
+    // Agrupar pedidos por ruta (y ronda) para la vista por ruta
+    $porRuta = $pedidos
+        ->groupBy(fn ($p) => ($p->route?->nombre ?? 'Sin ruta') . '|' . ((int) ($p->ronda ?? 1)))
+        ->sortKeys(SORT_NATURAL | SORT_FLAG_CASE);
 @endphp
 
 <div class="toolbar">
     <button class="btn-print" onclick="window.print()">Imprimir</button>
-    <button class="btn-toggle" id="btn-toggle" onclick="toggleVista()">Ver detallado por producto</button>
-    <span>{{ $pedidos->count() }} pedido(s) · {{ $porProducto->count() }} producto(s)</span>
+    <button class="btn-toggle active" data-vista="pedidos" onclick="cambiarVista('pedidos')">Por pedido</button>
+    <button class="btn-toggle" data-vista="detalle" onclick="cambiarVista('detalle')">Detallado por producto</button>
+    <button class="btn-toggle" data-vista="ruta" onclick="cambiarVista('ruta')">Por ruta</button>
+    <span>{{ $pedidos->count() }} pedido(s) · {{ $porProducto->count() }} producto(s) · {{ $porRuta->count() }} ruta(s)</span>
 </div>
 
 <h1>Pendientes de Salida</h1>
@@ -198,16 +212,71 @@
 @endforeach
 </div>
 
+{{-- ====== VISTA POR RUTA ====== --}}
+<div id="vista-ruta" style="display:none">
+<div class="sub" style="margin-bottom:10px">Agrupado por ruta y ronda — productos de cada pedido pendiente</div>
+
+@foreach($porRuta as $clave => $pedidosRuta)
+@php
+    [$nombreRuta, $rondaRuta] = explode('|', $clave);
+    $kgRuta    = $pedidosRuta->sum(fn ($p) => $p->items->sum('cantidad'));
+    $cajasRuta = $pedidosRuta->sum(fn ($p) => $p->items->sum('num_cajas'));
+@endphp
+<div class="ruta-bloque">
+    <div class="ruta-header">
+        <span>{{ $nombreRuta }} <span style="font-weight:normal;font-size:9pt">· {{ $rondaRuta == 2 ? '2da' : '1ra' }} ronda</span></span>
+        <span style="font-size:9pt;font-weight:normal">
+            {{ $pedidosRuta->count() }} pedido(s) · {{ number_format($kgRuta, 3) }} kg
+            @if($cajasRuta) · {{ $cajasRuta }} cajas @endif
+        </span>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Folio</th>
+                <th>Cliente</th>
+                <th>Producto</th>
+                <th class="c">Cajas</th>
+                <th class="r">Cantidad</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($pedidosRuta->sortBy(fn ($p) => mb_strtolower($p->client?->nombre ?? '')) as $pedido)
+                @foreach($pedido->items as $i => $item)
+                <tr class="{{ $i === 0 ? 'pedido-fila' : '' }}">
+                    <td class="folio">{{ $i === 0 ? $pedido->folio : '' }}</td>
+                    <td>{{ $i === 0 ? ($pedido->client?->nombre ?? '—') : '' }}</td>
+                    <td>{{ $item->product?->nombre ?? $item->descripcion ?? '—' }}</td>
+                    <td class="c">{{ $item->num_cajas ?? '—' }}</td>
+                    <td class="r">{{ number_format($item->cantidad, 3) }}</td>
+                </tr>
+                @endforeach
+            @endforeach
+            <tr class="total-row">
+                <td colspan="3" style="text-align:right">Total {{ $nombreRuta }}:</td>
+                <td class="c">{{ $cajasRuta ?: '—' }}</td>
+                <td class="r">{{ number_format($kgRuta, 3) }}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+@endforeach
+</div>
+
 <script>
-var vistaDetalle = false;
-function toggleVista() {
-    vistaDetalle = !vistaDetalle;
-    document.getElementById('vista-pedidos').style.display = vistaDetalle ? 'none' : '';
-    document.getElementById('vista-detalle').style.display = vistaDetalle ? '' : 'none';
-    var btn = document.getElementById('btn-toggle');
-    btn.textContent = vistaDetalle ? 'Ver por pedido' : 'Ver detallado por producto';
-    btn.classList.toggle('active', vistaDetalle);
+function cambiarVista(vista) {
+    ['pedidos', 'detalle', 'ruta'].forEach(function (v) {
+        document.getElementById('vista-' + v).style.display = (v === vista) ? '' : 'none';
+    });
+    document.querySelectorAll('.btn-toggle').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.vista === vista);
+    });
 }
+// ?vista=ruta|detalle abre directo en esa vista
+(function () {
+    var v = new URLSearchParams(location.search).get('vista');
+    if (v === 'ruta' || v === 'detalle') cambiarVista(v);
+})();
 window.addEventListener('load', function() { window.print(); });
 </script>
 </body>
