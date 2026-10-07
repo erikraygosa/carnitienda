@@ -214,7 +214,6 @@
 
 {{-- ====== VISTA POR RUTA ====== --}}
 <div id="vista-ruta" style="display:none">
-<div class="sub" style="margin-bottom:10px">Agrupado por ruta y ronda — productos de cada pedido pendiente</div>
 
 @foreach($porRuta as $clave => $pedidosRuta)
 @php
