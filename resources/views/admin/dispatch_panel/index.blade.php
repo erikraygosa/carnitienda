@@ -779,18 +779,12 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.ok) {
-                    // Abrir ticket en nueva pestaña automáticamente
-                    var ticketWin = window.open(TICKET_BASE_URL + '/' + currentOrderId + '/ticket', '_blank');
-
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Surtido completado',
-                        text: data.message,
-                        timer: 2000,
-                        showConfirmButton: false,
-                    }).then(function() {
+                    // Vista previa del ticket en la misma pantalla (sin abrir otra
+                    // ventana) con botón para imprimir; al cerrarla se limpia el panel.
+                    var orderIdSurtido = currentOrderId;
+                    mostrarVistaTicket(orderIdSurtido, data.message, function () {
                         // Quitar todas las filas del pedido despachado
-                        document.querySelectorAll('#pedidos-tbody tr[data-order-id="' + currentOrderId + '"]')
+                        document.querySelectorAll('#pedidos-tbody tr[data-order-id="' + orderIdSurtido + '"]')
                             .forEach(function(r) { r.remove(); });
                         cerrarPanel();
                         applyFilters();
@@ -803,6 +797,46 @@
                 Swal.fire('Error', 'No se pudo completar el surtido.', 'error');
             });
         };
+
+
+        // ── Vista previa del ticket (modal con iframe) ───────────────
+        function mostrarVistaTicket(orderId, mensaje, alCerrar) {
+            var overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(17,24,39,.6);display:flex;align-items:center;justify-content:center;padding:16px';
+            overlay.innerHTML =
+                '<div style="background:#fff;border-radius:12px;width:min(440px,100%);height:min(88vh,760px);display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.35);overflow:hidden">' +
+                    '<div style="padding:12px 16px;border-bottom:1px solid #e5e7eb">' +
+                        '<div style="font-weight:600;color:#047857;font-size:15px">✔ Surtido completado</div>' +
+                        '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + escHtml(mensaje || '') + '</div>' +
+                    '</div>' +
+                    '<iframe id="iframe-ticket-surtido" src="' + TICKET_BASE_URL + '/' + orderId + '/ticket?embed=1" style="flex:1;border:0;width:100%;background:#f3f4f6"></iframe>' +
+                    '<div style="padding:10px 16px;border-top:1px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end;background:#fafafa">' +
+                        '<button type="button" id="btn-cerrar-ticket" style="padding:8px 16px;border:1px solid #d1d5db;border-radius:6px;background:#fff;font-size:13px;cursor:pointer">Cerrar</button>' +
+                        '<button type="button" id="btn-imprimir-ticket" style="padding:8px 18px;border:0;border-radius:6px;background:#1d4ed8;color:#fff;font-size:13px;font-weight:500;cursor:pointer">🖨 Imprimir ticket</button>' +
+                    '</div>' +
+                '</div>';
+            document.body.appendChild(overlay);
+
+            var iframe = overlay.querySelector('#iframe-ticket-surtido');
+            function cerrar() {
+                document.removeEventListener('keydown', onKey);
+                overlay.remove();
+                if (typeof alCerrar === 'function') alCerrar();
+            }
+            function onKey(e) { if (e.key === 'Escape') cerrar(); }
+            document.addEventListener('keydown', onKey);
+
+            overlay.querySelector('#btn-cerrar-ticket').addEventListener('click', cerrar);
+            overlay.querySelector('#btn-imprimir-ticket').addEventListener('click', function () {
+                try {
+                    // Imprime solo el ticket (el contenido del iframe), sin salir de esta pantalla.
+                    iframe.contentWindow.imprimirTicket();
+                } catch (e) {
+                    iframe.contentWindow.focus();
+                    iframe.contentWindow.print();
+                }
+            });
+        }
 
         function escHtml(str) {
             return String(str ?? '')
