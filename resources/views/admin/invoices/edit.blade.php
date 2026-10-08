@@ -767,6 +767,7 @@
     // ─── Render ───────────────────────────────────────────────────────────────
     function renderAllRows() {
         var tbody = document.getElementById('items-body');
+        if (!tbody) return; // complementos de pago no tienen tabla de partidas
         if (typeof $ !== 'undefined') {
             tbody.querySelectorAll('.sel-product').forEach(function(sel) {
                 if ($(sel).data('select2')) $(sel).select2('destroy');
