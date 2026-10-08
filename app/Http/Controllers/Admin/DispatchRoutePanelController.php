@@ -38,7 +38,7 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('can:ver despachos', only: ['index', 'data', 'pollCount']),
-            new Middleware('can:editar despachos', only: ['mover', 'asegurarDespacho', 'moverCxc']),
+            new Middleware('can:editar despachos', only: ['mover', 'asegurarDespacho', 'moverCxc', 'pasarACobro']),
         ];
     }
 
@@ -185,6 +185,13 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
             'cliente'  => $it->salesOrder?->client?->nombre ?? '—',
             'total'    => (float) ($it->salesOrder?->total ?? 0),
             'status'   => $it->salesOrder?->status,
+            // Entregado a crédito y con saldo: se puede pasar a cobro en otro despacho
+            // aunque el despacho donde se entregó siga abierto.
+            'cobrable' => $it->salesOrder
+                && $it->salesOrder->status === 'ENTREGADO'
+                && $it->salesOrder->payment_method === 'CREDITO'
+                && ! $it->salesOrder->cobrado_at
+                && ($it->salesOrder->saldo_pendiente === null || (float) $it->salesOrder->saldo_pendiente > 0),
         ])->values();
 
         $traspasos = $dispatch->transferAssignments->map(fn ($a) => [
@@ -308,6 +315,72 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
                     $origen->delete();
                 }
             }
+
+            return response()->json(['ok' => true]);
+        });
+    }
+
+    /** Despacho de esa ruta+ronda+día donde aún se puede agregar (o uno nuevo). */
+    private function despachoDestino(int $routeId, int $ronda, string $fecha, string $nota): Dispatch
+    {
+        return Dispatch::where('shipping_route_id', $routeId)
+            ->where('ronda', $ronda)
+            ->whereDate('fecha', $fecha)
+            ->whereIn('status', ['PLANEADO', 'CARGADO', 'EN_RUTA'])
+            ->lockForUpdate()
+            ->first()
+            ?? $this->autoDespacho->encontrarOCrearDespacho($routeId, $ronda, $fecha, $nota);
+    }
+
+    /**
+     * Pasa a cobro un pedido ya ENTREGADO a crédito: crea/suma una CxC en el
+     * despacho elegido (día + ruta + ronda). El pedido se queda donde se
+     * entregó; si ya estaba en otra CxC pendiente, se saca de ahí para no
+     * cobrarlo dos veces.
+     */
+    public function pasarACobro(Request $request)
+    {
+        $data = $request->validate([
+            'order_id'          => ['required', 'integer', 'exists:sales_orders,id'],
+            'shipping_route_id' => ['required', 'integer', 'exists:shipping_routes,id'],
+            'ronda'             => ['required', 'integer', 'in:1,2'],
+            'fecha'             => ['required', 'date'],
+        ]);
+
+        $order = SalesOrder::findOrFail($data['order_id']);
+        $conSaldo = $order->saldo_pendiente === null || (float) $order->saldo_pendiente > 0;
+        if ($order->status !== 'ENTREGADO' || $order->payment_method !== 'CREDITO' || $order->cobrado_at || ! $conSaldo || ! $order->client_id) {
+            return response()->json(['ok' => false, 'message' => 'Solo se pasan a cobro pedidos entregados, a crédito y con saldo pendiente.'], 422);
+        }
+
+        return DB::transaction(function () use ($order, $data) {
+            $destino = $this->despachoDestino((int) $data['shipping_route_id'], (int) $data['ronda'], $data['fecha'],
+                "Creado desde el panel de rutas (cobro de {$order->folio})");
+
+            // Si ya está en otra CxC aún sin cobro, se saca de ahí.
+            $previas = DispatchArAssignment::whereHas('orders', fn ($q) => $q->where('sales_orders.id', $order->id))
+                ->where('status', 'PENDIENTE')->get();
+            foreach ($previas as $prev) {
+                if ($prev->dispatch_id === $destino->id) {
+                    return response()->json(['ok' => true]); // ya estaba en ese despacho
+                }
+                $prev->orders()->detach($order->id);
+                if ($prev->totalNotas() === 0) {
+                    $prev->delete();
+                } else {
+                    $prev->recalcularSaldo();
+                }
+            }
+
+            $asig = $destino->arAssignments()->where('client_id', $order->client_id)->first()
+                ?? DispatchArAssignment::create([
+                    'dispatch_id' => $destino->id, 'client_id' => $order->client_id,
+                    'saldo_asignado' => 0, 'monto_cobrado' => 0, 'status' => 'PENDIENTE',
+                ]);
+            $asig->orders()->syncWithoutDetaching([$order->id]);
+            $asig->recalcularSaldo();
+
+            $this->log->log($destino, 'CXC_AGREGADAS', null, null, null, "Pedido {$order->folio} pasado a cobro desde el panel de rutas");
 
             return response()->json(['ok' => true]);
         });

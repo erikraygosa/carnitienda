@@ -67,6 +67,7 @@
         const DATA_URL    = '{{ route('admin.dispatches.panel-rutas.data') }}';
         const MOVER_URL   = '{{ route('admin.dispatches.panel-rutas.mover') }}';
         const MOVER_CXC_URL = '{{ route('admin.dispatches.panel-rutas.mover-cxc') }}';
+        const PASAR_COBRO_URL = '{{ route('admin.dispatches.panel-rutas.pasar-cobro') }}';
         const ASEGURAR_URL= '{{ route('admin.dispatches.panel-rutas.asegurar') }}';
         const POLL_URL    = '{{ route('admin.dispatches.panel-rutas.poll-count') }}';
         const CSRF         = '{{ csrf_token() }}';
@@ -138,6 +139,11 @@
                         </div>
                     </div>
                     <div class="flex items-center justify-between gap-1"><span class="text-gray-500 truncate">${escHtml(p.cliente)}</span>${p.fecha_original ? `<span class="shrink-0 px-1 rounded bg-amber-100 text-amber-700 text-[10px] font-semibold" title="Pedido de un día anterior">${escHtml(p.fecha_original)}</span>` : ''}</div>
+                    ${!esTraspaso && p.cobrable ? `
+                        <button type="button" class="mt-1 w-full text-[11px] bg-violet-50 text-violet-700 rounded px-1 py-0.5 hover:bg-violet-100"
+                                onclick="prPasarACobro(${p.order_id}, '${escHtml(p.folio)}', '${escHtml(p.cliente).replace(/'/g, '&#39;')}')">
+                            <i class="fa-solid fa-hand-holding-dollar"></i> Pasar a cobro
+                        </button>` : ''}
                     ${!esTraspaso && p.status === 'EN_RUTA' ? `
                         <button type="button" class="mt-1 w-full text-[11px] bg-emerald-50 text-emerald-700 rounded px-1 py-0.5 hover:bg-emerald-100"
                                 onclick="prEntregarPedido(${p.dispatch_id}, ${p.item_id})">
@@ -436,8 +442,8 @@
             }
         };
 
-        // Reasignar una CxC: pide día y despacho (ruta + ronda) destino.
-        window.prReasignarCxc = async function (assignmentId, cliente) {
+        // Modal "día + despacho (ruta y ronda)" — lo usan Reasignar CxC y Pasar a cobro.
+        async function prPedirDestino(titulo, detalle, boton) {
             const opcionesDe = async (fecha) => {
                 let existentes = {};
                 try {
@@ -454,16 +460,16 @@
             };
 
             const res = await Swal.fire({
-                title: 'Reasignar CxC',
+                title: titulo,
                 html: `<div style="text-align:left;font-size:14px">
-                        <div style="margin-bottom:10px;color:#555">${cliente}</div>
+                        <div style="margin-bottom:10px;color:#555">${detalle}</div>
                         <label style="display:block;font-size:12px;color:#777">Día</label>
                         <input type="date" id="rx-fecha" value="${state.fecha}" class="swal2-input" style="margin:2px 0 10px;width:100%">
                         <label style="display:block;font-size:12px;color:#777">Despacho (ruta y ronda)</label>
                         <select id="rx-desp" class="swal2-select" style="margin:2px 0;width:100%"></select>
                        </div>`,
                 showCancelButton: true,
-                confirmButtonText: 'Reasignar',
+                confirmButtonText: boton,
                 cancelButtonText: 'Cancelar',
                 didOpen: async () => {
                     const sel = document.getElementById('rx-desp'), f = document.getElementById('rx-fecha');
@@ -476,21 +482,37 @@
                     return { fecha: f, desp: d };
                 },
             });
-            if (!res.isConfirmed) return;
-
+            if (!res.isConfirmed) return null;
             const [routeId, ronda] = res.value.desp.split(':');
+            return { fecha: res.value.fecha, shipping_route_id: routeId, ronda: ronda };
+        }
+
+        async function prPostDestino(url, extra, destino) {
             try {
-                const r = await fetch(MOVER_CXC_URL, {
+                const r = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
-                    body: JSON.stringify({ assignment_id: assignmentId, shipping_route_id: routeId, ronda: ronda, fecha: res.value.fecha }),
+                    body: JSON.stringify({ ...extra, ...destino }),
                 });
                 const d = await r.json();
-                if (!r.ok || !d.ok) Swal.fire('No se pudo reasignar', d.message || 'Intenta de nuevo.', 'error');
+                if (!r.ok || !d.ok) Swal.fire('No se pudo', d.message || 'Intenta de nuevo.', 'error');
             } catch (e) {
                 Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
             }
             load();
+        }
+
+        // Reasignar una CxC ya asignada a otro día/despacho.
+        window.prReasignarCxc = async function (assignmentId, cliente) {
+            const destino = await prPedirDestino('Reasignar CxC', cliente, 'Reasignar');
+            if (destino) prPostDestino(MOVER_CXC_URL, { assignment_id: assignmentId }, destino);
+        };
+
+        // Pedido ya entregado a crédito: se pasa a cobro en el despacho que se elija,
+        // sin tocar el despacho donde se entregó.
+        window.prPasarACobro = async function (orderId, folio, cliente) {
+            const destino = await prPedirDestino('Pasar a cobro', `${folio} · ${cliente}`, 'Pasar a cobro');
+            if (destino) prPostDestino(PASAR_COBRO_URL, { order_id: orderId }, destino);
         };
 
         window.prAgregarCxc = async function (routeId, ronda) {
