@@ -273,7 +273,7 @@
                         <th class="p-2 text-left">Destino</th>
                         <th class="p-2 text-right">Productos</th>
                         <th class="p-2 text-center">Estatus</th>
-                        @if($enRuta)<th class="p-2 text-center">Acción</th>@endif
+                        @if($mostrarAccionPedidos)<th class="p-2 text-center">Acción</th>@endif
                         @if($dispatch->status === 'PLANEADO')<th class="p-2 text-center">Quitar</th>@endif
                     </tr>
                 </thead>
@@ -444,7 +444,7 @@
                 </div>
             @endif
         </div>
-        @php $pedidosNumCols = 6 + ($enRuta ? 1 : 0) + ($dispatch->status === 'PLANEADO' ? 2 : 0); @endphp
+        @php $mostrarAccionPedidos = $dispatch->status !== 'PLANEADO'; $pedidosNumCols = 6 + ($mostrarAccionPedidos ? 1 : 0) + ($dispatch->status === 'PLANEADO' ? 2 : 0); @endphp
         <div class="overflow-auto border rounded">
             <table class="min-w-full text-sm">
                 <thead class="border-b bg-gray-50">
@@ -516,9 +516,20 @@
                             @endif
                         </td>
                         <td class="p-2 text-xs text-gray-400">{{ optional($o?->programado_para)->format('d/m/Y') ?? '—' }}</td>
-                        @if($enRuta)
+                        @if($mostrarAccionPedidos)
+                        @php
+                            $cobrable = $o && $oStatus === 'ENTREGADO' && $o->payment_method === 'CREDITO' && ! $o->cobrado_at
+                                && ($o->saldo_pendiente === null || (float) $o->saldo_pendiente > 0);
+                        @endphp
                         <td class="p-2 text-center">
-                            @if($oStatus === 'EN_RUTA')
+                            @if($cobrable)
+                                <button type="button"
+                                        onclick="pasarACobro({{ $o->id }}, @js($o->folio), @js($o->client?->nombre ?? ''))"
+                                        title="Pasar a cobro en otro día/despacho, sin esperar el cierre de este despacho"
+                                        class="px-2 py-1 text-xs rounded bg-violet-600 text-white hover:bg-violet-700 whitespace-nowrap">
+                                    Pasar a cobro
+                                </button>
+                            @elseif($oStatus === 'EN_RUTA')
                                 <div class="flex items-center justify-center gap-1">
                                     <form action="{{ route('admin.dispatches.pedido.entregar', [$dispatch, $item]) }}" method="POST">
                                         @csrf
@@ -1751,6 +1762,68 @@
             });
         });
     })();
+
+    // Pasar a cobro un pedido ya entregado a crédito: pide día + despacho (ruta y ronda).
+    const PASAR_COBRO_URL = @js(route('admin.dispatches.panel-rutas.pasar-cobro'));
+    const DATA_RUTAS_URL  = @js(route('admin.dispatches.panel-rutas.data'));
+    const RUTAS_COBRO     = @js($routes->map(fn($r) => ['id' => $r->id, 'nombre' => $r->nombre])->values());
+    const escH = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    async function pasarACobro(orderId, folio, cliente) {
+        const opciones = async (fecha) => {
+            let ex = {};
+            try {
+                const r = await fetch(`${DATA_RUTAS_URL}?${new URLSearchParams({ fecha, search: '', atrasados: 0 })}`, { headers: { 'Accept': 'application/json' } });
+                (await r.json()).rutas.forEach(ru => [1, 2].forEach(n => {
+                    const c = ru.rondas[n];
+                    if (c && c.dispatch_id) ex[`${ru.route_id}:${n}`] = c.status || 'PLANEADO';
+                }));
+            } catch (e) {}
+            return RUTAS_COBRO.flatMap(r => [1, 2].map(n => {
+                const st = ex[`${r.id}:${n}`];
+                return `<option value="${r.id}:${n}">${escH(r.nombre)} · ${n === 1 ? '1ra' : '2da'}${st ? ' (despacho ' + st + ')' : ' (nuevo)'}</option>`;
+            })).join('');
+        };
+        const manana = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+        const res = await Swal.fire({
+            title: 'Pasar a cobro',
+            html: `<div style="text-align:left;font-size:14px">
+                    <div style="margin-bottom:10px;color:#555">${escH(folio)} · ${escH(cliente)}</div>
+                    <label style="display:block;font-size:12px;color:#777">Día</label>
+                    <input type="date" id="pc-fecha" value="${manana}" class="swal2-input" style="margin:2px 0 10px;width:100%">
+                    <label style="display:block;font-size:12px;color:#777">Despacho (ruta y ronda)</label>
+                    <select id="pc-desp" class="swal2-select" style="margin:2px 0;width:100%"></select>
+                   </div>`,
+            showCancelButton: true, confirmButtonText: 'Pasar a cobro', cancelButtonText: 'Cancelar',
+            didOpen: async () => {
+                const sel = document.getElementById('pc-desp'), f = document.getElementById('pc-fecha');
+                sel.innerHTML = await opciones(f.value);
+                f.addEventListener('change', async () => { sel.innerHTML = await opciones(f.value); });
+            },
+            preConfirm: () => {
+                const f = document.getElementById('pc-fecha').value, d = document.getElementById('pc-desp').value;
+                if (!f || !d) { Swal.showValidationMessage('Elige día y despacho.'); return false; }
+                return { fecha: f, desp: d };
+            },
+        });
+        if (!res.isConfirmed) return;
+        const [routeId, ronda] = res.value.desp.split(':');
+        try {
+            const r = await fetch(PASAR_COBRO_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content || '{{ csrf_token() }}' },
+                body: JSON.stringify({ order_id: orderId, shipping_route_id: routeId, ronda: ronda, fecha: res.value.fecha }),
+            });
+            const d = await r.json();
+            if (r.ok && d.ok) {
+                Swal.fire({ icon: 'success', title: 'Listo', text: 'El pedido quedó en cobro en el despacho elegido.', timer: 1800, showConfirmButton: false });
+            } else {
+                Swal.fire('No se pudo', d.message || 'Intenta de nuevo.', 'error');
+            }
+        } catch (e) {
+            Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+        }
+    }
     </script>
 
 </x-admin-layout>
