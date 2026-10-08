@@ -159,7 +159,7 @@ public function data(Request $request)
 
    public function create(Request $request)
 {
-    $clients    = Client::orderBy('nombre')->get();
+    $clients    = Client::paraSeleccion([old('client_id')])->orderBy('nombre')->get();
     $priceLists = PriceList::orderBy('nombre')->get(['id','nombre']);
     $products   = Product::where('activo', 1)->orderBy('nombre')->get(['id','nombre','precio_base','sku','barcode','unidad']); // ← primero
     $productsJson = $products->map(fn($p) => [
@@ -663,7 +663,7 @@ private function existenciasPorAlmacen(): array
     {
         $order      = $sales_order->load('items.product','client','priceList','warehouse','driver','route');
 
-        $clients    = Client::orderBy('nombre')->get(['id','nombre']);
+        $clients    = Client::paraSeleccion([$sales_order->client_id, old('client_id')])->orderBy('nombre')->get(['id','nombre']);
         $priceLists = PriceList::orderBy('nombre')->get(['id','nombre']);
         $products   = Product::orderBy('nombre')->get(['id','nombre','precio_base']);
         $warehouses = Warehouse::orderBy('nombre')->get(['id','nombre']);

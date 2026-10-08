@@ -69,7 +69,7 @@ class DispatchPanelController extends Controller
         // mandar clientes/productos completos al navegador de quien no
         // tiene el permiso.
         $puedeAltaRapida = auth()->user()->can('crear pedidos desde surtido');
-        $clientesRapido  = $puedeAltaRapida ? \App\Models\Client::orderBy('nombre')->get(['id', 'nombre']) : collect();
+        $clientesRapido  = $puedeAltaRapida ? \App\Models\Client::paraSeleccion()->orderBy('nombre')->get(['id', 'nombre']) : collect();
         $productosRapido = $puedeAltaRapida ? \App\Models\Product::where('activo', 1)->orderBy('nombre')->get(['id', 'nombre']) : collect();
 
         return view('admin.dispatch_panel.index', compact(

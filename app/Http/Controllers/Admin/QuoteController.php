@@ -87,7 +87,7 @@ class QuoteController extends Controller implements HasMiddleware
 
     public function create(Request $request)
     {
-        $clients    = Client::orderBy('nombre')->get();
+        $clients    = Client::paraSeleccion([old('client_id')])->orderBy('nombre')->get();
         $priceLists = PriceList::orderBy('nombre')->get(['id', 'nombre']);
         $products   = Product::orderBy('nombre')->get(['id', 'nombre', 'precio_base']);
         $routes     = ShippingRoute::orderBy('nombre')->get(['id', 'nombre']);
@@ -186,7 +186,7 @@ class QuoteController extends Controller implements HasMiddleware
 
     public function edit(Quote $quote)
     {
-        $clients    = Client::orderBy('nombre')->get();
+        $clients    = Client::paraSeleccion([$quote->client_id, old('client_id')])->orderBy('nombre')->get();
         $priceLists = PriceList::orderBy('nombre')->get(['id', 'nombre']);
         $products   = Product::orderBy('nombre')->get(['id', 'nombre', 'precio_base']);
         $warehouses = Warehouse::orderBy('nombre')->get(['id', 'nombre']);

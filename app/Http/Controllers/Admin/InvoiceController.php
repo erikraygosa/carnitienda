@@ -98,7 +98,7 @@ class InvoiceController extends Controller implements HasMiddleware
      */
     public function consolidadaIndex()
     {
-        $clients = Client::orderBy('nombre')->get(['id', 'nombre']);
+        $clients = Client::paraSeleccion()->orderBy('nombre')->get(['id', 'nombre']);
         return view('admin.invoices.consolidada', compact('clients'));
     }
 
@@ -325,7 +325,15 @@ class InvoiceController extends Controller implements HasMiddleware
     $fromOrderId = $req->query('order_id');
     $fromSaleId  = $req->query('sale_id');
 
-    $clients = Client::orderBy('nombre')->get([
+    // Solo clientes activos, más el del documento de origen / el prefill (por si está desactivado).
+    $incluirClientes = [
+        session('consolidated_invoice_prefill.client_id'),
+        old('client_id'),
+        $fromOrderId ? SalesOrder::whereKey($fromOrderId)->value('client_id') : null,
+        $fromSaleId  ? Sale::whereKey($fromSaleId)->value('client_id') : null,
+    ];
+
+    $clients = Client::paraSeleccion($incluirClientes)->orderBy('nombre')->get([
         'id', 'nombre', 'rfc', 'razon_social',
         'cp', 'fiscal_cp', 'regimen_fiscal', 'uso_cfdi_default',
         'tipo_persona',
@@ -597,7 +605,7 @@ public function store(Request $request)
 {
     $invoice->load('client', 'items.product', 'salesOrder', 'sale', 'arPayment.paymentType', 'complementDocs.relatedInvoice');
 
-    $clients = Client::orderBy('nombre')->get([
+    $clients = Client::paraSeleccion([$invoice->client_id, old('client_id')])->orderBy('nombre')->get([
         'id', 'nombre', 'rfc', 'razon_social',
         'cp', 'fiscal_cp', 'regimen_fiscal', 'uso_cfdi_default',
         'tipo_persona',

@@ -52,7 +52,7 @@ class SaleController extends Controller implements HasMiddleware
 
     public function create(Request $request)
     {
-        $clients = Client::orderBy('nombre')->get([
+        $clients = Client::paraSeleccion([old('client_id')])->orderBy('nombre')->get([
             'id','nombre','email','telefono',
             'shipping_route_id','price_list_id',
             'credito_dias','credito_limite',
@@ -376,7 +376,7 @@ class SaleController extends Controller implements HasMiddleware
     {
         $sale->load('items.product','client','priceList','warehouse','cashRegister','paymentType');
 
-        $clients = Client::orderBy('nombre')->get([
+        $clients = Client::paraSeleccion([$sale->client_id, old('client_id')])->orderBy('nombre')->get([
             'id','nombre','email','telefono',
             'shipping_route_id','price_list_id',
             'credito_dias','credito_limite',

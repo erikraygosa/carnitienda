@@ -72,4 +72,21 @@ class Client extends Model
             'cp'      => $this->entrega_cp,
         ];
     }
+
+    /**
+     * Clientes para llenar selectores de documentos nuevos o editados: solo los
+     * activos, más los que ya usa el documento (aunque estén desactivados) para
+     * que su cliente no desaparezca al editarlo.
+     */
+    public function scopeParaSeleccion($q, array $incluirIds = [])
+    {
+        $incluirIds = array_values(array_filter($incluirIds));
+
+        return $q->where(function ($w) use ($incluirIds) {
+            $w->where('activo', 1);
+            if ($incluirIds) {
+                $w->orWhereIn('id', $incluirIds);
+            }
+        });
+    }
 }
