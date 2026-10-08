@@ -45,7 +45,11 @@ class PacCfdiService
         // 1. Verificar timbres disponibles
         $counter = StampCounter::activoParaEmpresa($company->id);
 
-        if ($counter && ! $counter->tieneTimbres()) {
+        // Con cobro por cortes (cortesía mensual + excedente) no se bloquea por saldo.
+        $cobroPorCortes = \App\Models\StampBillingConfig::where('company_id', $company->id)
+            ->where('activo', true)->exists();
+
+        if (! $cobroPorCortes && $counter && ! $counter->tieneTimbres()) {
             return [
                 'ok'    => false,
                 'error' => 'Sin timbres disponibles. Contacta al administrador del sistema.',

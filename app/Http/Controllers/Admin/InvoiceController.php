@@ -55,6 +55,11 @@ class InvoiceController extends Controller implements HasMiddleware
         $empresa = app(CompanyService::class)->activa();
         if (! $empresa) return null;
 
+        // Con cobro por cortes el consumo y la cortesía son solo del super admin.
+        if (\App\Models\StampBillingConfig::where('company_id', $empresa->id)->where('activo', true)->exists()) {
+            return null;
+        }
+
         $counter = StampCounter::activoParaEmpresa($empresa->id);
         if (! $counter) return null;
 

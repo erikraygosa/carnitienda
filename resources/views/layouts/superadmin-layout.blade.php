@@ -34,6 +34,7 @@
                     ['route' => 'superadmin.dashboard',       'icon' => 'fa-solid fa-gauge',    'label' => 'Dashboard'],
                     ['route' => 'superadmin.pac.index',       'icon' => 'fa-solid fa-plug',     'label' => 'PAC / Timbrado'],
                     ['route' => 'superadmin.companies.index', 'icon' => 'fa-solid fa-building', 'label' => 'Empresas'],
+                    ['route' => 'superadmin.stamps.index',    'icon' => 'fa-solid fa-receipt',  'label' => 'Cortes de timbres'],
                     ['route' => 'superadmin.products.index',  'icon' => 'fa-solid fa-box-open', 'label' => 'Catálogo productos'],
                     ['route' => 'superadmin.ar-migration.index', 'icon' => 'fa-solid fa-file-invoice-dollar', 'label' => 'CxC migradas'],
                     ['route' => 'superadmin.series.index',    'icon' => 'fa-solid fa-list-ol',  'label' => 'Series y folios'],

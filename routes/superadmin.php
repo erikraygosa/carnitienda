@@ -11,6 +11,7 @@
     use App\Http\Controllers\SuperAdmin\ResetController as SuperReset;
     use App\Http\Controllers\SuperAdmin\ProductCatalogController as SuperProducts;
     use App\Http\Controllers\SuperAdmin\ArMigrationController as SuperArMigration;
+    use App\Http\Controllers\SuperAdmin\StampBillingController as SuperStamps;
 
     Route::get('/', [SuperDashboard::class, 'index'])->name('dashboard');
 
@@ -31,6 +32,16 @@
         Route::post('/{company}/toggle',      [SuperCompany::class, 'toggle'])->name('toggle');
         Route::post('/{company}/timbres',     [SuperCompany::class, 'addTimbres'])->name('timbres');
         Route::get('/{company}/consumo',      [SuperCompany::class, 'consumo'])->name('consumo');
+    });
+
+    Route::prefix('timbres')->name('stamps.')->group(function () {
+        Route::get('/',                          [SuperStamps::class, 'index'])->name('index');
+        Route::get('/cortes/{cut}/ticket',       [SuperStamps::class, 'ticket'])->name('ticket');
+        Route::post('/cortes/{cut}/pagar',       [SuperStamps::class, 'pay'])->name('pay');
+        Route::get('/{company}',                 [SuperStamps::class, 'company'])->name('company');
+        Route::put('/{company}/config',          [SuperStamps::class, 'saveConfig'])->name('config');
+        Route::post('/{company}/cortes',         [SuperStamps::class, 'generate'])->name('generate');
+        Route::get('/{company}/ticket-parcial',  [SuperStamps::class, 'ticketParcial'])->name('ticket_parcial');
     });
 
     Route::prefix('series')->name('series.')->group(function () {
