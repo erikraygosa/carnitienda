@@ -66,6 +66,7 @@
     (function(){
         const DATA_URL    = '{{ route('admin.dispatches.panel-rutas.data') }}';
         const MOVER_URL   = '{{ route('admin.dispatches.panel-rutas.mover') }}';
+        const MOVER_CXC_URL = '{{ route('admin.dispatches.panel-rutas.mover-cxc') }}';
         const ASEGURAR_URL= '{{ route('admin.dispatches.panel-rutas.asegurar') }}';
         const POLL_URL    = '{{ route('admin.dispatches.panel-rutas.poll-count') }}';
         const CSRF         = '{{ csrf_token() }}';
@@ -200,6 +201,7 @@
                     <div class="flex items-center justify-between gap-1">
                         <span class="truncate">${escHtml(c.cliente)}</span>
                         <span class="font-semibold whitespace-nowrap ml-1">${fmtMoney(c.saldo_asignado)}</span>
+                        ${c.movible ? `<button type="button" class="text-violet-500 hover:text-violet-800 ml-1" title="Reasignar a otro día/despacho" onclick="prReasignarCxc(${c.id}, '${escHtml(c.cliente).replace(/'/g, '&#39;')}')"><i class="fa-solid fa-right-left"></i></button>` : ''}
                     </div>
                     ${c.folios ? `<div class="font-mono text-violet-500 truncate">${escHtml(c.folios)}</div>` : ''}
                 </div>
@@ -432,6 +434,63 @@
             } finally {
                 load();
             }
+        };
+
+        // Reasignar una CxC: pide día y despacho (ruta + ronda) destino.
+        window.prReasignarCxc = async function (assignmentId, cliente) {
+            const opcionesDe = async (fecha) => {
+                let existentes = {};
+                try {
+                    const r = await fetch(`${DATA_URL}?${new URLSearchParams({ fecha, search: '', atrasados: 0 })}`, { headers: { 'Accept': 'application/json' } });
+                    (await r.json()).rutas.forEach(ru => [1, 2].forEach(n => {
+                        const c = ru.rondas[n];
+                        if (c && c.dispatch_id) existentes[`${ru.route_id}:${n}`] = c.status || 'PLANEADO';
+                    }));
+                } catch (e) {}
+                return ROUTES.flatMap(r => [1, 2].map(n => {
+                    const st = existentes[`${r.id}:${n}`];
+                    return `<option value="${r.id}:${n}">${escHtml(r.nombre)} · ${n === 1 ? '1ra' : '2da'}${st ? ' (despacho ' + st + ')' : ' (nuevo)'}</option>`;
+                })).join('');
+            };
+
+            const res = await Swal.fire({
+                title: 'Reasignar CxC',
+                html: `<div style="text-align:left;font-size:14px">
+                        <div style="margin-bottom:10px;color:#555">${cliente}</div>
+                        <label style="display:block;font-size:12px;color:#777">Día</label>
+                        <input type="date" id="rx-fecha" value="${state.fecha}" class="swal2-input" style="margin:2px 0 10px;width:100%">
+                        <label style="display:block;font-size:12px;color:#777">Despacho (ruta y ronda)</label>
+                        <select id="rx-desp" class="swal2-select" style="margin:2px 0;width:100%"></select>
+                       </div>`,
+                showCancelButton: true,
+                confirmButtonText: 'Reasignar',
+                cancelButtonText: 'Cancelar',
+                didOpen: async () => {
+                    const sel = document.getElementById('rx-desp'), f = document.getElementById('rx-fecha');
+                    sel.innerHTML = await opcionesDe(f.value);
+                    f.addEventListener('change', async () => { sel.innerHTML = await opcionesDe(f.value); });
+                },
+                preConfirm: () => {
+                    const f = document.getElementById('rx-fecha').value, d = document.getElementById('rx-desp').value;
+                    if (!f || !d) { Swal.showValidationMessage('Elige día y despacho.'); return false; }
+                    return { fecha: f, desp: d };
+                },
+            });
+            if (!res.isConfirmed) return;
+
+            const [routeId, ronda] = res.value.desp.split(':');
+            try {
+                const r = await fetch(MOVER_CXC_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                    body: JSON.stringify({ assignment_id: assignmentId, shipping_route_id: routeId, ronda: ronda, fecha: res.value.fecha }),
+                });
+                const d = await r.json();
+                if (!r.ok || !d.ok) Swal.fire('No se pudo reasignar', d.message || 'Intenta de nuevo.', 'error');
+            } catch (e) {
+                Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+            }
+            load();
         };
 
         window.prAgregarCxc = async function (routeId, ronda) {

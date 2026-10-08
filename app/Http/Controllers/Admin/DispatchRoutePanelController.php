@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Dispatch;
+use App\Models\DispatchArAssignment;
 use App\Models\DispatchItem;
 use App\Models\DispatchTransferAssignment;
 use App\Models\SalesOrder;
@@ -37,7 +38,7 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('can:ver despachos', only: ['index', 'data', 'pollCount']),
-            new Middleware('can:editar despachos', only: ['mover', 'asegurarDespacho']),
+            new Middleware('can:editar despachos', only: ['mover', 'asegurarDespacho', 'moverCxc']),
         ];
     }
 
@@ -198,6 +199,7 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
 
         $cxc = $dispatch->arAssignments->map(fn ($a) => [
             'id'              => $a->id,
+            'movible'         => $a->status === 'PENDIENTE' && (float) $a->monto_cobrado <= 0,
             'cliente'         => $a->client?->nombre ?? '—',
             'folios'          => $a->notasCombinadas()->pluck('folio')->implode(', '),
             'saldo_asignado'  => (float) $a->saldo_asignado,
@@ -245,6 +247,70 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
         );
 
         return response()->json(['ok' => true, 'dispatch_id' => $dispatch->id]);
+    }
+
+    /**
+     * Reasigna una CxC (cobranza de un cliente con sus notas) a otro día y
+     * despacho (ruta + ronda). Si el destino ya tiene CxC de ese cliente, las
+     * notas se suman a esa. No se mueve lo que ya tiene cobro registrado.
+     */
+    public function moverCxc(Request $request)
+    {
+        $data = $request->validate([
+            'assignment_id'     => ['required', 'integer', 'exists:dispatch_ar_assignments,id'],
+            'shipping_route_id' => ['required', 'integer', 'exists:shipping_routes,id'],
+            'ronda'             => ['required', 'integer', 'in:1,2'],
+            'fecha'             => ['required', 'date'],
+        ]);
+
+        $asig = DispatchArAssignment::findOrFail($data['assignment_id']);
+        if ($asig->status !== 'PENDIENTE' || (float) $asig->monto_cobrado > 0) {
+            return response()->json(['ok' => false, 'message' => 'Esta CxC ya tiene cobro registrado, no se puede reasignar.'], 422);
+        }
+
+        return DB::transaction(function () use ($asig, $data) {
+            $origen = Dispatch::find($asig->dispatch_id);
+
+            // Despacho destino: el de esa ruta+ronda+día aunque ya vaya en ruta;
+            // si no existe, se crea uno nuevo.
+            $destino = Dispatch::where('shipping_route_id', $data['shipping_route_id'])
+                ->where('ronda', $data['ronda'])
+                ->whereDate('fecha', $data['fecha'])
+                ->whereIn('status', ['PLANEADO', 'CARGADO', 'EN_RUTA'])
+                ->lockForUpdate()
+                ->first()
+                ?? $this->autoDespacho->encontrarOCrearDespacho(
+                    (int) $data['shipping_route_id'], (int) $data['ronda'], $data['fecha'],
+                    'Creado desde el panel de rutas (CxC reasignada)'
+                );
+
+            if ($destino->id === $asig->dispatch_id) {
+                return response()->json(['ok' => true]);
+            }
+
+            $cliente = $asig->client?->nombre ?? "cliente #{$asig->client_id}";
+            $folios  = $asig->notasCombinadas()->pluck('folio')->implode(', ');
+            $existente = $destino->arAssignments()->where('client_id', $asig->client_id)->first();
+
+            if ($existente) {
+                $existente->orders()->syncWithoutDetaching($asig->orders()->pluck('sales_orders.id'));
+                $existente->sales()->syncWithoutDetaching($asig->sales()->pluck('sales.id'));
+                $existente->recalcularSaldo();
+                $asig->delete();
+            } else {
+                $asig->update(['dispatch_id' => $destino->id]);
+            }
+
+            $this->log->log($destino, 'CXC_AGREGADAS', null, null, null, "CxC de {$cliente} ({$folios}) reasignada aquí desde el panel de rutas");
+            if ($origen) {
+                $this->log->log($origen, 'CXC_QUITADA', null, null, null, "CxC de {$cliente} ({$folios}) reasignada a otro despacho desde el panel de rutas");
+                if ($origen->status === 'PLANEADO' && ! $origen->items()->exists() && ! $origen->arAssignments()->exists() && ! $origen->transferAssignments()->exists()) {
+                    $origen->delete();
+                }
+            }
+
+            return response()->json(['ok' => true]);
+        });
     }
 
     /**
