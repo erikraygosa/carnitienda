@@ -163,6 +163,7 @@ class ArPaymentsController extends Controller implements HasMiddleware
             'sale_ids.*'      => 'integer|exists:sales,id',
             'invoice_ids'     => 'nullable|array',
             'invoice_ids.*'   => 'integer|exists:invoices,id',
+            'accion'          => 'nullable|in:otro,salir',
         ]);
 
         if (empty($data['order_ids']) && empty($data['sale_ids']) && empty($data['invoice_ids'])) {
@@ -173,7 +174,19 @@ class ArPaymentsController extends Controller implements HasMiddleware
 
         $this->registrarCobro($data);
 
-        session()->flash('swal', ['icon'=>'success','title'=>'Cobro registrado','text'=>'El pago se aplicó correctamente.']);
+        $cliente = Client::find($data['client_id'])?->nombre ?? 'el cliente';
+        $monto   = number_format((float) $data['amount'], 2);
+
+        // "Guardar y registrar otro" (default): se queda en el formulario del mismo
+        // cliente, con sus notas ya actualizadas, para capturar varios cobros seguidos.
+        if (($data['accion'] ?? 'otro') !== 'salir') {
+            return redirect()
+                ->route('admin.ar-payments.create', ['client_id' => $data['client_id']])
+                ->with('swal', ['icon'=>'success','title'=>'Cobro registrado','text'=>"Cobro de \${$monto} aplicado a {$cliente}. Puedes registrar otro."])
+                ->with('cobro_previo', ['payment_type_id' => $data['payment_type_id'], 'fecha' => $data['fecha']]);
+        }
+
+        session()->flash('swal', ['icon'=>'success','title'=>'Cobro registrado','text'=>"Cobro de \${$monto} aplicado a {$cliente}."]);
         return redirect()->route('admin.ar.index');
     }
 
