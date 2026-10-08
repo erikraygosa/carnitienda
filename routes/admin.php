@@ -232,7 +232,6 @@ Route::get ('dispatches/panel-rutas',      [DispatchRoutePanelController::class,
 Route::get ('dispatches/panel-rutas/data', [DispatchRoutePanelController::class,'data'])->name('dispatches.panel-rutas.data');
 Route::get ('dispatches/panel-rutas/poll-count', [DispatchRoutePanelController::class,'pollCount'])->name('dispatches.panel-rutas.poll-count');
 Route::post('dispatches/panel-rutas/mover',[DispatchRoutePanelController::class,'mover'])->name('dispatches.panel-rutas.mover');
-Route::post('dispatches/panel-rutas/pasar-cobro',[DispatchRoutePanelController::class,'pasarACobro'])->name('dispatches.panel-rutas.pasar-cobro');
 Route::post('dispatches/panel-rutas/mover-cxc',[DispatchRoutePanelController::class,'moverCxc'])->name('dispatches.panel-rutas.mover-cxc');
 Route::post('dispatches/panel-rutas/asegurar-despacho',[DispatchRoutePanelController::class,'asegurarDespacho'])->name('dispatches.panel-rutas.asegurar');
 

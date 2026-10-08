@@ -67,7 +67,6 @@
         const DATA_URL    = '{{ route('admin.dispatches.panel-rutas.data') }}';
         const MOVER_URL   = '{{ route('admin.dispatches.panel-rutas.mover') }}';
         const MOVER_CXC_URL = '{{ route('admin.dispatches.panel-rutas.mover-cxc') }}';
-        const PASAR_COBRO_URL = '{{ route('admin.dispatches.panel-rutas.pasar-cobro') }}';
         const ASEGURAR_URL= '{{ route('admin.dispatches.panel-rutas.asegurar') }}';
         const POLL_URL    = '{{ route('admin.dispatches.panel-rutas.poll-count') }}';
         const CSRF         = '{{ csrf_token() }}';
@@ -139,11 +138,6 @@
                         </div>
                     </div>
                     <div class="flex items-center justify-between gap-1"><span class="text-gray-500 truncate">${escHtml(p.cliente)}</span>${p.fecha_original ? `<span class="shrink-0 px-1 rounded bg-amber-100 text-amber-700 text-[10px] font-semibold" title="Pedido de un día anterior">${escHtml(p.fecha_original)}</span>` : ''}</div>
-                    ${!esTraspaso && p.cobrable ? `
-                        <button type="button" class="mt-1 w-full text-[11px] bg-violet-50 text-violet-700 rounded px-1 py-0.5 hover:bg-violet-100"
-                                onclick="prPasarACobro(${p.order_id}, '${escHtml(p.folio)}', '${escHtml(p.cliente).replace(/'/g, '&#39;')}')">
-                            <i class="fa-solid fa-hand-holding-dollar"></i> Pasar a cobro
-                        </button>` : ''}
                     ${!esTraspaso && p.status === 'EN_RUTA' ? `
                         <button type="button" class="mt-1 w-full text-[11px] bg-emerald-50 text-emerald-700 rounded px-1 py-0.5 hover:bg-emerald-100"
                                 onclick="prEntregarPedido(${p.dispatch_id}, ${p.item_id})">
@@ -442,7 +436,7 @@
             }
         };
 
-        // Modal "día + despacho (ruta y ronda)" — lo usan Reasignar CxC y Pasar a cobro.
+        // Modal "día + despacho (ruta y ronda)" para Reasignar CxC.
         async function prPedirDestino(titulo, detalle, boton) {
             const opcionesDe = async (fecha) => {
                 let existentes = {};
@@ -506,13 +500,6 @@
         window.prReasignarCxc = async function (assignmentId, cliente) {
             const destino = await prPedirDestino('Reasignar CxC', cliente, 'Reasignar');
             if (destino) prPostDestino(MOVER_CXC_URL, { assignment_id: assignmentId }, destino);
-        };
-
-        // Pedido ya entregado a crédito: se pasa a cobro en el despacho que se elija,
-        // sin tocar el despacho donde se entregó.
-        window.prPasarACobro = async function (orderId, folio, cliente) {
-            const destino = await prPedirDestino('Pasar a cobro', `${folio} · ${cliente}`, 'Pasar a cobro');
-            if (destino) prPostDestino(PASAR_COBRO_URL, { order_id: orderId }, destino);
         };
 
         window.prAgregarCxc = async function (routeId, ronda) {
