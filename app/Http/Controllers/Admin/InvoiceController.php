@@ -1072,6 +1072,11 @@ public function pdfDownload(Invoice $invoice)
             'items.*.ieps_pct'        => ['nullable', 'numeric', 'gte:0'],
         ]);
 
+        // El tipo de un complemento de pago / nómina / traslado no se cambia desde esta pantalla.
+        if (in_array($invoice->tipo_comprobante, ['P', 'N', 'T'], true)) {
+            $data['tipo_comprobante'] = $invoice->tipo_comprobante;
+        }
+
         $data = $this->forceGenericRfcRegimen($data);
 
         DB::transaction(function () use (&$invoice, $data) {

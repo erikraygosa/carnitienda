@@ -205,19 +205,31 @@
                 </div>
 
                 {{-- Tipo --}}
+                @php
+                    $tiposFijos = ['P' => 'Recepción de pagos (complemento)', 'N' => 'Nómina', 'T' => 'Traslado'];
+                    $esTipoFijo = isset($tiposFijos[$invoice->tipo_comprobante]);
+                @endphp
                 <div class="space-y-2">
                     <label class="block text-sm font-medium text-gray-700">Tipo</label>
-                    <select name="tipo_comprobante"
-                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            {{ $isLocked ? 'disabled' : '' }}>
-                        <option value="I" {{ $selTipo === 'I' ? 'selected' : '' }}>Ingreso</option>
-                        <option value="E" {{ $selTipo === 'E' ? 'selected' : '' }}>Egreso</option>
-                    </select>
+                    @if($esTipoFijo)
+                        {{-- Complemento de pago / nómina / traslado: el tipo no se cambia (antes salía "Ingreso" por no estar en la lista). --}}
+                        <input type="hidden" name="tipo_comprobante" value="{{ $invoice->tipo_comprobante }}">
+                        <select disabled class="w-full rounded-md border-gray-300 bg-gray-50 shadow-sm">
+                            <option>{{ $tiposFijos[$invoice->tipo_comprobante] }}</option>
+                        </select>
+                    @else
+                        <select name="tipo_comprobante"
+                                class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                {{ $isLocked ? 'disabled' : '' }}>
+                            <option value="I" {{ $selTipo === 'I' ? 'selected' : '' }}>Ingreso</option>
+                            <option value="E" {{ $selTipo === 'E' ? 'selected' : '' }}>Egreso</option>
+                        </select>
+                    @endif
                 </div>
 
                 {{-- Forma de pago --}}
                 <div class="space-y-2">
-                    <label class="block text-sm font-medium text-gray-700">Forma de pago</label>
+                    <label class="block text-sm font-medium text-gray-700">{{ $invoice->tipo_comprobante === 'P' ? 'Forma de pago del cobro' : 'Forma de pago' }}</label>
                     <select name="forma_pago" id="forma_pago" autocomplete="off"
                             class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                             {{ $isLocked ? 'disabled' : '' }}>
@@ -227,7 +239,10 @@
                     </select>
                 </div>
 
-                {{-- Método de pago --}}
+                {{-- Método de pago (no aplica al complemento de pago: el CFDI de pagos no lo lleva) --}}
+                @if($invoice->tipo_comprobante === 'P')
+                    <input type="hidden" name="metodo_pago" value="{{ $selMetodo }}">
+                @else
                 <div class="space-y-2">
                     <label class="block text-sm font-medium text-gray-700">Método de pago</label>
                     <select name="metodo_pago" id="metodo_pago" autocomplete="off"
@@ -237,6 +252,7 @@
                         <option value="PPD" {{ $selMetodo === 'PPD' ? 'selected' : '' }}>PPD — Parcialidades o diferido</option>
                     </select>
                 </div>
+                @endif
 
             </div>
 
