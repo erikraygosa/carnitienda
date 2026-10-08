@@ -11,14 +11,6 @@
            class="inline-flex items-center px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50">
             Volver
         </a>
-        <button form="pay-form" type="submit" data-accion="salir"
-                class="btn-guardar-cobro ml-2 inline-flex items-center px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-            Guardar y salir
-        </button>
-        <button form="pay-form" type="submit" data-accion="otro"
-                class="btn-guardar-cobro ml-2 inline-flex items-center px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
-            Guardar y registrar otro
-        </button>
     </x-slot>
 
     <x-wire-card>
@@ -231,6 +223,18 @@
                     <textarea name="notes" rows="1"
                               class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">{{ old('notes') }}</textarea>
                 </div>
+            </div>
+
+            {{-- Guardar: al final del formulario, donde ya se capturó el monto --}}
+            <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4 border-t">
+                <button type="submit" data-accion="salir"
+                        class="btn-guardar-cobro inline-flex items-center justify-center px-4 py-2 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                    Guardar y salir
+                </button>
+                <button type="submit" data-accion="otro"
+                        class="btn-guardar-cobro inline-flex items-center justify-center px-5 py-2 text-sm font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+                    Guardar y registrar otro
+                </button>
             </div>
 
         </form>
