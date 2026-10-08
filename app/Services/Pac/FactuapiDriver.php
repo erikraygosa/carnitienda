@@ -308,7 +308,7 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
             ? \Carbon\Carbon::parse($payment->fecha)->startOfDay()->toIso8601String()
             : now()->toIso8601String();
 
-        return [
+        $payload = [
             'type'     => 'P',
             'customer' => [
                 'legal_name' => $cliente?->razon_social ?? $cliente?->nombre ?? 'PÚBLICO EN GENERAL',
@@ -327,6 +327,18 @@ const URL_PRODUCCION = 'https://www.facturapi.io/v2';
                 ]],
             ]],
         ];
+
+        // Serie y folio del sistema (ej. CP7): sin esto el PAC usaba su propia serie "P" y su
+        // propio consecutivo, así que el CFDI timbrado (P7) no coincidía con lo que
+        // mostraba el sistema (CP7).
+        if ($invoice->serie) {
+            $payload['series'] = $invoice->serie;
+        }
+        if ($invoice->folio) {
+            $payload['folio_number'] = $invoice->folio;
+        }
+
+        return $payload;
     }
 
     protected function buildIngresoPayload(Invoice $invoice, Company $company): array

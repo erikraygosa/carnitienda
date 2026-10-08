@@ -6,13 +6,14 @@
     // Datos del CFDI ya timbrado, leídos del XML: la fecha que debe mostrarse es la
     // de expedición del comprobante (atributo Fecha) y la de timbrado la del
     // TimbreFiscalDigital — no la que se tecleó en el sistema antes de timbrar.
-    $xmlFecha = null; $tfdFecha = null; $xmlSello = '';
+    $xmlFecha = null; $tfdFecha = null; $xmlSello = ''; $tfdRfcProv = '';
     if (filled($invoice->xml_timbrado) && ($xmlObj = @simplexml_load_string($invoice->xml_timbrado))) {
         try {
             if (isset($xmlObj['Fecha'])) { $xmlFecha = \Carbon\Carbon::parse((string) $xmlObj['Fecha']); }
             $xmlSello = (string) ($xmlObj['Sello'] ?? '');
             foreach ($xmlObj->xpath('//*[local-name()="TimbreFiscalDigital"]') ?: [] as $tfdNode) {
                 $tfdFecha = \Carbon\Carbon::parse((string) $tfdNode['FechaTimbrado']);
+                $tfdRfcProv = (string) ($tfdNode['RfcProvCertif'] ?? '');
             }
         } catch (\Throwable $e) {}
     }
@@ -461,7 +462,7 @@ body { font-size: 11px; color: #1a1a1a; background: #fff; padding: 28px 32px; }
         // Cadena original del complemento de certificación digital del SAT.
         // Fórmula fija del Anexo 20 del SAT: ||1.1|UUID|FechaTimbrado|SelloCFDI|NoCertificadoSAT||
         $cadenaComplemento = ($invoice->sello_cfdi && $invoice->numero_certificado_sat)
-            ? "||1.1|{$invoice->uuid}|{$fechaTimbrado}|{$invoice->sello_cfdi}|{$invoice->numero_certificado_sat}||"
+            ? "||1.1|{$invoice->uuid}|{$fechaTimbrado}|" . ($tfdRfcProv ?: $invoice->rfc_provider_cert) . "|{$invoice->sello_cfdi}|{$invoice->numero_certificado_sat}||"
             : ('||' . ($invoice->version_cfdi ?? '4.0') . '|' . $invoice->uuid . '|' . $fechaTimbrado . '|' . $emisor?->rfc . '|' . number_format((float)$invoice->total, 6, '.', '') . '||');
 
         // dompdf no respeta word-break:break-all de forma confiable en bloques
