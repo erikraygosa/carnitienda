@@ -187,6 +187,7 @@ Route::post('dispatches/{dispatch}/cxc/bulk',       [DispatchController::class, 
 
 // Factura consolidada (varios pedidos en una) — antes del resource para que
 // "consolidada" no choque con el {invoice} de show/edit.
+Route::get ('invoices/export',                [InvoiceController::class, 'export'])->name('invoices.export');
 Route::get ('invoices/consolidada',           [InvoiceController::class, 'consolidadaIndex'])->name('invoices.consolidada');
 Route::get ('invoices/consolidada/data',      [InvoiceController::class, 'consolidadaData'])->name('invoices.consolidada.data');
 Route::post('invoices/consolidada/preparar',  [InvoiceController::class, 'prepararConsolidada'])->name('invoices.consolidada.preparar');

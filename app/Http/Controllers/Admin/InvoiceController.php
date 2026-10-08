@@ -69,7 +69,7 @@ class InvoiceController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('can:ver facturas', only: ['index', 'edit', 'pdf', 'pdfDownload', 'sendForm', 'send']),
+            new Middleware('can:ver facturas', only: ['index', 'edit', 'pdf', 'pdfDownload', 'sendForm', 'send', 'export']),
             new Middleware('can:crear facturas', only: ['create', 'store', 'update', 'fromSalesOrder', 'fromSale']),
             new Middleware('can:facturar varios pedidos', only: ['consolidadaIndex', 'consolidadaData', 'prepararConsolidada']),
             new Middleware('can:timbrar facturas', only: ['stamp']),
@@ -1281,5 +1281,121 @@ public function pdfDownload(Invoice $invoice)
                 $fail($msg);
             }
         };
+    }
+
+    /**
+     * Excel del listado de facturas con los mismos filtros de la pantalla.
+     * Hoja "Facturas" (una fila por comprobante, con la columna "Importe para
+     * suma" y un total con SUBTOTAL que respeta los filtros de Excel) y hoja
+     * "Resumen" por forma de pago.
+     */
+    public function export(Request $request)
+    {
+        $filtros = [
+            'search'      => $request->get('search', ''),
+            'tipo'        => $request->get('tipo', ''),
+            'estatus'     => $request->get('estatus', ''),
+            'forma_pago'  => $request->get('forma_pago', ''),
+            'metodo_pago' => $request->get('metodo_pago', ''),
+            'campo_fecha' => $request->get('campo_fecha', 'fecha'),
+            'desde'       => $request->get('desde', ''),
+            'hasta'       => $request->get('hasta', ''),
+        ];
+
+        $facturas = Invoice::with('client:id,nombre,rfc')
+            ->filtrarListado($filtros)
+            ->orderBy(($filtros['campo_fecha'] === 'fecha_timbrado') ? 'fecha_timbrado' : 'fecha')
+            ->orderBy('id')
+            ->get();
+
+        $tipos = ['I' => 'Factura', 'E' => 'Nota de crédito', 'P' => 'Complemento de pago', 'N' => 'Nómina', 'T' => 'Traslado'];
+        $formas = \App\Support\SatCatalogs::FORMA_PAGO;
+
+        $wb = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sh = $wb->getActiveSheet();
+        $sh->setTitle('Facturas');
+
+        $encabezados = ['Serie y folio', 'Tipo', 'Estatus', 'Cliente', 'RFC', 'Fecha elaboración', 'Certificación SAT',
+                        'Forma de pago', 'Método de pago', 'Moneda', 'Subtotal', 'Impuestos', 'Total', 'Importe para suma', 'UUID'];
+        foreach ($encabezados as $i => $h) {
+            $sh->setCellValue([$i + 1, 1], $h);
+        }
+
+        $fila = 2;
+        foreach ($facturas as $f) {
+            $sh->setCellValue([1, $fila], trim(($f->serie ?? '') . ($f->folio ?? '')) ?: ('#' . $f->id));
+            $sh->setCellValue([2, $fila], $tipos[$f->tipo_comprobante] ?? $f->tipo_comprobante);
+            $sh->setCellValue([3, $fila], $f->estatus);
+            $sh->setCellValue([4, $fila], $f->client?->nombre ?? '');
+            $sh->setCellValue([5, $fila], $f->client?->rfc ?? '');
+            $sh->setCellValue([6, $fila], $f->fecha ? \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($f->fecha) : null);
+            $sh->setCellValue([7, $fila], $f->fecha_timbrado ? \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($f->fecha_timbrado) : null);
+            $sh->setCellValue([8, $fila], $f->forma_pago ? $f->forma_pago . ' - ' . ($formas[$f->forma_pago] ?? '') : '');
+            $sh->setCellValue([9, $fila], $f->metodo_pago ?? '');
+            $sh->setCellValue([10, $fila], $f->moneda ?? 'MXN');
+            $sh->setCellValue([11, $fila], (float) $f->subtotal);
+            $sh->setCellValue([12, $fila], (float) $f->impuestos);
+            $sh->setCellValue([13, $fila], (float) $f->total);
+            $sh->setCellValue([14, $fila], $f->importe_para_suma);
+            $sh->setCellValueExplicit([15, $fila], (string) $f->uuid, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+            $fila++;
+        }
+        $ultima = max(2, $fila - 1);
+
+        // Total con SUBTOTAL: si en Excel filtran alguna columna, la suma se ajusta sola.
+        $sh->setCellValue([13, $fila + 1], 'TOTAL VIGENTE:');
+        $sh->setCellValue([14, $fila + 1], "=SUBTOTAL(109,N2:N{$ultima})");
+        $sh->setCellValue([1, $fila + 3], 'Importe para suma: facturas vigentes suman, notas de crédito restan; canceladas, borradores y complementos valen 0.');
+
+        $sh->getStyle('A1:O1')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['rgb' => '374151']],
+        ]);
+        $sh->getStyle("F2:G{$ultima}")->getNumberFormat()->setFormatCode('dd/mm/yyyy hh:mm');
+        $sh->getStyle("F2:F{$ultima}")->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+        $sh->getStyle("K2:N" . ($fila + 1))->getNumberFormat()->setFormatCode('"$"#,##0.00');
+        $sh->getStyle('M' . ($fila + 1) . ':N' . ($fila + 1))->getFont()->setBold(true);
+        $sh->setAutoFilter("A1:O{$ultima}");
+        $sh->freezePane('A2');
+        foreach (range('A', 'O') as $col) {
+            $sh->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // ── Hoja 2: resumen por forma de pago ──
+        $res = $wb->createSheet();
+        $res->setTitle('Resumen por forma de pago');
+        foreach (['Forma de pago', 'Facturas vigentes', 'Total (notas de crédito restan)'] as $i => $h) {
+            $res->setCellValue([$i + 1, 1], $h);
+        }
+        $grupos = $facturas->filter(fn ($f) => $f->importe_para_suma != 0.0 || $f->tipo_comprobante === 'I' && in_array($f->estatus, ['TIMBRADA', 'CANCELACION_PENDIENTE'], true))
+            ->groupBy(fn ($f) => $f->forma_pago ?: 'Sin forma de pago')
+            ->sortKeys();
+        $r = 2;
+        foreach ($grupos as $clave => $fs) {
+            $etq = isset($formas[$clave]) ? $clave . ' - ' . $formas[$clave] : $clave;
+            $res->setCellValue([1, $r], $etq);
+            $res->setCellValue([2, $r], $fs->where('tipo_comprobante', 'I')->count());
+            $res->setCellValue([3, $r], round((float) $fs->sum('importe_para_suma'), 2));
+            $r++;
+        }
+        $res->setCellValue([1, $r], 'TOTAL');
+        $res->setCellValue([2, $r], "=SUM(B2:B" . ($r - 1) . ")");
+        $res->setCellValue([3, $r], "=SUM(C2:C" . ($r - 1) . ")");
+        $res->getStyle('A1:C1')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['rgb' => '374151']],
+        ]);
+        $res->getStyle("C2:C{$r}")->getNumberFormat()->setFormatCode('"$"#,##0.00');
+        $res->getStyle("A{$r}:C{$r}")->getFont()->setBold(true);
+        foreach (['A', 'B', 'C'] as $col) {
+            $res->getColumnDimension($col)->setAutoSize(true);
+        }
+        $wb->setActiveSheetIndex(0);
+
+        $nombre = 'facturas_' . ($filtros['desde'] ?: 'inicio') . '_a_' . ($filtros['hasta'] ?: now()->toDateString()) . '.xlsx';
+
+        return response()->streamDownload(function () use ($wb) {
+            (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($wb))->save('php://output');
+        }, $nombre, ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
     }
 }

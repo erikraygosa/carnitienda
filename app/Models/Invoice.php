@@ -69,4 +69,43 @@ class Invoice extends Model
     public function isStamped()   { return $this->estatus === 'TIMBRADA'; }
     public function isCanceled()  { return $this->estatus === 'CANCELADA'; }
     public function isCancellationPending() { return $this->estatus === 'CANCELACION_PENDIENTE'; }
+
+    /**
+     * Filtros del listado de facturas (los usa la pantalla y el Excel, para que
+     * coincidan). Claves: search, tipo, estatus, forma_pago, metodo_pago,
+     * campo_fecha (fecha | fecha_timbrado), desde, hasta.
+     */
+    public function scopeFiltrarListado($q, array $f)
+    {
+        $campoFecha = ($f['campo_fecha'] ?? 'fecha') === 'fecha_timbrado' ? 'fecha_timbrado' : 'fecha';
+
+        return $q
+            ->when(! empty($f['search']), function ($q) use ($f) {
+                $t = '%' . $f['search'] . '%';
+                $q->where(fn ($q) => $q->where('folio', 'like', $t)
+                    ->orWhere('serie', 'like', $t)
+                    ->orWhere('uuid', 'like', $t)
+                    ->orWhereHas('client', fn ($q) => $q->where('nombre', 'like', $t)->orWhere('rfc', 'like', $t)));
+            })
+            ->when(! empty($f['tipo']),        fn ($q) => $q->where('tipo_comprobante', $f['tipo']))
+            ->when(! empty($f['estatus']),     fn ($q) => $q->where('estatus', $f['estatus']))
+            ->when(! empty($f['forma_pago']),  fn ($q) => $q->where('forma_pago', $f['forma_pago']))
+            ->when(! empty($f['metodo_pago']), fn ($q) => $q->where('metodo_pago', $f['metodo_pago']))
+            ->when(! empty($f['desde']),       fn ($q) => $q->whereDate($campoFecha, '>=', $f['desde']))
+            ->when(! empty($f['hasta']),       fn ($q) => $q->whereDate($campoFecha, '<=', $f['hasta']));
+    }
+
+    /** Importe que cuenta para sumas: facturas vigentes suman, notas de crédito restan; canceladas, borradores y complementos no. */
+    public function getImporteParaSumaAttribute(): float
+    {
+        if (! in_array($this->estatus, ['TIMBRADA', 'CANCELACION_PENDIENTE'], true)) {
+            return 0.0;
+        }
+
+        return match ($this->tipo_comprobante) {
+            'I' => (float) $this->total,
+            'E' => -(float) $this->total,
+            default => 0.0,
+        };
+    }
 }
