@@ -1345,7 +1345,6 @@ public function pdfDownload(Invoice $invoice)
         // Total con SUBTOTAL: si en Excel filtran alguna columna, la suma se ajusta sola.
         $sh->setCellValue([13, $fila + 1], 'TOTAL VIGENTE:');
         $sh->setCellValue([14, $fila + 1], "=SUBTOTAL(109,N2:N{$ultima})");
-        $sh->setCellValue([1, $fila + 3], 'Importe para suma: facturas vigentes suman, notas de crédito restan; canceladas, borradores y complementos valen 0.');
 
         $sh->getStyle('A1:O1')->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
