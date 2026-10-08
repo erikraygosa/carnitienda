@@ -26,38 +26,35 @@
     </div>
 
     <x-wire-card>
-        {{-- Filtros --}}
-        <form method="GET" action="{{ route('admin.ar.index') }}" class="flex flex-col sm:flex-row gap-3 mb-4">
-            <input type="text" name="search" value="{{ $search }}"
-                   placeholder="Buscar cliente o RFC..."
-                   class="flex-1 rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
-
-            <div class="flex gap-2">
-                <a href="{{ route('admin.ar.index', ['filtro'=>'todos', 'search'=>$search]) }}"
-                   class="px-3 py-1.5 text-xs rounded-md border {{ $filtro === 'todos' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700' }}">
-                    Todos
-                </a>
-                <a href="{{ route('admin.ar.index', ['filtro'=>'con_saldo', 'search'=>$search]) }}"
-                   class="px-3 py-1.5 text-xs rounded-md border {{ $filtro === 'con_saldo' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-700' }}">
-                    Con saldo
-                </a>
-                <a href="{{ route('admin.ar.index', ['filtro'=>'vencidos', 'search'=>$search]) }}"
-                   class="px-3 py-1.5 text-xs rounded-md border {{ $filtro === 'vencidos' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-700' }}">
-                    Vencidos
-                </a>
-                <button type="submit"
-                        class="px-3 py-1.5 text-xs rounded-md border bg-gray-700 text-white hover:bg-gray-800">
-                    Buscar
+        {{-- Filtros: reactivos (se actualizan solos al escribir o cambiar de filtro) --}}
+        <form id="ar-filtros" method="GET" action="{{ route('admin.ar.index') }}"
+              class="flex flex-col md:flex-row md:items-center gap-3 mb-5"
+              onsubmit="return false">
+            <div class="relative flex-1">
+                <svg class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/>
+                </svg>
+                <input type="text" id="ar-search" name="search" value="{{ $search }}" autocomplete="off"
+                       placeholder="Buscar cliente o RFC..."
+                       class="w-full h-10 pl-9 pr-9 rounded-lg border border-gray-300 bg-white shadow-sm text-sm placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                <button type="button" id="ar-limpiar" title="Limpiar búsqueda"
+                        class="{{ $search ? '' : 'hidden' }} absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center">
+                    ✕
                 </button>
-                @if($search)
-                    <a href="{{ route('admin.ar.index', ['filtro'=>$filtro]) }}"
-                       class="px-3 py-1.5 text-xs rounded-md border border-gray-300 hover:bg-gray-50">
-                        Limpiar
-                    </a>
-                @endif
+            </div>
+
+            <input type="hidden" name="filtro" id="ar-filtro" value="{{ $filtro }}">
+            <div class="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-0.5 shrink-0" id="ar-chips">
+                @foreach(['todos' => 'Todos', 'con_saldo' => 'Con saldo', 'vencidos' => 'Vencidos'] as $key => $label)
+                    <button type="button" data-filtro="{{ $key }}"
+                            class="ar-chip h-9 px-4 text-sm font-medium rounded-md transition {{ $filtro === $key ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-gray-200' : 'text-gray-600 hover:text-gray-800' }}">
+                        {{ $label }}
+                    </button>
+                @endforeach
             </div>
         </form>
 
+        <div id="ar-resultados">
         {{-- Tabla --}}
         <div class="overflow-auto rounded-lg border">
             <table class="min-w-full text-sm">
@@ -185,7 +182,65 @@
 
         {{-- Paginación --}}
         <div class="mt-4">
-            {{ $rows->links() }}
+            {{ $rows->withQueryString()->links() }}
         </div>
+        </div>{{-- /ar-resultados --}}
     </x-wire-card>
+
+    <script>
+    (function () {
+        const form = document.getElementById('ar-filtros');
+        const search = document.getElementById('ar-search');
+        const filtro = document.getElementById('ar-filtro');
+        const limpiar = document.getElementById('ar-limpiar');
+        const box = () => document.getElementById('ar-resultados');
+        let timer = null, ctrl = null;
+
+        function urlActual(extra) {
+            const p = new URLSearchParams({ search: search.value.trim(), filtro: filtro.value });
+            if (extra) for (const k in extra) p.set(k, extra[k]);
+            return form.action + '?' + p.toString();
+        }
+
+        async function cargar(url) {
+            if (ctrl) ctrl.abort();
+            ctrl = new AbortController();
+            box().style.opacity = '.5';
+            try {
+                const res = await fetch(url, { signal: ctrl.signal, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                const html = await res.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const nuevo = doc.getElementById('ar-resultados');
+                if (nuevo) { box().innerHTML = nuevo.innerHTML; history.replaceState(null, '', url); }
+            } catch (e) { if (e.name !== 'AbortError') box().innerHTML = '<div class="p-6 text-center text-red-500 text-sm">No se pudo actualizar, intenta de nuevo.</div>'; }
+            box().style.opacity = '';
+        }
+
+        search.addEventListener('input', function () {
+            limpiar.classList.toggle('hidden', !search.value);
+            clearTimeout(timer);
+            timer = setTimeout(() => cargar(urlActual()), 300);
+        });
+        limpiar.addEventListener('click', function () {
+            search.value = ''; limpiar.classList.add('hidden'); search.focus(); cargar(urlActual());
+        });
+        document.querySelectorAll('.ar-chip').forEach(function (b) {
+            b.addEventListener('click', function () {
+                filtro.value = b.dataset.filtro;
+                document.querySelectorAll('.ar-chip').forEach(function (x) {
+                    const on = x === b;
+                    x.classList.toggle('bg-white', on); x.classList.toggle('text-indigo-700', on); x.classList.toggle('shadow-sm', on);
+                    x.classList.toggle('ring-1', on); x.classList.toggle('ring-gray-200', on);
+                    x.classList.toggle('text-gray-600', !on);
+                });
+                cargar(urlActual());
+            });
+        });
+        // Paginación sin recargar toda la página
+        document.addEventListener('click', function (e) {
+            const a = e.target.closest('#ar-resultados nav a[href], #ar-resultados .pagination a[href]');
+            if (a) { e.preventDefault(); cargar(a.href); }
+        });
+    })();
+    </script>
 </x-admin-layout>
