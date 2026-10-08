@@ -767,7 +767,7 @@
         document.getElementById('inv-form').submit();
     }
 
-    function fmt(n) { return Number(n||0).toFixed(2); }
+    function fmt(n) { return Number(n||0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
     function escHtml(str) {
         if (str === null || str === undefined) return '';
         return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

@@ -109,11 +109,14 @@ class InvoiceController extends Controller implements HasMiddleware
         $search   = $request->get('search', '');
         $desde    = $request->get('fecha_desde', '');
         $hasta    = $request->get('fecha_hasta', '');
+        // Incluir las ya facturadas (con su etiqueta FACTURADA) o solo las pendientes.
+        $incluirFacturadas = $request->boolean('incluir_facturadas');
+        $vivas = fn ($q) => $q->where('invoices.estatus', '!=', 'CANCELADA');
 
         if ($tipo === 'notas') {
-            $items = Sale::with('client:id,nombre')
+            $items = Sale::with(['client:id,nombre', 'invoices' => fn ($q) => $q->where('invoices.estatus', '!=', 'CANCELADA')->select('invoices.id', 'invoices.serie', 'invoices.folio')])
                 ->whereNotIn('status', ['BORRADOR', 'CANCELADO'])
-                ->whereDoesntHave('invoices', fn($q) => $q->where('estatus', '!=', 'CANCELADA'))
+                ->when(! $incluirFacturadas, fn ($q) => $q->whereDoesntHave('invoices', $vivas))
                 ->when($clientId, fn($q) => $q->where('client_id', $clientId))
                 ->when($search, fn($q) =>
                     $q->where(fn($q2) =>
@@ -127,12 +130,12 @@ class InvoiceController extends Controller implements HasMiddleware
                 ->limit(500)
                 ->get(['id', 'folio', 'client_id', 'fecha', 'total', 'saldo_pendiente', 'cobrado_at', 'driver_settlement_status']);
         } else {
-            $items = SalesOrder::with(['client:id,nombre', 'items:id,sales_order_id', 'dispatchItem.lines'])
+            $items = SalesOrder::with(['client:id,nombre', 'items:id,sales_order_id', 'dispatchItem.lines', 'invoices' => fn ($q) => $q->where('invoices.estatus', '!=', 'CANCELADA')->select('invoices.id', 'invoices.serie', 'invoices.folio')])
                 ->whereNotIn('status', ['BORRADOR', 'CANCELADO'])
                 // "Sin facturar" con el mismo criterio que el filtro de Pedidos:
                 // que no tenga ninguna factura viva (timbrada/borrador/
                 // cancelación pendiente) cubriéndolo ya.
-                ->whereDoesntHave('invoices', fn($q) => $q->where('estatus', '!=', 'CANCELADA'))
+                ->when(! $incluirFacturadas, fn ($q) => $q->whereDoesntHave('invoices', $vivas))
                 ->when($clientId, fn($q) => $q->where('client_id', $clientId))
                 ->when($search, fn($q) =>
                     $q->where(fn($q2) =>
@@ -162,6 +165,10 @@ class InvoiceController extends Controller implements HasMiddleware
                 || ($o->saldo_pendiente !== null && (float) $o->saldo_pendiente <= 0),
             'surtido'   => $tipo === 'notas' ? true : $o->tieneSurtido(),
             'parcial'   => $tipo === 'notas' ? false : $o->surtidoParcial(),
+            // Factura viva que ya cubre esta nota/pedido (ej. "A25"), o null.
+            'facturada' => $o->invoices->isNotEmpty()
+                ? $o->invoices->map(fn ($i) => trim(($i->serie ?? '') . ($i->folio ?? '')) ?: ('#' . $i->id))->implode(', ')
+                : null,
         ])->values();
 
         return response()->json(['rows' => $rows]);
@@ -173,9 +180,13 @@ class InvoiceController extends Controller implements HasMiddleware
             'order_ids'      => ['required', 'array', 'min:1'],
             'order_ids.*'    => ['integer'],
             'tipo'           => ['required', 'in:pedidos,notas'],
-            'modo_receptor'  => ['required', 'in:publico_general,cliente'],
+            'modo_receptor'  => ['required', 'in:publico_general,cliente,otro_cliente'],
+            // Facturar a un cliente específico distinto al de la nota (ej. una
+            // nota de Público en general que el cliente pidió facturar después).
+            'client_id_destino' => ['required_if:modo_receptor,otro_cliente', 'nullable', 'exists:clients,id'],
         ], [
             'order_ids.required' => 'Selecciona al menos un pedido o nota.',
+            'client_id_destino.required_if' => 'Elige el cliente a quien se va a facturar.',
         ]);
 
         $esNotas = $data['tipo'] === 'notas';
@@ -207,7 +218,9 @@ class InvoiceController extends Controller implements HasMiddleware
             ]);
         }
 
-        if ($data['modo_receptor'] === 'cliente') {
+        if ($data['modo_receptor'] === 'otro_cliente') {
+            $clientId = (int) $data['client_id_destino'];
+        } elseif ($data['modo_receptor'] === 'cliente') {
             $clientIds = $orders->pluck('client_id')->unique()->filter();
             if ($clientIds->count() !== 1) {
                 return back()->with('swal', [

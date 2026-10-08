@@ -967,7 +967,7 @@
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
     function fmt(n) {
-        return Number(n || 0).toFixed(2);
+        return Number(n || 0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     }
 
     function escHtml(str) {

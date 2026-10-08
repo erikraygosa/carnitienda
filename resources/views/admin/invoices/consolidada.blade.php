@@ -52,6 +52,10 @@
                 <input type="date" id="fc-hasta" class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
         </div>
+        <label class="inline-flex items-center gap-2 text-sm text-gray-600 mb-3 cursor-pointer">
+            <input type="checkbox" id="fc-facturadas" class="rounded border-gray-300 text-indigo-600" checked>
+            Mostrar también las ya facturadas <span class="text-xs text-gray-400">(se marcan como FACTURADA y no se pueden volver a facturar)</span>
+        </label>
 
         {{-- Lista --}}
         <div class="overflow-auto border rounded max-h-[28rem]">
@@ -86,6 +90,19 @@
                     <input type="radio" name="fc-modo" value="publico_general" class="text-indigo-600" checked>
                     Público en general
                 </label>
+                <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer"
+                       title="Facturar a un cliente en específico aunque la nota esté en Público en general">
+                    <input type="radio" name="fc-modo" value="otro_cliente" class="text-indigo-600">
+                    A otro cliente
+                </label>
+                <div id="fc-destino-wrap" class="hidden w-64">
+                    <select id="fc-destino" class="w-full rounded-md border-gray-300 shadow-sm text-sm">
+                        <option value="">Elige el cliente a facturar…</option>
+                        @foreach($clients as $c)
+                            <option value="{{ $c->id }}">{{ $c->nombre }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <button type="button" id="fc-generar"
                         class="inline-flex items-center px-4 py-2 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
                         disabled>
@@ -99,6 +116,7 @@
         @csrf
         <input type="hidden" name="modo_receptor" id="fc-form-modo">
         <input type="hidden" name="tipo" id="fc-form-tipo">
+        <input type="hidden" name="client_id_destino" id="fc-form-destino">
         <div id="fc-form-orders"></div>
     </form>
 
@@ -133,6 +151,7 @@
                 search:      $('fc-buscar').value,
                 fecha_desde: $('fc-desde').value,
                 fecha_hasta: $('fc-hasta').value,
+                incluir_facturadas: $('fc-facturadas').checked ? 1 : 0,
             });
             try {
                 const res  = await fetch(`${DATA_URL}?${params}`, { headers: { 'Accept': 'application/json' } });
@@ -150,17 +169,19 @@
                 return;
             }
             $('fc-tbody').innerHTML = rows.map(r => {
-                const marcada = seleccionadas.has(r.id);
+                const facturada = !!r.facturada;
+                const bloqueada = facturada || r.surtido === false;
+                const marcada = seleccionadas.has(r.id) && !bloqueada;
                 return `
-                <tr class="border-b ${r.surtido === false ? 'bg-red-50/50 text-gray-400' : 'hover:bg-gray-50'}">
+                <tr class="border-b ${facturada ? 'bg-emerald-50/40 text-gray-400' : (r.surtido === false ? 'bg-red-50/50 text-gray-400' : 'hover:bg-gray-50')}">
                     <td class="p-2">
                         <input type="checkbox" class="fc-check rounded border-gray-300"
-                               ${r.surtido === false ? 'disabled title="Ningún producto surtido: no se puede facturar"' : ''}
-                               ${marcada && r.surtido !== false ? 'checked' : ''}
+                               ${facturada ? 'disabled title="Ya facturada"' : (r.surtido === false ? 'disabled title="Ningún producto surtido: no se puede facturar"' : '')}
+                               ${marcada ? 'checked' : ''}
                                data-id="${r.id}" data-total="${r.total}" data-client-id="${r.client_id ?? ''}"
                                onchange="window.__fcToggle(this)">
                     </td>
-                    <td class="p-2 font-mono text-xs text-indigo-700">${r.folio}${r.surtido === false ? ' <span class="ml-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-semibold">FALTA SURTIR</span>' : (r.parcial ? ' <span class="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-semibold" title="Solo se facturarán los productos surtidos">SURTIDO PARCIAL</span>' : '')}</td>
+                    <td class="p-2 font-mono text-xs text-indigo-700">${r.folio}${facturada ? ` <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-semibold" title="Factura ${r.facturada}">FACTURADA ${r.facturada}</span>` : ''}${!facturada && r.surtido === false ? ' <span class="ml-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-semibold">FALTA SURTIR</span>' : (!facturada && r.parcial ? ' <span class="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-semibold" title="Solo se facturarán los productos surtidos">SURTIDO PARCIAL</span>' : '')}</td>
                     <td class="p-2 text-gray-700">${r.cliente}</td>
                     <td class="p-2 text-xs text-gray-400">${r.fecha ?? '—'}</td>
                     <td class="p-2 text-right font-mono">${r.pagado ? `<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-semibold" title="Pagada">${fmtMoney(r.total)}</span>` : fmtMoney(r.total)}</td>
@@ -190,6 +211,7 @@
             const radioCliente = document.querySelector('input[name="fc-modo"][value="cliente"]');
             const soloUnCliente = clientIds.size === 1 && [...clientIds][0] !== '';
             radioCliente.disabled = !soloUnCliente;
+            actualizarDestino();
             if (!soloUnCliente && radioCliente.checked) {
                 document.querySelector('input[name="fc-modo"][value="publico_general"]').checked = true;
             }
@@ -197,6 +219,12 @@
                 ? '(' + (rows.find(r => String(r.client_id) === [...clientIds][0])?.cliente ?? '') + ')'
                 : (clientIds.size > 1 ? '— hay más de un cliente' : '');
         }
+
+        function actualizarDestino() {
+            const otro = document.querySelector('input[name="fc-modo"]:checked')?.value === 'otro_cliente';
+            $('fc-destino-wrap').classList.toggle('hidden', !otro);
+        }
+        document.querySelectorAll('input[name="fc-modo"]').forEach(r => r.addEventListener('change', actualizarDestino));
 
         $('fc-check-all').addEventListener('change', function () {
             document.querySelectorAll('.fc-check:not(:disabled)').forEach(chk => {
@@ -210,10 +238,16 @@
         $('fc-buscar').addEventListener('input', function () { clearTimeout(this._t); this._t = setTimeout(load, 350); });
         $('fc-desde').addEventListener('change', load);
         $('fc-hasta').addEventListener('change', load);
+        $('fc-facturadas').addEventListener('change', load);
 
         $('fc-generar').addEventListener('click', function () {
             if (seleccionadas.size === 0) return;
             const modo = document.querySelector('input[name="fc-modo"]:checked').value;
+            if (modo === 'otro_cliente' && !$('fc-destino').value) {
+                Swal.fire('Falta el cliente', 'Elige el cliente a quien se va a facturar.', 'warning');
+                return;
+            }
+            $('fc-form-destino').value = modo === 'otro_cliente' ? $('fc-destino').value : '';
 
             const ordersWrap = $('fc-form-orders');
             ordersWrap.innerHTML = '';
@@ -259,6 +293,12 @@ $(function () {
         // select2 lo dispara vía jQuery — se llama directo para no depender
         // de eso.
         if (window.__fcLoad) window.__fcLoad();
+    });
+
+    $('#fc-destino').select2({
+        placeholder: 'Elige el cliente a facturar…',
+        width: '100%',
+        language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
     });
 
     // Bug conocido de select2: al dar clic en la "x" de limpiar, el mismo clic

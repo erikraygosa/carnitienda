@@ -87,15 +87,15 @@
                 <tfoot>
                     <tr>
                         <td colspan="7" class="p-2 text-right font-medium">Subtotal</td>
-                        <td class="p-2 text-right">{{ number_format($invoice->subtotal,2) }}</td>
+                        <td class="p-2 text-right">${{ number_format($invoice->subtotal,2) }}</td>
                     </tr>
                     <tr>
                         <td colspan="7" class="p-2 text-right font-medium">Impuestos</td>
-                        <td class="p-2 text-right">{{ number_format($invoice->impuestos,2) }}</td>
+                        <td class="p-2 text-right">${{ number_format($invoice->impuestos,2) }}</td>
                     </tr>
                     <tr>
                         <td colspan="7" class="p-2 text-right font-semibold">Total</td>
-                        <td class="p-2 text-right font-semibold">{{ number_format($invoice->total,2) }}</td>
+                        <td class="p-2 text-right font-semibold">${{ number_format($invoice->total,2) }}</td>
                     </tr>
                 </tfoot>
             </table>

@@ -108,7 +108,7 @@
                         </span>
                     </td>
                     <td class="px-4 py-3 font-mono text-gray-700 whitespace-nowrap" style="white-space:nowrap">
-                        {{ $invoice->moneda ?? 'MXN' }} {{ number_format((float) $invoice->total, 2) }}
+                        ${{ number_format((float) $invoice->total, 2) }} <span class="text-xs text-gray-400">{{ $invoice->moneda ?? 'MXN' }}</span>
                     </td>
                     <td class="px-4 py-3">
                         @include('admin.invoices.partials.actions', ['invoice' => $invoice])
