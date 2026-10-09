@@ -795,10 +795,18 @@
                         <div class="text-xs text-gray-500 mt-0.5">
                             @if($notasCliente->count() > 0)
                                 {{ $notasCliente->count() }} nota(s) pendiente(s)
-                                @if($dispatch->status === 'PLANEADO' && $assignment->status === 'PENDIENTE' && (float) $assignment->monto_cobrado === 0.0)
-                                    <button type="button" data-toggle="notas-cxc-{{ $assignment->id }}"
-                                            class="btn-toggle-notas-cxc ml-1 text-indigo-600 hover:underline">Ver notas ▼</button>
-                                @endif
+                                @unless($dispatch->status === 'PLANEADO' && $assignment->status === 'PENDIENTE' && (float) $assignment->monto_cobrado === 0.0)
+                                    {{-- Solo lectura: las notas asignadas, a la vista --}}
+                                    <div class="mt-1 flex flex-wrap gap-1.5">
+                                        @foreach($notasCliente as $nota)
+                                            @php $saldoV = ($nota->saldo_pendiente !== null && (float)$nota->saldo_pendiente > 0) ? (float)$nota->saldo_pendiente : (float)$nota->total; @endphp
+                                            <span class="inline-flex items-center gap-1 rounded bg-white border px-1.5 py-0.5">
+                                                <span class="font-mono text-indigo-600">{{ $nota->folio }}</span>
+                                                <span class="font-mono font-semibold text-amber-700">${{ number_format($saldoV, 2) }}</span>
+                                            </span>
+                                        @endforeach
+                                    </div>
+                                @endunless
                             @else
                                 Sin notas pendientes
                             @endif
@@ -843,11 +851,11 @@
                 {{-- Panel expandible de notas — quitar una o varias notas puntuales
                      de la CxC sin quitar al cliente completo --}}
                 @if($dispatch->status === 'PLANEADO' && $assignment->status === 'PENDIENTE' && (float) $assignment->monto_cobrado === 0.0 && $notasCliente->count() > 0)
-                <div id="notas-cxc-{{ $assignment->id }}" class="hidden border-t bg-white px-4 py-3">
+                <div id="notas-cxc-{{ $assignment->id }}" class="border-t bg-white px-4 py-3">
                     <form action="{{ route('admin.dispatches.cxc.notas.quitar', [$dispatch, $assignment]) }}" method="POST">
                         @csrf
                         <div class="flex items-center justify-between mb-2">
-                            <span class="text-xs text-gray-400">Selecciona la(s) nota(s) a quitar de esta CxC</span>
+                            <span class="text-xs text-gray-400">Notas asignadas — marca la(s) que quieras quitar de esta CxC</span>
                             <button type="button" class="btn-quitar-notas-cxc hidden px-2 py-1 text-xs rounded border border-red-300 text-red-600 hover:bg-red-50"
                                     onclick="return confirmarAccionMasiva(this, '¿Quitar las notas seleccionadas de esta CxC?')">
                                 🗑 Quitar seleccionadas (<span class="notas-cxc-sel-count">0</span>)
