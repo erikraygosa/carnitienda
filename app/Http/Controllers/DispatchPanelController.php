@@ -72,7 +72,13 @@ class DispatchPanelController extends Controller
         $clientesRapido  = $puedeAltaRapida ? \App\Models\Client::paraSeleccion()->orderBy('nombre')->get(['id', 'nombre']) : collect();
         $productosRapido = $puedeAltaRapida ? \App\Models\Product::where('activo', 1)->orderBy('nombre')->get(['id', 'nombre']) : collect();
 
+        // Catálogo para "Agregar producto" al pedido en surtido, y si el usuario
+        // puede ajustar el precio ahí (permiso 'editar precio en surtido').
+        $productosSurtido        = \App\Models\Product::where('activo', 1)->orderBy('nombre')->get(['id', 'nombre', 'unidad']);
+        $puedeEditarPrecioSurtido = auth()->user()->can('editar precio en surtido');
+
         return view('admin.dispatch_panel.index', compact(
+            'productosSurtido', 'puedeEditarPrecioSurtido',
             'pedidos', 'rutas', 'rutaId', 'ronda', 'fecha', 'itemsDespachadosIds', 'impresionZplActiva', 'imprimirPorCajas',
             'puedeAltaRapida', 'clientesRapido', 'productosRapido'
         ));
@@ -153,6 +159,7 @@ class DispatchPanelController extends Controller
                 'client' => $order->client?->nombre,
                 'status' => $order->status,
                 'total'  => $order->total,
+                'puede_agregar' => $order->status === SalesOrder::S_PROCESADO,
             ],
             'lines' => $lines,
         ]);
@@ -295,6 +302,146 @@ class DispatchPanelController extends Controller
         $resultado = $zpl->enviar($etiquetas);
 
         return response()->json($resultado, $resultado['ok'] ? 200 : 422);
+    }
+
+    // ── 2d. Agregar un producto adicional al pedido durante el surtido ────
+
+    /** Precio vigente del producto para el cliente del pedido: lista → precio del cliente → base. */
+    private function resolverPrecio(SalesOrder $order, \App\Models\Product $product): array
+    {
+        if ($order->price_list_id) {
+            $p = DB::table('price_list_items')->where('price_list_id', $order->price_list_id)
+                ->where('product_id', $product->id)->value('precio');
+            if ($p !== null && (float) $p > 0) return [round((float) $p, 4), 'lista'];
+        }
+
+        $p = DB::table('client_price_overrides')->where('client_id', $order->client_id)
+            ->where('product_id', $product->id)->value('precio');
+        if ($p !== null && (float) $p > 0) return [round((float) $p, 4), 'cliente'];
+
+        return [round((float) $product->precio_base, 4), 'base'];
+    }
+
+    private function ivaPct(\App\Models\Product $product): float
+    {
+        return SystemSetting::get('pedidos.mostrar_iva', true) ? (float) ($product->tasa_iva ?? 0) : 0.0;
+    }
+
+    public function precioProducto(SalesOrder $order, \App\Models\Product $product)
+    {
+        $this->authorize('salida de producto');
+
+        [$precio, $fuente] = $this->resolverPrecio($order, $product);
+
+        return response()->json([
+            'ok'            => true,
+            'nombre'        => $product->nombre,
+            'unidad'        => $product->unidad,
+            'precio'        => $precio,
+            'fuente'        => $fuente,
+            'lista'         => (bool) $order->price_list_id,
+            'puede_editar'  => auth()->user()->can('editar precio en surtido'),
+        ]);
+    }
+
+    public function agregarProducto(Request $request, SalesOrder $order)
+    {
+        $this->authorize('salida de producto');
+
+        $data = $request->validate([
+            'product_id'   => ['required', 'integer', 'exists:products,id'],
+            'cantidad'     => ['required', 'numeric', 'gt:0'],
+            'precio'       => ['required', 'numeric', 'gt:0'],
+            'presentacion' => ['nullable', 'in:KILOS,PIEZAS,CAJAS'],
+        ], [
+            'precio.gt' => 'El producto necesita un precio mayor a 0.',
+        ]);
+
+        if ($order->status !== SalesOrder::S_PROCESADO) {
+            return response()->json(['ok' => false, 'message' => 'Este pedido ya no está Procesado — no se le pueden agregar productos.'], 422);
+        }
+
+        $product = \App\Models\Product::findOrFail($data['product_id']);
+        [$oficial, $fuente] = $this->resolverPrecio($order, $product);
+        $precio = round((float) $data['precio'], 4);
+        $cambioPrecio = abs($precio - $oficial) > 0.00005;
+
+        // Un precio distinto al vigente solo lo puede poner quien tenga el
+        // permiso — salvo que el producto no tenga precio todavía (fuente
+        // 'base' en 0): ahí se captura, igual que al crear un pedido.
+        $sinPrecioPrevio = $oficial <= 0;
+        if ($cambioPrecio && ! $sinPrecioPrevio && ! auth()->user()->can('editar precio en surtido')) {
+            return response()->json(['ok' => false, 'message' => 'No tienes permiso para cambiar el precio del producto.'], 403);
+        }
+
+        $cantidad  = (float) $data['cantidad'];
+        $base      = round($cantidad * $precio, 2);
+        $iva       = $this->ivaPct($product);
+        $impuesto  = round($base * $iva / 100, 2);
+        $total     = round($base + $impuesto, 2);
+
+        DB::transaction(function () use ($order, $product, $data, $cantidad, $precio, $oficial, $fuente, $cambioPrecio, $sinPrecioPrevio, $base, $impuesto, $total) {
+            $item = SalesOrderItem::create([
+                'sales_order_id' => $order->id,
+                'product_id'     => $product->id,
+                'descripcion'    => $product->nombre,
+                'cantidad'       => $cantidad,
+                'presentacion'   => $data['presentacion'] ?? 'KILOS',
+                'precio'         => $precio,
+                'descuento'      => 0,
+                'impuesto'       => $impuesto,
+                'total'          => $total,
+            ]);
+
+            $nuevoTotal = round((float) $order->total + $total, 2);
+            $order->updateQuietly([
+                'subtotal'  => round((float) $order->subtotal + $base, 2),
+                'impuestos' => round((float) $order->impuestos + $impuesto, 2),
+                'total'     => $nuevoTotal,
+                'contraentrega_total' => $order->payment_method === 'CONTRAENTREGA' ? $nuevoTotal : $order->contraentrega_total,
+            ]);
+
+            $log = app(\App\Services\DocumentLogService::class);
+            $log->log(
+                $order, 'PRODUCTO_AGREGADO_SURTIDO', null, null, null,
+                "Producto agregado en el surtido: {$product->nombre} — " . rtrim(rtrim(number_format($cantidad, 3), '0'), '.') . " × $" . number_format($precio, 2) . " = $" . number_format($total, 2),
+                [
+                    'producto'  => ['old' => null, 'new' => $product->nombre],
+                    'cantidad'  => ['old' => null, 'new' => $cantidad],
+                    'precio'    => ['old' => null, 'new' => $precio],
+                    'total_pedido' => ['old' => round((float) $order->total - $total, 2), 'new' => $nuevoTotal],
+                ]
+            );
+
+            if ($cambioPrecio || $sinPrecioPrevio) {
+                $log->log(
+                    $order, 'PRECIO_MODIFICADO_SURTIDO', number_format($oficial, 2), number_format($precio, 2), null,
+                    "Precio de {$product->nombre} " . ($sinPrecioPrevio ? 'capturado' : 'cambiado') . " en el surtido (vigente: $" . number_format($oficial, 2) . " [{$fuente}], nuevo: $" . number_format($precio, 2) . ')',
+                    ['product_id' => $product->id, 'producto' => $product->nombre, 'old' => $oficial, 'new' => $precio, 'fuente_anterior' => $fuente]
+                );
+
+                // Pedido sin lista de precios: el precio nuevo queda como precio
+                // del cliente para ese producto. Con lista (compartida con otros
+                // clientes) el cambio aplica solo a este pedido.
+                if (! $order->price_list_id && $order->client_id) {
+                    $previo = DB::table('client_price_overrides')->where('client_id', $order->client_id)
+                        ->where('product_id', $product->id)->value('precio');
+                    DB::table('client_price_overrides')->updateOrInsert(
+                        ['client_id' => $order->client_id, 'product_id' => $product->id],
+                        ['precio' => $precio, 'updated_at' => now()] + ($previo === null ? ['created_at' => now()] : [])
+                    );
+                    if ($client = \App\Models\Client::find($order->client_id)) {
+                        $log->log(
+                            $client, 'PRECIO_PERSONALIZADO_ACTUALIZADO', $previo !== null ? number_format((float) $previo, 2) : null, number_format($precio, 2), null,
+                            "Precio actualizado desde el surtido del pedido {$order->folio} — Producto: {$product->nombre}",
+                            ['product_id' => $product->id, 'producto' => $product->nombre, 'old' => $previo !== null ? (float) $previo : null, 'new' => $precio]
+                        );
+                    }
+                }
+            }
+        });
+
+        return response()->json(['ok' => true]);
     }
 
     // ── 3. Completa el despacho: exige que TODOS los productos ya se hayan

@@ -54,7 +54,7 @@ class RolesAndPermissionsSeeder extends Seeder
 
             // Despachos / Logística
             'ver despachos', 'crear despachos', 'editar despachos', 'cerrar despachos',
-            'salida de producto',
+            'salida de producto', 'editar precio en surtido',
 
             // Facturas
             'ver facturas', 'crear facturas', 'timbrar facturas', 'cancelar facturas',
@@ -122,7 +122,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver pedidos',
             'procesar pedidos',
             'crear pedidos desde surtido',
-            'salida de producto',
+            'salida de producto', 'editar precio en surtido',
             'ver despachos', 'crear despachos', 'editar despachos', 'cerrar despachos',
             'ver reporte liquidaciones',
             'gestionar liquidaciones repartidores',

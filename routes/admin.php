@@ -445,6 +445,8 @@ Route::prefix('despacho')->name('despacho.')->middleware(['can:salida de product
     Route::get('/pedido/{order}',          [DispatchPanelController::class, 'show'])->name('show');
     Route::post('/pedido/{order}/linea/{item}/guardar', [DispatchPanelController::class, 'saveLine'])->name('linea.guardar');
     Route::post('/pedido/{order}/linea/{item}/imprimir', [DispatchPanelController::class, 'imprimirEtiqueta'])->name('linea.imprimir');
+    Route::get ('/pedido/{order}/precio/{product}', [DispatchPanelController::class, 'precioProducto'])->name('precio');
+    Route::post('/pedido/{order}/producto', [DispatchPanelController::class, 'agregarProducto'])->name('producto.agregar');
     Route::post('/pedido/{order}/guardar', [DispatchPanelController::class, 'saveDespacho'])->name('guardar');
 });
 

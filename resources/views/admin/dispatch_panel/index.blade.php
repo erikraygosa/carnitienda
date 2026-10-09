@@ -258,6 +258,11 @@
                         <tbody id="panel-lines" class="divide-y divide-gray-100"></tbody>
                     </table>
 
+                    <button type="button" id="btn-agregar-producto" onclick="agregarProductoSurtido()"
+                        class="hidden w-full mb-3 py-1.5 rounded-md border border-dashed border-indigo-300 text-indigo-600 text-sm hover:bg-indigo-50">
+                        + Agregar producto al pedido
+                    </button>
+
                     <textarea id="panel-nota-global" rows="2"
                         placeholder="Nota general del surtido (opcional)"
                         class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm mb-3 focus:outline-none focus:ring-1 focus:ring-indigo-500">
@@ -277,6 +282,8 @@
     <script>
     var TICKET_BASE_URL     = '{{ url('admin/sales-orders') }}';
     // Config de SuperAdmin → Configuración → Etiquetas de surtido.
+    var PRODUCTOS_SURTIDO    = @json($productosSurtido->map(fn ($p) => ['id' => $p->id, 'nombre' => $p->nombre, 'unidad' => $p->unidad])->values());
+    var PUEDE_EDITAR_PRECIO  = @json($puedeEditarPrecioSurtido);
     var IMPRESION_ZPL_ACTIVA = @json($impresionZplActiva);
     var IMPRIMIR_POR_CAJAS   = @json($imprimirPorCajas);
     (function () {
@@ -305,6 +312,7 @@
 
         // ── Panel de despacho ────────────────────────────────────────────
         var currentOrderId = null;
+        var currentFolio   = '';
         var linesData      = [];
 
         window.abrirDespacho = function(orderId, folio) {
@@ -321,6 +329,8 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 linesData = data.lines;
+                currentFolio = data.order.folio;
+                document.getElementById('btn-agregar-producto').classList.toggle('hidden', !data.order.puede_agregar);
                 document.getElementById('panel-cliente').textContent = data.order.client ?? '—';
                 renderLines(data.lines);
                 document.getElementById('panel-loading').classList.add('hidden');
@@ -329,6 +339,120 @@
             .catch(function() {
                 document.getElementById('panel-loading').textContent = 'Error al cargar. Intenta de nuevo.';
             });
+        };
+
+
+        // ── Agregar un producto adicional al pedido (con su precio del cliente) ──
+        window.agregarProductoSurtido = async function() {
+            var orderId = currentOrderId;
+            var datalist = '<datalist id="sp-lista">' + PRODUCTOS_SURTIDO.map(function(p) {
+                return '<option value="' + escHtml(p.nombre) + '"></option>';
+            }).join('') + '</datalist>';
+
+            var precioInfo = null;     // respuesta de /precio
+            var editando   = false;
+
+            var res = await Swal.fire({
+                title: 'Agregar producto',
+                html:
+                    '<div style="text-align:left;font-size:14px">' +
+                        '<label style="display:block;font-size:12px;color:#777">Producto</label>' +
+                        '<input id="sp-producto" list="sp-lista" class="swal2-input" style="margin:2px 0 10px;width:100%" placeholder="Escribe para buscar…" autocomplete="off">' + datalist +
+                        '<div id="sp-precio-box" style="display:none;margin-bottom:10px">' +
+                            '<label style="display:block;font-size:12px;color:#777">Precio del cliente</label>' +
+                            '<div id="sp-precio-vista"></div>' +
+                            '<div id="sp-precio-nota" style="font-size:11px;color:#999;margin-top:2px"></div>' +
+                        '</div>' +
+                        '<div style="display:flex;gap:10px">' +
+                            '<div style="flex:1"><label style="display:block;font-size:12px;color:#777">Cantidad</label>' +
+                            '<input id="sp-cantidad" type="number" step="0.001" min="0" class="swal2-input" style="margin:2px 0;width:100%"></div>' +
+                            '<div style="flex:1"><label style="display:block;font-size:12px;color:#777">Presentación</label>' +
+                            '<select id="sp-pres" class="swal2-select" style="margin:2px 0;width:100%"><option value="KILOS">Kilos</option><option value="PIEZAS">Piezas</option><option value="CAJAS">Cajas</option></select></div>' +
+                        '</div>' +
+                        '<div id="sp-total" style="margin-top:10px;font-size:13px;color:#555"></div>' +
+                    '</div>',
+                showCancelButton: true,
+                confirmButtonText: 'Agregar',
+                cancelButtonText: 'Cancelar',
+                didOpen: function() {
+                    var inpProd = document.getElementById('sp-producto');
+                    var inpCant = document.getElementById('sp-cantidad');
+
+                    function precioActual() {
+                        var el = document.getElementById('sp-precio-input');
+                        return editando && el ? parseFloat(el.value) : (precioInfo ? precioInfo.precio : 0);
+                    }
+                    function pintarTotal() {
+                        var q = parseFloat(inpCant.value) || 0, pr = precioActual() || 0;
+                        document.getElementById('sp-total').textContent = (q > 0 && pr > 0) ? 'Importe: $' + (q * pr).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '';
+                    }
+                    function pintarPrecio() {
+                        var vista = document.getElementById('sp-precio-vista'), nota = document.getElementById('sp-precio-nota');
+                        var fmt = '$' + Number(precioInfo.precio).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                        var fuente = { lista: 'lista de precios', cliente: 'precio del cliente', base: 'precio base del producto' }[precioInfo.fuente] || '';
+                        if (editando) {
+                            vista.innerHTML = '<input id="sp-precio-input" type="number" step="0.01" min="0" class="swal2-input" style="margin:0;width:100%" value="' + precioInfo.precio + '">';
+                            document.getElementById('sp-precio-input').addEventListener('input', pintarTotal);
+                            nota.textContent = precioInfo.lista
+                                ? 'El cliente usa una lista de precios (compartida): el cambio aplica solo a este pedido.'
+                                : 'Al guardar, este será el nuevo precio del cliente para este producto.';
+                        } else if (precioInfo.puede_editar) {
+                            vista.innerHTML = '<button type="button" id="sp-precio-btn" style="font-size:20px;font-weight:700;border:1px dashed #a5b4fc;border-radius:6px;padding:4px 12px;background:#eef2ff;color:#3730a3;cursor:pointer" title="Clic para cambiar el precio">' + fmt + ' ✎</button>';
+                            document.getElementById('sp-precio-btn').addEventListener('click', function() { editando = true; pintarPrecio(); pintarTotal(); });
+                            nota.textContent = 'Fuente: ' + fuente + ' · clic en el precio para cambiarlo.';
+                        } else {
+                            vista.innerHTML = '<span style="font-size:20px;font-weight:700">' + fmt + '</span>';
+                            nota.textContent = 'Fuente: ' + fuente + (precioInfo.precio > 0 ? ' · no tienes permiso para cambiar el precio.' : ' · este producto no tiene precio; pide a alguien con permiso que lo capture.');
+                        }
+                        document.getElementById('sp-precio-box').style.display = '';
+                        pintarTotal();
+                    }
+                    inpProd.addEventListener('change', async function() {
+                        var prod = PRODUCTOS_SURTIDO.find(function(p) { return p.nombre === inpProd.value.trim(); });
+                        precioInfo = null; editando = false;
+                        document.getElementById('sp-precio-box').style.display = 'none';
+                        if (!prod) return;
+                        try {
+                            var r = await fetch('/admin/despacho/pedido/' + orderId + '/precio/' + prod.id, { headers: { 'Accept': 'application/json' } });
+                            precioInfo = await r.json();
+                            precioInfo.product_id = prod.id;
+                            // Sin precio y con permiso: abre directo la captura.
+                            if (precioInfo.precio <= 0 && precioInfo.puede_editar) editando = true;
+                            pintarPrecio();
+                        } catch (e) {}
+                    });
+                    inpCant.addEventListener('input', pintarTotal);
+                    document.getElementById('sp-pres').addEventListener('change', function() {});
+                    window._spPrecio = function() { var el = document.getElementById('sp-precio-input'); return editando && el ? parseFloat(el.value) : (precioInfo ? precioInfo.precio : 0); };
+                    window._spInfo   = function() { return precioInfo; };
+                },
+                preConfirm: function() {
+                    var info = window._spInfo();
+                    var cant = parseFloat(document.getElementById('sp-cantidad').value);
+                    var precio = window._spPrecio();
+                    if (!info) { Swal.showValidationMessage('Elige un producto de la lista.'); return false; }
+                    if (!(cant > 0)) { Swal.showValidationMessage('Captura la cantidad.'); return false; }
+                    if (!(precio > 0)) { Swal.showValidationMessage('El producto necesita un precio mayor a 0.'); return false; }
+                    return { product_id: info.product_id, cantidad: cant, precio: precio, presentacion: document.getElementById('sp-pres').value };
+                }
+            });
+            if (!res.isConfirmed) return;
+
+            try {
+                var r = await fetch('/admin/despacho/pedido/' + orderId + '/producto', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+                    body: JSON.stringify(res.value)
+                });
+                var d = await r.json();
+                if (r.ok && d.ok) {
+                    abrirDespacho(orderId, currentFolio);
+                } else {
+                    Swal.fire('No se pudo agregar', d.message || (d.errors ? Object.values(d.errors)[0][0] : 'Intenta de nuevo.'), 'error');
+                }
+            } catch (e) {
+                Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+            }
         };
 
         function renderLines(lines) {
