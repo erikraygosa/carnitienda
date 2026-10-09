@@ -35,7 +35,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/>
                 </svg>
                 <input type="text" id="ar-search" name="search" value="{{ $search }}" autocomplete="off"
-                       placeholder="Buscar cliente o RFC..."
+                       placeholder="Buscar clave, cliente o RFC..."
                        class="w-full h-10 pl-9 pr-9 rounded-lg border border-gray-300 bg-white shadow-sm text-sm placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
                 <button type="button" id="ar-limpiar" title="Limpiar búsqueda"
                         class="{{ $search ? '' : 'hidden' }} absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center">
@@ -60,6 +60,7 @@
             <table class="min-w-full text-sm">
                 <thead class="bg-gray-50 border-b">
                     <tr>
+                        <th class="p-3 text-left font-medium text-gray-600">Clave</th>
                         <th class="p-3 text-left font-medium text-gray-600">Cliente</th>
                         <th class="p-3 text-right font-medium text-gray-600">Saldo</th>
                         <th class="p-3 text-right font-medium text-gray-600">Límite crédito</th>
@@ -87,6 +88,9 @@
                             : 0;
                     @endphp
                     <tr class="hover:bg-gray-50 {{ $vencido ? 'bg-red-50' : '' }}">
+
+                        {{-- Clave --}}
+                        <td class="p-3 font-mono text-xs text-gray-500">{{ $row->id }}</td>
 
                         {{-- Cliente --}}
                         <td class="p-3">
@@ -171,7 +175,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="p-6 text-center text-gray-400">
+                        <td colspan="8" class="p-6 text-center text-gray-400">
                             No se encontraron clientes.
                         </td>
                     </tr>

@@ -85,7 +85,8 @@ class Invoice extends Model
                 $q->where(fn ($q) => $q->where('folio', 'like', $t)
                     ->orWhere('serie', 'like', $t)
                     ->orWhere('uuid', 'like', $t)
-                    ->orWhereHas('client', fn ($q) => $q->where('nombre', 'like', $t)->orWhere('rfc', 'like', $t)));
+                    ->orWhereHas('client', fn ($q) => $q->where('nombre', 'like', $t)->orWhere('rfc', 'like', $t)
+                        ->when(ctype_digit(trim($f['search'])), fn ($q) => $q->orWhere('clients.id', (int) trim($f['search'])))));
             })
             ->when(! empty($f['tipo']),        fn ($q) => $q->where('tipo_comprobante', $f['tipo']))
             ->when(! empty($f['estatus']),     fn ($q) => $q->where('estatus', $f['estatus']))

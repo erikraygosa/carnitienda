@@ -3,7 +3,7 @@
     <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
         <div class="md:col-span-2">
             <input type="text" wire:model.live.debounce.300ms="search"
-                   placeholder="Buscar folio, serie, cliente..."
+                   placeholder="Buscar folio, serie, clave, cliente..."
                    class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
         </div>
         <div>
@@ -110,6 +110,7 @@
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                     {!! $th('folio','Folio') !!}
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clave</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
                     {!! $th('fecha','Fecha elaboración') !!}
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Certificación SAT</th>
@@ -144,6 +145,7 @@
                             {{ $tipoLabels[$invoice->tipo_comprobante] ?? $invoice->tipo_comprobante }}
                         </span>
                     </td>
+                    <td class="px-4 py-3 font-mono text-xs text-gray-500">{{ $invoice->client_id ?? '—' }}</td>
                     <td class="px-4 py-3 text-gray-700">{{ $invoice->client?->nombre ?? '—' }}</td>
                     <td class="px-4 py-3 text-gray-600 text-xs">{{ optional($invoice->fecha)->format('d/m/Y') }}</td>
                     <td class="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{{ optional($invoice->fecha_timbrado)->format('d/m/Y H:i') ?? '—' }}</td>
@@ -169,7 +171,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="10" class="px-4 py-8 text-center text-gray-400">
+                    <td colspan="11" class="px-4 py-8 text-center text-gray-400">
                         No se encontraron facturas con estos filtros.
                     </td>
                 </tr>

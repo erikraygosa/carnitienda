@@ -28,10 +28,13 @@ class AccountsReceivableController extends Controller implements HasMiddleware
     $filtro = $request->get('filtro', 'todos'); // todos | con_saldo | vencidos
 
     $rows = Client::query()
-        ->when($search, fn($q) =>
+        // Por clave (id del cliente), nombre o RFC. Agrupado en un solo where
+        // para que no se escape de los demás filtros.
+        ->when($search, fn($q) => $q->where(fn($q) =>
             $q->where('nombre', 'like', "%{$search}%")
               ->orWhere('rfc', 'like', "%{$search}%")
-        )
+              ->when(ctype_digit(trim($search)), fn($q) => $q->orWhere('clients.id', (int) trim($search)))
+        ))
         ->select('clients.id', 'clients.nombre', 'clients.credito_limite', 'clients.credito_dias')
         ->addSelect([
             'saldo' => \App\Models\ArMovement::selectRaw(

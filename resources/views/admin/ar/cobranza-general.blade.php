@@ -28,7 +28,7 @@
             <select name="cliente_desde" id="sel-desde" class="w-full select2-clientes">
                 <option value="">— Todos —</option>
                 @foreach($clientes as $c)
-                    <option value="{{ $c->nombre }}" {{ request('cliente_desde') === $c->nombre ? 'selected' : '' }}>
+                    <option value="{{ $c->nombre }}" data-clave="{{ $c->id }}" {{ request('cliente_desde') === $c->nombre ? 'selected' : '' }}>
                         {{ $c->nombre }}
                     </option>
                 @endforeach
@@ -39,7 +39,7 @@
             <select name="cliente_hasta" id="sel-hasta" class="w-full select2-clientes">
                 <option value="">— Mismo que desde —</option>
                 @foreach($clientes as $c)
-                    <option value="{{ $c->nombre }}" {{ request('cliente_hasta') === $c->nombre ? 'selected' : '' }}>
+                    <option value="{{ $c->nombre }}" data-clave="{{ $c->id }}" {{ request('cliente_hasta') === $c->nombre ? 'selected' : '' }}>
                         {{ $c->nombre }}
                     </option>
                 @endforeach
@@ -332,13 +332,24 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(function () {
+    // Busca por nombre o por clave (id del cliente) sin mostrar la clave.
+    function matcherClave(params, data) {
+        var term = (params.term || '').trim().toLowerCase();
+        if (term === '') return data;
+        if (typeof data.text === 'undefined') return null;
+        var clave = $(data.element).data('clave');
+        if (clave !== undefined && String(clave) === term) return data;
+        return data.text.toLowerCase().indexOf(term) > -1 ? data : null;
+    }
     $('#sel-desde').select2({
+        matcher: matcherClave,
         placeholder: '— Todos —',
         allowClear: true,
         width: '100%',
         language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
     });
     $('#sel-hasta').select2({
+        matcher: matcherClave,
         placeholder: '— Mismo que desde —',
         allowClear: true,
         width: '100%',
