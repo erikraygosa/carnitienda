@@ -62,7 +62,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'generar complementos pago', 'ver notas credito', 'crear notas credito',
 
             // CxC
-            'ver cxc', 'registrar cobros', 'ver reportes cxc', 'liquidar cuentas',
+            'ver cxc', 'registrar cobros', 'ver reportes cxc', 'liquidar cuentas', 'ver estado de cuenta',
 
             // POS
             'usar pos', 'editar precio en pos',
@@ -110,6 +110,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver stock',
             'ver reporte notas de venta',
             'ver reporte ventas por producto',
+            'ver estado de cuenta',
         ]);
 
         $logistica = Role::firstOrCreate(['name' => 'logistica']);
@@ -134,7 +135,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver clientes',
             'ver pedidos',
             'ver facturas', 'crear facturas', 'facturar varios pedidos',
-            'ver cxc', 'registrar cobros', 'ver reportes cxc', 'liquidar cuentas',
+            'ver cxc', 'registrar cobros', 'ver reportes cxc', 'liquidar cuentas', 'ver estado de cuenta',
             'generar complementos pago', 'ver notas credito', 'crear notas credito',
             'ver reportes',
             'ver reporte notas de venta',

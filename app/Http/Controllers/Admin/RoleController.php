@@ -46,7 +46,7 @@ class RoleController extends Controller implements HasMiddleware
             return 'reportes';
         }
         // CxC
-        if (in_array($name, ['ver cxc', 'registrar cobros', 'ver reportes cxc', 'crear facturas'])) {
+        if (in_array($name, ['ver cxc', 'registrar cobros', 'ver reportes cxc', 'crear facturas', 'ver estado de cuenta'])) {
             return 'cxc';
         }
         // POS

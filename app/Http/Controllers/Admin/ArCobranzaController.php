@@ -20,7 +20,12 @@ class ArCobranzaController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('can:ver cxc'),
+            // Cuentas por cobrar completo, o solo el permiso de Estado de cuenta
+            // (ventas) que da acceso a esta pantalla y no al resto de CxC.
+            new Middleware(function ($request, $next) {
+                abort_unless(\Illuminate\Support\Facades\Gate::any(['ver cxc', 'ver estado de cuenta']), 403);
+                return $next($request);
+            }),
         ];
     }
 

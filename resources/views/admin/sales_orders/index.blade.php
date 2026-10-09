@@ -3,6 +3,12 @@
     :breadcrumbs="[['name'=>'Dashboard','url'=>route('admin.dashboard')],['name'=>'Pedidos']]"
 >
     <x-slot name="action">
+        @canany(['ver cxc', 'ver estado de cuenta'])
+        <a href="{{ route('admin.ar.cobranza') }}"
+           class="inline-flex px-3 py-1.5 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 mr-2">
+            Estado de cuenta
+        </a>
+        @endcanany
         <a href="{{ route('admin.invoices.consolidada') }}"
            class="inline-flex px-3 py-1.5 text-sm rounded-md border border-indigo-300 text-indigo-700 hover:bg-indigo-50">
             Facturar varios pedidos
