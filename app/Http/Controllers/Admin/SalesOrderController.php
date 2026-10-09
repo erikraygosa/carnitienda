@@ -144,7 +144,7 @@ public function data(Request $request)
         $vivas = $o->invoices->where('tipo_comprobante', 'I')->where('estatus', '!=', 'CANCELADA')->sortBy('id')->values();
         $consolidada = $vivas->contains(fn ($i) => ($cubre[$i->id] ?? 1) > 1);
         $facturado = (float) $vivas->whereIn('estatus', ['TIMBRADA', 'CANCELACION_PENDIENTE'])->sum('total');
-        $parcial = $vivas->isNotEmpty() && ! $consolidada && $facturado < (float) $o->total - 1.0;
+        $parcial = $facturado > 0 && ! $consolidada && $facturado < (float) $o->total - 1.0;
 
         return [
             'id'      => $o->id,
