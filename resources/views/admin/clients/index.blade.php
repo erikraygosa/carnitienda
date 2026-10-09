@@ -59,7 +59,6 @@
                         <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400 w-2"></th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Clave</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Nombre</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Email</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Teléfono</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Ruta</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Lista precio</th>
@@ -142,7 +141,6 @@
                 <td class="px-2 py-3"><span class="block w-3 h-3 rounded-full ${color}" title="Alerta nivel ${client.alerta_nivel}"></span></td>
                 <td class="px-4 py-3 font-mono text-gray-500 dark:text-gray-400">${client.id}</td>
                 <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">${escapeHtml(client.nombre)}</td>
-                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">${escapeHtml(client.email) || '—'}</td>
                 <td class="px-4 py-3 text-gray-600 dark:text-gray-400">${escapeHtml(client.telefono) || '—'}</td>
                 <td class="px-4 py-3 text-gray-600 dark:text-gray-400">${escapeHtml(client.shipping_route?.nombre) || '—'}</td>
                 <td class="px-4 py-3 text-gray-600 dark:text-gray-400">${escapeHtml(client.price_list?.nombre) || '—'}</td>
