@@ -52,10 +52,10 @@ class ClientController extends Controller implements HasMiddleware
                 'ultima_orden_at'
             )
             ->with(['shippingRoute', 'priceList'])
+            // Solo clave (el id del cliente) y nombre.
             ->when($search !== '', fn ($q) => $q->where(fn ($q) => $q
                 ->where('nombre', 'like', "%$search%")
-                ->orWhere('email', 'like', "%$search%")
-                ->orWhere('telefono', 'like', "%$search%")))
+                ->when(ctype_digit($search), fn ($q) => $q->orWhere('clients.id', (int) $search))))
             ->when($activo !== '', fn ($q) => $q->where('activo', $activo))
             ->orderBy('nombre');
 

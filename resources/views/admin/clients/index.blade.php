@@ -24,7 +24,7 @@
         {{-- Filtros --}}
         <div class="flex flex-wrap gap-3 mb-4">
             <input id="filter-search" type="text"
-                placeholder="Buscar nombre / email / teléfono..."
+                placeholder="Buscar clave / nombre..."
                 class="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 flex-1 min-w-[200px]"
             />
             <select id="filter-activo"
@@ -57,6 +57,7 @@
                 <thead class="bg-gray-50 dark:bg-gray-800">
                     <tr>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400 w-2"></th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Clave</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Nombre</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Email</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Teléfono</th>
@@ -139,6 +140,7 @@
             tr.className = `${rowBg} hover:opacity-90 transition-colors`;
             tr.innerHTML = `
                 <td class="px-2 py-3"><span class="block w-3 h-3 rounded-full ${color}" title="Alerta nivel ${client.alerta_nivel}"></span></td>
+                <td class="px-4 py-3 font-mono text-gray-500 dark:text-gray-400">${client.id}</td>
                 <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">${escapeHtml(client.nombre)}</td>
                 <td class="px-4 py-3 text-gray-600 dark:text-gray-400">${escapeHtml(client.email) || '—'}</td>
                 <td class="px-4 py-3 text-gray-600 dark:text-gray-400">${escapeHtml(client.telefono) || '—'}</td>
