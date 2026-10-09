@@ -544,6 +544,7 @@
 
         // Mostrar info del cliente ya seleccionado sin sobreescribir selects
         if (PREFILL_CID) {
+            cargarPreciosCliente(PREFILL_CID);
             applyClient(PREFILL_CID, false);
         }
 
@@ -560,6 +561,7 @@
 
     // ─── Cliente ──────────────────────────────────────────────────────────────
     function onClientChange(clientId) {
+        cargarPreciosCliente(clientId);
         applyClient(clientId, true);
     }
 
@@ -619,9 +621,35 @@
     })();
 
     // ─── Productos ────────────────────────────────────────────────────────────
+
+    // Precios con los que llegó cada producto (pedido o factura de origen): si se vuelve a
+    // elegir ese producto en la partida se conserva ese precio, en vez de caer al precio
+    // base del catálogo (ej. pedido a $68.70 del cliente, factura a $70 base).
+    var PRECIO_ORIGEN = {};
+    (ITEMS_SEED || []).forEach(function (it) {
+        if (it.product_id && parseFloat(it.valor_unitario) > 0) PRECIO_ORIGEN[String(it.product_id)] = parseFloat(it.valor_unitario);
+    });
+    var PRECIOS_CLIENTE = {};
+    var URL_PRECIOS_CLIENTE = @json(route('admin.sales-orders.client-prices', '__ID__'));
+    function cargarPreciosCliente(clientId) {
+        PRECIOS_CLIENTE = {};
+        if (!clientId) return;
+        fetch(URL_PRECIOS_CLIENTE.replace('__ID__', clientId), { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.ok ? r.json() : {}; })
+            .then(function (d) { PRECIOS_CLIENTE = d || {}; })
+            .catch(function () {});
+    }
+    function precioParaProducto(productId, p) {
+        var k = String(productId);
+        if (PRECIO_ORIGEN[k] !== undefined) return PRECIO_ORIGEN[k];
+        if (PRECIOS_CLIENTE[k] !== undefined && parseFloat(PRECIOS_CLIENTE[k]) > 0) return parseFloat(PRECIOS_CLIENTE[k]);
+        return p.precio_base || 0;
+    }
+
     function onProductChange(i, productId) {
         if (IS_LOCKED) return;
 
+        var prevPid = String(items[i].product_id || '');
         items[i].product_id = productId;
 
         if (!productId) {
@@ -642,7 +670,10 @@
         items[i].clave_prod_serv = p.clave_prod_serv || '01010101';
         items[i].clave_unidad    = p.clave_unidad    || 'H87';
         items[i].unidad          = p.unidad          || 'PZA';
-        items[i].valor_unitario  = p.precio_base     || 0;
+        // Mismo producto vuelto a elegir con precio ya puesto: no se toca.
+        if (!(prevPid === String(productId) && parseFloat(items[i].valor_unitario) > 0)) {
+            items[i].valor_unitario = precioParaProducto(productId, p);
+        }
 
         // El impuesto de la línea sale del que tenga configurado el
         // producto en su ficha (Productos → SAT). Si no tiene nada
