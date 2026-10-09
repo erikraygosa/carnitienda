@@ -306,20 +306,44 @@ class DispatchPanelController extends Controller
 
     // ── 2d. Agregar un producto adicional al pedido durante el surtido ────
 
-    /** Precio vigente del producto para el cliente del pedido: lista → precio del cliente → base. */
+    /**
+     * Precio del CLIENTE para el producto: su lista de precios (personalizada,
+     * una por cliente) o, si no usa lista, su precio personalizado. null si
+     * todavía no tiene precio — no se cae al precio base.
+     */
     private function resolverPrecio(SalesOrder $order, \App\Models\Product $product): array
     {
         if ($order->price_list_id) {
             $p = DB::table('price_list_items')->where('price_list_id', $order->price_list_id)
                 ->where('product_id', $product->id)->value('precio');
             if ($p !== null && (float) $p > 0) return [round((float) $p, 4), 'lista'];
+        } else {
+            $p = DB::table('client_price_overrides')->where('client_id', $order->client_id)
+                ->where('product_id', $product->id)->value('precio');
+            if ($p !== null && (float) $p > 0) return [round((float) $p, 4), 'cliente'];
         }
 
-        $p = DB::table('client_price_overrides')->where('client_id', $order->client_id)
-            ->where('product_id', $product->id)->value('precio');
-        if ($p !== null && (float) $p > 0) return [round((float) $p, 4), 'cliente'];
+        return [null, null];
+    }
 
-        return [round((float) $product->precio_base, 4), 'base'];
+    /** Guarda el precio como el del cliente (su lista, o su precio personalizado). */
+    private function guardarPrecioCliente(SalesOrder $order, int $productId, float $precio): ?float
+    {
+        $ahora = now();
+        if ($order->price_list_id) {
+            $previo = DB::table('price_list_items')->where('price_list_id', $order->price_list_id)->where('product_id', $productId)->value('precio');
+            DB::table('price_list_items')->updateOrInsert(
+                ['price_list_id' => $order->price_list_id, 'product_id' => $productId],
+                ['precio' => $precio, 'updated_at' => $ahora] + ($previo === null ? ['created_at' => $ahora] : [])
+            );
+        } else {
+            $previo = DB::table('client_price_overrides')->where('client_id', $order->client_id)->where('product_id', $productId)->value('precio');
+            DB::table('client_price_overrides')->updateOrInsert(
+                ['client_id' => $order->client_id, 'product_id' => $productId],
+                ['precio' => $precio, 'updated_at' => $ahora] + ($previo === null ? ['created_at' => $ahora] : [])
+            );
+        }
+        return $previo !== null ? (float) $previo : null;
     }
 
     private function ivaPct(\App\Models\Product $product): float
@@ -337,9 +361,8 @@ class DispatchPanelController extends Controller
             'ok'            => true,
             'nombre'        => $product->nombre,
             'unidad'        => $product->unidad,
-            'precio'        => $precio,
-            'fuente'        => $fuente,
-            'lista'         => (bool) $order->price_list_id,
+            'precio'        => $precio,            // null = el cliente aún no tiene precio
+            'base'          => (float) $product->precio_base,
             'puede_editar'  => auth()->user()->can('editar precio en surtido'),
         ]);
     }
@@ -364,12 +387,12 @@ class DispatchPanelController extends Controller
         $product = \App\Models\Product::findOrFail($data['product_id']);
         [$oficial, $fuente] = $this->resolverPrecio($order, $product);
         $precio = round((float) $data['precio'], 4);
-        $cambioPrecio = abs($precio - $oficial) > 0.00005;
 
-        // Un precio distinto al vigente solo lo puede poner quien tenga el
-        // permiso — salvo que el producto no tenga precio todavía (fuente
-        // 'base' en 0): ahí se captura, igual que al crear un pedido.
-        $sinPrecioPrevio = $oficial <= 0;
+        // Un precio distinto al del cliente solo lo puede poner quien tenga el
+        // permiso — salvo que el cliente no tenga precio todavía: ahí se
+        // captura (igual que al crear un pedido) y queda como su precio.
+        $sinPrecioPrevio = $oficial === null;
+        $cambioPrecio = $sinPrecioPrevio || abs($precio - $oficial) > 0.00005;
         if ($cambioPrecio && ! $sinPrecioPrevio && ! auth()->user()->can('editar precio en surtido')) {
             return response()->json(['ok' => false, 'message' => 'No tienes permiso para cambiar el precio del producto.'], 403);
         }
@@ -380,7 +403,7 @@ class DispatchPanelController extends Controller
         $impuesto  = round($base * $iva / 100, 2);
         $total     = round($base + $impuesto, 2);
 
-        DB::transaction(function () use ($order, $product, $data, $cantidad, $precio, $oficial, $fuente, $cambioPrecio, $sinPrecioPrevio, $base, $impuesto, $total) {
+        DB::transaction(function () use ($order, $product, $data, $cantidad, $precio, $oficial, $cambioPrecio, $sinPrecioPrevio, $base, $impuesto, $total) {
             $item = SalesOrderItem::create([
                 'sales_order_id' => $order->id,
                 'product_id'     => $product->id,
@@ -413,30 +436,22 @@ class DispatchPanelController extends Controller
                 ]
             );
 
-            if ($cambioPrecio || $sinPrecioPrevio) {
+            if ($cambioPrecio) {
+                $previo = $this->guardarPrecioCliente($order, $product->id, $precio);
+                $donde  = $order->price_list_id ? 'lista de precios del cliente' : 'precio personalizado del cliente';
+
                 $log->log(
-                    $order, 'PRECIO_MODIFICADO_SURTIDO', number_format($oficial, 2), number_format($precio, 2), null,
-                    "Precio de {$product->nombre} " . ($sinPrecioPrevio ? 'capturado' : 'cambiado') . " en el surtido (vigente: $" . number_format($oficial, 2) . " [{$fuente}], nuevo: $" . number_format($precio, 2) . ')',
-                    ['product_id' => $product->id, 'producto' => $product->nombre, 'old' => $oficial, 'new' => $precio, 'fuente_anterior' => $fuente]
+                    $order, 'PRECIO_MODIFICADO_SURTIDO', $oficial !== null ? number_format($oficial, 2) : null, number_format($precio, 2), null,
+                    "Precio de {$product->nombre} " . ($sinPrecioPrevio ? 'capturado' : 'cambiado') . " en el surtido y guardado en la {$donde} (antes: " . ($oficial !== null ? '$' . number_format($oficial, 2) : 'sin precio') . ', ahora: $' . number_format($precio, 2) . ')',
+                    ['product_id' => $product->id, 'producto' => $product->nombre, 'old' => $oficial, 'new' => $precio]
                 );
 
-                // Pedido sin lista de precios: el precio nuevo queda como precio
-                // del cliente para ese producto. Con lista (compartida con otros
-                // clientes) el cambio aplica solo a este pedido.
-                if (! $order->price_list_id && $order->client_id) {
-                    $previo = DB::table('client_price_overrides')->where('client_id', $order->client_id)
-                        ->where('product_id', $product->id)->value('precio');
-                    DB::table('client_price_overrides')->updateOrInsert(
-                        ['client_id' => $order->client_id, 'product_id' => $product->id],
-                        ['precio' => $precio, 'updated_at' => now()] + ($previo === null ? ['created_at' => now()] : [])
+                if ($client = \App\Models\Client::find($order->client_id)) {
+                    $log->log(
+                        $client, 'PRECIO_PERSONALIZADO_ACTUALIZADO', $previo !== null ? number_format($previo, 2) : null, number_format($precio, 2), null,
+                        "Precio actualizado desde el surtido del pedido {$order->folio} ({$donde}) — Producto: {$product->nombre}",
+                        ['product_id' => $product->id, 'producto' => $product->nombre, 'old' => $previo, 'new' => $precio]
                     );
-                    if ($client = \App\Models\Client::find($order->client_id)) {
-                        $log->log(
-                            $client, 'PRECIO_PERSONALIZADO_ACTUALIZADO', $previo !== null ? number_format((float) $previo, 2) : null, number_format($precio, 2), null,
-                            "Precio actualizado desde el surtido del pedido {$order->folio} — Producto: {$product->nombre}",
-                            ['product_id' => $product->id, 'producto' => $product->nombre, 'old' => $previo !== null ? (float) $previo : null, 'new' => $precio]
-                        );
-                    }
                 }
             }
         });
