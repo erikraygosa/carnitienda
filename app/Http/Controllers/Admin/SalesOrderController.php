@@ -61,7 +61,7 @@ public function data(Request $request)
     $search     = $request->get('search', '');
     $status     = $request->get('status', '');
     $facturada  = $request->get('facturada', ''); // '' | 'facturada' | 'sin_facturar'
-    $pago       = $request->get('pago', '');      // '' | 'pagado' | 'no_pagado'
+    $pago       = $request->get('pago', '');      // '' | 'pagado' | 'abonado' | 'no_pagado'
     $defaultDesde = now()->startOfMonth()->format('Y-m-d');
     $defaultHasta = now()->endOfMonth()->format('Y-m-d');
     // filled() en vez de get()-con-default: si el navegador manda
@@ -100,7 +100,8 @@ public function data(Request $request)
         ->when($facturada === 'sin_facturar', fn($q) => $q->whereDoesntHave('invoices', fn($q2) => $q2->where('estatus', 'TIMBRADA')))
         // Mismo criterio que SalesOrder::esta_pagado.
         ->when($pago === 'pagado',    fn($q) => $q->whereRaw("(cobrado_at IS NOT NULL OR COALESCE(driver_settlement_status, 'PENDIENTE') = 'LIQUIDADO' OR (saldo_pendiente IS NOT NULL AND saldo_pendiente <= 0))"))
-        ->when($pago === 'no_pagado', fn($q) => $q->whereRaw("NOT (cobrado_at IS NOT NULL OR COALESCE(driver_settlement_status, 'PENDIENTE') = 'LIQUIDADO' OR (saldo_pendiente IS NOT NULL AND saldo_pendiente <= 0))"))
+        ->when($pago === 'abonado',   fn($q) => $q->whereRaw("NOT (cobrado_at IS NOT NULL OR COALESCE(driver_settlement_status, 'PENDIENTE') = 'LIQUIDADO' OR (saldo_pendiente IS NOT NULL AND saldo_pendiente <= 0)) AND saldo_pendiente IS NOT NULL AND saldo_pendiente < total - 0.005"))
+        ->when($pago === 'no_pagado', fn($q) => $q->whereRaw("NOT (cobrado_at IS NOT NULL OR COALESCE(driver_settlement_status, 'PENDIENTE') = 'LIQUIDADO' OR (saldo_pendiente IS NOT NULL AND saldo_pendiente <= 0)) AND (saldo_pendiente IS NULL OR saldo_pendiente >= total - 0.005)"))
         ->when($fechaDesde, fn($q) => $q->whereRaw("$fechaOrden >= ?", [$fechaDesde]))
         ->when($fechaHasta, fn($q) => $q->whereRaw("$fechaOrden <= ?", [$fechaHasta]))
         ->when($sortBy === 'fecha', fn($q) => $q->orderByRaw("$fechaOrden $sortDir"))
@@ -140,6 +141,10 @@ public function data(Request $request)
             'status'  => $o->status,
             'total'   => number_format((float) $o->total, 2),
             'pagado'  => $o->esta_pagado,
+            // Pago parcial: el saldo bajó pero todavía queda algo por cobrar.
+            'abonado' => (! $o->esta_pagado && $o->saldo_pendiente !== null && (float) $o->saldo_pendiente < (float) $o->total - 0.005)
+                            ? number_format((float) $o->total - (float) $o->saldo_pendiente, 2) : null,
+            'resta'   => number_format((float) ($o->saldo_pendiente ?? $o->total), 2),
             'fe'      => $factura?->estatus,
             'fid'     => $factura?->id,
         ];

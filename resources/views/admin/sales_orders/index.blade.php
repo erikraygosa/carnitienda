@@ -51,6 +51,7 @@
                         class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <option value="">Pago: todos</option>
                     <option value="pagado">Pagados</option>
+                    <option value="abonado">Con abono</option>
                     <option value="no_pagado">Sin pagar</option>
                 </select>
             </div>
@@ -285,7 +286,9 @@
                     <span class="px-2 py-1 text-xs rounded-full ${stClass}">${stLabel}</span>
                     ${o.status !== 'CANCELADO' ? (o.pagado
                         ? `<span class="ml-1 inline-flex px-2 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200" title="Pagado">💲 Pagado</span>`
-                        : `<span class="ml-1 inline-flex px-2 py-1 text-xs rounded-full bg-amber-50 text-amber-700 border border-amber-200" title="Pendiente de cobro">Por cobrar</span>`) : ''}
+                        : (o.abonado
+                            ? `<span class="ml-1 inline-flex px-2 py-1 text-xs rounded-full bg-sky-100 text-sky-700" title="Pago parcial: abonado $${esc(o.abonado)}, resta $${esc(o.resta)}">Abonado $${esc(o.abonado)} · resta $${esc(o.resta)}</span>`
+                            : `<span class="ml-1 inline-flex px-2 py-1 text-xs rounded-full bg-amber-50 text-amber-700 border border-amber-200" title="Pendiente de cobro">Por cobrar</span>`)) : ''}
                     ${fac ? `<a href="${urlDe('factura', o.fid)}" title="Ver factura"
                            class="ml-1 inline-flex px-2 py-1 text-xs rounded-full ${fac[1]} hover:opacity-75">🧾 ${fac[0]}</a>` : ''}
                 </td>
