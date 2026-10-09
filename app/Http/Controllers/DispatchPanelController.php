@@ -361,9 +361,9 @@ class DispatchPanelController extends Controller
             'ok'            => true,
             'nombre'        => $product->nombre,
             'unidad'        => $product->unidad,
-            // Precio del cliente; si todavía no tiene, se muestra el base (se
-            // registra como precio del cliente al agregar el producto).
-            'precio'        => $precio ?? (float) $product->precio_base,
+            // Precio del cliente; si todavía no tiene, 0 (hay que capturarlo
+            // para poder agregar el producto — el base no se usa ni se muestra).
+            'precio'        => $precio ?? 0,
             'del_cliente'   => $precio !== null,
             'puede_editar'  => auth()->user()->can('editar precio en surtido'),
         ]);
@@ -390,16 +390,15 @@ class DispatchPanelController extends Controller
         [$oficial, $fuente] = $this->resolverPrecio($order, $product);
         $precio = round((float) $data['precio'], 4);
 
-        // Sin precio del cliente todavía: se toma el precio base del producto y
-        // queda registrado como precio del cliente (nunca un producto sin
-        // precio de cliente). Cambiar cualquier precio — el del cliente o ese
-        // base propuesto — exige el permiso; si el producto ni siquiera tiene
-        // precio base, se captura (igual que al crear un pedido).
+        // Un producto no puede quedar sin precio de cliente: si el cliente aún
+        // no lo tiene, hay que capturarlo (queda guardado como su precio).
+        // Capturar o cambiar un precio exige el permiso.
         $sinPrecioPrevio = $oficial === null;
-        $referencia      = $oficial ?? round((float) $product->precio_base, 4);
-        $cambioPrecio    = $sinPrecioPrevio || abs($precio - $referencia) > 0.00005;
-        if ($referencia > 0 && abs($precio - $referencia) > 0.00005 && ! auth()->user()->can('editar precio en surtido')) {
-            return response()->json(['ok' => false, 'message' => 'No tienes permiso para cambiar el precio del producto.'], 403);
+        $cambioPrecio    = $sinPrecioPrevio || abs($precio - $oficial) > 0.00005;
+        if ($cambioPrecio && ! auth()->user()->can('editar precio en surtido')) {
+            return response()->json(['ok' => false, 'message' => $sinPrecioPrevio
+                ? 'Este producto no tiene precio para el cliente y no tienes permiso para capturarlo.'
+                : 'No tienes permiso para cambiar el precio del producto.'], 403);
         }
 
         $cantidad  = (float) $data['cantidad'];

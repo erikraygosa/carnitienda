@@ -387,14 +387,13 @@
                     }
                     function pintarPrecio() {
                         var vista = document.getElementById('sp-precio-vista');
-                        var sinPrecio = !(precioInfo.precio > 0);
-                        if (editando || sinPrecio) {
-                            editando = true;
+                        if (editando) {
                             vista.innerHTML = '<input id="sp-precio-input" type="number" step="0.01" min="0" class="swal2-input" style="margin:0;width:100%" ' +
                                 'value="' + (precioInfo.precio > 0 ? precioInfo.precio : '') + '">';
                             document.getElementById('sp-precio-input').addEventListener('input', pintarTotal);
+                            document.getElementById('sp-precio-input').focus();
                         } else {
-                            var fmt = '$' + Number(precioInfo.precio).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                            var fmt = '$' + Number(precioInfo.precio || 0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                             if (precioInfo.puede_editar) {
                                 vista.innerHTML = '<button type="button" id="sp-precio-btn" style="font-size:20px;font-weight:700;border:1px dashed #a5b4fc;border-radius:6px;padding:4px 12px;background:#eef2ff;color:#3730a3;cursor:pointer" title="Clic para cambiar el precio">' + fmt + ' ✎</button>';
                                 document.getElementById('sp-precio-btn').addEventListener('click', function() { editando = true; pintarPrecio(); pintarTotal(); });
@@ -432,6 +431,7 @@
                     var precio = window._spPrecio();
                     if (!info) { Swal.showValidationMessage('Elige un producto.'); return false; }
                     if (!(cant > 0)) { Swal.showValidationMessage('Captura la cantidad.'); return false; }
+                    if (!info.del_cliente && !editando) { Swal.showValidationMessage('El cliente no tiene precio para este producto: da clic en el precio y captúralo para poder agregarlo.'); return false; }
                     if (!(precio > 0)) { Swal.showValidationMessage('El producto necesita un precio mayor a 0.'); return false; }
                     return { product_id: info.product_id, cantidad: cant, precio: precio, presentacion: document.getElementById('sp-pres').value };
                 }
