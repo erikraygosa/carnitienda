@@ -30,7 +30,7 @@
                         required>
                     <option value="">-- Selecciona --</option>
                     @foreach($clients as $c)
-                        <option value="{{ $c->id }}"
+                        <option value="{{ $c->id }}" data-clave="{{ $c->id }}"
                             {{ ($preClientId ?? '') == $c->id ? 'selected' : '' }}>
                             {{ $c->nombre }}
                         </option>
@@ -388,7 +388,17 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(function () {
+    // Busca por nombre o por clave (id del cliente) sin mostrar la clave.
+    function matcherClave(params, data) {
+        var term = (params.term || '').trim().toLowerCase();
+        if (term === '') return data;
+        if (typeof data.text === 'undefined') return null;
+        var clave = $(data.element).data('clave');
+        if (clave !== undefined && String(clave) === term) return data;
+        return data.text.toLowerCase().indexOf(term) > -1 ? data : null;
+    }
     $('#client_id').select2({
+        matcher: matcherClave,
         placeholder: '-- Selecciona --',
         allowClear: true,
         width: '100%',
