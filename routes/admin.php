@@ -198,6 +198,9 @@ Route::resource('invoices', InvoiceController::class)->except(['destroy'])->name
 Route::post('invoices/{invoice}/stamp',   [InvoiceController::class, 'stamp'])->name('invoices.stamp');
 Route::post('invoices/{invoice}/cancel',  [InvoiceController::class, 'cancel'])->name('invoices.cancel');
 Route::post('invoices/{invoice}/refresh-cancellation', [InvoiceController::class, 'refreshCancellation'])->name('invoices.refresh-cancellation');
+Route::get ('invoices/{invoice}/asociar',      [InvoiceController::class, 'asociarForm'])->name('invoices.asociar');
+Route::get ('invoices/{invoice}/asociar/data', [InvoiceController::class, 'asociarData'])->name('invoices.asociar.data');
+Route::post('invoices/{invoice}/asociar',      [InvoiceController::class, 'asociarGuardar'])->name('invoices.asociar.guardar');
 Route::get ('invoices/{invoice}/pdf',     [InvoiceController::class, 'pdf'])->name('invoices.pdf');
 Route::get ('invoices/{invoice}/download',[InvoiceController::class, 'download'])->name('invoices.download');
 Route::get ('invoices/{invoice}/xml',     [InvoiceController::class, 'xml'])->name('invoices.xml');

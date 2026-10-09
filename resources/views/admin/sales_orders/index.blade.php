@@ -295,8 +295,12 @@
                         : (o.abonado
                             ? `<span class="ml-1 inline-flex px-2 py-1 text-xs rounded-full bg-sky-100 text-sky-700" title="Pago parcial: abonado $${esc(o.abonado)}, resta $${esc(o.resta)}">Abonado $${esc(o.abonado)} · resta $${esc(o.resta)}</span>`
                             : `<span class="ml-1 inline-flex px-2 py-1 text-xs rounded-full bg-amber-50 text-amber-700 border border-amber-200" title="Pendiente de cobro">Por cobrar</span>`)) : ''}
-                    ${fac ? `<a href="${urlDe('factura', o.fid)}" title="Ver factura"
-                           class="ml-1 inline-flex px-2 py-1 text-xs rounded-full ${fac[1]} hover:opacity-75">🧾 ${fac[0]}</a>` : ''}
+                    ${(o.facs && (o.facs.length > 1 || o.parcial))
+                        ? o.facs.map(f => `<a href="${urlDe('factura', f.id)}" title="Ver factura ${esc(f.folio)} (${esc(f.estatus)})"
+                               class="ml-1 inline-flex px-2 py-1 text-xs rounded-full ${(FACTURA[f.estatus] || ['', 'bg-gray-100 text-gray-600'])[1]} hover:opacity-75">🧾 ${esc(f.folio)}</a>`).join('')
+                          + (o.parcial ? `<span class="ml-1 inline-flex px-2 py-1 text-xs rounded-full bg-amber-50 text-amber-700 border border-amber-200" title="Facturado parcialmente">Facturado $${esc(o.parcial.facturado)} de $${esc(o.parcial.total)}</span>` : '')
+                        : (fac ? `<a href="${urlDe('factura', o.fid)}" title="Ver factura"
+                           class="ml-1 inline-flex px-2 py-1 text-xs rounded-full ${fac[1]} hover:opacity-75">🧾 ${fac[0]}</a>` : '')}
                 </td>
                 <td class="px-4 py-3 font-mono text-gray-700">$${esc(o.total)}</td>
                 <td class="px-4 py-3">${renderActions(o)}</td>`;

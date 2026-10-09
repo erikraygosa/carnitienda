@@ -34,6 +34,10 @@
         <a href="{{ route('admin.invoices.xml.download', $invoice) }}" class="inv-btn inv-btn-gray">↓ XML</a>
     @endif
 
+    @if($invoice->tipo_comprobante === 'I' && $invoice->estatus !== 'CANCELADA')
+        <a href="{{ route('admin.invoices.asociar', $invoice) }}" class="inv-btn inv-btn-gray" title="Indicar qué pedidos / notas cubre esta factura">Asociar pedidos</a>
+    @endif
+
     @if($invoice->estatus === 'BORRADOR')
         <form action="{{ route('admin.invoices.stamp', $invoice) }}" method="POST">
             @csrf

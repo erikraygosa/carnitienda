@@ -86,7 +86,7 @@ public function data(Request $request)
             'id','folio','client_id','warehouse_id','programado_para','fecha','status','total',
             'saldo_pendiente','cobrado_at','driver_settlement_status',
         ])
-        ->with(['client:id,nombre','warehouse:id,nombre','invoices:id,estatus'])
+        ->with(['client:id,nombre','warehouse:id,nombre','invoices:id,serie,folio,estatus,total,tipo_comprobante'])
         ->when($search, fn($q) =>
             $q->where(fn($q) =>
                 $q->where('folio','like',"%$search%")
@@ -128,8 +128,24 @@ public function data(Request $request)
     // Fila mínima: etiquetas, colores y URLs viven una sola vez en el front
     // (antes cada fila mandaba ~15 URLs y un token CSRF propios: más de
     // 1.3 KB por pedido y 11 route() por fila en el servidor).
-    $rows = $orders->map(function ($o) use ($facturaRelevante) {
+    // Cuántos pedidos/notas cubre cada factura: si cubre más de uno (consolidada),
+    // no se puede repartir su importe y cuenta como cobertura completa.
+    $idsFact = $orders->flatMap(fn ($o) => $o->invoices->pluck('id'))->unique()->values();
+    $cubre = [];
+    if ($idsFact->isNotEmpty()) {
+        foreach (DB::table('invoice_sales_orders')->whereIn('invoice_id', $idsFact)->selectRaw('invoice_id, COUNT(*) n')->groupBy('invoice_id')->get() as $r) $cubre[$r->invoice_id] = ($cubre[$r->invoice_id] ?? 0) + $r->n;
+        foreach (DB::table('invoice_sales')->whereIn('invoice_id', $idsFact)->selectRaw('invoice_id, COUNT(*) n')->groupBy('invoice_id')->get() as $r) $cubre[$r->invoice_id] = ($cubre[$r->invoice_id] ?? 0) + $r->n;
+    }
+
+    $rows = $orders->map(function ($o) use ($facturaRelevante, $cubre) {
         $factura = $facturaRelevante($o);
+
+        // Facturas vivas del pedido y si cubren todo o solo una parte (facturas parciales).
+        $vivas = $o->invoices->where('tipo_comprobante', 'I')->where('estatus', '!=', 'CANCELADA')->sortBy('id')->values();
+        $consolidada = $vivas->contains(fn ($i) => ($cubre[$i->id] ?? 1) > 1);
+        $facturado = (float) $vivas->whereIn('estatus', ['TIMBRADA', 'CANCELACION_PENDIENTE'])->sum('total');
+        $parcial = $vivas->isNotEmpty() && ! $consolidada && $facturado < (float) $o->total - 1.0;
+
         return [
             'id'      => $o->id,
             'folio'   => $o->folio,
@@ -147,6 +163,8 @@ public function data(Request $request)
             'resta'   => number_format((float) ($o->saldo_pendiente ?? $o->total), 2),
             'fe'      => $factura?->estatus,
             'fid'     => $factura?->id,
+            'facs'    => $vivas->map(fn ($i) => ['id' => $i->id, 'folio' => ($i->serie ?? '') . ($i->folio ?? $i->id), 'estatus' => $i->estatus])->all(),
+            'parcial' => $parcial ? ['facturado' => number_format($facturado, 2), 'total' => number_format((float) $o->total, 2)] : null,
         ];
     })->values();
 

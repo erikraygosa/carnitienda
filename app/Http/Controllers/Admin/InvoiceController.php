@@ -75,7 +75,7 @@ class InvoiceController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('can:ver facturas', only: ['index', 'edit', 'pdf', 'pdfDownload', 'sendForm', 'send', 'export']),
-            new Middleware('can:crear facturas', only: ['create', 'store', 'update', 'fromSalesOrder', 'fromSale']),
+            new Middleware('can:crear facturas', only: ['create', 'store', 'update', 'fromSalesOrder', 'fromSale', 'asociarForm', 'asociarData', 'asociarGuardar']),
             new Middleware('can:facturar varios pedidos', only: ['consolidadaIndex', 'consolidadaData', 'prepararConsolidada']),
             new Middleware('can:timbrar facturas', only: ['stamp']),
             new Middleware('can:cancelar facturas', only: ['cancel', 'refreshCancellation']),
@@ -987,6 +987,116 @@ public function pdfDownload(Invoice $invoice)
                 ->map(fn ($it) => $this->itemDesdeProducto($it, (float) $it->cantidad, (float) $it->precio, (float) $it->descuento))
                 ->values()->toArray(),
         ];
+    }
+
+    // ── Asociar pedidos / notas a una factura ya hecha ───────────────────────
+    // Para facturas que se emiten partidas o montos sueltos (ej. un pedido de
+    // $5,000 en efectivo que se factura en varias de < $2,000): después se le
+    // dice al sistema qué pedidos/notas cubre cada factura, y en Pedidos se
+    // ve a qué factura(s) pertenece cada uno.
+
+    public function asociarForm(Invoice $invoice)
+    {
+        abort_unless($invoice->tipo_comprobante === 'I' && $invoice->estatus !== 'CANCELADA', 404);
+
+        $invoice->load('client', 'salesOrders.client', 'sales.client');
+
+        return view('admin.invoices.asociar', compact('invoice'));
+    }
+
+    public function asociarData(Request $request, Invoice $invoice)
+    {
+        $search = trim((string) $request->get('search', ''));
+        $todos  = $request->boolean('todos');
+        $desde  = $request->filled('desde') ? $request->get('desde') : now()->subDays(60)->toDateString();
+
+        // Otras facturas vivas que ya cubren ese documento (para avisar si hay duplicidad).
+        $otras = fn ($d) => $d->invoices
+            ->where('id', '!=', $invoice->id)
+            ->where('tipo_comprobante', 'I')->whereIn('estatus', ['TIMBRADA', 'CANCELACION_PENDIENTE', 'BORRADOR'])
+            ->map(fn ($i) => ($i->serie ?? '') . ($i->folio ?? $i->id))->values()->all();
+
+        $ya = $invoice->salesOrders()->pluck('sales_orders.id')->all();
+        $pedidos = SalesOrder::with(['client:id,nombre', 'invoices:invoices.id,serie,folio,estatus,tipo_comprobante'])
+            ->whereNotIn('status', ['BORRADOR', 'CANCELADO'])
+            ->when(! $todos && $invoice->client_id, fn ($q) => $q->where('client_id', $invoice->client_id))
+            ->where(fn ($q) => $q->whereIn('id', $ya)->orWhereRaw('COALESCE(programado_para, DATE(fecha)) >= ?', [$desde]))
+            ->when($search !== '', fn ($q) => $q->where(fn ($q) => $q->where('folio', 'like', "%$search%")
+                ->orWhereHas('client', fn ($c) => $c->where('nombre', 'like', "%$search%"))))
+            ->orderByDesc('id')->limit(150)->get()
+            ->map(fn ($o) => [
+                'tipo' => 'pedido', 'id' => $o->id, 'folio' => $o->folio, 'cliente' => $o->client?->nombre ?? '—',
+                'fecha' => ($o->programado_para ?? $o->fecha)?->format('d/m/Y'), 'total' => (float) $o->total,
+                'status' => $o->status, 'otras' => $otras($o),
+            ]);
+
+        $yaV = $invoice->sales()->pluck('sales.id')->all();
+        $notas = Sale::with(['client:id,nombre', 'invoices:invoices.id,serie,folio,estatus,tipo_comprobante'])
+            ->whereNotIn('status', ['BORRADOR', 'CANCELADA', 'CANCELADO'])
+            ->when(! $todos && $invoice->client_id, fn ($q) => $q->where('client_id', $invoice->client_id))
+            ->where(fn ($q) => $q->whereIn('id', $yaV)->orWhereDate('fecha', '>=', $desde))
+            ->when($search !== '', fn ($q) => $q->where(fn ($q) => $q->where('folio', 'like', "%$search%")
+                ->orWhereHas('client', fn ($c) => $c->where('nombre', 'like', "%$search%"))))
+            ->orderByDesc('id')->limit(150)->get()
+            ->map(fn ($n) => [
+                'tipo' => 'nota', 'id' => $n->id, 'folio' => $n->folio, 'cliente' => $n->client?->nombre ?? 'PUBLICO EN GENERAL',
+                'fecha' => optional($n->fecha)->format('d/m/Y'), 'total' => (float) $n->total,
+                'status' => $n->status, 'otras' => $otras($n),
+            ]);
+
+        return response()->json([
+            'rows'  => $pedidos->concat($notas)->values(),
+            'ya'    => ['pedido' => $ya, 'nota' => $yaV],
+        ]);
+    }
+
+    public function asociarGuardar(Request $request, Invoice $invoice)
+    {
+        abort_unless($invoice->tipo_comprobante === 'I' && $invoice->estatus !== 'CANCELADA', 404);
+
+        $data = $request->validate([
+            'orders'   => ['nullable', 'array'],
+            'orders.*' => ['integer', 'exists:sales_orders,id'],
+            'sales'    => ['nullable', 'array'],
+            'sales.*'  => ['integer', 'exists:sales,id'],
+        ]);
+
+        // El documento de origen directo de la factura no se puede desligar.
+        $ordenes = collect($data['orders'] ?? [])->push($invoice->sales_order_id)->filter()->unique()->values();
+        $notas   = collect($data['sales'] ?? [])->push($invoice->sale_id)->filter()->unique()->values();
+
+        $folioFactura = ($invoice->serie ?? '') . ($invoice->folio ?? $invoice->id);
+
+        DB::transaction(function () use ($invoice, $ordenes, $notas, $folioFactura) {
+            $log = app(\App\Services\DocumentLogService::class);
+
+            $antesO = $invoice->salesOrders()->pluck('sales_orders.id');
+            $antesN = $invoice->sales()->pluck('sales.id');
+
+            $invoice->salesOrders()->sync($ordenes);
+            $invoice->sales()->sync($notas);
+
+            foreach (SalesOrder::whereIn('id', $ordenes->diff($antesO))->get() as $o) {
+                $log->log($o, 'FACTURA_ASOCIADA', null, null, null, "Se asoció a la factura {$folioFactura}");
+            }
+            foreach (SalesOrder::whereIn('id', $antesO->diff($ordenes))->get() as $o) {
+                $log->log($o, 'FACTURA_DESASOCIADA', null, null, null, "Se quitó de la factura {$folioFactura}");
+            }
+            foreach (Sale::whereIn('id', $notas->diff($antesN))->get() as $n) {
+                $log->log($n, 'FACTURA_ASOCIADA', null, null, null, "Se asoció a la factura {$folioFactura}");
+            }
+            foreach (Sale::whereIn('id', $antesN->diff($notas))->get() as $n) {
+                $log->log($n, 'FACTURA_DESASOCIADA', null, null, null, "Se quitó de la factura {$folioFactura}");
+            }
+
+            $folios = SalesOrder::whereIn('id', $ordenes)->pluck('folio')->merge(Sale::whereIn('id', $notas)->pluck('folio'))->implode(', ');
+            $log->log($invoice, 'DOCUMENTOS_ASOCIADOS', null, null, null,
+                'Pedidos/notas que cubre la factura: ' . ($folios ?: 'ninguno'),
+                ['pedidos' => ['old' => $antesO->values()->all(), 'new' => $ordenes->all()], 'notas' => ['old' => $antesN->values()->all(), 'new' => $notas->all()]]);
+        });
+
+        return redirect()->route('admin.invoices.index')
+            ->with('swal', ['icon' => 'success', 'title' => 'Factura asociada', 'text' => "La factura {$folioFactura} quedó asociada a " . ($ordenes->count() + $notas->count()) . ' pedido(s)/nota(s).']);
     }
 
     public function fromSalesOrder(\App\Models\SalesOrder $order)
