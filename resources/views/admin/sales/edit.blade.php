@@ -140,11 +140,11 @@
 
                 {{-- Cliente --}}
                 <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-                    <select name="client_id" id="client_id"
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Cliente <span class="text-red-500">*</span></label>
+                    <select name="client_id" id="client_id" required
                             class="w-full rounded-md border-gray-300 shadow-sm text-sm"
                             {{ $isLocked ? 'disabled' : '' }}>
-                        <option value="">-- público general --</option>
+                        <option value="">-Seleccionar-</option>
                         @foreach($clients as $c)
                             <option value="{{ $c->id }}" {{ $selClient===(string)$c->id ? 'selected' : '' }}>
                                 {{ $c->nombre }}

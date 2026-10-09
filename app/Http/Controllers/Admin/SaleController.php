@@ -50,6 +50,14 @@ class SaleController extends Controller implements HasMiddleware
         return view('admin.sales.index');
     }
 
+    /** "PUBLICO EN GENERAL" va primero en la lista de clientes, luego el resto (ya ordenado por nombre). */
+    private function publicoGeneralPrimero($clients)
+    {
+        $esPublico = fn ($c) => mb_strtoupper(trim((string) $c->nombre)) === 'PUBLICO EN GENERAL';
+
+        return $clients->filter($esPublico)->concat($clients->reject($esPublico))->values();
+    }
+
     public function create(Request $request)
     {
         $clients = Client::paraSeleccion([old('client_id')])->orderBy('nombre')->get([
@@ -60,6 +68,7 @@ class SaleController extends Controller implements HasMiddleware
             'fiscal_calle','fiscal_numero','fiscal_colonia','fiscal_ciudad','fiscal_estado','fiscal_cp',
             'entrega_calle','entrega_numero','entrega_colonia','entrega_ciudad','entrega_estado','entrega_cp',
         ]);
+        $clients = $this->publicoGeneralPrimero($clients);
 
         $priceLists   = PriceList::orderBy('nombre')->get(['id','nombre']);
         $products     = Product::where('activo', 1)->orderBy('nombre')->get(['id','nombre','precio_base','sku','unidad']);
@@ -254,7 +263,7 @@ class SaleController extends Controller implements HasMiddleware
         $data = $request->validate([
             'cash_register_id'  => ['required','exists:cash_registers,id'],
             'warehouse_id'      => ['required','exists:warehouses,id'],
-            'client_id'         => ['nullable','exists:clients,id'],
+            'client_id'         => ['required','exists:clients,id'],
             'payment_type_id'   => ['required','exists:payment_types,id'],
             'price_list_id'     => ['nullable','exists:price_lists,id'],
             'moneda'            => ['required','string','max:10'],
@@ -270,6 +279,8 @@ class SaleController extends Controller implements HasMiddleware
             'items.*.descuento'     => ['nullable','numeric','gte:0'],
             'items.*.impuesto'      => ['nullable','numeric','gte:0'],
             'comentarios'           => ['nullable','string','max:2000'],
+        ], [
+            'client_id.required' => 'Selecciona un cliente (para venta de mostrador usa PUBLICO EN GENERAL).',
         ]);
 
         $data['items'] = $this->aplicarPreciosOficiales(
@@ -384,6 +395,7 @@ class SaleController extends Controller implements HasMiddleware
             'fiscal_calle','fiscal_numero','fiscal_colonia','fiscal_ciudad','fiscal_estado','fiscal_cp',
             'entrega_calle','entrega_numero','entrega_colonia','entrega_ciudad','entrega_estado','entrega_cp',
         ]);
+        $clients = $this->publicoGeneralPrimero($clients);
 
         $priceLists   = PriceList::orderBy('nombre')->get(['id','nombre']);
         $products     = Product::where('activo', 1)->orderBy('nombre')->get(['id','nombre','precio_base','sku','unidad']);
@@ -462,7 +474,7 @@ class SaleController extends Controller implements HasMiddleware
         $data = $request->validate([
             'cash_register_id' => ['required','exists:cash_registers,id'],
             'warehouse_id'     => ['required','exists:warehouses,id'],
-            'client_id'        => ['nullable','exists:clients,id'],
+            'client_id'        => ['required','exists:clients,id'],
             'payment_type_id'  => ['required','exists:payment_types,id'],
             'price_list_id'    => ['nullable','exists:price_lists,id'],
             'moneda'           => ['required','string','max:10'],
@@ -478,6 +490,8 @@ class SaleController extends Controller implements HasMiddleware
             'items.*.descuento'     => ['nullable','numeric','gte:0'],
             'items.*.impuesto'      => ['nullable','numeric','gte:0'],
             'comentarios'           => ['nullable','string','max:2000'],
+        ], [
+            'client_id.required' => 'Selecciona un cliente (para venta de mostrador usa PUBLICO EN GENERAL).',
         ]);
 
         if ($data['tipo_venta'] === 'CREDITO' && empty($data['client_id'])) {

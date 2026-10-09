@@ -76,10 +76,10 @@
 
                 {{-- Cliente --}}
                 <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-                    <select name="client_id" id="client_id"
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Cliente <span class="text-red-500">*</span></label>
+                    <select name="client_id" id="client_id" required
                             class="w-full rounded-md border-gray-300 shadow-sm text-sm">
-                        <option value="">-- público general --</option>
+                        <option value="">-Seleccionar-</option>
                         @foreach($clients as $c)
                             <option value="{{ $c->id }}" {{ (string) old('client_id') === (string) $c->id ? 'selected' : '' }}>{{ $c->nombre }}</option>
                         @endforeach
@@ -654,8 +654,8 @@
 <script>
 $(function () {
     $('#client_id').select2({
-        placeholder: '-- público general --',
-        allowClear: true,
+        placeholder: '-Seleccionar-',
+        allowClear: false,
         width: '100%',
         language: { searching: function() { return 'Buscando...'; }, noResults: function() { return 'Sin resultados'; } },
     }).on('change', function () {
