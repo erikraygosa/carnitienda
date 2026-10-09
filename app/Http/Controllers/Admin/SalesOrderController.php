@@ -61,6 +61,7 @@ public function data(Request $request)
     $search     = $request->get('search', '');
     $status     = $request->get('status', '');
     $facturada  = $request->get('facturada', ''); // '' | 'facturada' | 'sin_facturar'
+    $pago       = $request->get('pago', '');      // '' | 'pagado' | 'no_pagado'
     $defaultDesde = now()->startOfMonth()->format('Y-m-d');
     $defaultHasta = now()->endOfMonth()->format('Y-m-d');
     // filled() en vez de get()-con-default: si el navegador manda
@@ -97,6 +98,9 @@ public function data(Request $request)
         // factura de un solo pedido como una consolidada que junte varios.
         ->when($facturada === 'facturada',    fn($q) => $q->whereHas('invoices', fn($q2) => $q2->where('estatus', 'TIMBRADA')))
         ->when($facturada === 'sin_facturar', fn($q) => $q->whereDoesntHave('invoices', fn($q2) => $q2->where('estatus', 'TIMBRADA')))
+        // Mismo criterio que SalesOrder::esta_pagado.
+        ->when($pago === 'pagado',    fn($q) => $q->whereRaw("(cobrado_at IS NOT NULL OR COALESCE(driver_settlement_status, 'PENDIENTE') = 'LIQUIDADO' OR (saldo_pendiente IS NOT NULL AND saldo_pendiente <= 0))"))
+        ->when($pago === 'no_pagado', fn($q) => $q->whereRaw("NOT (cobrado_at IS NOT NULL OR COALESCE(driver_settlement_status, 'PENDIENTE') = 'LIQUIDADO' OR (saldo_pendiente IS NOT NULL AND saldo_pendiente <= 0))"))
         ->when($fechaDesde, fn($q) => $q->whereRaw("$fechaOrden >= ?", [$fechaDesde]))
         ->when($fechaHasta, fn($q) => $q->whereRaw("$fechaOrden <= ?", [$fechaHasta]))
         ->when($sortBy === 'fecha', fn($q) => $q->orderByRaw("$fechaOrden $sortDir"))

@@ -16,7 +16,7 @@
     <x-wire-card>
 
         {{-- Filtros --}}
-        <div class="grid grid-cols-1 md:grid-cols-6 gap-3 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-7 gap-3 mb-4">
             <div class="md:col-span-2">
                 <input type="text" id="so-search"
                        placeholder="Buscar folio, cliente..."
@@ -43,6 +43,15 @@
                     <option value="">Facturación: todas</option>
                     <option value="facturada">Facturada</option>
                     <option value="sin_facturar">Sin facturar</option>
+                </select>
+            </div>
+            <div>
+                <select id="so-pago"
+                        title="Filtrar por pago"
+                        class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <option value="">Pago: todos</option>
+                    <option value="pagado">Pagados</option>
+                    <option value="no_pagado">Sin pagar</option>
                 </select>
             </div>
             <div>
@@ -118,21 +127,34 @@
             search:     '',
             status:     '',
             facturada:  '',
+            pago:       '',
             fechaDesde: '{{ now()->startOfMonth()->format('Y-m-d') }}',
             fechaHasta: '{{ now()->endOfMonth()->format('Y-m-d') }}',
             sortBy:     'id',
             sortDir:    'desc',
         };
 
+        // Los filtros guardados valen solo el día en que se capturaron: al
+        // empezar un día nuevo la lista arranca sin filtros (mes actual).
+        const hoyLocal = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD en hora del navegador
+
         try {
             const guardado = JSON.parse(localStorage.getItem(FILTROS_KEY) || 'null');
-            if (guardado && typeof guardado === 'object') Object.assign(state, guardado);
+            if (guardado && typeof guardado === 'object') {
+                if (guardado.dia === hoyLocal()) {
+                    const { dia, ...filtros } = guardado;
+                    Object.assign(state, filtros);
+                } else {
+                    localStorage.removeItem(FILTROS_KEY);
+                }
+            }
         } catch (e) { /* localStorage bloqueado o dato corrupto — se queda con los defaults */ }
 
         function guardarFiltros() {
             try {
                 localStorage.setItem(FILTROS_KEY, JSON.stringify({
-                    search: state.search, status: state.status, facturada: state.facturada,
+                    dia: hoyLocal(),
+                    search: state.search, status: state.status, facturada: state.facturada, pago: state.pago,
                     fechaDesde: state.fechaDesde, fechaHasta: state.fechaHasta,
                     sortBy: state.sortBy, sortDir: state.sortDir,
                 }));
@@ -145,6 +167,7 @@
         $('so-search').value    = state.search;
         $('so-status').value    = state.status;
         $('so-facturada').value = state.facturada;
+        $('so-pago').value      = state.pago;
         $('so-desde').value     = state.fechaDesde;
         $('so-hasta').value     = state.fechaHasta;
 
@@ -260,6 +283,9 @@
                 <td class="px-4 py-3 text-gray-600 text-xs">${esc(o.fecha ?? '—')}</td>
                 <td class="px-4 py-3">
                     <span class="px-2 py-1 text-xs rounded-full ${stClass}">${stLabel}</span>
+                    ${o.status !== 'CANCELADO' ? (o.pagado
+                        ? `<span class="ml-1 inline-flex px-2 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200" title="Pagado">💲 Pagado</span>`
+                        : `<span class="ml-1 inline-flex px-2 py-1 text-xs rounded-full bg-amber-50 text-amber-700 border border-amber-200" title="Pendiente de cobro">Por cobrar</span>`) : ''}
                     ${fac ? `<a href="${urlDe('factura', o.fid)}" title="Ver factura"
                            class="ml-1 inline-flex px-2 py-1 text-xs rounded-full ${fac[1]} hover:opacity-75">🧾 ${fac[0]}</a>` : ''}
                 </td>
@@ -282,6 +308,7 @@
                 search:      state.search,
                 status:      state.status,
                 facturada:   state.facturada,
+                pago:        state.pago,
                 fecha_desde: state.fechaDesde,
                 fecha_hasta: state.fechaHasta,
                 sort_by:     state.sortBy,
@@ -383,6 +410,12 @@
             load();
         });
 
+        $('so-pago').addEventListener('change', function() {
+            state.pago = this.value;
+            guardarFiltros();
+            load();
+        });
+
         $('so-desde').addEventListener('change', function() {
             // Vacío (alguien le dio clic a la "x" del input date) = volver
             // al mes actual, no "sin filtro" — evita el caso real donde
@@ -405,11 +438,12 @@
         $('so-clear').addEventListener('click', function() {
             const mesDesde = '{{ now()->startOfMonth()->format('Y-m-d') }}';
             const mesHasta = '{{ now()->endOfMonth()->format('Y-m-d') }}';
-            state.search = ''; state.status = ''; state.facturada = '';
+            state.search = ''; state.status = ''; state.facturada = ''; state.pago = '';
             state.fechaDesde = mesDesde; state.fechaHasta = mesHasta;
             $('so-search').value = '';
             $('so-status').value = '';
             $('so-facturada').value = '';
+            $('so-pago').value = '';
             $('so-desde').value  = mesDesde;
             $('so-hasta').value  = mesHasta;
             guardarFiltros();
