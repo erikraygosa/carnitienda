@@ -32,13 +32,14 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
     public function __construct(
         private AutoDespachoService $autoDespacho,
         private DocumentLogService $log,
+        private \App\Services\ArService $ar,
     ) {}
 
     public static function middleware(): array
     {
         return [
             new Middleware('can:ver despachos', only: ['index', 'data', 'pollCount']),
-            new Middleware('can:editar despachos', only: ['mover', 'asegurarDespacho', 'moverCxc']),
+            new Middleware('can:editar despachos', only: ['mover', 'asegurarDespacho', 'moverCxc', 'entregarMostrador']),
         ];
     }
 
@@ -323,6 +324,108 @@ class DispatchRoutePanelController extends Controller implements HasMiddleware
             ->lockForUpdate()
             ->first()
             ?? $this->autoDespacho->encontrarOCrearDespacho($routeId, $ronda, $fecha, $nota);
+    }
+
+    /**
+     * Entrega en mostrador: el pedido (ya surtido) se entrega en el momento y
+     * queda registrado en el despacho "MOSTRADOR" del día — se crea si no
+     * existe, o se reutiliza el del mismo día — que se cierra solo.
+     */
+    public function entregarMostrador(Request $request)
+    {
+        $data = $request->validate(['order_id' => ['required', 'integer', 'exists:sales_orders,id']]);
+
+        $order = SalesOrder::findOrFail($data['order_id']);
+
+        if ($order->status !== 'DESPACHADO') {
+            return response()->json(['ok' => false, 'message' => $order->status === 'PROCESADO'
+                ? 'Este pedido todavía no se surte completo — termina el surtido (Salida de producto) antes de entregarlo en mostrador.'
+                : 'Este pedido no se puede entregar en mostrador (status ' . $order->status . ').'], 422);
+        }
+
+        if (DispatchItem::where('sales_order_id', $order->id)->whereNotNull('dispatch_id')->exists()) {
+            return response()->json(['ok' => false, 'message' => 'Este pedido ya está en un despacho — quítalo de ahí primero.'], 422);
+        }
+
+        DB::transaction(function () use ($order) {
+            $ruta   = ShippingRoute::firstOrCreate(['nombre' => 'MOSTRADOR'], ['descripcion' => 'Entregas en mostrador', 'activo' => true]);
+            $chofer = \App\Models\Driver::firstOrCreate(['nombre' => 'MOSTRADOR'], ['activo' => true]);
+            $hoy    = now()->toDateString();
+
+            $dispatch = Dispatch::where('shipping_route_id', $ruta->id)
+                ->where('ronda', 1)->whereDate('fecha', $hoy)
+                ->lockForUpdate()->first();
+
+            if (! $dispatch) {
+                $dispatch = Dispatch::create([
+                    'warehouse_id'      => $order->warehouse_id,
+                    'shipping_route_id' => $ruta->id,
+                    'ronda'             => 1,
+                    'driver_id'         => $chofer->id,
+                    'fecha'             => $hoy,
+                    'status'            => 'PLANEADO',
+                ]);
+                $this->log->log($dispatch, 'CREADO', null, 'PLANEADO', null, 'Despacho de mostrador creado automáticamente al entregar ' . $order->folio);
+            }
+
+            DispatchItem::updateOrCreate(
+                ['sales_order_id' => $order->id],
+                ['dispatch_id' => $dispatch->id, 'referencia' => $order->folio, 'status' => 'ENTREGADO']
+            );
+
+            $order->update([
+                'status'            => 'ENTREGADO',
+                'en_ruta_at'        => now(),
+                'entregado_at'      => now(),
+                'shipping_route_id' => $ruta->id,
+                'ronda'             => 1,
+                'driver_id'         => $chofer->id,
+            ]);
+
+            // Crédito: nace la CxC al entregar, igual que en una entrega normal.
+            if ($order->payment_method === 'CREDITO' && $order->client_id) {
+                $this->ar->charge(
+                    clientId: $order->client_id,
+                    monto:    $order->total,
+                    desc:     "Entrega pedido {$order->folio}",
+                    source:   $order,
+                    fecha:    now()->toDateString(),
+                );
+            }
+
+            // Efectivo/contraentrega: se cobró en el mostrador, no hay chofer
+            // con quien liquidar — queda liquidado en el momento.
+            if (in_array($order->payment_method, ['EFECTIVO', 'CONTRAENTREGA'])) {
+                $order->update([
+                    'cobrado_efectivo'         => $order->total,
+                    'driver_settlement_status' => 'LIQUIDADO',
+                    'driver_settlement_at'     => now(),
+                    'cobrado_confirmado_at'    => now(),
+                    'cobrado_confirmado_por'   => auth()->id(),
+                ]);
+            }
+
+            $this->log->log($dispatch, 'PEDIDO_ENTREGADO', null, null, null, "Pedido {$order->folio} entregado en mostrador");
+
+            // El despacho del día se (re)cierra solo con cada entrega.
+            $dispatch->load('items.salesOrder');
+            $efectivo = $dispatch->items->sum(fn ($i) => in_array($i->salesOrder?->payment_method, ['EFECTIVO', 'CONTRAENTREGA']) ? (float) $i->salesOrder->total : 0);
+            $estabaCerrado = $dispatch->status === 'CERRADO';
+            $dispatch->update([
+                'status'               => 'CERRADO',
+                'en_ruta_at'           => $dispatch->en_ruta_at ?? now(),
+                'traspasos_cerrado_at' => $dispatch->traspasos_cerrado_at ?? now(),
+                'cobranza_cerrado_at'  => $dispatch->cobranza_cerrado_at ?? now(),
+                'cerrado_at'           => $dispatch->cerrado_at ?? now(),
+                'monto_liquidado'      => round($efectivo, 2),
+                'notas_cierre'         => 'Entregas en mostrador — cerrado automáticamente.',
+            ]);
+            if (! $estabaCerrado) {
+                $this->log->log($dispatch, 'CAMBIO_ESTADO', 'PLANEADO', 'CERRADO', null, 'Cierre automático (despacho de mostrador).');
+            }
+        });
+
+        return response()->json(['ok' => true]);
     }
 
     /**

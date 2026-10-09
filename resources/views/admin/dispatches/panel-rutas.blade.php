@@ -66,6 +66,7 @@
     (function(){
         const DATA_URL    = '{{ route('admin.dispatches.panel-rutas.data') }}';
         const MOVER_URL   = '{{ route('admin.dispatches.panel-rutas.mover') }}';
+        const MOSTRADOR_URL = '{{ route('admin.dispatches.panel-rutas.entregar-mostrador') }}';
         const MOVER_CXC_URL = '{{ route('admin.dispatches.panel-rutas.mover-cxc') }}';
         const ASEGURAR_URL= '{{ route('admin.dispatches.panel-rutas.asegurar') }}';
         const POLL_URL    = '{{ route('admin.dispatches.panel-rutas.poll-count') }}';
@@ -125,6 +126,12 @@
                        <i class="fa-solid fa-paper-plane"></i>
                    </button>`
                 : '';
+            const mostradorBtn = (origenTipo === 'sueltos' && !esTraspaso)
+                ? `<button type="button" class="shrink-0 w-6 h-6 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs shadow flex items-center justify-center"
+                           title="Entregar en mostrador" onclick="event.stopPropagation(); prEntregarMostrador(${id}, '${escHtml(p.folio)}')">
+                       <i class="fa-solid fa-hand-holding"></i>
+                   </button>`
+                : '';
             return `
                 <div class="pr-chip rounded-md border ${esTraspaso ? 'border-teal-200' : 'border-gray-200'} bg-white px-2 py-1.5 text-xs shadow-sm cursor-grab active:cursor-grabbing"
                      draggable="true" data-id="${id}" data-tipo="${p.tipo}" data-origen-tipo="${origenTipo}" data-origen-key="${origenKey || ''}">
@@ -134,7 +141,7 @@
                         </span>
                         <div class="flex items-center gap-1.5 shrink-0">
                             ${p.total !== null ? `<span class="font-semibold text-gray-700 whitespace-nowrap">${fmtMoney(p.total)}</span>` : ''}
-                            ${envioBtn}
+                            ${mostradorBtn}${envioBtn}
                         </div>
                     </div>
                     <div class="flex items-center justify-between gap-1"><span class="text-gray-500 truncate">${escHtml(p.cliente)}</span>${p.fecha_original ? `<span class="shrink-0 px-1 rounded bg-amber-100 text-amber-700 text-[10px] font-semibold" title="Pedido de un día anterior">${escHtml(p.fecha_original)}</span>` : ''}</div>
@@ -500,6 +507,29 @@
         window.prReasignarCxc = async function (assignmentId, cliente) {
             const destino = await prPedirDestino('Reasignar CxC', cliente, 'Reasignar');
             if (destino) prPostDestino(MOVER_CXC_URL, { assignment_id: assignmentId }, destino);
+        };
+
+        // Entrega en mostrador: queda en el despacho MOSTRADOR del día, ya cerrado.
+        window.prEntregarMostrador = async function (orderId, folio) {
+            const r = await Swal.fire({
+                title: 'Entregar en mostrador',
+                text: `¿Entregar ${folio} en mostrador? Se registra como entregado en el despacho MOSTRADOR de hoy, que se cierra solo.`,
+                icon: 'question', showCancelButton: true,
+                confirmButtonText: 'Sí, entregar', cancelButtonText: 'Cancelar',
+            });
+            if (!r.isConfirmed) return;
+            try {
+                const res = await fetch(MOSTRADOR_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                    body: JSON.stringify({ order_id: orderId }),
+                });
+                const d = await res.json();
+                if (!res.ok || !d.ok) Swal.fire('No se pudo entregar', d.message || 'Intenta de nuevo.', 'error');
+            } catch (e) {
+                Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+            }
+            load();
         };
 
         window.prAgregarCxc = async function (routeId, ronda) {
