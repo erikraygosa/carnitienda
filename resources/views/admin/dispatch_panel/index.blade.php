@@ -388,11 +388,10 @@
                     function pintarPrecio() {
                         var vista = document.getElementById('sp-precio-vista');
                         var sinPrecio = !(precioInfo.precio > 0);
-                        document.getElementById('sp-precio-label').textContent = sinPrecio ? 'Precio del cliente (captúralo)' : 'Precio del cliente';
                         if (editando || sinPrecio) {
                             editando = true;
                             vista.innerHTML = '<input id="sp-precio-input" type="number" step="0.01" min="0" class="swal2-input" style="margin:0;width:100%" ' +
-                                'placeholder="' + (precioInfo.base > 0 ? 'Precio base: $' + precioInfo.base : '') + '" value="' + (precioInfo.precio || '') + '">';
+                                'value="' + (precioInfo.precio > 0 ? precioInfo.precio : '') + '">';
                             document.getElementById('sp-precio-input').addEventListener('input', pintarTotal);
                         } else {
                             var fmt = '$' + Number(precioInfo.precio).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
