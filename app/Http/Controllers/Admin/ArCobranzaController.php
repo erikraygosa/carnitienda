@@ -29,10 +29,24 @@ class ArCobranzaController extends Controller implements HasMiddleware
         ];
     }
 
+    /**
+     * Quien solo tiene "ver estado de cuenta" (ventas) ve el estado de UN
+     * cliente a la vez; el reporte de todo el sistema (varios clientes,
+     * totales generales) es solo para quien tiene "ver cxc" (contabilidad/admin).
+     */
+    private function soloUnCliente(): bool
+    {
+        return ! \Illuminate\Support\Facades\Gate::allows('ver cxc');
+    }
+
     private function buildQuery(Request $request)
     {
         $clienteDesde  = $request->get('cliente_desde');
         $clienteHasta  = $request->get('cliente_hasta');
+        $restringido   = $this->soloUnCliente();
+        if ($restringido) {
+            $clienteHasta = null; // sin rangos
+        }
         $fechaVencDesde = $request->get('fecha_venc_desde');
         $fechaVencHasta = $request->get('fecha_venc_hasta');
         $soloConSaldo   = $request->boolean('solo_con_saldo', true);
@@ -69,6 +83,8 @@ class ArCobranzaController extends Controller implements HasMiddleware
                       ->orWhere('sales_orders.saldo_pendiente', '>', 0);
                 })
             )
+            // Restringido y sin cliente elegido: no se devuelve nada.
+            ->when($restringido && ! $clienteDesde, fn($q) => $q->whereRaw('1 = 0'))
             ->when($clienteDesde && !$clienteHasta, fn($q) =>
                 $q->where('clients.nombre', $clienteDesde)
             )
@@ -114,7 +130,9 @@ class ArCobranzaController extends Controller implements HasMiddleware
             ? (string) (Client::find($porCliente->keys()->first())?->email ?? '')
             : '';
 
-        return view('admin.ar.cobranza-general', compact('porCliente', 'totales', 'clientes', 'emailSugerido'));
+        $restringido = $this->soloUnCliente();
+
+        return view('admin.ar.cobranza-general', compact('porCliente', 'totales', 'clientes', 'emailSugerido', 'restringido'));
     }
 
     public function exportExcel(Request $request)

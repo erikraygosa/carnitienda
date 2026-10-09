@@ -24,9 +24,9 @@
 <x-wire-card class="mb-4">
     <form method="GET" action="{{ route('admin.ar.cobranza') }}" id="form-filtros" class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Desde cliente</label>
+            <label class="block text-xs font-medium text-gray-600 mb-1">{{ ($restringido ?? false) ? 'Cliente' : 'Desde cliente' }}</label>
             <select name="cliente_desde" id="sel-desde" class="w-full select2-clientes">
-                <option value="">— Todos —</option>
+                <option value="">{{ ($restringido ?? false) ? '— Elige un cliente —' : '— Todos —' }}</option>
                 @foreach($clientes as $c)
                     <option value="{{ $c->nombre }}" data-clave="{{ $c->id }}" {{ request('cliente_desde') === $c->nombre ? 'selected' : '' }}>
                         {{ $c->nombre }}
@@ -34,6 +34,7 @@
                 @endforeach
             </select>
         </div>
+@unless($restringido ?? false)
         <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Hasta cliente <span class="text-gray-400 font-normal">(opcional)</span></label>
             <select name="cliente_hasta" id="sel-hasta" class="w-full select2-clientes">
@@ -45,6 +46,7 @@
                 @endforeach
             </select>
         </div>
+@endunless
         <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Fecha venc. desde</label>
             <input type="date" name="fecha_venc_desde" value="{{ request('fecha_venc_desde') }}"
@@ -219,7 +221,11 @@
 <x-wire-card>
     @if($porCliente->isEmpty())
         <div class="py-12 text-center text-gray-400 text-sm">
-            Ajusta los filtros y haz clic en <strong>Generar reporte</strong> para ver los resultados.
+            @if($restringido ?? false)
+                Elige un cliente y haz clic en <strong>Generar reporte</strong> para ver su estado de cuenta.
+            @else
+                Ajusta los filtros y haz clic en <strong>Generar reporte</strong> para ver los resultados.
+            @endif
         </div>
     @else
         {{-- Totales generales --}}
