@@ -56,12 +56,20 @@
     td { padding: 3px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
     td.r { text-align: right; }
     td.c { text-align: center; }
+    .comentario { font-size: 8.5pt; font-style: italic; color: #92400e; margin-top: 1px; }
     .total-row td { font-weight: bold; border-top: 2px solid #374151; background: #f9fafb; }
 </style>
 </head>
 <body>
 
 @php
+    // Comentario del renglón (lo que se captura en el pedido como instrucción
+    // de surtido, ej. "ESPECIAL"): solo si trae algo distinto al nombre del producto.
+    $comentarioDe = function ($item) {
+        $t = trim((string) ($item->descripcion ?? ''));
+        return ($item->product && $t !== '' && mb_strtolower($t) !== mb_strtolower($item->product->nombre)) ? $t : null;
+    };
+
     // Agrupar items por producto para vista detallada
     $porProducto = collect();
     foreach ($pedidos as $pedido) {
@@ -73,6 +81,7 @@
             $porProducto[$nombre]->push([
                 'folio'   => $pedido->folio,
                 'cliente' => $pedido->client?->nombre ?? '—',
+                'comentario' => $comentarioDe($item),
                 'cantidad'=> (float) $item->cantidad,
                 'num_cajas'=> $item->num_cajas,
                 'precio'  => (float) $item->precio,
@@ -133,7 +142,9 @@
         <tbody>
             @foreach($pedido->items as $item)
             <tr>
-                <td>{{ $item->product?->nombre ?? $item->descripcion ?? '—' }}</td>
+                <td>{{ $item->product?->nombre ?? $item->descripcion ?? '—' }}
+                    @if($c = $comentarioDe($item))<div class="comentario">📝 {{ $c }}</div>@endif
+                </td>
                 <td class="c">{{ $item->num_cajas ?? '—' }}</td>
                 <td class="r">{{ number_format($item->cantidad, 3) }}</td>
                 <td class="r">${{ number_format($item->precio, 2) }}</td>
@@ -194,7 +205,9 @@
             @foreach($lineas as $l)
             <tr>
                 <td style="font-family:monospace;font-size:8.5pt">{{ $l['folio'] }}</td>
-                <td>{{ $l['cliente'] }}</td>
+                <td>{{ $l['cliente'] }}
+                    @if($l['comentario'])<div class="comentario">📝 {{ $l['comentario'] }}</div>@endif
+                </td>
                 <td class="c">{{ $l['num_cajas'] ?? '—' }}</td>
                 <td class="r">{{ number_format($l['cantidad'], 3) }}</td>
                 <td class="r">${{ number_format($l['total'], 2) }}</td>
@@ -245,7 +258,9 @@
                 <tr class="{{ $i === 0 ? 'pedido-fila' : '' }}">
                     <td class="folio">{{ $i === 0 ? $pedido->folio : '' }}</td>
                     <td>{{ $i === 0 ? ($pedido->client?->nombre ?? '—') : '' }}</td>
-                    <td>{{ $item->product?->nombre ?? $item->descripcion ?? '—' }}</td>
+                    <td>{{ $item->product?->nombre ?? $item->descripcion ?? '—' }}
+                        @if($c = $comentarioDe($item))<div class="comentario">📝 {{ $c }}</div>@endif
+                    </td>
                     <td class="c">{{ $item->num_cajas ?? '—' }}</td>
                     <td class="r">{{ number_format($item->cantidad, 3) }}</td>
                 </tr>
