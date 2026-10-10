@@ -135,7 +135,7 @@ class InvoiceController extends Controller implements HasMiddleware
                 ->limit(500)
                 ->get(['id', 'folio', 'client_id', 'fecha', 'total', 'saldo_pendiente', 'cobrado_at', 'driver_settlement_status']);
         } else {
-            $items = SalesOrder::with(['client:id,nombre', 'items:id,sales_order_id', 'dispatchItem.lines', 'invoices' => fn ($q) => $q->where('invoices.estatus', '!=', 'CANCELADA')->select('invoices.id', 'invoices.serie', 'invoices.folio')])
+            $items = SalesOrder::with(['client:id,nombre', 'items:id,sales_order_id,cantidad', 'dispatchItem.lines', 'invoices' => fn ($q) => $q->where('invoices.estatus', '!=', 'CANCELADA')->select('invoices.id', 'invoices.serie', 'invoices.folio')])
                 ->whereNotIn('status', ['BORRADOR', 'CANCELADO'])
                 // "Sin facturar" con el mismo criterio que el filtro de Pedidos:
                 // que no tenga ninguna factura viva (timbrada/borrador/
