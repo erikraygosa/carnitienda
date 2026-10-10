@@ -108,8 +108,10 @@ class SalesOrder extends Model
         $lineas = $this->dispatchItem?->lines;
 
         if ($lineas === null || $lineas->isEmpty()) {
+            // Sin renglones de surtido: se toman las partidas del pedido, pero NO las que
+            // quedaron en 0 (sin existencia / canceladas por el cliente) — esas no se surtieron.
             return in_array($this->status, [self::S_DESPACHADO, self::S_EN_RUTA, self::S_ENTREGADO, self::S_NO_ENTREGADO], true)
-                ? $this->items->values()
+                ? $this->items->filter(fn ($it) => (float) $it->cantidad > 0)->values()
                 : collect();
         }
 

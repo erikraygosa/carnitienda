@@ -842,7 +842,7 @@ public function pdfDownload(Invoice $invoice)
         $sumarPartidas = (bool) \App\Models\SystemSetting::get('facturacion.consolidar_sumar_partidas', false);
 
         // En pedidos solo se facturan las partidas que ya se surtieron.
-        $partidas = fn ($order) => $esNotas ? $order->items : $order->itemsSurtidos();
+        $partidas = fn ($order) => ($esNotas ? $order->items : $order->itemsSurtidos())->filter(fn ($it) => (float) $it->cantidad > 0)->values();
 
         if (! $sumarPartidas) {
             $items = $orders->flatMap(fn ($order) => $partidas($order)
@@ -990,7 +990,8 @@ public function pdfDownload(Invoice $invoice)
             'client_id'      => $order->client_id,
             'sales_order_id' => $order->id,
             'moneda'         => $order->moneda,
-            'items'          => $order->items
+            // Partidas en 0 (sin existencia / canceladas) no se facturan.
+            'items'          => $order->items->filter(fn ($it) => (float) $it->cantidad > 0)
                 ->map(fn ($it) => $this->itemDesdeProducto($it, (float) $it->cantidad, (float) $it->precio, (float) $it->descuento))
                 ->values()->toArray(),
         ];
