@@ -42,7 +42,7 @@ class SalesOrder extends Model
         'shipping_route_id','ronda','driver_id','payment_method','credit_days',
         'moneda','subtotal','impuestos','descuento','total','status',
         // nuevos (logística)
-        'preparado_at','despachado_at','en_ruta_at','entregado_at','no_entregado_at',
+        'preparado_at','despachado_at','inventario_descontado_at','en_ruta_at','entregado_at','no_entregado_at',
         'delivery_attempts','delivery_notes',
         // cobranza chofer
         'contraentrega_total','cobrado_efectivo','cobrado_confirmado_at','cobrado_confirmado_por',
@@ -60,6 +60,7 @@ class SalesOrder extends Model
         'programado_para'        => 'date',
         'preparado_at'           => 'datetime',
         'despachado_at'          => 'datetime',
+        'inventario_descontado_at' => 'datetime',
         'en_ruta_at'             => 'datetime',
         'entregado_at'           => 'datetime',
         'no_entregado_at'        => 'datetime',

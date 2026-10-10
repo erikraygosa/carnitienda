@@ -873,7 +873,13 @@ class DispatchController extends Controller implements HasMiddleware
             foreach ($dispatch->items as $item) {
                 $order = $item->salesOrder;
                 if ($order && $order->status === 'EN_RUTA') {
-                    $order->update(['status' => 'PROCESADO', 'en_ruta_at' => null]);
+                    // Si ya pasó por Salida de producto (inventario descontado) vuelve a
+                    // DESPACHADO, no a PROCESADO: así no reaparece en el Panel de Surtido
+                    // ni se puede descontar el inventario otra vez.
+                    $order->update([
+                        'status'     => $order->inventario_descontado_at ? 'DESPACHADO' : 'PROCESADO',
+                        'en_ruta_at' => null,
+                    ]);
                 }
             }
 
@@ -1181,7 +1187,8 @@ class DispatchController extends Controller implements HasMiddleware
                 );
             }
 
-            $data = ['status' => 'NO_ENTREGADO', 'no_entregado_at' => now()];
+            // El producto regresó al almacén: el inventario del pedido ya no está descontado.
+            $data = ['status' => 'NO_ENTREGADO', 'no_entregado_at' => now(), 'inventario_descontado_at' => null];
             if ($nota = $request->input('nota')) {
                 $data['delivery_notes'] = trim(($order->delivery_notes ?? '') . "\n" . $nota);
             }

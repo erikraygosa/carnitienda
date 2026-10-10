@@ -505,7 +505,22 @@ class DispatchPanelController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use ($request, $order, $inv) {
+        // Nada que hacer si el pedido ya no está Procesado (p. ej. un doble clic:
+        // el primer envío ya lo pasó a Despachado).
+        $yaSurtido = null;
+
+        DB::transaction(function () use ($request, $order, $inv, &$yaSurtido) {
+
+            // Se bloquea el pedido y se revisa DENTRO de la transacción: dos envíos
+            // simultáneos no pueden descontar el inventario los dos.
+            $order = SalesOrder::lockForUpdate()->findOrFail($order->id);
+            if ($order->status !== SalesOrder::S_PROCESADO) {
+                $yaSurtido = [$order->status, $order->inventario_descontado_at !== null];
+                return;
+            }
+            // Si el inventario de este pedido ya se descontó antes (volvió a Procesado
+            // después de surtirse), se registra el surtido pero NO se descuenta otra vez.
+            $descontar = $order->inventario_descontado_at === null;
 
             // Mismo criterio que saveLine(): libre por defecto, se asigna a
             // mano desde /admin/dispatches.
@@ -548,7 +563,7 @@ class DispatchPanelController extends Controller
                 // tronaba con "No query results for model [Product] 0"
                 // porque (int) null se volvía 0 y Product::findOrFail(0)
                 // nunca existe (ver SO-20260914-0999, línea "ESPALDILLA").
-                if ($qtyReal > 0 && $orderItem->product_id) {
+                if ($descontar && $qtyReal > 0 && $orderItem->product_id) {
                     $itemReal = (object)[
                         'product_id' => $orderItem->product_id,
                         'cantidad'   => $qtyReal,
@@ -600,6 +615,7 @@ class DispatchPanelController extends Controller
                                             : $order->contraentrega_total,
                 'status'              => SalesOrder::S_DESPACHADO,
                 'despachado_at'       => now(),
+                'inventario_descontado_at' => $descontar ? now() : $order->inventario_descontado_at,
             ]);
 
             // 6. Log
@@ -610,9 +626,22 @@ class DispatchPanelController extends Controller
                 'old_status'    => SalesOrder::S_PROCESADO,
                 'new_status'    => SalesOrder::S_DESPACHADO,
                 'user_id'       => auth()->id(),
-                'nota'          => 'Salida de producto registrada. Total real: $' . number_format($nuevoTotal, 2),
+                'nota'          => 'Salida de producto registrada. Total real: $' . number_format($nuevoTotal, 2)
+                                    . ($descontar ? '' : ' (el inventario ya se había descontado antes: no se descontó otra vez)'),
             ]);
         });
+
+        if ($yaSurtido) {
+            [$statusActual, $descontado] = $yaSurtido;
+            if ($statusActual === SalesOrder::S_DESPACHADO && $descontado) {
+                // Doble clic / reenvío: el surtido ya quedó guardado.
+                return response()->json(['ok' => true, 'message' => 'Este pedido ya estaba surtido — no se descontó inventario otra vez.']);
+            }
+            return response()->json([
+                'ok'      => false,
+                'message' => "Este pedido ya no está Procesado (status {$statusActual}) — no se puede completar el surtido otra vez.",
+            ], 422);
+        }
 
         return response()->json(['ok' => true, 'message' => 'Salida de producto guardada correctamente.']);
     }

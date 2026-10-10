@@ -317,6 +317,8 @@
 
         window.abrirDespacho = function(orderId, folio) {
             currentOrderId = orderId;
+            window._completandoSurtido = false;
+            var bc = document.getElementById('btn-completar'); if (bc) bc.disabled = false;
             document.getElementById('panel-titulo').textContent  = 'Folio: ' + folio;
             document.getElementById('panel-cliente').textContent = 'Cargando...';
             document.getElementById('panel-loading').classList.remove('hidden');
@@ -891,6 +893,14 @@
                 };
             });
 
+            // Un solo envío: se deshabilita el botón al primer clic (el doble clic
+            // descontaba el inventario dos veces).
+            var btnCompletar = document.getElementById('btn-completar');
+            if (btnCompletar) btnCompletar.disabled = true;
+            if (window._completandoSurtido) return;
+            window._completandoSurtido = true;
+            var liberarCompletar = function() { window._completandoSurtido = false; if (btnCompletar) btnCompletar.disabled = false; };
+
             fetch('/admin/despacho/pedido/' + currentOrderId + '/guardar', {
                 method:  'POST',
                 headers: {
@@ -914,10 +924,12 @@
                         applyFilters();
                     });
                 } else {
+                    liberarCompletar();
                     Swal.fire('Error', data.message ?? 'Ocurrió un error', 'error');
                 }
             })
             .catch(function() {
+                liberarCompletar();
                 Swal.fire('Error', 'No se pudo completar el surtido.', 'error');
             });
         };
