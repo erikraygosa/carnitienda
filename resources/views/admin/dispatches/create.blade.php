@@ -765,4 +765,17 @@
     })();
     </script>
 
+
+<script>
+// Un solo envío: sin esto, un doble clic en "Crear" generaba varios despachos iguales.
+(function () {
+    var f = document.getElementById('dispatch-form');
+    if (!f) return;
+    f.addEventListener('submit', function (e) {
+        if (f.dataset.enviando === '1') { e.preventDefault(); return; }
+        f.dataset.enviando = '1';
+        document.querySelectorAll('button[form="dispatch-form"], #dispatch-form button[type="submit"]').forEach(function (b) { b.disabled = true; });
+    });
+})();
+</script>
 </x-admin-layout>   
