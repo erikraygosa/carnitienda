@@ -732,9 +732,38 @@ class DispatchController extends Controller implements HasMiddleware
 
     public function destroy(Dispatch $dispatch)
     {
-        $this->log->log($dispatch, 'ELIMINADO', $dispatch->status, null);
-        $dispatch->delete();
-        session()->flash('swal', ['icon' => 'success', 'title' => 'Eliminado', 'text' => 'Despacho eliminado.']);
+        // Borrar un despacho borraba EN CASCADA sus pedidos asignados y, con ellos, los
+        // renglones de surtido ya capturados (el pedido quedaba "Falta surtir" o sin
+        // surtido aunque el inventario ya se había descontado). Los pedidos ya surtidos
+        // se desasignan y conservan su surtido, igual que al cancelar un despacho.
+        $conservados = [];
+
+        DB::transaction(function () use ($dispatch, &$conservados) {
+            $dispatch->load('items.lines', 'items.salesOrder');
+
+            foreach ($dispatch->items as $item) {
+                if ($item->lines->whereNotNull('qty_despachada')->isNotEmpty()) {
+                    $conservados[] = $item->salesOrder?->folio ?? ('#' . $item->sales_order_id);
+                    $item->update(['dispatch_id' => null]);
+                }
+            }
+
+            // Los traspasos asignados quedan libres otra vez.
+            StockTransfer::where('dispatch_id', $dispatch->id)
+                ->whereIn('status', ['ASIGNADO', 'EN_RUTA'])
+                ->update(['status' => 'PENDIENTE', 'dispatch_id' => null]);
+
+            $this->log->log($dispatch, 'ELIMINADO', $dispatch->status, null, null,
+                $conservados ? 'Pedidos ya surtidos que quedaron libres (conservan su surtido): ' . implode(', ', $conservados) : null);
+
+            $dispatch->delete();
+        });
+
+        session()->flash('swal', [
+            'icon'  => 'success',
+            'title' => 'Eliminado',
+            'text'  => 'Despacho eliminado.' . ($conservados ? ' ' . count($conservados) . ' pedido(s) ya surtido(s) quedaron libres, con su surtido intacto.' : ''),
+        ]);
         return redirect()->route('admin.dispatches.index');
     }
 
