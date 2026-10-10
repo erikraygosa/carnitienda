@@ -242,17 +242,21 @@ class DispatchController extends Controller implements HasMiddleware
                 ->withInput();
         }
 
-        // Un solo "crear despacho" a la vez por ruta+ronda+día: evita que un doble
-        // clic cree varios despachos iguales.
-        $clave = 'crear-despacho:' . $data['shipping_route_id'] . ':' . ($data['ronda'] ?? 1) . ':' . Carbon::parse($data['fecha'])->toDateString();
-        try {
-            return \Illuminate\Support\Facades\Cache::lock($clave, 15)->block(10, fn () => $this->crearOReutilizarDespacho($data));
-        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
-            return back()->withErrors(['orders' => 'Se está creando otro despacho para esa ruta; espera un momento e intenta de nuevo.'])->withInput();
+        // Doble envío (doble clic): el mismo "crear despacho" repetido en segundos se
+        // ignora — se crea uno solo. Un despacho distinto (otros pedidos) no se bloquea.
+        $huella = 'crear-despacho:' . sha1(json_encode([
+            auth()->id(), $data['shipping_route_id'], $data['ronda'] ?? 1, Carbon::parse($data['fecha'])->toDateString(),
+            collect($data['orders'] ?? [])->sort()->values(), collect($data['transfers'] ?? [])->sort()->values(),
+            collect($data['notas_ar'] ?? [])->sort()->values(), collect($data['ventas_ar'] ?? [])->sort()->values(),
+        ]));
+        if (! \Illuminate\Support\Facades\Cache::add($huella, 1, 20)) {
+            return back()->with('swal', ['icon' => 'info', 'title' => 'Ya se creó', 'text' => 'Ese despacho se acaba de crear — no se duplicó.']);
         }
+
+        return $this->crearDespacho($data);
     }
 
-    private function crearOReutilizarDespacho(array $data)
+    private function crearDespacho(array $data)
     {
         return DB::transaction(function () use ($data) {
             // Chofer = mismo nombre que la ruta (se crea si no existe)
@@ -262,18 +266,7 @@ class DispatchController extends Controller implements HasMiddleware
                 ['activo' => true]
             );
 
-            // Si ya hay un despacho PLANEADO de esa ruta, ronda y día (p. ej. el que el
-            // sistema armó solo al procesar los pedidos), se le agrega ahí en vez de
-            // crear uno repetido.
-            $dispatch = Dispatch::where('shipping_route_id', $data['shipping_route_id'])
-                ->where('ronda', $data['ronda'] ?? 1)
-                ->whereDate('fecha', Carbon::parse($data['fecha'])->toDateString())
-                ->where('status', 'PLANEADO')
-                ->lockForUpdate()
-                ->first();
-            $reutilizado = (bool) $dispatch;
-
-            $dispatch ??= Dispatch::create([
+            $dispatch = Dispatch::create([
                 'warehouse_id'      => $data['warehouse_id']      ?? null,
                 'shipping_route_id' => $data['shipping_route_id'] ?? null,
                 'ronda'             => $data['ronda']             ?? 1,
@@ -354,14 +347,8 @@ class DispatchController extends Controller implements HasMiddleware
                 }
             }
 
-            if ($reutilizado) {
-                $this->log->log($dispatch, 'PEDIDOS_AGREGADOS', null, null, null,
-                    'Agregado al despacho existente de esa ruta y ronda (no se creó uno nuevo): ' . ($resumenCreacion ? implode(' | ', $resumenCreacion) : 'sin cambios'));
-                session()->flash('swal', ['icon' => 'info', 'title' => 'Se agregó al despacho existente', 'text' => 'Ya había un despacho planeado de esa ruta y ronda para ese día; se agregó ahí en vez de crear uno repetido.']);
-            } else {
-                $this->log->log($dispatch, 'CREADO', null, 'PLANEADO', null, $resumenCreacion ? implode(' | ', $resumenCreacion) : null);
-                session()->flash('swal', ['icon' => 'success', 'title' => 'Despacho creado', 'text' => 'Listo para salir a ruta.']);
-            }
+            $this->log->log($dispatch, 'CREADO', null, 'PLANEADO', null, $resumenCreacion ? implode(' | ', $resumenCreacion) : null);
+            session()->flash('swal', ['icon' => 'success', 'title' => 'Despacho creado', 'text' => 'Listo para salir a ruta.']);
             return redirect()->route('admin.dispatches.edit', $dispatch);
         });
     }
