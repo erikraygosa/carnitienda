@@ -260,6 +260,8 @@
             });
             $('fc-form-modo').value = modo;
             $('fc-form-tipo').value = tipo;
+            // Un solo envío (el doble clic generaba dos selecciones).
+            this.disabled = true;
             $('fc-form').submit();
         });
 

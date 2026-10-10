@@ -245,9 +245,17 @@ class InvoiceController extends Controller implements HasMiddleware
             $clientId = $publico->id;
         }
 
-        session(['consolidated_invoice_prefill' => $this->mapFromOrders($orders, $clientId, $esNotas)]);
+        // La selección se guarda en el caché con un token (no en la sesión): otras
+        // pestañas abiertas del sistema (paneles que se actualizan solos) reescribían
+        // la sesión y borraban la selección, y salía "Expiró".
+        $token = (string) \Illuminate\Support\Str::uuid();
+        \Illuminate\Support\Facades\Cache::put(
+            'consolidada:' . $token,
+            ['user' => auth()->id(), 'prefill' => $this->mapFromOrders($orders, $clientId, $esNotas)],
+            now()->addHour()
+        );
 
-        return redirect()->route('admin.invoices.create', ['consolidado' => 1]);
+        return redirect()->route('admin.invoices.create', ['consolidado' => 1, 't' => $token]);
     }
 
     // NOTA: antes había aquí una regla que bloqueaba objeto_imp=02 ("sí
@@ -331,8 +339,17 @@ class InvoiceController extends Controller implements HasMiddleware
     $fromSaleId  = $req->query('sale_id');
 
     // Solo clientes activos, más el del documento de origen / el prefill (por si está desactivado).
+    // Selección de "Facturar varios pedidos" (caché por token; la sesión es el respaldo).
+    $consolidada = null;
+    if ($req->boolean('consolidado') && $req->filled('t')) {
+        $guardada = \Illuminate\Support\Facades\Cache::get('consolidada:' . $req->query('t'));
+        if ($guardada && ($guardada['user'] ?? null) === auth()->id()) {
+            $consolidada = $guardada['prefill'];
+        }
+    }
+
     $incluirClientes = [
-        session('consolidated_invoice_prefill.client_id'),
+        $consolidada['client_id'] ?? session('consolidated_invoice_prefill.client_id'),
         old('client_id'),
         $fromOrderId ? SalesOrder::whereKey($fromOrderId)->value('client_id') : null,
         $fromSaleId  ? Sale::whereKey($fromSaleId)->value('client_id') : null,
@@ -361,7 +378,9 @@ class InvoiceController extends Controller implements HasMiddleware
     if ($req->boolean('consolidado')) {
         // Se llenó vía prepararConsolidada() — de un solo uso, se limpia de
         // la sesión al leerla para que un F5 no reabra la misma consolidada.
-        $prefill = session()->pull('consolidated_invoice_prefill');
+        // Recargar la pantalla no pierde la selección (se guarda 1 hora): al guardar,
+        // store() ya rechaza pedidos que tengan una factura viva, así que no duplica.
+        $prefill = $consolidada ?? session()->pull('consolidated_invoice_prefill');
         if (! $prefill) {
             return redirect()->route('admin.invoices.consolidada')
                 ->with('swal', ['icon' => 'error', 'title' => 'Expiró', 'text' => 'Vuelve a seleccionar los pedidos a facturar.']);
