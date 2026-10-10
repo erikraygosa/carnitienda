@@ -592,6 +592,13 @@ private function existenciasPorAlmacen(): array
             'items.*.presentacion' => ['nullable', 'in:KILOS,PIEZAS,CAJAS'],
         ]);
 
+        // Mismo pedido enviado dos veces seguidas (doble clic): se crea solo uno.
+        $huella = 'pedido-rapido:' . sha1(auth()->id() . '|' . $data['client_id'] . '|' . ($data['fecha'] ?? '') . '|' . json_encode($data['items']));
+        if (! \Illuminate\Support\Facades\Cache::add($huella, 1, 20)) {
+            return redirect()->route('admin.despacho.panel')
+                ->with('swal', ['icon' => 'info', 'title' => 'Ya se creó', 'text' => 'Ese pedido se acaba de crear — no se duplicó.']);
+        }
+
         $client = Client::find($data['client_id']);
 
         $items = collect($data['items'])->map(function ($it) {

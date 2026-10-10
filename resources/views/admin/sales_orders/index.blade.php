@@ -273,6 +273,9 @@
         document.addEventListener('click', function (e) {
             const b = e.target.closest('button[data-post]');
             if (!b) return;
+            // Un solo envío: el doble clic en Duplicar / Procesar / Entregar... repetía la acción.
+            if (window.__postEnviando) return;
+            window.__postEnviando = true;
             const f = document.createElement('form');
             f.method = 'POST'; f.action = b.dataset.post; f.style.display = 'none';
             f.innerHTML = `<input type="hidden" name="_token" value="${CSRF}">`;

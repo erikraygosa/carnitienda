@@ -1246,6 +1246,8 @@
         // de cada línea armada dinámicamente (los selects/inputs de la
         // plantilla no llevan "name" porque se clonan — evita duplicar ids).
         modal.querySelector('form').addEventListener('submit', function(e) {
+            // Un solo envío: un doble clic en "Crear" creaba dos pedidos iguales.
+            if (e.target.dataset.enviando === '1') { e.preventDefault(); return; }
             var filas = itemsWrap.querySelectorAll('.alta-rapida-item-row');
             if (filas.length === 0) {
                 e.preventDefault();
@@ -1275,6 +1277,8 @@
                     form.appendChild(input);
                 });
             });
+            e.target.dataset.enviando = '1';
+            e.target.querySelectorAll('button[type="submit"]').forEach(function(b) { b.disabled = true; });
         });
     })();
     </script>
