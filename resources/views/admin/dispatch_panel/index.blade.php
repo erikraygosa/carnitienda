@@ -268,6 +268,11 @@
                         class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm mb-3 focus:outline-none focus:ring-1 focus:ring-indigo-500">
                     </textarea>
 
+                    <button type="button" onclick="surtirTodoComoPedido()" id="btn-surtir-todo"
+                        class="w-full mb-2 py-1.5 rounded-md border border-emerald-300 text-emerald-700 text-sm hover:bg-emerald-50 transition">
+                        Surtir todo como se pidió
+                    </button>
+
                     <button onclick="guardarDespacho()" id="btn-completar"
                         class="w-full py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
                         disabled>
@@ -870,7 +875,36 @@
 
         // ── Completa el despacho: exige que TODAS las líneas ya estén
         //    guardadas (botón viene disabled si no) ───────────────────────
-        window.guardarDespacho = function() {
+        // Surte todas las partidas pendientes con la cantidad pedida y completa el surtido
+        // (descuenta inventario una sola vez). Útil para pedidos que se surten tal cual.
+        window.surtirTodoComoPedido = function() {
+            if (!currentOrderId) return;
+
+            var enCero = linesData.filter(function(l) { return !l.guardado && !(l.qty_solicitada > 0); });
+            if (enCero.length > 0) {
+                Swal.fire('Partidas en 0', 'Este pedido tiene partidas con cantidad 0. Márcalas con "Sin existencia" o "Cancelado" y completa el surtido normal.', 'warning');
+                return;
+            }
+            var porSurtir = linesData.filter(function(l) { return !l.guardado; }).length;
+
+            Swal.fire({
+                title: 'Surtir todo como se pidió',
+                html: 'Se surtirán ' + porSurtir + ' partida(s) con la cantidad pedida y se <b>descontará el inventario</b> de este pedido. ¿Continuar?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, surtir',
+                cancelButtonText: 'Cancelar'
+            }).then(function(r) {
+                if (!r.isConfirmed) return;
+                linesData.forEach(function(l) {
+                    if (!l.guardado) { l.qty_despachada = l.qty_solicitada; l.guardado = true; }
+                });
+                guardarDespacho({ sinTicket: true });
+            });
+        };
+
+        window.guardarDespacho = function(opts) {
+            opts = opts || {};
             if (!currentOrderId) return;
 
             var pendientes = linesData.filter(function(l) { return !l.guardado; });
@@ -912,7 +946,15 @@
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (data.ok) {
+                if (data.ok && opts.sinTicket) {
+                    // Surtido rápido: sin vista de ticket, solo se limpia el panel.
+                    var idRapido = currentOrderId;
+                    document.querySelectorAll('#pedidos-tbody tr[data-order-id="' + idRapido + '"]')
+                        .forEach(function(r) { r.remove(); });
+                    cerrarPanel();
+                    applyFilters();
+                    Swal.fire({ icon: 'success', title: 'Surtido', text: data.message, timer: 1600, showConfirmButton: false });
+                } else if (data.ok) {
                     // Vista previa del ticket en la misma pantalla (sin abrir otra
                     // ventana) con botón para imprimir; al cerrarla se limpia el panel.
                     var orderIdSurtido = currentOrderId;
