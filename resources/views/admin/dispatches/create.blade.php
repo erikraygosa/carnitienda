@@ -348,6 +348,7 @@
                                     <div class="text-xs text-gray-500 mt-0.5">
                                         {{ $notasPendientesCliente->count() }} nota(s) · Saldo total:
                                         <span class="font-semibold text-amber-700">${{ number_format($cs->saldo, 2) }}</span>
+                                        @if((float)$cs->saldo <= 0)<span class="text-xs text-gray-400">(saldo a favor; las notas siguen pendientes)</span>@endif
                                         {{-- Cuenta SIEMPRE sobre todas las notas del cliente, sin
                                              importar si el buscador las oculta — al filtrar por
                                              folio, una nota marcada de antes (ej. por "Clientes de

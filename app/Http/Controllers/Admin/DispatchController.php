@@ -180,8 +180,10 @@ class DispatchController extends Controller implements HasMiddleware
                 clients.shipping_route_id,
                 SUM(CASE WHEN ar_movements.tipo = 'CARGO' THEN ar_movements.monto ELSE -ar_movements.monto END) as saldo
             ")
+            // Sin "saldo > 0": un cliente con saldo a favor (cobros adelantados)
+            // aún puede tener notas a crédito sin cobrar; esas notas son las que
+            // mandan (whereExists), no el saldo neto del cliente.
             ->groupBy('ar_movements.client_id', 'clients.nombre', 'clients.shipping_route_id')
-            ->havingRaw("SUM(CASE WHEN ar_movements.tipo = 'CARGO' THEN ar_movements.monto ELSE -ar_movements.monto END) > 0")
             ->where(function ($w) {
                 $w->whereExists(function ($q) {
                     $q->select(DB::raw(1))
@@ -444,7 +446,6 @@ class DispatchController extends Controller implements HasMiddleware
                     SUM(CASE WHEN ar_movements.tipo = 'CARGO' THEN ar_movements.monto ELSE -ar_movements.monto END) as saldo
                 ")
                 ->groupBy('ar_movements.client_id', 'clients.nombre', 'clients.shipping_route_id')
-                ->havingRaw("SUM(CASE WHEN ar_movements.tipo = 'CARGO' THEN ar_movements.monto ELSE -ar_movements.monto END) > 0")
                 ->where(function ($w) use ($dispatch) {
                     $w->whereExists(function ($q) use ($dispatch) {
                         $q->select(DB::raw(1))

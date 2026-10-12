@@ -1059,6 +1059,7 @@
                                     <span class="text-xs text-gray-500 ml-1">
                                         · {{ $notasDisp->count() }} nota(s) · Saldo total:
                                         <span class="font-semibold text-amber-700">${{ number_format($cd->saldo, 2) }}</span>
+                                        @if((float)$cd->saldo <= 0)<span class="text-xs text-gray-400">(saldo a favor; las notas siguen pendientes)</span>@endif
                                         <span class="sel-count-client-disp font-semibold text-indigo-600" data-client="{{ $cd->client_id }}" style="display:none">
                                             · <span class="sel-count-num">0</span> seleccionada(s)
                                         </span>
