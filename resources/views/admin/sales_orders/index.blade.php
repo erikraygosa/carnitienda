@@ -36,6 +36,7 @@
                     <option value="APROBADO">Aprobado</option>
                     <option value="PREPARANDO">Preparando</option>
                     <option value="PROCESADO">Procesado</option>
+                    <option value="DESPACHADO">Despachado</option>
                     <option value="EN_RUTA">En ruta</option>
                     <option value="ENTREGADO">Entregado</option>
                     <option value="NO_ENTREGADO">No entregado</option>
