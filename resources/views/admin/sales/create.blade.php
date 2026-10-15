@@ -605,6 +605,78 @@
             });
         })();
 
+        // Enter funciona como Tab (estilo Aspel): avanza al siguiente campo del
+        // formulario, también entre partidas. Cerrar la venta: Enter en el
+        // Producto de una partida vacía al final (o Ctrl+Enter en cualquier
+        // campo). En un renglón con producto, Enter en el último campo (% IVA)
+        // abre una partida nueva.
+        (function () {
+            const form = $('sale-form');
+            if (!form) return;
+
+            const campos = () => Array.from(form.querySelectorAll('input, select, textarea')).filter(el =>
+                el.type !== 'hidden' && !el.disabled && !el.readOnly && el.offsetParent !== null &&
+                !el.closest('.select2-container') && el.tabIndex !== -1
+            );
+
+            function cerrarVenta() {
+                form.requestSubmit ? form.requestSubmit() : form.submit();
+            }
+
+            form.addEventListener('keydown', function (e) {
+                if (e.key !== 'Enter' || e.isComposing) return;
+                const el = e.target;
+                if (!(el instanceof HTMLElement) || !el.matches('input, select')) return; // textarea/botones: normal
+                if (el.type === 'submit' || el.type === 'button') return;
+
+                e.preventDefault();
+
+                if (e.ctrlKey || e.metaKey) { cerrarVenta(); return; }
+
+                const tr = el.closest('#items-body tr');
+
+                // Buscador de producto con lista abierta: elegir la primera coincidencia.
+                if (el.classList.contains('inp-product-search')) {
+                    const primera = !PROD_PORTAL.classList.contains('hidden') && PROD_PORTAL.firstElementChild;
+                    if (primera) {
+                        primera.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                        // pasa a la siguiente celda (la descripción)
+                        const lista = campos(), k = lista.indexOf(el);
+                        if (k >= 0 && lista[k + 1]) lista[k + 1].focus();
+                        return;
+                    }
+                    const vacio = !el.value.trim() && !tr.querySelector('.hid-product-id').value;
+                    if (vacio) {
+                        // Partida vacía al final = terminó de capturar: cerrar la venta.
+                        const esUltima = tr === tr.parentElement.lastElementChild;
+                        const conProducto = state.items.filter(it => it.product_id).length;
+                        if (esUltima && conProducto > 0) {
+                            state.items = state.items.filter(it => it.product_id);
+                            renderAll();
+                            cerrarVenta();
+                        }
+                        return;
+                    }
+                    if (!tr.querySelector('.hid-product-id').value) return; // texto sin producto elegido
+                }
+
+                // Último campo de la última partida: abrir una partida nueva.
+                if (tr && el.classList.contains('inp-iva') && tr === tr.parentElement.lastElementChild) {
+                    if (!tr.querySelector('.hid-product-id').value) return;
+                    SNF.addRow();
+                    const nuevo = document.querySelector('#items-body tr:last-child .inp-product-search');
+                    if (nuevo) nuevo.focus();
+                    return;
+                }
+
+                const lista = campos(), k = lista.indexOf(el);
+                if (k >= 0 && lista[k + 1]) {
+                    lista[k + 1].focus();
+                    try { lista[k + 1].select && lista[k + 1].select(); } catch (_) {}
+                }
+            });
+        })();
+
         // Init
         SNF.onPagoChange($('payment_type_id'));
         state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
